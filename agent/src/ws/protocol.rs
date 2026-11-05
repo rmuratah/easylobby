@@ -14,6 +14,7 @@
 //! {"type":"champSelect","champSelect":{"timer":{"phase":"BAN_PICK",...},"myTeam":[...],...}}
 //! {"type":"runePages","runePages":{"pages":[...],"currentPageId":994528921,"canCreatePage":true}}
 //! {"type":"runeCatalog","runeCatalog":{"styles":[...],"perks":[...]}}
+//! {"type":"friends","friends":[{"id":"...","gameName":"...","availability":"online",...}]}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
 //!
@@ -42,6 +43,7 @@ use crate::champ_select::{
     ChampSelect, ChampSelectAction, ChampSelectActionType, ChampSelectBans, ChampSelectPhase,
     ChampSelectPlayer, ChampSelectTimer,
 };
+use crate::friends::{Activity, Availability, Friend, LeagueActivity, LeagueStatus};
 use crate::gameflow::GameflowPhase;
 use crate::lobby::{Lobby, LobbyMember, Position, Queue};
 use crate::matchmaking::{Matchmaking, MatchmakingError, SearchState};
@@ -105,6 +107,11 @@ pub enum ServerMessage {
     /// com o LoL, logo depois de conectar. `null` com o LoL fechado ou se a
     /// LCU não mandou as árvores.
     RuneCatalog { rune_catalog: Option<RuneCatalog> },
+    /// A lista de amigos (#30) mudou: alguém ficou online ou offline, entrou
+    /// numa partida, virou amigo ou deixou de ser. Sempre a lista inteira,
+    /// já ordenada (disponíveis primeiro, depois por nome). Vazia com o LoL
+    /// fechado.
+    Friends { friends: Vec<Friend> },
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
     /// A UI mandou algo que não é um [`ClientMessage`] válido. Sem `id`,
@@ -129,6 +136,8 @@ pub struct AgentState {
     pub rune_pages: Option<RunePages>,
     /// Árvores de runas para o editor (#26), ou `null`.
     pub rune_catalog: Option<RuneCatalog>,
+    /// Amigos com a presença de cada um (#30), na ordem da tela.
+    pub friends: Vec<Friend>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -368,6 +377,11 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<CommandResult>(&cfg)?,
         file::<ErrorCode>(&cfg)?,
         file::<AssetKind>(&cfg)?,
+        file::<Friend>(&cfg)?,
+        file::<Availability>(&cfg)?,
+        file::<Activity>(&cfg)?,
+        file::<LeagueActivity>(&cfg)?,
+        file::<LeagueStatus>(&cfg)?,
     ];
     files.sort();
     Ok(files)
@@ -401,6 +415,7 @@ mod tests {
                     "champSelect": null,
                     "runePages": null,
                     "runeCatalog": null,
+                    "friends": [],
                 },
             })
         );

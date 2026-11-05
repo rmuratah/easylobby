@@ -6,6 +6,7 @@ use tokio::sync::broadcast;
 
 use crate::champ_select::{self, ActionIntent, ChampSelect, CHAMP_SELECT_SESSION_PATH};
 use crate::connection::{ConnectionEvent, LcuConnection};
+use crate::friends::{self, Friend};
 use crate::gameflow::{self, GameflowPhase};
 use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError, LOBBY_PATH};
 use crate::matchmaking::{self, Matchmaking, SEARCH_PATH};
@@ -27,6 +28,10 @@ pub use crate::gameflow::GAMEFLOW_PHASE_PATH;
 /// Quantas mensagens uma UI lenta pode ficar devendo antes de receber um
 /// `hello` novo no lugar delas.
 const BROADCAST_CAPACITY: usize = 256;
+
+/// Quantas vezes um comando relê o lobby ou a busca quando eventos chegam
+/// no meio da leitura (veja [`Hub::refresh_lobby`]).
+const REFRESH_ATTEMPTS: usize = 3;
 
 /// Estado atual do agente e o canal que avisa cada UI conectada quando ele
 /// muda. Clonar é barato: os clones dividem o mesmo estado.
@@ -240,8 +245,8 @@ impl Hub {
         };
         match lobby::create_lobby(&client, queue).await {
             Ok(lobby) => {
-                if lobby.is_some() {
-                    self.set_lobby_if(stamp, lobby);
+                if !(lobby.is_some() && self.set_lobby_if(stamp, lobby)) {
+                    self.refresh_lobby().await;
                 }
                 CommandResult::Ok
             }
@@ -256,8 +261,11 @@ impl Hub {
         };
         match lobby::leave_lobby(&client).await {
             Ok(()) => {
-                // Um lobby que o WAMP trouxe durante a espera é mais novo.
-                self.set_lobby_if(stamp, None);
+                // Um lobby que o WAMP trouxe durante a espera pode ser só o
+                // evento atrasado de um comando anterior; relê para saber.
+                if !self.set_lobby_if(stamp, None) {
+                    self.refresh_lobby().await;
+                }
                 CommandResult::Ok
             }
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
@@ -276,13 +284,7 @@ impl Hub {
         };
         match lobby::set_positions(&client, first, second).await {
             Ok(()) => {
-                // Se a releitura falhar ou chegar atrasada, o evento do WAMP
-                // corrige ou já corrigiu.
-                if let Some((client, stamp)) = self.begin(Resource::Lobby) {
-                    if let Ok(Some(lobby)) = lobby::current_lobby(&client).await {
-                        self.set_lobby_if(stamp, Some(lobby));
-                    }
-                }
+                self.refresh_lobby().await;
                 CommandResult::Ok
             }
             Err(SetPositionsError::Invalid(invalid)) => {
@@ -302,6 +304,50 @@ impl Hub {
         self.update_if(Resource::Matchmaking, stamp, |shared| {
             write_matchmaking(shared, matchmaking)
         })
+    }
+
+    /// Troca a lista de amigos inteira (#30), que deve vir na ordem de
+    /// [`friends::sort_friends`].
+    pub fn set_friends(&self, list: Vec<Friend>) {
+        self.update(|shared| {
+            if shared.state.friends == list {
+                return None;
+            }
+            shared.state.friends = list.clone();
+            Some(ServerMessage::Friends { friends: list })
+        });
+    }
+
+    /// Põe ou atualiza um amigo na lista, mantendo a ordem. Publica a lista
+    /// inteira só se algo que a UI mostra mudou.
+    fn upsert_friend(&self, friend: Friend) {
+        self.update(|shared| {
+            let list = &mut shared.state.friends;
+            match list.iter_mut().find(|f| f.id == friend.id) {
+                Some(current) if *current == friend => return None,
+                Some(current) => *current = friend,
+                None => list.push(friend),
+            }
+            friends::sort_friends(list);
+            Some(ServerMessage::Friends {
+                friends: list.clone(),
+            })
+        });
+    }
+
+    /// Tira um amigo da lista (amizade desfeita).
+    fn remove_friend(&self, id: &str) {
+        self.update(|shared| {
+            let list = &mut shared.state.friends;
+            let before = list.len();
+            list.retain(|f| f.id != id);
+            if list.len() == before {
+                return None;
+            }
+            Some(ServerMessage::Friends {
+                friends: list.clone(),
+            })
+        });
     }
 
     pub fn set_champ_select(&self, champ_select: Option<ChampSelect>) {
@@ -483,13 +529,7 @@ impl Hub {
         if let Err(error) = matchmaking::start_search(&client).await {
             return CommandResult::error(ErrorCode::Lcu, error.to_string());
         }
-        // Se a releitura falhar ou chegar atrasada, o evento do WAMP traz ou
-        // já trouxe a busca.
-        if let Some((client, stamp)) = self.begin(Resource::Matchmaking) {
-            if let Ok(Some(search)) = matchmaking::current_search(&client).await {
-                self.set_matchmaking_if(stamp, Some(search));
-            }
-        }
+        self.refresh_matchmaking().await;
         CommandResult::Ok
     }
 
@@ -500,11 +540,54 @@ impl Hub {
         };
         match matchmaking::stop_search(&client).await {
             Ok(()) => {
-                // Uma busca que o WAMP trouxe durante a espera é mais nova.
-                self.set_matchmaking_if(stamp, None);
+                // Uma busca que o WAMP trouxe durante a espera pode ser só o
+                // evento atrasado de um comando anterior; relê para saber.
+                if !self.set_matchmaking_if(stamp, None) {
+                    self.refresh_matchmaking().await;
+                }
                 CommandResult::Ok
             }
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
+    /// Relê o lobby pelo REST depois de um comando e publica antes da
+    /// resposta.
+    ///
+    /// Um evento WAMP que chega durante a espera muda a revisão e faz o
+    /// resultado ser descartado ([`Stamp`]), mas esse evento pode ser o
+    /// atraso de um comando anterior (criar o lobby na fila A e logo trocar
+    /// para B, com o evento de A chegando durante a troca). Sem reler, a
+    /// resposta do comando sairia com o lobby velho. Tenta de novo enquanto
+    /// eventos chegam no meio, até [`REFRESH_ATTEMPTS`] vezes; se a LCU
+    /// falhar ou os eventos não pararem, o próximo evento corrige.
+    async fn refresh_lobby(&self) {
+        for _ in 0..REFRESH_ATTEMPTS {
+            let Some((client, stamp)) = self.begin(Resource::Lobby) else {
+                return;
+            };
+            let Ok(lobby) = lobby::current_lobby(&client).await else {
+                return;
+            };
+            if self.set_lobby_if(stamp, lobby) {
+                return;
+            }
+        }
+    }
+
+    /// Relê a busca pelo REST depois de um comando; como
+    /// [`Hub::refresh_lobby`].
+    async fn refresh_matchmaking(&self) {
+        for _ in 0..REFRESH_ATTEMPTS {
+            let Some((client, stamp)) = self.begin(Resource::Matchmaking) else {
+                return;
+            };
+            let Ok(search) = matchmaking::current_search(&client).await else {
+                return;
+            };
+            if self.set_matchmaking_if(stamp, search) {
+                return;
+            }
         }
     }
 
@@ -530,13 +613,14 @@ impl Hub {
                 self.set_lcu_status(LcuStatus::Connected {
                     session: u32::try_from(session.id).unwrap_or(u32::MAX),
                 });
-                let (summoner, phase, lobby, search, rune_pages, rune_catalog) = tokio::join!(
+                let (summoner, phase, lobby, search, rune_pages, rune_catalog, friend_list) = tokio::join!(
                     summoner::current_summoner(&client),
                     gameflow::current_phase(&client),
                     lobby::current_lobby(&client),
                     matchmaking::current_search(&client),
                     runes::current_pages(&client),
                     runes::catalog(&client),
+                    friends::friends(&client),
                 );
                 // 404 antes do login; qualquer outro erro também deixa vazio,
                 // e o próximo evento da LCU corrige.
@@ -549,6 +633,11 @@ impl Hub {
                 // O catálogo antes das páginas, para a UI já poder desenhá-las.
                 self.set_rune_catalog(rune_catalog.ok().flatten());
                 self.set_rune_pages(rune_pages.ok());
+                // Com o chat ainda conectando a LCU pode responder erro ou
+                // lista vazia; os eventos de cada amigo completam a lista.
+                // Nenhum comando mexe nos amigos e os eventos só são
+                // aplicados depois deste `apply`, então não há corrida.
+                self.set_friends(friend_list.unwrap_or_default());
                 // Só existe ready check aberto nessa fase; nas outras a LCU
                 // responde 404 ou `Invalid`, e não vale o pedido a mais.
                 if phase == Some(GameflowPhase::ReadyCheck) {
@@ -578,6 +667,7 @@ impl Hub {
                 self.set_champ_select(None);
                 self.set_rune_pages(None);
                 self.set_rune_catalog(None);
+                self.set_friends(Vec::new());
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
                 });
@@ -635,6 +725,18 @@ impl Hub {
             PAGES_PATH => self.edit_rune_pages(|r| r.apply_pages(&event.data)),
             CURRENT_PAGE_PATH => self.edit_rune_pages(|r| r.apply_current_page(&event.data)),
             INVENTORY_PATH => self.edit_rune_pages(|r| r.apply_inventory(&event.data)),
+            uri if uri.starts_with(friends::FRIEND_EVENT_PREFIX) => {
+                // `Delete` pode vir sem o amigo em `data`; o id está no URI.
+                if deleted {
+                    if let Some(id) = friends::friend_id_from_uri(uri) {
+                        self.remove_friend(&id);
+                    }
+                } else if friends::friend_id_from_uri(uri).is_some() {
+                    if let Some(friend) = Friend::from_json(&event.data) {
+                        self.upsert_friend(friend);
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -1305,5 +1407,141 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    fn friend(id: &str, availability: &str, game_status: &str) -> serde_json::Value {
+        json!({
+            "id": id,
+            "pid": id,
+            "puuid": format!("puuid-{id}"),
+            "gameName": id,
+            "gameTag": "BR1",
+            "icon": 1,
+            "availability": availability,
+            "product": "league_of_legends",
+            "productName": "League of Legends",
+            "lol": {"gameStatus": game_status},
+            "time": 1,
+        })
+    }
+
+    fn friend_ids(message: ServerMessage) -> Vec<String> {
+        match message {
+            ServerMessage::Friends { friends } => friends.into_iter().map(|f| f.id).collect(),
+            other => panic!("esperava a lista de amigos: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn segue_os_amigos() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        hub.set_friends(Friend::list_from_json(&json!([
+            friend("b@br1.pvp.net", "chat", "outOfGame"),
+            friend("c@br1.pvp.net", "offline", ""),
+        ])));
+        assert_eq!(
+            friend_ids(rx.try_recv().unwrap()),
+            ["b@br1.pvp.net", "c@br1.pvp.net"]
+        );
+
+        // Alguém ficou online: entra na posição certa. O URI vem escapado.
+        hub.apply(event(
+            "/lol-chat/v1/friends/c%40br1.pvp.net",
+            EventType::Update,
+            friend("c@br1.pvp.net", "chat", "inQueue"),
+        ))
+        .await;
+        assert_eq!(
+            friend_ids(rx.try_recv().unwrap()),
+            ["b@br1.pvp.net", "c@br1.pvp.net"]
+        );
+        assert_eq!(
+            hub.state().friends[1].activity,
+            crate::friends::Friend::from_json(&friend("c@br1.pvp.net", "chat", "inQueue"))
+                .unwrap()
+                .activity
+        );
+
+        // Só o `time` mudou: nada que a UI mostre, nenhuma mensagem.
+        let mut same = friend("c@br1.pvp.net", "chat", "inQueue");
+        same["time"] = json!(2);
+        hub.apply(event(
+            "/lol-chat/v1/friends/c%40br1.pvp.net",
+            EventType::Update,
+            same,
+        ))
+        .await;
+        assert!(rx.try_recv().is_err());
+
+        // Amigo novo, e um que vai para o fim da lista.
+        hub.apply(event(
+            "/lol-chat/v1/friends/a%40br1.pvp.net",
+            EventType::Create,
+            friend("a@br1.pvp.net", "chat", "outOfGame"),
+        ))
+        .await;
+        assert_eq!(
+            friend_ids(rx.try_recv().unwrap()),
+            ["a@br1.pvp.net", "b@br1.pvp.net", "c@br1.pvp.net"]
+        );
+        hub.apply(event(
+            "/lol-chat/v1/friends/a%40br1.pvp.net",
+            EventType::Update,
+            friend("a@br1.pvp.net", "offline", ""),
+        ))
+        .await;
+        assert_eq!(
+            friend_ids(rx.try_recv().unwrap()),
+            ["b@br1.pvp.net", "c@br1.pvp.net", "a@br1.pvp.net"]
+        );
+
+        // Amizade desfeita, com `data` vazio.
+        hub.apply(event(
+            "/lol-chat/v1/friends/b%40br1.pvp.net",
+            EventType::Delete,
+            json!(null),
+        ))
+        .await;
+        assert_eq!(
+            friend_ids(rx.try_recv().unwrap()),
+            ["c@br1.pvp.net", "a@br1.pvp.net"]
+        );
+
+        // Outros recursos do chat e lixo: ignorados.
+        hub.apply(event(
+            "/lol-chat/v1/friend-counts",
+            EventType::Update,
+            json!({"numFriends": 2}),
+        ))
+        .await;
+        hub.apply(event(
+            "/lol-chat/v1/friends/x%40br1.pvp.net",
+            EventType::Update,
+            json!("lixo"),
+        ))
+        .await;
+        hub.apply(event(
+            "/lol-chat/v1/friends/c%40br1.pvp.net/algo",
+            EventType::Delete,
+            json!(null),
+        ))
+        .await;
+        assert!(rx.try_recv().is_err());
+
+        // Queda do LoL esvazia a lista.
+        hub.apply(ConnectionEvent::Disconnected(
+            crate::connection::DisconnectReason::Closed,
+        ))
+        .await;
+        let mut cleared = false;
+        while let Ok(message) = rx.try_recv() {
+            if let ServerMessage::Friends { friends } = message {
+                assert!(friends.is_empty());
+                cleared = true;
+            }
+        }
+        assert!(cleared);
+        assert!(hub.state().friends.is_empty());
     }
 }

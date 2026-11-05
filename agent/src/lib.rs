@@ -25,11 +25,13 @@
 //!   ações pendentes) (#22)
 //! - [`runes`]: páginas de runas: listar, editar, criar, apagar e aplicar,
 //!   com as árvores para o editor (#26)
+//! - [`friends`]: lista de amigos com presença (#30)
 
 pub mod assets;
 pub mod champ_select;
 pub mod connection;
 pub mod fixtures;
+pub mod friends;
 pub mod gameflow;
 pub mod launcher;
 pub mod lobby;

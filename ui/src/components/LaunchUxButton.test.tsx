@@ -6,7 +6,7 @@ import { LaunchUxButton } from './LaunchUxButton';
 
 const connected: ConnectionSnapshot = {
   status: 'connected', error: null,
-  state: { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: null, readyCheck: null, lobby: null, matchmaking: null, champSelect: null, runePages: null, runeCatalog: null },
+  state: { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: null, readyCheck: null, lobby: null, matchmaking: null, champSelect: null, friends: [], runePages: null, runeCatalog: null },
 };
 function deferred() {
   let resolve!: (result: CommandResult) => void;
