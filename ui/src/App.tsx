@@ -1,3 +1,4 @@
+import { LobbyPanel } from './components/LobbyPanel';
 import { useAgent } from './agent/useAgent';
 import type { ConnectionSnapshot } from './agent/client';
 import { LaunchUxButton } from './components/LaunchUxButton';
@@ -34,6 +35,7 @@ export default function App() {
         </section>
       )}
       {connection.error && <p role="alert" className="max-w-lg text-center text-amber-300">{connection.error}</p>}
+      <LobbyPanel connection={connection} send={connection.send} />
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentClient } from './client';
+import { testLobby } from '../test/lobby';
 import type { AgentState } from '../bindings/AgentState';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import type { Command } from '../bindings/Command';
@@ -39,6 +40,31 @@ describe('canal do agente', () => {
     expect(client.getSnapshot().state?.gameflowPhase).toBe('ChampSelect');
     socket().receive(hello({ gameflowPhase: null, lcu: { state: 'starting' } }));
     expect(client.getSnapshot().state).toEqual({ ...state, gameflowPhase: null, lcu: { state: 'starting' } });
+  });
+  it('aplica lobby no hello, eventos e ressincronização sem perder os outros campos', () => {
+    socket().receive(hello({ lobby: testLobby }));
+    expect(client.getSnapshot().state).toEqual({ ...state, lobby: testLobby });
+    socket().receive({ type: 'lobby', lobby: { ...testLobby, queue: null, queueId: 999 } });
+    expect(client.getSnapshot().state?.lobby?.queueId).toBe(999);
+    socket().receive({ type: 'lobby', lobby: null });
+    expect(client.getSnapshot().state).toEqual(state);
+    socket().receive({ type: 'lobby', lobby: testLobby });
+    socket().receive(hello());
+    expect(client.getSnapshot().state?.lobby).toBeNull();
+  });
+  it.each([
+    undefined, {}, { ...testLobby, queue: 'tft' }, { ...testLobby, queue: 'toString' },
+    { ...testLobby, queueId: -1 }, { ...testLobby, maxLobbySize: '5' },
+    { ...testLobby, isLeader: 'true' }, { ...testLobby, canStartActivity: null },
+    { ...testLobby, showPositionSelector: null }, { ...testLobby, members: [null] },
+    { ...testLobby, members: [{ ...testLobby.members[0], secondPosition: 'toString' }] },
+  ])('rejeita lobby malformado tanto no evento quanto no hello: %j', lobby => {
+    socket().receive(hello());
+    socket().onmessage?.({ data: JSON.stringify({ type: 'lobby', lobby }) });
+    expect(client.getSnapshot().status).toBe('reconnecting');
+    vi.advanceTimersByTime(1000);
+    socket().onmessage?.({ data: JSON.stringify({ ...hello(), state: { ...state, lobby } }) });
+    expect(client.getSnapshot().status).toBe('reconnecting');
   });
   it('limpa dados na queda e reconecta sem reaproveitar mensagens antigas', () => {
     socket().receive(hello());
