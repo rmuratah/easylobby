@@ -312,7 +312,7 @@ fn hello(state: protocol::AgentState) -> ServerMessage {
     ServerMessage::Hello {
         protocol: PROTOCOL_VERSION,
         agent_version: crate::VERSION.to_owned(),
-        state,
+        state: Box::new(state),
     }
 }
 

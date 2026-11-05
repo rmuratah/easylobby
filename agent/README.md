@@ -52,6 +52,8 @@ Com `--mock` (ou `--lockfile <arquivo>`), o example lê o lockfile do mock e fix
 
 Quando a fila acha uma partida, a fase vai para `ReadyCheck` e a LCU abre um ready check em `/lol-matchmaking/v1/ready-check` (#20). `ready_check::current(&lcu)` lê o ready check aberto (`None` fora dele: a LCU responde 404 fora da fila e `state: "Invalid"` na fila), e `ReadyCheck::from_json` lê os eventos WAMP do mesmo URI, que chegam mais ou menos a cada segundo enquanto ele está aberto. O `ReadyCheck` tem `state` (`InProgress`, `EveryoneReady`, `StrangerNotReady`, `PartyNotReady`, `Error`, `Unknown`), `playerResponse` (`None`, `Accepted`, `Declined`, `Unknown`), `timer` (segundos desde que a partida foi encontrada, como a LCU conta) e `duration` (o tempo total para responder; a LCU não manda, é o `READY_CHECK_DURATION_SECS` do agente). Contagem regressiva: `duration - timer`.
 
+Depois do ready check vem a seleção de campeões (#22). A LCU guarda a sessão em `/lol-champ-select/v1/session` (404 fora dela) e manda cada mudança pelo WAMP no mesmo URI; quando a seleção acaba (partida abrindo, dodge), chega um `Delete`. `champ_select::current_session(&lcu)` lê a sessão e `ChampSelect::from_json` lê os eventos. O `ChampSelect` junta num só estado o que a tela usa: `id`, `queueId`/`queue`, `localPlayerCellId`, `hasSimultaneousBans`/`hasSimultaneousPicks`, `timer` (`phase`: `PLANNING`, `BAN_PICK`, `FINALIZATION`, `GAME_STARTING` ou `UNKNOWN`; `timeLeftMs`, `totalTimeMs`, `isInfinite` e `endsAtMs`, a hora do fim da etapa pelo relógio do computador, para a contagem regressiva `endsAtMs - Date.now()`), `myTeam` e `theirTeam` (`cellId`, `isLocalPlayer`, `gameName`/`tagLine` quando visíveis, `assignedPosition`, `championId`, `championPickIntent`, `selectedSkinId`, `spell1Id`, `spell2Id`; `null` onde a LCU manda 0 ou vazio), `bans` (`myTeam` e `theirTeam`), `actions` (bans e picks na ordem do draft, com `turn`) e `pendingAction`, a ação que é a vez do jogador agora.
+
 `ready_check::accept(&lcu)` e `ready_check::decline(&lcu)` fazem `POST .../ready-check/accept` e `.../decline`. O aceite é sempre um clique do jogador: aceite automático fica fora do MVP (#39).
 
 ## Eventos em tempo real (`wamp`)
@@ -140,13 +142,14 @@ Do agente para a UI (`ServerMessage`, campo `type`):
 
 | Mensagem | Quando |
 | --- | --- |
-| `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`, `lobby`, `readyCheck`, `matchmaking`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
+| `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`, `lobby`, `readyCheck`, `matchmaking`, `champSelect`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
 | `lcu` | A conexão com o LoL mudou: `starting`, `connected` (com `session`), `disconnected` (com `reason`) ou `retrying` (com `attempt`, `retryInMs`, `clientNotRunning` e `error`). |
 | `summoner` | O invocador logado mudou; `null` com o LoL fechado ou antes do login. |
 | `gameflowPhase` | A fase mudou (`None`, `Lobby`, `Matchmaking`, `ReadyCheck`, `ChampSelect`, `InProgress`, `EndOfGame`...; o tipo `GameflowPhase` lista todas, com `Unknown` para uma fase nova); `null` com o LoL fechado. |
 | `lobby` | O lobby mudou (criado, fila trocada, alguém entrou ou saiu): `queueId`, `queue` (`normalDraft`, `swiftplay`, `rankedSolo`, `rankedFlex`, `aram` ou `null` para outra fila), `maxLobbySize`, `isLeader`, `canStartActivity`, `showPositionSelector` (a fila tem escolha de cargos) e `members` (cada um com `firstPosition` e `secondPosition`: `top`, `jungle`, `middle`, `bottom`, `utility`, `fill` ou `unselected`). `null` fora de lobby e com o LoL fechado. |
 | `readyCheck` | O ready check (partida encontrada) abriu, andou ou fechou, com `readyCheck` (`state`, `playerResponse`, `timer`, `duration`); chega mais ou menos a cada segundo enquanto está aberto. `null` quando não há ready check ou com o LoL fechado. |
 | `matchmaking` | A busca de partida mudou (entrou ou saiu da fila, partida encontrada) e, enquanto procura, a cada segundo: `searchState` (`Searching`, `Found`, `Error`, `AbandonedLowPriorityQueue` ou `Unknown`), `queueId`, `timeInQueue` e `estimatedQueueTime` em segundos, `lowPriorityTimeRemaining` e `errors` (`errorType`, `message`, `penaltyTimeRemaining`). `null` fora da fila e com o LoL fechado. |
+| `champSelect` | A seleção de campeões abriu ou mudou (hover, ban, pick, feitiço, troca de etapa ou de vez), sempre com o estado inteiro dela em `champSelect` (veja acima). `null` quando a seleção fecha e com o LoL fechado. |
 | `response` | Resposta a um comando, com o mesmo `id` e `result` `ok` ou `error` (`code` e `message`). |
 | `invalidMessage` | A UI mandou algo que não é um `ClientMessage` válido. |
 
