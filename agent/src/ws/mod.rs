@@ -47,6 +47,7 @@ use axum::routing::get;
 use axum::Router;
 use tokio::net::TcpListener;
 use tokio::sync::broadcast::error::{RecvError, TryRecvError};
+use tokio::task::JoinHandle;
 
 use crate::connection::LcuConnection;
 use crate::launcher::{self, LaunchOptions};
@@ -131,16 +132,32 @@ pub async fn serve(listener: TcpListener, hub: Hub, config: WsConfig) -> io::Res
 
 /// Liga a conexão com o LoL ao canal: atualiza um [`Hub`] novo com a
 /// `connection` e serve o `/ws` em `listener`.
+///
+/// A conexão com o LoL vive enquanto `run` vive: ela é encerrada quando o
+/// servidor para com erro e também quando o futuro é cancelado, por exemplo
+/// com [`tokio::task::JoinHandle::abort`] na tarefa que roda `run`.
 pub async fn run(
     connection: LcuConnection,
     listener: TcpListener,
     config: WsConfig,
 ) -> io::Result<()> {
     let hub = Hub::new();
-    let driver = tokio::spawn(drive(connection, hub.clone()));
-    let result = serve(listener, hub, config).await;
-    driver.abort();
-    result
+    // A guarda encerra a conexão com o LoL quando `run` termina e também
+    // quando o futuro de `run` é cancelado (derrubado) no meio do `serve`:
+    // sem ela, a tarefa do `tokio::spawn` seguiria viva, conectada ou
+    // tentando reconectar, e reiniciar o serviço acumularia drivers (#58).
+    let _driver = AbortOnDrop(tokio::spawn(drive(connection, hub.clone())));
+    serve(listener, hub, config).await
+}
+
+/// Aborta a tarefa quando é derrubada. Derrubar um `JoinHandle` sozinho não
+/// cancela a tarefa.
+struct AbortOnDrop(JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 async fn upgrade(State(app): State<App>, headers: HeaderMap, ws: WebSocketUpgrade) -> Response {
