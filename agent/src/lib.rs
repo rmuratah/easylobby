@@ -29,6 +29,8 @@
 //! - [`runes`]: páginas de runas: listar, editar, criar, apagar e aplicar,
 //!   com as árvores para o editor (#26)
 //! - [`friends`]: lista de amigos com presença (#30)
+//! - [`swaps`]: trocas de campeão, de ordem de pick e de cargo na seleção
+//!   (#25)
 
 pub mod assets;
 pub mod champ_select;
@@ -47,6 +49,7 @@ pub mod ready_check;
 pub mod rest;
 pub mod runes;
 pub mod summoner;
+pub mod swaps;
 pub mod ux;
 pub mod wamp;
 pub mod ws;

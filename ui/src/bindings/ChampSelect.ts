@@ -2,6 +2,7 @@
 import type { ChampSelectAction } from "./ChampSelectAction";
 import type { ChampSelectBans } from "./ChampSelectBans";
 import type { ChampSelectPlayer } from "./ChampSelectPlayer";
+import type { ChampSelectSwap } from "./ChampSelectSwap";
 import type { ChampSelectTimer } from "./ChampSelectTimer";
 import type { Queue } from "./Queue";
 
@@ -67,4 +68,17 @@ actions: Array<ChampSelectAction>,
  * e ainda não confirmado), ou `null` se não é a vez dele. O `id` dela
  * é o que os comandos `hoverChampion` e `confirmAction` (#23) usam.
  */
-pendingAction: ChampSelectAction | null, };
+pendingAction: ChampSelectAction | null, 
+/**
+ * Trocas de campeão com cada aliado (#25). Vazia quando a fila não
+ * deixa trocar ou antes de os dois terem campeão.
+ */
+trades: Array<ChampSelectSwap>, 
+/**
+ * Trocas de vez no draft com cada aliado (#25).
+ */
+pickOrderSwaps: Array<ChampSelectSwap>, 
+/**
+ * Trocas de cargo com cada aliado (#25).
+ */
+positionSwaps: Array<ChampSelectSwap>, };

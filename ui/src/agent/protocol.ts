@@ -7,6 +7,17 @@ import type { LobbyMember } from '../bindings/LobbyMember';
 import type { Position } from '../bindings/Position';
 import { isQueue } from './queues';
 import type { ErrorCode } from '../bindings/ErrorCode';
+import type { ReadyCheck } from '../bindings/ReadyCheck';
+import type { Matchmaking } from '../bindings/Matchmaking';
+import type { MatchmakingError } from '../bindings/MatchmakingError';
+import type { SearchState } from '../bindings/SearchState';
+import type { ChampSelect } from '../bindings/ChampSelect';
+import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
+import type { Conversation } from '../bindings/Conversation';
+import type { ChampSelectChat } from '../bindings/ChampSelectChat';
+import type { RunePages } from '../bindings/RunePages';
+import type { RuneCatalog } from '../bindings/RuneCatalog';
+import type { Friend } from '../bindings/Friend';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
 const errorCodes = {
@@ -41,6 +52,59 @@ function lobby(v: unknown): v is Lobby | null {
     uint(v.maxLobbySize) && typeof v.isLeader === 'boolean' && typeof v.canStartActivity === 'boolean' &&
     typeof v.showPositionSelector === 'boolean' && Array.isArray(v.members) && v.members.every(lobbyMember));
 }
+const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const nums = (v: Record<string, unknown>, keys: string[]) => keys.every(k => num(v[k]));
+const strings = (v: Record<string, unknown>, keys: string[]) => keys.every(k => typeof v[k] === 'string');
+const uints = (v: Record<string, unknown>, keys: string[]) => keys.every(k => uint(v[k]));
+const booleans = (v: Record<string, unknown>, keys: string[]) => keys.every(k => typeof v[k] === 'boolean');
+const arrays = (v: Record<string, unknown>, keys: string[]) => keys.every(k => Array.isArray(v[k]));
+const list = <T>(v: unknown, item: (x: unknown) => x is T): v is T[] => Array.isArray(v) && v.every(item);
+
+// Os eventos abaixo são conferidos no primeiro nível: tipos dos campos
+// simples, listas e ids usados para juntar o evento ao estado. O conteúdo
+// das listas internas (ações do draft, runas...) fica para as telas.
+function readyCheck(v: unknown): v is ReadyCheck | null {
+  return v === null || (object(v) && strings(v, ['state', 'playerResponse']) && nums(v, ['timer', 'duration']));
+}
+const searchStates = {
+  Searching: true, Found: true, Error: true, AbandonedLowPriorityQueue: true, Unknown: true,
+} satisfies Record<SearchState, true>;
+const searchState = (v: unknown): v is SearchState => typeof v === 'string' && Object.hasOwn(searchStates, v);
+function matchmakingError(v: unknown): v is MatchmakingError {
+  return object(v) && strings(v, ['errorType', 'message']) && num(v.penaltyTimeRemaining);
+}
+function matchmaking(v: unknown): v is Matchmaking | null {
+  return v === null || (object(v) && searchState(v.searchState) &&
+    uint(v.queueId) &&
+    nums(v, ['timeInQueue', 'estimatedQueueTime', 'lowPriorityTimeRemaining']) && list(v.errors, matchmakingError));
+}
+function champSelect(v: unknown): v is ChampSelect | null {
+  return v === null || (object(v) && typeof v.id === 'string' && uint(v.queueId) && Number.isSafeInteger(v.localPlayerCellId) &&
+    (v.queue === null || isQueue(v.queue)) && booleans(v, ['isCustomGame', 'hasSimultaneousBans', 'hasSimultaneousPicks']) &&
+    object(v.timer) && typeof v.timer.phase === 'string' && object(v.bans) && arrays(v.bans, ['myTeam', 'theirTeam']) &&
+    arrays(v, ['myTeam', 'theirTeam', 'actions']) && (v.pendingAction === null || object(v.pendingAction)));
+}
+function receivedInvitation(v: unknown): v is ReceivedInvitation {
+  return object(v) && strings(v, ['invitationId', 'fromSummonerName']) && uints(v, ['fromSummonerId', 'queueId']) &&
+    (v.queue === null || isQueue(v.queue)) && typeof v.canAccept === 'boolean';
+}
+function conversation(v: unknown): v is Conversation {
+  return object(v) && strings(v, ['id', 'gameName', 'tagLine']) && uint(v.unreadCount) && list(v.messages, object);
+}
+function champSelectChat(v: unknown): v is ChampSelectChat | null {
+  return v === null || (object(v) && list(v.messages, object));
+}
+function runePages(v: unknown): v is RunePages | null {
+  return v === null || (object(v) && list(v.pages, object) && (v.currentPageId === null || uint(v.currentPageId)) &&
+    typeof v.canCreatePage === 'boolean');
+}
+function runeCatalog(v: unknown): v is RuneCatalog | null {
+  return v === null || (object(v) && list(v.styles, object) && list(v.perks, object));
+}
+function friend(v: unknown): v is Friend {
+  return object(v) && strings(v, ['id', 'puuid', 'gameName', 'tagLine', 'name', 'availability', 'statusMessage']) &&
+    (v.profileIconId === null || uint(v.profileIconId)) && (v.activity === null || object(v.activity));
+}
 function status(v: unknown): v is LcuStatus {
   if (!object(v)) return false;
   switch (v.state) {
@@ -52,7 +116,10 @@ function status(v: unknown): v is LcuStatus {
   }
 }
 function state(v: unknown): v is AgentState {
-  return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby);
+  return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) &&
+    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && champSelect(v.champSelect) &&
+    list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
+    runePages(v.runePages) && runeCatalog(v.runeCatalog) && list(v.friends, friend);
 }
 
 // Os tipos vêm do Rust; esta validação protege a fronteira JSON em runtime.
@@ -67,6 +134,16 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'summoner': valid = summoner(v.summoner); break;
     case 'lobby': valid = lobby(v.lobby); break;
     case 'gameflowPhase': valid = nullableString(v.phase); break;
+    case 'readyCheck': valid = readyCheck(v.readyCheck); break;
+    case 'matchmaking': valid = matchmaking(v.matchmaking); break;
+    case 'champSelect': valid = champSelect(v.champSelect); break;
+    case 'receivedInvitations': valid = list(v.invitations, receivedInvitation); break;
+    case 'conversation': valid = conversation(v.conversation); break;
+    case 'conversationClosed': valid = typeof v.id === 'string'; break;
+    case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
+    case 'runePages': valid = runePages(v.runePages); break;
+    case 'runeCatalog': valid = runeCatalog(v.runeCatalog); break;
+    case 'friends': valid = list(v.friends, friend); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
       (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;
     case 'invalidMessage': valid = typeof v.message === 'string'; break;

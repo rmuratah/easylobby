@@ -17,12 +17,14 @@ o ícone pode ficar no grupo de ícones ocultos próximo ao relógio.
 
 - O botão **X** oculta a janela e mantém o app na bandeja.
 - Clique esquerdo no ícone ou **Abrir easylobby** no menu restaura e foca a janela, inclusive se estiver minimizada.
-- Clique direito abre o menu; **Sair** encerra o aplicativo e remove o ícone.
+- Clique direito abre o menu; **Sair** reabre a interface oficial do LoL (`launch-ux`), se o agente estiver conectado, e encerra o aplicativo. Se a LCU não responder em 3 s, o app fecha mesmo assim (#89).
+- Abrir o easylobby com ele já aberto mostra a janela da instância que está rodando, em vez de abrir outra (#90).
 
 O shell inicia o agente e o canal `/ws` em `127.0.0.1:47800` ao abrir.
 O canal permanece ativo ao ocultar a janela e termina com o processo ao usar Sair.
-Não há reinício interno do serviço (a correção de cancelamento é acompanhada na #58).
-Esta integração não fecha nem reabre a interface oficial do LoL.
+Se o canal cair, o shell o sobe de novo (até 3 tentativas seguidas, com espera crescente);
+se não conseguir, mostra uma caixa de erro com o motivo em vez de deixar a UI em
+"Reconectando" (#91). O agente fecha a interface oficial ao conectar (`kill-ux`).
 
 ### Validação manual no Windows
 
@@ -38,7 +40,8 @@ esquerdo não estiver disponível.
 ## Conexão com o agente
 
 Não inicie o example `canal_ws` junto com o desktop: ambos usam a porta 47800.
-Se ela estiver ocupada, o desktop falha ao iniciar em vez de reutilizar outro processo.
+Se ela estiver ocupada por outro programa, o desktop mostra uma caixa de erro e fecha
+ao confirmar, em vez de reutilizar outro processo.
 
 Para testar no mock, rode `cargo run -p mock-lcu` em um terminal. Em outro,
 na raiz do projeto, configure o modo mock antes de iniciar o desktop:

@@ -1,15 +1,18 @@
 //! Chat 1:1 (#31) pelo `/ws`, com o agente conectado no mock-lcu: a UI manda
 //! mensagem para um amigo, vê a conversa abrir com a mensagem antes da
-//! resposta, marca a conversa ativa e recebe as conversas da gravação.
+//! resposta, marca a conversa ativa e recebe as conversas da gravação. A
+//! resposta de um envio que atrasou até o LoL reconectar não entra na
+//! conversa da sessão nova (#87).
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use axum::http::Method;
 use easylobby_agent::chat::Conversation;
 use easylobby_agent::connection::{CredentialSource, LcuConnection, ReconnectConfig};
 use easylobby_agent::fixtures::FixtureSet;
 use easylobby_agent::ws::protocol::{
-    ClientMessage, Command, CommandResult, ErrorCode, ServerMessage,
+    AgentState, ClientMessage, Command, CommandResult, ErrorCode, LcuStatus, ServerMessage,
 };
 use easylobby_agent::ws::{self, WsConfig};
 use futures_util::{SinkExt, StreamExt};
@@ -251,5 +254,110 @@ async fn segue_as_conversas_da_gravacao() {
         .all(|w| w[0].timestamp <= w[1].timestamp));
 
     mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Corpos das mensagens publicadas para a conversa com o [`AMIGO`].
+fn bodies_to_friend(messages: &[ServerMessage]) -> Vec<String> {
+    messages
+        .iter()
+        .filter_map(|m| match m {
+            ServerMessage::Conversation { conversation } if conversation.id == AMIGO => {
+                Some(conversation.messages.iter().map(|m| m.body.clone()))
+            }
+            _ => None,
+        })
+        .flatten()
+        .collect()
+}
+
+/// Estado atual do agente, pelo `getState`.
+async fn state(ui: &mut Ui, id: u32) -> AgentState {
+    send(ui, id, Command::GetState).await;
+    let (before, result) = until_response(ui, id).await;
+    assert_eq!(result, CommandResult::Ok);
+    match before
+        .into_iter()
+        .rev()
+        .find(|m| matches!(m, ServerMessage::Hello { .. }))
+    {
+        Some(ServerMessage::Hello { state, .. }) => AgentState::clone(&state),
+        _ => panic!("esperava hello"),
+    }
+}
+
+#[tokio::test]
+async fn envio_da_sessao_antiga_nao_entra_na_conversa_nova() {
+    let dir = temp_dir("sessao");
+    let old = start_mock(&dir, ReplayStart::Never).await;
+    let url = start_agent(&dir).await;
+    let mut ui = tokio_tungstenite::connect_async(&url).await.unwrap().0;
+    wait_summoner(&mut ui).await;
+    // A observadora vê as mudanças enquanto o envio da `ui` espera.
+    let mut observer = tokio_tungstenite::connect_async(&url).await.unwrap().0;
+    assert!(matches!(
+        recv(&mut observer).await,
+        ServerMessage::Hello { .. }
+    ));
+
+    let path = format!("/lol-chat/v1/conversations/{AMIGO}/messages");
+    let mut hold = old.hold(Method::POST, &path);
+    send(
+        &mut ui,
+        1,
+        Command::SendChatMessage {
+            conversation_id: AMIGO.into(),
+            body: "velha".into(),
+        },
+    )
+    .await;
+    hold.arrived().await;
+    // Um LoL novo sobe (lockfile e CA novos) e o antigo cai.
+    let new = start_mock(&dir, ReplayStart::Never).await;
+    old.close_websockets();
+    loop {
+        if let ServerMessage::Lcu {
+            status: LcuStatus::Connected { session: 2 },
+        } = recv(&mut observer).await
+        {
+            break;
+        }
+    }
+    wait_summoner(&mut observer).await;
+    // Na sessão nova, a conversa com o mesmo amigo abre de novo.
+    send(
+        &mut observer,
+        2,
+        Command::SendChatMessage {
+            conversation_id: AMIGO.into(),
+            body: "nova".into(),
+        },
+    )
+    .await;
+    let (before, result) = until_response(&mut observer, 2).await;
+    assert_eq!(result, CommandResult::Ok);
+    assert!(bodies_to_friend(&before).contains(&"nova".to_owned()));
+    hold.release();
+
+    // O envio antigo deu certo na LCU dele, mas a resposta é descartada.
+    // (A `ui` viu a "velha" pelo WAMP da sessão antiga, antes da queda.)
+    assert_eq!(until_response(&mut ui, 1).await.1, CommandResult::Ok);
+    send(&mut observer, 3, Command::Ping).await;
+    let (after, _) = until_response(&mut observer, 3).await;
+    assert!(
+        !bodies_to_friend(&after).contains(&"velha".to_owned()),
+        "{after:?}"
+    );
+    let state = state(&mut ui, 4).await;
+    let conversa = state
+        .conversations
+        .iter()
+        .find(|c| c.id == AMIGO)
+        .expect("a conversa da sessão nova");
+    let bodies: Vec<&str> = conversa.messages.iter().map(|m| m.body.as_str()).collect();
+    assert_eq!(bodies, ["nova"]);
+
+    new.shutdown().await;
+    drop(old);
     let _ = std::fs::remove_dir_all(&dir);
 }

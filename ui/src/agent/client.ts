@@ -2,6 +2,7 @@ import type { AgentState } from '../bindings/AgentState';
 import type { ClientMessage } from '../bindings/ClientMessage';
 import type { Command } from '../bindings/Command';
 import type { CommandResult } from '../bindings/CommandResult';
+import type { ServerMessage } from '../bindings/ServerMessage';
 import { parseMessage } from './protocol';
 
 export const AGENT_URL = 'ws://127.0.0.1:47800/ws';
@@ -11,6 +12,37 @@ export type ConnectionSnapshot = {
   error: string | null;
 };
 type Pending = { resolve: (result: CommandResult) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> };
+
+type StateEvent = Exclude<ServerMessage, { type: 'hello' | 'response' | 'invalidMessage' }>;
+
+// Aplica um evento do agente ao estado. O switch é exaustivo: quando o
+// agente ganhar um evento novo, o TypeScript acusa aqui até ele ser tratado.
+export function applyEvent(state: AgentState, message: StateEvent): AgentState {
+  switch (message.type) {
+    case 'lcu': return { ...state, lcu: message.status };
+    case 'summoner': return { ...state, summoner: message.summoner };
+    case 'gameflowPhase': return { ...state, gameflowPhase: message.phase };
+    case 'readyCheck': return { ...state, readyCheck: message.readyCheck };
+    case 'lobby': return { ...state, lobby: message.lobby };
+    case 'matchmaking': return { ...state, matchmaking: message.matchmaking };
+    case 'champSelect': return { ...state, champSelect: message.champSelect };
+    case 'receivedInvitations': return { ...state, receivedInvitations: message.invitations };
+    case 'conversation': {
+      const { conversation } = message;
+      const known = state.conversations.some(c => c.id === conversation.id);
+      const conversations = known
+        ? state.conversations.map(c => c.id === conversation.id ? conversation : c)
+        : [...state.conversations, conversation];
+      return { ...state, conversations };
+    }
+    case 'conversationClosed': return { ...state, conversations: state.conversations.filter(c => c.id !== message.id) };
+    case 'champSelectChat': return { ...state, champSelectChat: message.champSelectChat };
+    case 'runePages': return { ...state, runePages: message.runePages };
+    case 'runeCatalog': return { ...state, runeCatalog: message.runeCatalog };
+    case 'friends': return { ...state, friends: message.friends };
+    default: return message satisfies never;
+  }
+}
 
 export class AgentClient {
   private snapshot: ConnectionSnapshot = { status: 'connecting', state: null, error: null };
@@ -98,22 +130,20 @@ export class AgentClient {
           }
           const state = this.snapshot.state;
           if (!state) throw new Error('O agente não enviou o estado inicial.');
-          switch (message.type) {
-            case 'lcu': this.publish({ ...this.snapshot, state: { ...state, lcu: message.status } }); break;
-            case 'summoner': this.publish({ ...this.snapshot, state: { ...state, summoner: message.summoner } }); break;
-            case 'lobby': this.publish({ ...this.snapshot, state: { ...state, lobby: message.lobby } }); break;
-            case 'gameflowPhase': this.publish({ ...this.snapshot, state: { ...state, gameflowPhase: message.phase } }); break;
-            case 'response': {
-              const pending = this.pending.get(message.id);
-              if (pending) {
-                clearTimeout(pending.timer);
-                this.pending.delete(message.id);
-                pending.resolve(message.result);
-              }
-              break;
+          if (message.type === 'response') {
+            const pending = this.pending.get(message.id);
+            if (pending) {
+              clearTimeout(pending.timer);
+              this.pending.delete(message.id);
+              pending.resolve(message.result);
             }
-            case 'invalidMessage': this.publish({ ...this.snapshot, error: message.message }); break;
+            return;
           }
+          if (message.type === 'invalidMessage') {
+            this.publish({ ...this.snapshot, error: message.message });
+            return;
+          }
+          this.publish({ ...this.snapshot, state: applyEvent(state, message) });
         } catch {
           this.reconnect('Recebemos uma mensagem inválida do agente.');
         }
