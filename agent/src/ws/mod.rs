@@ -277,6 +277,14 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                             Command::InviteToLobby { invitees } => {
                                 hub.invite_to_lobby(&invitees).await
                             }
+                            Command::HoverChampion {
+                                action_id,
+                                champion_id,
+                            } => hub.hover_champion(action_id, champion_id).await,
+                            Command::ConfirmAction {
+                                action_id,
+                                champion_id,
+                            } => hub.confirm_action(action_id, champion_id).await,
                         };
                         // As mudanças que o comando publicou (como o lobby
                         // novo) chegam antes da resposta.
