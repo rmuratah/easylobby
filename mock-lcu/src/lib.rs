@@ -43,7 +43,7 @@ use easylobby_agent::lockfile::LCU_USERNAME;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use thiserror::Error;
-use tokio::sync::{broadcast, Notify};
+use tokio::sync::{broadcast, watch, Notify};
 use tokio::task::JoinHandle;
 
 use crate::state::{LcuState, Response, GAMEFLOW_PHASE};
@@ -141,6 +141,9 @@ struct Shared {
     state: Mutex<LcuState>,
     events: broadcast::Sender<EventFixture>,
     start: Notify,
+    /// Vira `true` quando o servidor para; derruba os WebSockets abertos,
+    /// como o LoL fechando.
+    stopped: watch::Sender<bool>,
     /// Valor esperado do cabeçalho `Authorization`.
     authorization: String,
     verbose: bool,
@@ -217,6 +220,7 @@ impl MockLcu {
             state: Mutex::new(LcuState::new(&config.fixtures)),
             events,
             start: Notify::new(),
+            stopped: watch::Sender::new(false),
             authorization: format!(
                 "Basic {}",
                 base64::engine::general_purpose::STANDARD.encode(credentials)
@@ -305,6 +309,7 @@ impl MockLcu {
 
     /// Para o servidor, esperando até um segundo pelas conexões abertas.
     pub async fn shutdown(mut self) {
+        self.shared.stopped.send_replace(true);
         self.handle.graceful_shutdown(Some(Duration::from_secs(1)));
         if let Some(server) = self.server.take() {
             let _ = server.await;
@@ -314,6 +319,7 @@ impl MockLcu {
 
 impl Drop for MockLcu {
     fn drop(&mut self) {
+        self.shared.stopped.send_replace(true);
         self.handle.shutdown();
         self.replay.abort();
         for path in &self.files {
@@ -477,11 +483,14 @@ async fn serve_wamp(shared: Arc<Shared>, socket: WebSocket) {
     // Inscreve no canal antes de ler qualquer mensagem: a reprodução só
     // começa depois da primeira inscrição, então nada se perde.
     let mut events = shared.events.subscribe();
+    let mut stopped = shared.stopped.subscribe();
     let (mut sink, mut stream) = socket.split();
     let mut topics: HashSet<String> = HashSet::new();
 
     loop {
         tokio::select! {
+            // O servidor parou: fecha sem handshake, como o LoL morrendo.
+            _ = async { stopped.wait_for(|stopped| *stopped).await.map(|_| ()) } => break,
             incoming = stream.next() => {
                 let Some(Ok(message)) = incoming else { break };
                 match message {

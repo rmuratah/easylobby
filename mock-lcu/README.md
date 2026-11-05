@@ -17,7 +17,7 @@ Ao subir, ele mostra a porta, o lockfile e o certificado da CA. Pare com Ctrl+C;
 - Escreve um **lockfile** no formato do LoL, `LeagueClient:<pid>:<porta>:<senha>:<protocolo>`, em `<temp>/easylobby-mock-lcu/lockfile` (ou `--lockfile`). O agente lê com `Credentials::from_lockfile_path` (#4).
 - **HTTPS** com um certificado para `127.0.0.1` gerado na hora e assinado por uma CA também gerada na hora. O PEM da CA fica em `mock-lcu-ca.pem`, ao lado do lockfile. O cliente fixa esse PEM no lugar do `riotgames.pem`, do mesmo jeito; **a verificação TLS nunca é desligada**. Com `--http` o servidor fala HTTP puro e o lockfile diz `http`.
 - `POST /riotclient/kill-ux` e `POST /riotclient/launch-ux` respondem 204 (e só registram o pedido).
-- WebSocket WAMP em `/` (subprotocolo `wamp`): `[5, "OnJsonApiEvent"]` inscreve em tudo, `[5, "OnJsonApiEvent_lol-gameflow_v1_gameflow-phase"]` num recurso e nos sub-recursos dele, `[6, tópico]` cancela. Os eventos chegam como `[8, tópico, {"data", "eventType", "uri"}]`.
+- WebSocket WAMP em `/` (subprotocolo `wamp`): `[5, "OnJsonApiEvent"]` inscreve em tudo, `[5, "OnJsonApiEvent_lol-gameflow_v1_gameflow-phase"]` num recurso e nos sub-recursos dele, `[6, tópico]` cancela. Os eventos chegam como `[8, tópico, {"data", "eventType", "uri"}]`. Quando o servidor para, os WebSockets abertos caem sem handshake de fechamento, como quando o LoL fecha.
 
 ## Como as respostas mudam
 
