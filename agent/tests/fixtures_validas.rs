@@ -82,7 +82,7 @@ fn ja_estao_sanitizadas() {
         let mut s = Sanitizer::new();
         for r in &set.rest {
             assert_eq!(
-                s.sanitize(&r.body),
+                s.sanitize_resource(&r.path, &r.body),
                 r.body,
                 "{} {} tem dado real",
                 dir.display(),
@@ -91,7 +91,7 @@ fn ja_estao_sanitizadas() {
         }
         for e in &set.events {
             assert_eq!(
-                s.sanitize(&e.data),
+                s.sanitize_resource(&e.uri, &e.data),
                 e.data,
                 "{} {} tem dado real",
                 dir.display(),

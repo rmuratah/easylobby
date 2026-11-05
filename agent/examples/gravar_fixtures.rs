@@ -164,7 +164,7 @@ impl Recorder {
             path: self.sanitizer.sanitize_str(path),
             phase: self.phase.clone(),
             status,
-            body: self.sanitizer.sanitize(&body),
+            body: self.sanitizer.sanitize_resource(path, &body),
         };
         let key = serde_json::to_string(&fixture).unwrap_or_default();
         if self.seen.insert(key) {
@@ -206,7 +206,7 @@ impl Recorder {
             event_type,
             // Os dados primeiro: é aí que o sanitizer aprende os ids que
             // podem aparecer na URI (como o pid de uma conversa).
-            data: self.sanitizer.sanitize(&data),
+            data: self.sanitizer.sanitize_resource(uri, &data),
             uri: String::new(),
         };
         let event = EventFixture {
@@ -362,10 +362,10 @@ fn resanitize(dir: &std::path::Path) -> Result<(), String> {
     let mut sanitizer = Sanitizer::new();
     // Os dados primeiro, para os ids que aparecem nos caminhos já serem conhecidos.
     for r in &mut set.rest {
-        r.body = sanitizer.sanitize(&r.body);
+        r.body = sanitizer.sanitize_resource(&r.path, &r.body);
     }
     for e in &mut set.events {
-        e.data = sanitizer.sanitize(&e.data);
+        e.data = sanitizer.sanitize_resource(&e.uri, &e.data);
     }
     for r in &mut set.rest {
         r.path = sanitizer.sanitize_str(&r.path);

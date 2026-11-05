@@ -228,6 +228,9 @@ const NAME_KEYS: [&str; 6] = [
     "gameTag",
 ];
 
+/// Recursos cujo corpo é só uma lista de ids de jogadores.
+const ID_LIST_RESOURCES: [&str; 1] = ["/lol-chat/v1/obfuscated-puuids"];
+
 /// Chaves com nomes de grupos de amigos, que o jogador escolhe.
 const GROUP_KEYS: [&str; 2] = ["groupName", "displayGroupName"];
 
@@ -295,6 +298,20 @@ impl Sanitizer {
         // (como `<puuid>@br1.pvp.net`).
         let replaced = self.replace_by_key(value);
         self.replace_embedded(&replaced)
+    }
+
+    /// Sanitiza o corpo de um recurso da LCU, sabendo de qual caminho ele veio.
+    ///
+    /// Alguns recursos são uma lista solta de ids, sem chave que diga o que
+    /// são, como `/lol-chat/v1/obfuscated-puuids` (os jogadores do champ
+    /// select). Esses viram ids falsos inteiros; o resto segue [`Self::sanitize`].
+    pub fn sanitize_resource(&mut self, path: &str, value: &Value) -> Value {
+        let resource = path.split('?').next().unwrap_or(path);
+        if ID_LIST_RESOURCES.contains(&resource) {
+            let replaced = self.fake_id("puuid", value);
+            return self.replace_embedded(&replaced);
+        }
+        self.sanitize(value)
     }
 
     /// Sanitiza um texto solto, como o caminho de uma requisição ou a URI de
@@ -535,6 +552,19 @@ mod tests {
         assert_eq!(out["friend"]["groupName"], "fake-group-0001");
         assert_eq!(out["friend"]["displayGroupName"], "**Default");
         assert_eq!(out["group"]["name"], "fake-group-0001");
+    }
+
+    #[test]
+    fn troca_lista_solta_de_puuids() {
+        let mut s = Sanitizer::new();
+        let out = s.sanitize_resource(
+            "/lol-chat/v1/obfuscated-puuids",
+            &json!(["ffff-6666-real", "gggg-7777-real"]),
+        );
+        assert_eq!(out, json!(["fake-puuid-0001", "fake-puuid-0002"]));
+        // Em outro recurso, uma lista de textos fica como está.
+        let out = s.sanitize_resource("/lol-chat/v1/friend-counts", &json!(["Ahri"]));
+        assert_eq!(out, json!(["Ahri"]));
     }
 
     #[test]
