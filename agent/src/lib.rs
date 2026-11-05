@@ -12,6 +12,7 @@
 //!   reinicia (#10)
 //! - [`launcher`]: abre o LoL pelo Riot Client quando ele não está rodando
 //!   (#11)
+//! - [`ws`]: canal `/ws` com eventos e comandos tipados para a UI (#15)
 
 pub mod connection;
 pub mod fixtures;
@@ -20,6 +21,7 @@ pub mod lockfile;
 pub mod rest;
 pub mod summoner;
 pub mod wamp;
+pub mod ws;
 
 /// Versão do agente, a mesma do `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
