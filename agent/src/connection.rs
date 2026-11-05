@@ -21,6 +21,12 @@
 //! [`LcuConnection::close`]. Ele pode ser cancelado num `tokio::select!` sem
 //! perder evento nem reiniciar a espera.
 //!
+//! A cada conexão, depois de REST e WAMP estarem de pé, a conexão fecha a UI
+//! oficial com `POST /riotclient/kill-ux` (#12), inclusive quando o LoL
+//! reabre. Para deixar a UI oficial aberta, use `kill_ux: false` no
+//! [`ReconnectConfig`] ou [`LcuConnection::set_kill_ux`]. O resultado fica em
+//! [`LcuSession::kill_ux`]; uma falha não derruba a conexão.
+//!
 //! ```no_run
 //! # async fn exemplo() {
 //! use easylobby_agent::connection::{ConnectionEvent, LcuConnection, ReconnectConfig};
@@ -52,6 +58,7 @@ use tokio::time::Instant;
 
 use crate::lockfile::{self, Credentials, DiscoveryError, LockfileError, Protocol};
 use crate::rest::{LcuClient, LcuError, RIOT_ROOT_PEM};
+use crate::ux::{self, KillUx};
 use crate::wamp::{EventFilter, LcuEvent, LcuEvents, WampError, DEFAULT_CONNECT_TIMEOUT};
 
 /// Arquivo da CA que o mock-lcu grava ao lado do lockfile.
@@ -87,6 +94,8 @@ pub struct ReconnectConfig {
     pub retry_max: Duration,
     /// Tempo máximo para abrir o WebSocket em cada tentativa.
     pub connect_timeout: Duration,
+    /// Fechar a UI oficial (`kill-ux`) a cada conexão. Ligado por padrão.
+    pub kill_ux: bool,
 }
 
 impl ReconnectConfig {
@@ -107,6 +116,7 @@ impl Default for ReconnectConfig {
             retry_min: DEFAULT_RETRY_MIN,
             retry_max: DEFAULT_RETRY_MAX,
             connect_timeout: DEFAULT_CONNECT_TIMEOUT,
+            kill_ux: true,
         }
     }
 }
@@ -120,6 +130,8 @@ pub struct LcuSession {
     pub credentials: Credentials,
     /// Cliente REST desta conexão. Para de funcionar quando ela cai.
     pub client: LcuClient,
+    /// O que aconteceu com a UI oficial ao conectar (#12).
+    pub kill_ux: KillUx,
 }
 
 /// Por que uma conexão acabou.
@@ -227,6 +239,13 @@ impl LcuConnection {
         self.config.filter = filter;
     }
 
+    /// Liga ou desliga o kill-ux automático. Vale a partir da próxima
+    /// conexão: não fecha nem reabre a UI oficial agora (para isso, use
+    /// [`ux::kill_ux`] ou [`ux::launch_ux`] com o cliente da sessão).
+    pub fn set_kill_ux(&mut self, enabled: bool) {
+        self.config.kill_ux = enabled;
+    }
+
     /// Próxima mudança: um evento, uma conexão nova, uma queda ou uma
     /// tentativa que falhou. Nunca termina por conta própria.
     pub async fn next(&mut self) -> ConnectionEvent {
@@ -283,11 +302,23 @@ impl LcuConnection {
             self.config.connect_timeout,
         )
         .await?;
+        // Só depois de REST e WAMP abrirem: se o agente não conecta, a UI
+        // oficial fica aberta. Se este `next` for cancelado aqui, a próxima
+        // tentativa reconecta e chama o kill-ux de novo, sem efeito colateral.
+        let kill_ux = if self.config.kill_ux {
+            match ux::kill_ux(&client).await {
+                Ok(()) => KillUx::Killed,
+                Err(error) => KillUx::Failed(error.into()),
+            }
+        } else {
+            KillUx::Disabled
+        };
         self.sessions += 1;
         let session = LcuSession {
             id: self.sessions,
             credentials,
             client,
+            kill_ux,
         };
         Ok((events, session))
     }
