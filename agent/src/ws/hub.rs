@@ -7,6 +7,7 @@ use tokio::sync::broadcast;
 use crate::connection::{ConnectionEvent, LcuConnection};
 use crate::gameflow::{self, GameflowPhase};
 use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError, LOBBY_PATH};
+use crate::matchmaking::{self, Matchmaking, SEARCH_PATH};
 use crate::ready_check::{self, ReadyCheck, READY_CHECK_PATH};
 use crate::rest::{LcuClient, LcuError};
 use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
@@ -211,6 +212,47 @@ impl Hub {
         }
     }
 
+    pub fn set_matchmaking(&self, matchmaking: Option<Matchmaking>) {
+        self.update(|shared| {
+            if shared.state.matchmaking == matchmaking {
+                return None;
+            }
+            shared.state.matchmaking = matchmaking.clone();
+            Some(ServerMessage::Matchmaking { matchmaking })
+        });
+    }
+
+    /// Entra na fila com o lobby atual (comando `startQueue`, #19). Relê a
+    /// busca pelo REST e a publica antes de devolver, sem esperar o evento do
+    /// WAMP.
+    pub async fn start_queue(&self) -> CommandResult {
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        if let Err(error) = matchmaking::start_search(&client).await {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        // Se a releitura falhar, o evento do WAMP traz a busca logo depois.
+        if let Ok(Some(search)) = matchmaking::current_search(&client).await {
+            self.set_matchmaking(Some(search));
+        }
+        CommandResult::Ok
+    }
+
+    /// Sai da fila (comando `stopQueue`, #19).
+    pub async fn stop_queue(&self) -> CommandResult {
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        match matchmaking::stop_search(&client).await {
+            Ok(()) => {
+                self.set_matchmaking(None);
+                CommandResult::Ok
+            }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
     /// Atualiza o estado com o que a [`LcuConnection`] devolveu.
     ///
     /// Num `Connected`, relê pelo REST o invocador, a fase e o ready check, porque os
@@ -224,10 +266,11 @@ impl Hub {
                 self.set_lcu_status(LcuStatus::Connected {
                     session: u32::try_from(session.id).unwrap_or(u32::MAX),
                 });
-                let (summoner, phase, lobby) = tokio::join!(
+                let (summoner, phase, lobby, search) = tokio::join!(
                     summoner::current_summoner(&client),
                     gameflow::current_phase(&client),
                     lobby::current_lobby(&client),
+                    matchmaking::current_search(&client),
                 );
                 // 404 antes do login; qualquer outro erro também deixa vazio,
                 // e o próximo evento da LCU corrige.
@@ -235,6 +278,7 @@ impl Hub {
                 let phase = phase.ok();
                 self.set_gameflow_phase(phase);
                 self.set_lobby(lobby.ok().flatten());
+                self.set_matchmaking(search.ok().flatten());
                 // Só existe ready check aberto nessa fase; nas outras a LCU
                 // responde 404 ou `Invalid`, e não vale o pedido a mais.
                 if phase == Some(GameflowPhase::ReadyCheck) {
@@ -249,6 +293,7 @@ impl Hub {
                 self.set_gameflow_phase(None);
                 self.set_ready_check(None);
                 self.set_lobby(None);
+                self.set_matchmaking(None);
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
                 });
@@ -289,6 +334,9 @@ impl Hub {
                     self.set_lobby(Some(lobby));
                 }
             }
+            SEARCH_PATH if deleted => self.set_matchmaking(None),
+            // `Invalid` (sem busca) também vira `None`.
+            SEARCH_PATH => self.set_matchmaking(Matchmaking::from_json(&event.data)),
             _ => {}
         }
     }
@@ -346,6 +394,7 @@ pub async fn drive(mut connection: LcuConnection, hub: Hub) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::matchmaking::SearchState;
     use serde_json::json;
 
     fn event(uri: &str, event_type: EventType, data: serde_json::Value) -> ConnectionEvent {
@@ -528,10 +577,96 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn segue_a_fila() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        let search = |state: &str, time: f64| {
+            json!({
+                "searchState": state,
+                "queueId": 420,
+                "timeInQueue": time,
+                "estimatedQueueTime": 94.5,
+                "errors": [],
+            })
+        };
+        hub.apply(event(
+            SEARCH_PATH,
+            EventType::Create,
+            search("Searching", 0.0),
+        ))
+        .await;
+        hub.apply(event(
+            SEARCH_PATH,
+            EventType::Update,
+            search("Searching", 1.0),
+        ))
+        .await;
+        // Repetido não gera mensagem.
+        hub.apply(event(
+            SEARCH_PATH,
+            EventType::Update,
+            search("Searching", 1.0),
+        ))
+        .await;
+        hub.apply(event(SEARCH_PATH, EventType::Update, search("Found", 1.0)))
+            .await;
+        hub.apply(event(SEARCH_PATH, EventType::Delete, json!(null)))
+            .await;
+
+        let seen: Vec<Option<(SearchState, f64)>> = std::iter::from_fn(|| rx.try_recv().ok())
+            .map(|m| match m {
+                ServerMessage::Matchmaking { matchmaking } => {
+                    matchmaking.map(|m| (m.search_state, m.time_in_queue))
+                }
+                other => panic!("esperava matchmaking: {other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            seen,
+            [
+                Some((SearchState::Searching, 0.0)),
+                Some((SearchState::Searching, 1.0)),
+                Some((SearchState::Found, 1.0)),
+                None,
+            ]
+        );
+
+        // `Invalid` também é "fora da fila".
+        hub.apply(event(
+            SEARCH_PATH,
+            EventType::Update,
+            search("Searching", 5.0),
+        ))
+        .await;
+        hub.apply(event(
+            SEARCH_PATH,
+            EventType::Update,
+            search("Invalid", 0.0),
+        ))
+        .await;
+        assert_eq!(hub.state().matchmaking, None);
+    }
+
+    #[tokio::test]
+    async fn comandos_de_fila_sem_lol_respondem_not_connected() {
+        let hub = Hub::new();
+        for result in [hub.start_queue().await, hub.stop_queue().await] {
+            assert!(matches!(
+                result,
+                CommandResult::Error {
+                    code: ErrorCode::NotConnected,
+                    ..
+                }
+            ));
+        }
+    }
+
+    #[tokio::test]
     async fn queda_limpa_o_estado() {
         let hub = Hub::new();
         hub.set_gameflow_phase(Some(GameflowPhase::ChampSelect));
         hub.set_lobby(Lobby::from_json(&json!({"gameConfig": {"queueId": 420}})));
+        hub.set_matchmaking(Matchmaking::from_json(&json!({"searchState": "Searching"})));
         hub.apply(ConnectionEvent::Disconnected(
             crate::connection::DisconnectReason::Closed,
         ))
@@ -539,6 +674,7 @@ mod tests {
         let state = hub.state();
         assert_eq!(state.gameflow_phase, None);
         assert_eq!(state.lobby, None);
+        assert_eq!(state.matchmaking, None);
         assert!(matches!(state.lcu, LcuStatus::Disconnected { .. }));
         assert!(hub.client().is_none());
     }

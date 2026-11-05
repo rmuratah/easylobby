@@ -34,6 +34,7 @@ use ts_rs::TS;
 
 use crate::gameflow::GameflowPhase;
 use crate::lobby::{Lobby, LobbyMember, Position, Queue};
+use crate::matchmaking::{Matchmaking, MatchmakingError, SearchState};
 use crate::ready_check::{ReadyCheck, ReadyCheckResponse, ReadyCheckState};
 use crate::summoner::Summoner;
 
@@ -72,6 +73,10 @@ pub enum ServerMessage {
     /// O lobby mudou (criado, fila trocada, alguém entrou ou saiu). `null`
     /// fora de lobby e com o LoL fechado.
     Lobby { lobby: Option<Lobby> },
+    /// A busca de partida mudou: entrou ou saiu da fila, mais um segundo na
+    /// fila (chega a cada segundo enquanto procura), partida encontrada.
+    /// `null` fora da fila e com o LoL fechado.
+    Matchmaking { matchmaking: Option<Matchmaking> },
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
     /// A UI mandou algo que não é um [`ClientMessage`] válido. Sem `id`,
@@ -89,6 +94,7 @@ pub struct AgentState {
     /// Ready check aberto (partida encontrada, #20), ou `null`.
     pub ready_check: Option<ReadyCheck>,
     pub lobby: Option<Lobby>,
+    pub matchmaking: Option<Matchmaking>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -184,6 +190,15 @@ pub enum Command {
     /// com o LoL fechado e `lcu` se a LCU recusar (fora de lobby, fila sem
     /// cargos...).
     SetPositions { first: Position, second: Position },
+    /// Entra na fila com o lobby atual (só o líder pode). A mensagem
+    /// `matchmaking` com a busca chega antes da resposta. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (fora de
+    /// lobby, não é o líder, punição de fila...).
+    StartQueue,
+    /// Sai da fila. A mensagem `matchmaking` com `null` chega antes da
+    /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
+    /// recusar.
+    StopQueue,
 }
 
 /// Resultado de um comando.
@@ -247,6 +262,9 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<LobbyMember>(&cfg)?,
         file::<Position>(&cfg)?,
         file::<Queue>(&cfg)?,
+        file::<Matchmaking>(&cfg)?,
+        file::<MatchmakingError>(&cfg)?,
+        file::<SearchState>(&cfg)?,
         file::<ClientMessage>(&cfg)?,
         file::<Command>(&cfg)?,
         file::<CommandResult>(&cfg)?,
@@ -280,6 +298,7 @@ mod tests {
                     "gameflowPhase": null,
                     "readyCheck": null,
                     "lobby": null,
+                    "matchmaking": null,
                 },
             })
         );
@@ -406,6 +425,12 @@ mod tests {
                 second: Position::Jungle,
             }
         );
+        let msg: ClientMessage =
+            serde_json::from_value(json!({"id": 10, "command": {"type": "startQueue"}})).unwrap();
+        assert_eq!(msg.command, Command::StartQueue);
+        let msg: ClientMessage =
+            serde_json::from_value(json!({"id": 11, "command": {"type": "stopQueue"}})).unwrap();
+        assert_eq!(msg.command, Command::StopQueue);
         // Só as filas que o easylobby oferece.
         assert!(serde_json::from_value::<ClientMessage>(
             json!({"id": 1, "command": {"type": "createLobby", "queue": "tft"}})

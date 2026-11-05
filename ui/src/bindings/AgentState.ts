@@ -2,6 +2,7 @@
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
 import type { Lobby } from "./Lobby";
+import type { Matchmaking } from "./Matchmaking";
 import type { ReadyCheck } from "./ReadyCheck";
 import type { Summoner } from "./Summoner";
 
@@ -12,4 +13,4 @@ export type AgentState = { lcu: LcuStatus, summoner: Summoner | null, gameflowPh
 /**
  * Ready check aberto (partida encontrada, #20), ou `null`.
  */
-readyCheck: ReadyCheck | null, lobby: Lobby | null, };
+readyCheck: ReadyCheck | null, lobby: Lobby | null, matchmaking: Matchmaking | null, };

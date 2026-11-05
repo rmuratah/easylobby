@@ -5,4 +5,4 @@ import type { Queue } from "./Queue";
 /**
  * O que a UI pode pedir ao agente.
  */
-export type Command = { "type": "ping" } | { "type": "getState" } | { "type": "acceptReadyCheck" } | { "type": "declineReadyCheck" } | { "type": "launchLeague" } | { "type": "launchUx" } | { "type": "createLobby", queue: Queue, } | { "type": "leaveLobby" } | { "type": "setPositions", first: Position, second: Position, };
+export type Command = { "type": "ping" } | { "type": "getState" } | { "type": "acceptReadyCheck" } | { "type": "declineReadyCheck" } | { "type": "launchLeague" } | { "type": "launchUx" } | { "type": "createLobby", queue: Queue, } | { "type": "leaveLobby" } | { "type": "setPositions", first: Position, second: Position, } | { "type": "startQueue" } | { "type": "stopQueue" };

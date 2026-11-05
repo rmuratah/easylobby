@@ -202,6 +202,8 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                             Command::LaunchUx => hub.launch_ux().await,
                             Command::CreateLobby { queue } => hub.create_lobby(queue).await,
                             Command::LeaveLobby => hub.leave_lobby().await,
+                            Command::StartQueue => hub.start_queue().await,
+                            Command::StopQueue => hub.stop_queue().await,
                             Command::SetPositions { first, second } => {
                                 hub.set_positions(first, second).await
                             }
