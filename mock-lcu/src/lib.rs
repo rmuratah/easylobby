@@ -13,6 +13,7 @@
 //! Módulos:
 //!
 //! - [`state`]: que resposta cada `GET` recebe em cada momento.
+//! - [`champ_select`]: hover, ban e pick na seleção de campeões (#23).
 //! - [`lobby`]: criar lobby, trocar a fila e sair (#17); escolher os cargos
 //!   (#18).
 //! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19).
@@ -21,6 +22,7 @@
 //!
 //! [`Credentials::from_lockfile_path`]: easylobby_agent::lockfile::Credentials::from_lockfile_path
 
+pub mod champ_select;
 pub mod lobby;
 pub mod matchmaking;
 pub mod state;
@@ -550,6 +552,32 @@ async fn handle_request(
         (&Method::DELETE, matchmaking::LOBBY_SEARCH) => {
             stop_queue_timer(&shared);
             let (response, events) = matchmaking::stop(&shared.state());
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        // Seleção de campeões (#23): hover, ban e pick.
+        (&Method::PATCH, p) if champ_select::parse_route(p).is_some() => {
+            let Some(champ_select::ActionRoute::Action(id)) = champ_select::parse_route(p) else {
+                return json_response(&Response::error(405, "mock-lcu: use POST"));
+            };
+            let body = axum::body::to_bytes(request.into_body(), 64 * 1024)
+                .await
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .unwrap_or(Value::Null);
+            let (response, events) = champ_select::hover(&shared.state(), id, &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::POST, p) if champ_select::parse_route(p).is_some() => {
+            let Some(champ_select::ActionRoute::Complete(id)) = champ_select::parse_route(p) else {
+                return json_response(&Response::error(405, "mock-lcu: use PATCH"));
+            };
+            let (response, events) = champ_select::complete(&shared.state(), id);
             for event in events {
                 emit(&shared, event);
             }

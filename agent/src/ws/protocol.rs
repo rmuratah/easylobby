@@ -18,6 +18,7 @@
 //! ```json
 //! {"id":7,"command":{"type":"ping"}}
 //! {"id":8,"command":{"type":"createLobby","queue":"rankedSolo"}}
+//! {"id":9,"command":{"type":"confirmAction","actionId":13,"championId":121}}
 //! ```
 //!
 //! Os tipos TypeScript em `ui/src/bindings/` saem destes tipos com `ts-rs`.
@@ -214,6 +215,22 @@ pub enum Command {
     /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
     /// recusar.
     StopQueue,
+    /// Marca o campeão `championId` na ação `actionId` da seleção (#23), sem
+    /// confirmar: o hover de um ban ou de um pick na vez do jogador, ou a
+    /// intenção de pick antes da vez dele (etapa `PLANNING` ou durante os
+    /// bans). `actionId` é o `id` de uma ação do jogador logado em
+    /// `champSelect.actions`, em geral o de `champSelect.pendingAction`.
+    /// Responde `invalidCommand` sem falar com a LCU fora da seleção, com
+    /// `championId` 0, com ação de outro jogador, já confirmada, que não é
+    /// ban nem pick, ou com ban fora da vez. A seleção nova chega numa
+    /// mensagem `champSelect` antes da resposta. Responde `notConnected` com
+    /// o LoL fechado e `lcu` se a LCU recusar (campeão que o jogador não
+    /// tem, já banido ou escolhido...).
+    HoverChampion { action_id: u32, champion_id: u32 },
+    /// Confirma o ban ou o pick do campeão `championId` na ação `actionId`
+    /// (#23): marca o campeão e confirma, como o botão do client oficial.
+    /// Só na vez da ação (`isInProgress`). Mesmos erros do `hoverChampion`.
+    ConfirmAction { action_id: u32, champion_id: u32 },
 }
 
 /// Resultado de um comando.
@@ -455,6 +472,30 @@ mod tests {
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 11, "command": {"type": "stopQueue"}})).unwrap();
         assert_eq!(msg.command, Command::StopQueue);
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 12,
+            "command": {"type": "hoverChampion", "actionId": 13, "championId": 121},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::HoverChampion {
+                action_id: 13,
+                champion_id: 121,
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 13,
+            "command": {"type": "confirmAction", "actionId": 13, "championId": 121},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::ConfirmAction {
+                action_id: 13,
+                champion_id: 121,
+            }
+        );
         // Só as filas que o easylobby oferece.
         assert!(serde_json::from_value::<ClientMessage>(
             json!({"id": 1, "command": {"type": "createLobby", "queue": "tft"}})
