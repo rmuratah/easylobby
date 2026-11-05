@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use tokio::sync::broadcast;
 
+use crate::champ_select::{self, ChampSelect, CHAMP_SELECT_SESSION_PATH};
 use crate::connection::{ConnectionEvent, LcuConnection};
 use crate::gameflow::{self, GameflowPhase};
 use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError, LOBBY_PATH};
@@ -222,6 +223,16 @@ impl Hub {
         });
     }
 
+    pub fn set_champ_select(&self, champ_select: Option<ChampSelect>) {
+        self.update(|shared| {
+            if shared.state.champ_select == champ_select {
+                return None;
+            }
+            shared.state.champ_select = champ_select.clone();
+            Some(ServerMessage::ChampSelect { champ_select })
+        });
+    }
+
     /// Entra na fila com o lobby atual (comando `startQueue`, #19). Relê a
     /// busca pelo REST e a publica antes de devolver, sem esperar o evento do
     /// WAMP.
@@ -255,8 +266,9 @@ impl Hub {
 
     /// Atualiza o estado com o que a [`LcuConnection`] devolveu.
     ///
-    /// Num `Connected`, relê pelo REST o invocador, a fase e o ready check, porque os
-    /// eventos de antes da conexão se perderam. Num `Disconnected`, limpa o
+    /// Num `Connected`, relê pelo REST o invocador, a fase, o lobby, a fila,
+    /// o ready check e a seleção de campeões, porque os eventos de antes da
+    /// conexão se perderam. Num `Disconnected`, limpa o
     /// que dependia do LoL.
     pub async fn apply(&self, event: ConnectionEvent) {
         match event {
@@ -285,6 +297,13 @@ impl Hub {
                     let ready_check = ready_check::current(&client).await;
                     self.set_ready_check(ready_check.ok().flatten());
                 }
+                // A sessão da seleção também só existe na fase dela (fora,
+                // 404). Ela pode abrir um pouco antes da fase mudar, e o
+                // evento `Create` cobre esse caso.
+                if phase == Some(GameflowPhase::ChampSelect) {
+                    let session = champ_select::current_session(&client).await;
+                    self.set_champ_select(session.ok().flatten());
+                }
             }
             ConnectionEvent::Event(event) => self.apply_lcu_event(&event),
             ConnectionEvent::Disconnected(reason) => {
@@ -294,6 +313,7 @@ impl Hub {
                 self.set_ready_check(None);
                 self.set_lobby(None);
                 self.set_matchmaking(None);
+                self.set_champ_select(None);
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
                 });
@@ -337,6 +357,14 @@ impl Hub {
             SEARCH_PATH if deleted => self.set_matchmaking(None),
             // `Invalid` (sem busca) também vira `None`.
             SEARCH_PATH => self.set_matchmaking(Matchmaking::from_json(&event.data)),
+            // O `Delete` da LCU vem com uma sessão vazia em `data`; vale o
+            // tipo do evento.
+            CHAMP_SELECT_SESSION_PATH if deleted => self.set_champ_select(None),
+            CHAMP_SELECT_SESSION_PATH => {
+                if let Some(session) = ChampSelect::from_json(&event.data) {
+                    self.set_champ_select(Some(session));
+                }
+            }
             _ => {}
         }
     }
@@ -752,6 +780,86 @@ mod tests {
                 }
             ));
         }
+    }
+
+    fn champ_select(phase: &str, my_champion: u32) -> serde_json::Value {
+        json!({
+            "id": "sessao",
+            "queueId": 420,
+            "localPlayerCellId": 0,
+            "timer": {"phase": phase, "adjustedTimeLeftInPhase": 25000, "totalTimeInPhase": 25000},
+            "myTeam": [{"cellId": 0, "championId": my_champion, "assignedPosition": "top"}],
+            "theirTeam": [{"cellId": 5, "championId": 0}],
+            "actions": [[{"id": 1, "type": "pick", "actorCellId": 0, "championId": my_champion,
+                          "completed": false, "isInProgress": true, "isAllyAction": true}]],
+        })
+    }
+
+    #[tokio::test]
+    async fn segue_a_selecao_de_campeoes() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        hub.apply(event(
+            CHAMP_SELECT_SESSION_PATH,
+            EventType::Create,
+            champ_select("PLANNING", 0),
+        ))
+        .await;
+        hub.apply(event(
+            CHAMP_SELECT_SESSION_PATH,
+            EventType::Update,
+            champ_select("BAN_PICK", 86),
+        ))
+        .await;
+        // JSON que não é sessão: ignorado.
+        hub.apply(event(
+            CHAMP_SELECT_SESSION_PATH,
+            EventType::Update,
+            json!({}),
+        ))
+        .await;
+        // O `Delete` da LCU traz uma sessão vazia em `data`.
+        hub.apply(event(
+            CHAMP_SELECT_SESSION_PATH,
+            EventType::Delete,
+            json!({"actions": [], "myTeam": [], "timer": {"phase": ""}}),
+        ))
+        .await;
+
+        let seen: Vec<Option<(&'static str, Option<u32>)>> =
+            std::iter::from_fn(|| rx.try_recv().ok())
+                .map(|m| match m {
+                    ServerMessage::ChampSelect { champ_select } => champ_select.map(|cs| {
+                        (
+                            cs.timer.phase.as_str(),
+                            cs.pending_action.and_then(|a| a.champion_id),
+                        )
+                    }),
+                    other => panic!("esperava champSelect: {other:?}"),
+                })
+                .collect();
+        assert_eq!(
+            seen,
+            [Some(("PLANNING", None)), Some(("BAN_PICK", Some(86))), None]
+        );
+        assert_eq!(hub.state().champ_select, None);
+    }
+
+    #[tokio::test]
+    async fn queda_fecha_a_selecao_de_campeoes() {
+        let hub = Hub::new();
+        hub.apply(event(
+            CHAMP_SELECT_SESSION_PATH,
+            EventType::Update,
+            champ_select("BAN_PICK", 0),
+        ))
+        .await;
+        assert!(hub.state().champ_select.is_some());
+        hub.apply(ConnectionEvent::Disconnected(
+            crate::connection::DisconnectReason::Closed,
+        ))
+        .await;
+        assert_eq!(hub.state().champ_select, None);
     }
 
     #[tokio::test]
