@@ -31,16 +31,14 @@ use easylobby_agent::fixtures::{
     EventFixture, FixtureSet, Manifest, RestFixture, Sanitizer, FORMAT_VERSION,
 };
 use easylobby_agent::lockfile::{self, Credentials, LCU_USERNAME};
+use easylobby_agent::rest::{LcuClient, RIOT_ROOT_PEM};
 use futures_util::{SinkExt, StreamExt};
+use reqwest::Method;
 use serde_json::Value;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::Connector;
-
-/// Certificado raiz da Riot que assina o HTTPS da LCU. É um certificado X.509
-/// v1, por isso o TLS é o nativo do sistema (o `webpki` do rustls recusa v1).
-const RIOT_ROOT_PEM: &[u8] = include_bytes!("../certs/riotgames.pem");
 
 /// Endpoints fotografados no início e a cada mudança de fase.
 const SNAPSHOT_PATHS: [&str; 14] = [
@@ -123,7 +121,7 @@ fn parse_args() -> Result<Args, String> {
 }
 
 struct Recorder {
-    http: reqwest::Client,
+    lcu: LcuClient,
     credentials: Credentials,
     sanitizer: Sanitizer,
     rest: Vec<RestFixture>,
@@ -137,27 +135,14 @@ impl Recorder {
     /// Faz `GET path` e guarda a resposta sanitizada, sem repetir respostas
     /// iguais na mesma fase.
     async fn snapshot(&mut self, path: &str) {
-        let url = format!("{}{}", self.credentials.base_url(), path);
-        let response = match self
-            .http
-            .get(&url)
-            .basic_auth(LCU_USERNAME, Some(&self.credentials.password))
-            .send()
-            .await
-        {
+        let response = match self.lcu.request(Method::GET, path, None).await {
             Ok(r) => r,
             Err(e) => {
-                eprintln!("GET {path} falhou: {e}");
+                eprintln!("{e}");
                 return;
             }
         };
-        let status = response.status().as_u16();
-        let text = response.text().await.unwrap_or_default();
-        let body = if text.trim().is_empty() {
-            Value::Null
-        } else {
-            serde_json::from_str(&text).unwrap_or(Value::String(text))
-        };
+        let (status, body) = (response.status, response.body);
 
         let fixture = RestFixture {
             method: "GET".into(),
@@ -240,20 +225,13 @@ async fn run() -> Result<(), String> {
     let credentials = lockfile::discover().map_err(|e| e.to_string())?;
     println!("LCU em {}", credentials.base_url());
 
-    let root = reqwest::Certificate::from_pem(RIOT_ROOT_PEM).map_err(|e| e.to_string())?;
-    let http = reqwest::Client::builder()
-        .use_native_tls()
-        .tls_built_in_root_certs(false)
-        .add_root_certificate(root)
-        .timeout(Duration::from_secs(10))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let lcu = LcuClient::new(&credentials).map_err(|e| e.to_string())?;
 
     let mut sanitizer = Sanitizer::new();
     sanitizer.add_secret(credentials.password.clone());
 
     let mut rec = Recorder {
-        http,
+        lcu,
         credentials,
         sanitizer,
         rest: Vec::new(),

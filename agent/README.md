@@ -17,6 +17,19 @@ Para conferir no LoL real:
 cargo run -p easylobby-agent --example descobrir_lcu
 ```
 
+## Cliente REST da LCU (`rest`)
+
+`rest::LcuClient` fala com a LCU por HTTPS com Basic Auth `riot:<senha>` e o certificado `certs/riotgames.pem` fixado como única raiz confiável: as raízes do sistema ficam de fora e **a verificação TLS nunca é desligada**. Como o `riotgames.pem` é X.509 v1 e o rustls recusa, o TLS é o nativo do sistema (`native-tls`).
+
+```rust
+let credentials = lockfile::discover()?;
+let lcu = LcuClient::new(&credentials)?;
+let phase: String = lcu.get("/lol-gameflow/v1/gameflow-phase").await?;
+lcu.post::<_, ()>("/riotclient/kill-ux", &serde_json::Value::Null).await?;
+```
+
+`get`, `post`, `put`, `patch` e `delete` convertem o corpo em qualquer tipo `Deserialize` (`()` para respostas vazias) e transformam status fora de `2xx` em `LcuError::Status`, com o `message` do erro da LCU. `request` devolve status e corpo sem tratar erro. Para o mock-lcu, use `LcuClient::with_root_certificate(&credentials, pem)` com o `mock-lcu-ca.pem` que ele grava ao lado do lockfile. Os testes em `mock-lcu/tests/cliente_rest.rs` sobem o mock e conferem GET, POST, 401, 404 e que um certificado que não bate com o fixado é recusado.
+
 ## Fixtures da LCU
 
 Respostas REST e eventos WAMP gravados de sessões reais ficam em `tests/fixtures/<patch>/` e alimentam o `mock-lcu` (#6). Cada pasta tem:
