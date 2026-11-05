@@ -17,6 +17,7 @@ Ao subir, ele mostra a porta, o lockfile e o certificado da CA. Pare com Ctrl+C;
 - Escreve um **lockfile** no formato do LoL, `LeagueClient:<pid>:<porta>:<senha>:<protocolo>`, em `<temp>/easylobby-mock-lcu/lockfile` (ou `--lockfile`). O agente lê com `Credentials::from_lockfile_path` (#4).
 - **HTTPS** com um certificado para `127.0.0.1` gerado na hora e assinado por uma CA também gerada na hora. O PEM da CA fica em `mock-lcu-ca.pem`, ao lado do lockfile. O cliente fixa esse PEM no lugar do `riotgames.pem`, do mesmo jeito; **a verificação TLS nunca é desligada**. Com `--http` o servidor fala HTTP puro e o lockfile diz `http`.
 - `POST /riotclient/kill-ux` e `POST /riotclient/launch-ux` respondem 204 (e só registram o pedido).
+- `POST /lol-lobby/v2/lobby` com `{"queueId": N}` cria o lobby (ou troca a fila do lobby atual) a partir do lobby gravado, e `DELETE /lol-lobby/v2/lobby` sai dele (#17). Os dois mandam pelo WAMP os eventos que a LCU mandaria: a fase vai para `Lobby` (ou volta para `None`) e o lobby é criado, atualizado ou apagado. Fila que não está em `/lol-game-queues/v1/queues` recebe 400.
 - WebSocket WAMP em `/` (subprotocolo `wamp`): `[5, "OnJsonApiEvent"]` inscreve em tudo, `[5, "OnJsonApiEvent_lol-gameflow_v1_gameflow-phase"]` num recurso e nos sub-recursos dele, `[6, tópico]` cancela. Os eventos chegam como `[8, tópico, {"data", "eventType", "uri"}]`. Quando o servidor para, os WebSockets abertos caem sem handshake de fechamento, como quando o LoL fecha.
 
 ## Como as respostas mudam
@@ -25,7 +26,7 @@ Ao subir, ele mostra a porta, o lockfile e o certificado da CA. Pare com Ctrl+C;
 - A reprodução começa na **primeira inscrição WAMP**, para o cliente ler o estado inicial e não perder evento nenhum (`--iniciar-ja` começa na hora; `--parado` nunca começa). `--velocidade 10` reproduz 10 vezes mais rápido; `--repetir` recomeça no fim, mandando um evento de volta para a fase inicial.
 - Um `GET` devolve a resposta gravada na fase atual ou, se não houver, na fase visitada mais recente que tenha uma.
 - Cada evento muda o recurso: `Create`/`Update` viram a resposta do `GET` (200 com o `data`), `Delete` faz o recurso responder 404. Quando a fase muda, as respostas gravadas na nova fase voltam a valer para os recursos que elas cobrem.
-- Caminho sem resposta gravada nem evento: 404 no formato de erro da LCU. Outros métodos (`POST`, `PUT`, `PATCH`, `DELETE`): 501, porque as fixtures só têm `GET`.
+- Caminho sem resposta gravada nem evento: 404 no formato de erro da LCU. Outros métodos (`POST`, `PUT`, `PATCH`, `DELETE`) fora das rotas acima: 501, porque as fixtures só têm `GET`.
 
 ## Usar nos testes
 

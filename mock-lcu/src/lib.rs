@@ -13,11 +13,13 @@
 //! Módulos:
 //!
 //! - [`state`]: que resposta cada `GET` recebe em cada momento.
+//! - [`lobby`]: criar lobby, trocar a fila e sair (#17).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
 //!
 //! [`Credentials::from_lockfile_path`]: easylobby_agent::lockfile::Credentials::from_lockfile_path
 
+pub mod lobby;
 pub mod state;
 pub mod tls;
 pub mod wamp;
@@ -445,6 +447,26 @@ async fn handle_request(
     }
 
     let response = match (&method, path.as_str()) {
+        // Lobby (#17): mudam o estado e avisam pelo WAMP, como a LCU.
+        (&Method::POST, lobby::LOBBY) => {
+            let body = axum::body::to_bytes(request.into_body(), 64 * 1024)
+                .await
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .unwrap_or(Value::Null);
+            let (response, events) = lobby::create(&shared.state(), &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::DELETE, lobby::LOBBY) => {
+            let (response, events) = lobby::leave(&shared.state());
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
         (&Method::POST, "/riotclient/kill-ux") => {
             println!("kill-ux: UI oficial fechada (de mentira)");
             shared.state().set_ux_open(false);

@@ -147,6 +147,16 @@ impl LcuState {
         })
     }
 
+    /// Primeira resposta `200` gravada para `path`, em qualquer fase. Serve de
+    /// modelo para respostas que o mock monta, como o lobby de um `POST`.
+    pub fn recorded_body(&self, path: &str) -> Option<&Value> {
+        self.recorded
+            .get(path)?
+            .iter()
+            .find(|(_, r)| r.status == 200)
+            .map(|(_, r)| &r.body)
+    }
+
     /// Aplica um evento reproduzido.
     pub fn apply(&mut self, event: &EventFixture) {
         if event.uri == GAMEFLOW_PHASE {
