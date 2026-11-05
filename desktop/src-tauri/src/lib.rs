@@ -1,4 +1,7 @@
-//! Shell Tauri 2 com janela e bandeja. O canal do agente é implementado na #15.
+//! Shell Tauri 2 com janela, bandeja e canal local do agente.
+
+use easylobby_agent::connection::{CredentialSource, LcuConnection, ReconnectConfig};
+use easylobby_agent::ws::{self, WsConfig};
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -25,6 +28,31 @@ fn open_from_tray(app: &tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            // Reserve a porta antes de abrir a UI: não conecte silenciosamente
+            // a outra instância se já existir um processo usando o endereço.
+            let listener = std::net::TcpListener::bind(ws::default_addr())?;
+            listener.set_nonblocking(true)?;
+            let source = if std::env::var("EASYLOBBY_MOCK_LCU").as_deref() == Ok("1") {
+                CredentialSource::Lockfile(
+                    std::env::temp_dir()
+                        .join("easylobby-mock-lcu")
+                        .join("lockfile"),
+                )
+            } else {
+                CredentialSource::Discover
+            };
+            tauri::async_runtime::spawn(async move {
+                let result = async {
+                    let listener = tokio::net::TcpListener::from_std(listener)?;
+                    let lcu = LcuConnection::new(ReconnectConfig::with_source(source));
+                    ws::run(lcu, listener, WsConfig::default()).await
+                }
+                .await;
+                if let Err(error) = result {
+                    eprintln!("erro no canal do agente: {error}");
+                }
+            });
+
             let open = MenuItem::with_id(app, "open", "Abrir easylobby", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &quit])?;

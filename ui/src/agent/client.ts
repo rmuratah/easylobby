@@ -1,0 +1,145 @@
+import type { AgentState } from '../bindings/AgentState';
+import type { ClientMessage } from '../bindings/ClientMessage';
+import type { Command } from '../bindings/Command';
+import type { CommandResult } from '../bindings/CommandResult';
+import { parseMessage } from './protocol';
+
+export const AGENT_URL = 'ws://127.0.0.1:47800/ws';
+export type ConnectionSnapshot = {
+  status: 'connecting' | 'connected' | 'reconnecting' | 'incompatible';
+  state: AgentState | null;
+  error: string | null;
+};
+type Pending = { resolve: (result: CommandResult) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> };
+
+export class AgentClient {
+  private snapshot: ConnectionSnapshot = { status: 'connecting', state: null, error: null };
+  private listeners = new Set<() => void>();
+  private socket: WebSocket | null = null;
+  private retryTimer?: ReturnType<typeof setTimeout>;
+  private helloTimer?: ReturnType<typeof setTimeout>;
+  private active = false;
+  private attempts = 0;
+  private nextId = 0;
+  private pending = new Map<number, Pending>();
+
+  getSnapshot = () => this.snapshot;
+  subscribe = (listener: () => void) => {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  };
+  private publish(snapshot: ConnectionSnapshot) {
+    this.snapshot = snapshot;
+    this.listeners.forEach(listener => listener());
+  }
+  start = () => {
+    if (this.active) return;
+    this.active = true;
+    this.attempts = 0;
+    this.publish({ status: 'connecting', state: null, error: null });
+    this.connect();
+  };
+  stop = () => {
+    this.active = false;
+    this.release();
+    clearTimeout(this.retryTimer);
+    this.rejectPending();
+  };
+  private release() {
+    clearTimeout(this.helloTimer);
+    const socket = this.socket;
+    this.socket = null;
+    if (socket) {
+      socket.onmessage = socket.onclose = socket.onerror = null;
+      socket.close();
+    }
+  }
+  private rejectPending() {
+    this.pending.forEach(({ reject, timer }) => {
+      clearTimeout(timer);
+      reject(new Error('Conexão com o agente encerrada.'));
+    });
+    this.pending.clear();
+  }
+  private reconnect(error: string) {
+    if (!this.active) return;
+    this.release();
+    this.rejectPending();
+    this.publish({ status: 'reconnecting', state: null, error });
+    clearTimeout(this.retryTimer);
+    const delay = Math.min(1000 * 2 ** Math.min(this.attempts++, 3), 8000);
+    this.retryTimer = setTimeout(() => this.connect(), delay);
+  }
+  private connect() {
+    if (!this.active) return;
+    try {
+      const socket = new WebSocket(AGENT_URL);
+      this.socket = socket;
+      this.helloTimer = setTimeout(() => this.reconnect('O agente não respondeu a tempo.'), 10000);
+      socket.onerror = () => { if (this.socket === socket) this.reconnect('Não foi possível conectar ao agente.'); };
+      socket.onclose = () => { if (this.socket === socket) this.reconnect('Conexão com o agente interrompida.'); };
+      socket.onmessage = event => {
+        if (this.socket !== socket || !this.active) return;
+        try {
+          if (typeof event.data !== 'string') throw new Error('Mensagem inválida do agente.');
+          const message = parseMessage(event.data);
+          if (!message) return;
+          if (message.type === 'hello') {
+            clearTimeout(this.helloTimer);
+            if (message.protocol !== 1) {
+              this.release();
+              this.rejectPending();
+              this.publish({ status: 'incompatible', state: null, error: 'Atualize o aplicativo e o agente para versões compatíveis.' });
+              return;
+            }
+            this.attempts = 0;
+            this.publish({ status: 'connected', state: message.state, error: null });
+            return;
+          }
+          const state = this.snapshot.state;
+          if (!state) throw new Error('O agente não enviou o estado inicial.');
+          switch (message.type) {
+            case 'lcu': this.publish({ ...this.snapshot, state: { ...state, lcu: message.status } }); break;
+            case 'summoner': this.publish({ ...this.snapshot, state: { ...state, summoner: message.summoner } }); break;
+            case 'gameflowPhase': this.publish({ ...this.snapshot, state: { ...state, gameflowPhase: message.phase } }); break;
+            case 'response': {
+              const pending = this.pending.get(message.id);
+              if (pending) {
+                clearTimeout(pending.timer);
+                this.pending.delete(message.id);
+                pending.resolve(message.result);
+              }
+              break;
+            }
+            case 'invalidMessage': this.publish({ ...this.snapshot, error: message.message }); break;
+          }
+        } catch {
+          this.reconnect('Recebemos uma mensagem inválida do agente.');
+        }
+      };
+    } catch {
+      this.reconnect('Não foi possível conectar ao agente.');
+    }
+  }
+  send = (command: Command): Promise<CommandResult> => {
+    const socket = this.socket;
+    if (this.snapshot.status !== 'connected' || !socket || socket.readyState !== WebSocket.OPEN) {
+      return Promise.reject(new Error('O agente ainda não está conectado.'));
+    }
+    const id = this.nextId = (this.nextId % 0xffffffff) + 1;
+    const message: ClientMessage = { id, command };
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error('O agente não respondeu ao comando.'));
+      }, 10000);
+      this.pending.set(id, { resolve, reject, timer });
+      try { socket.send(JSON.stringify(message)); }
+      catch {
+        this.pending.delete(id);
+        clearTimeout(timer);
+        reject(new Error('Não foi possível enviar o comando.'));
+      }
+    });
+  };
+}
