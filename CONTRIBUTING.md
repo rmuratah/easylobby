@@ -26,7 +26,7 @@ Este guia vale para todo mundo que mexe no código, inclusive assistentes de IA 
 Formato: `tipo/numero-da-issue-descricao-curta`
 
 - Tudo em minúsculas, palavras separadas por hífen, sem acento e sem espaço.
-- Uma branch por issue.
+- Uma branch por issue, com uma exceção: issues divididas (veja abaixo).
 
 | Tipo | Quando usar | Exemplo |
 | --- | --- | --- |
@@ -36,6 +36,14 @@ Formato: `tipo/numero-da-issue-descricao-curta`
 | `chore` | Configuração, CI, dependências | `chore/3-ci-github-actions` |
 | `refactor` | Mudança interna sem alterar comportamento | `refactor/22-estado-champ-select` |
 | `test` | Só testes ou fixtures | `test/5-fixtures-lcu` |
+
+## Issues divididas (label `agente,ui`)
+
+Quando uma issue tem parte no agente e parte na UI, os dois devs ficam atribuídos e ela vira dois PRs:
+
+1. A parte do agente vai numa branch com sufixo `-agente`, por exemplo `feat/17-criar-lobby-agente`: o comando, o evento e os tipos TypeScript gerados. Isso é o contrato.
+2. A parte da UI vai numa branch com sufixo `-ui`, por exemplo `feat/17-criar-lobby-ui`. Ela pode começar assim que o PR do agente estiver aberto, programando contra os tipos gerados e testando no mock-lcu.
+3. O PR do agente entra primeiro e usa `Refs #17`; o PR da UI usa `Closes #17`.
 
 ## Mensagens de commit
 
