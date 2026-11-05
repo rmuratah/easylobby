@@ -96,6 +96,20 @@ loop {
 
 O example `eventos` usa a reconexão: deixe-o rodando e feche e reabra o LoL (ou o `cargo run -p mock-lcu`). Os testes em `mock-lcu/tests/reconexao.rs` sobem e derrubam o mock com a gravação `16.22` e conferem a espera pelo LoL, a reconexão com porta, senha e CA novas no meio do champ select, o lockfile velho e o cancelamento do `next`.
 
+## Abrir o LoL pelo Riot Client (`launcher`)
+
+`launcher::launch_league(&LaunchOptions::default())` abre o LoL quando ele não está rodando (#11): chama `RiotClientServices.exe --launch-product=league_of_legends --launch-patchline=live` e volta sem esperar. Se o Riot Client já está aberto, ele só repassa o pedido; se ninguém fez login, mostra a tela de login e abre o LoL depois. Se já existe um `LeagueClient`/`LeagueClientUx` (inclusive depois do `kill-ux`), devolve `LaunchOutcome::AlreadyRunning` e não faz nada.
+
+O `RiotClientServices.exe` é procurado nesta ordem: `LaunchOptions::riot_client`, se dado; o executável de um `RiotClientServices` já aberto; `rc_default`, `rc_live`, `associated_client` e `rc_beta` do `%ProgramData%\Riot Games\RiotClientInstalls.json`; e `C:\Riot Games\Riot Client\`. Sem nenhum, o erro `LaunchError::RiotClientNotFound` lista onde procurou. `launch_league` é bloqueante (lista processos): em código async, use `spawn_blocking`. Quem espera o LoL subir é a `LcuConnection`, que já tenta de novo até conectar.
+
+```bash
+# Windows, com o LoL fechado
+cargo run -p easylobby-agent --example abrir_lol
+cargo run -p easylobby-agent --example abrir_lol -- --riot-client "D:\Riot Games\Riot Client\RiotClientServices.exe"
+```
+
+O example abre o LoL, espera conectar e mostra o invocador logado. `--patchline pbe` abre o PBE. A decisão de abrir ou não e a ordem de busca são testadas com processos e arquivos falsos (`plan_launch`/`find_riot_client`); no Linux, um teste também dispara um "Riot Client" falso e confere os argumentos.
+
 ## Fixtures da LCU
 
 Respostas REST e eventos WAMP gravados de sessões reais ficam em `tests/fixtures/<patch>/` e alimentam o `mock-lcu` (#6). Cada pasta tem:

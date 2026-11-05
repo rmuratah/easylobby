@@ -186,7 +186,7 @@ pub struct ProcessInfo {
 
 impl ProcessInfo {
     /// Nome sem `.exe`, para comparar igual no Windows e fora dele.
-    fn base_name(&self) -> &str {
+    pub(crate) fn base_name(&self) -> &str {
         let name = self.name.as_str();
         name.len()
             .checked_sub(4)
@@ -194,7 +194,8 @@ impl ProcessInfo {
             .map_or(name, |i| &name[..i])
     }
 
-    fn is_client(&self) -> bool {
+    /// Se é um processo do client do LoL (`LeagueClient` ou `LeagueClientUx`).
+    pub(crate) fn is_client(&self) -> bool {
         CLIENT_PROCESSES
             .iter()
             .any(|c| self.base_name().eq_ignore_ascii_case(c))
@@ -278,7 +279,9 @@ fn parse_port(s: &str) -> Option<u16> {
 }
 
 /// Lista os processos do sistema com nome, executável e argumentos.
-fn list_processes() -> Vec<ProcessInfo> {
+///
+/// É bloqueante: em código async, chame dentro de `spawn_blocking`.
+pub(crate) fn list_processes() -> Vec<ProcessInfo> {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
     let mut system = System::new();

@@ -10,9 +10,12 @@
 //! - [`wamp`]: eventos da LCU em tempo real pelo WebSocket WAMP (#9)
 //! - [`connection`]: conexão REST + WAMP que reconecta quando o LoL fecha ou
 //!   reinicia (#10)
+//! - [`launcher`]: abre o LoL pelo Riot Client quando ele não está rodando
+//!   (#11)
 
 pub mod connection;
 pub mod fixtures;
+pub mod launcher;
 pub mod lockfile;
 pub mod rest;
 pub mod summoner;
