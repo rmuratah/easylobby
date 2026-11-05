@@ -9,6 +9,8 @@ import { isQueue } from './queues';
 import type { ErrorCode } from '../bindings/ErrorCode';
 import type { ReadyCheck } from '../bindings/ReadyCheck';
 import type { Matchmaking } from '../bindings/Matchmaking';
+import type { MatchmakingError } from '../bindings/MatchmakingError';
+import type { SearchState } from '../bindings/SearchState';
 import type { ChampSelect } from '../bindings/ChampSelect';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
 import type { Conversation } from '../bindings/Conversation';
@@ -63,10 +65,17 @@ const list = <T>(v: unknown, item: (x: unknown) => x is T): v is T[] => Array.is
 function readyCheck(v: unknown): v is ReadyCheck | null {
   return v === null || (object(v) && strings(v, ['state', 'playerResponse']) && nums(v, ['timer', 'duration']));
 }
+const searchStates = {
+  Searching: true, Found: true, Error: true, AbandonedLowPriorityQueue: true, Unknown: true,
+} satisfies Record<SearchState, true>;
+const searchState = (v: unknown): v is SearchState => typeof v === 'string' && Object.hasOwn(searchStates, v);
+function matchmakingError(v: unknown): v is MatchmakingError {
+  return object(v) && strings(v, ['errorType', 'message']) && num(v.penaltyTimeRemaining);
+}
 function matchmaking(v: unknown): v is Matchmaking | null {
-  return v === null || (object(v) && typeof v.searchState === 'string' &&
+  return v === null || (object(v) && searchState(v.searchState) &&
     uint(v.queueId) &&
-    nums(v, ['timeInQueue', 'estimatedQueueTime', 'lowPriorityTimeRemaining']) && Array.isArray(v.errors));
+    nums(v, ['timeInQueue', 'estimatedQueueTime', 'lowPriorityTimeRemaining']) && list(v.errors, matchmakingError));
 }
 function champSelect(v: unknown): v is ChampSelect | null {
   return v === null || (object(v) && typeof v.id === 'string' && uint(v.queueId) && Number.isSafeInteger(v.localPlayerCellId) &&

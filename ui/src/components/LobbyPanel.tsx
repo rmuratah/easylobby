@@ -28,7 +28,7 @@ export function LobbyPanel({ connection, send }: Props) {
 }
 
 function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['send'] }) {
-  const { lobby, summoner, gameflowPhase: phase } = state;
+  const { lobby, matchmaking, summoner, gameflowPhase: phase } = state;
   const localMember = summoner?.puuid ? lobby?.members.find(member => member.puuid === summoner.puuid) : undefined;
   const first = localMember?.firstPosition ?? 'unselected';
   const second = localMember?.secondPosition ?? 'unselected';
@@ -62,10 +62,10 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     return () => { mounted.current = false; };
   }, []);
 
-  const phaseAllowsChange = phase === 'None' || phase === 'Lobby';
+  const phaseAllowsChange = !matchmaking && (phase === 'None' || phase === 'Lobby');
   const canCreate = !!summoner && phaseAllowsChange && (!lobby || lobby.isLeader);
-  const canLeave = !!summoner && !!lobby && phase === 'Lobby';
-  const canSetPositions = !!localMember && !!lobby?.showPositionSelector && phase === 'Lobby';
+  const canLeave = !!summoner && !!lobby && !matchmaking && phase === 'Lobby';
+  const canSetPositions = !!localMember && !!lobby?.showPositionSelector && !matchmaking && phase === 'Lobby';
   const positionsChanged = (positions.first !== first || positions.second !== second) &&
     !(acceptedPositions?.confirmedKey === confirmedKey && acceptedPositions.first === positions.first && acceptedPositions.second === positions.second);
   const pending = feedback.status === 'pending';
