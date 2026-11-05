@@ -12,6 +12,7 @@
 //! {"type":"readyCheck","readyCheck":{"state":"InProgress","playerResponse":"None","timer":3.0,"duration":12.0}}
 //! {"type":"lobby","lobby":{"queueId":420,"queue":"rankedSolo",...}}
 //! {"type":"champSelect","champSelect":{"timer":{"phase":"BAN_PICK",...},"myTeam":[...],...}}
+//! {"type":"friends","friends":[{"id":"...","gameName":"...","availability":"online",...}]}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
 //!
@@ -39,6 +40,7 @@ use crate::champ_select::{
     ChampSelect, ChampSelectAction, ChampSelectActionType, ChampSelectBans, ChampSelectPhase,
     ChampSelectPlayer, ChampSelectTimer,
 };
+use crate::friends::{Activity, Availability, Friend, LeagueActivity, LeagueStatus};
 use crate::gameflow::GameflowPhase;
 use crate::lobby::{Lobby, LobbyMember, Position, Queue};
 use crate::matchmaking::{Matchmaking, MatchmakingError, SearchState};
@@ -91,6 +93,11 @@ pub enum ServerMessage {
     /// seleção, não só o que mudou. `null` quando a seleção fecha (partida
     /// abrindo, dodge) e com o LoL fechado.
     ChampSelect { champ_select: Option<ChampSelect> },
+    /// A lista de amigos (#30) mudou: alguém ficou online ou offline, entrou
+    /// numa partida, virou amigo ou deixou de ser. Sempre a lista inteira,
+    /// já ordenada (disponíveis primeiro, depois por nome). Vazia com o LoL
+    /// fechado.
+    Friends { friends: Vec<Friend> },
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
     /// A UI mandou algo que não é um [`ClientMessage`] válido. Sem `id`,
@@ -111,6 +118,8 @@ pub struct AgentState {
     pub matchmaking: Option<Matchmaking>,
     /// Seleção de campeões em andamento (#22), ou `null`.
     pub champ_select: Option<ChampSelect>,
+    /// Amigos com a presença de cada um (#30), na ordem da tela.
+    pub friends: Vec<Friend>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -309,6 +318,11 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<CommandResult>(&cfg)?,
         file::<ErrorCode>(&cfg)?,
         file::<AssetKind>(&cfg)?,
+        file::<Friend>(&cfg)?,
+        file::<Availability>(&cfg)?,
+        file::<Activity>(&cfg)?,
+        file::<LeagueActivity>(&cfg)?,
+        file::<LeagueStatus>(&cfg)?,
     ];
     files.sort();
     Ok(files)
@@ -340,6 +354,7 @@ mod tests {
                     "lobby": null,
                     "matchmaking": null,
                     "champSelect": null,
+                    "friends": [],
                 },
             })
         );
