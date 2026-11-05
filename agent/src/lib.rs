@@ -6,12 +6,14 @@
 //! - [`lockfile`]: acha o LoL e lê porta e senha da LCU (#4)
 //! - [`fixtures`]: formato e sanitização das fixtures gravadas da LCU (#5)
 //! - [`rest`]: cliente REST da LCU, com Basic Auth e certificado fixado (#8)
+//! - [`summoner`]: invocador logado (#7)
 //!
 //! Próxima issue: #9 cliente WebSocket WAMP.
 
 pub mod fixtures;
 pub mod lockfile;
 pub mod rest;
+pub mod summoner;
 
 /// Versão do agente, a mesma do `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -30,6 +30,20 @@ lcu.post::<_, ()>("/riotclient/kill-ux", &serde_json::Value::Null).await?;
 
 `get`, `post`, `put`, `patch` e `delete` convertem o corpo em qualquer tipo `Deserialize` (`()` para respostas vazias) e transformam status fora de `2xx` em `LcuError::Status`, com o `message` do erro da LCU. `request` devolve status e corpo sem tratar erro. Para o mock-lcu, use `LcuClient::with_root_certificate(&credentials, pem)` com o `mock-lcu-ca.pem` que ele grava ao lado do lockfile. Os testes em `mock-lcu/tests/cliente_rest.rs` sobem o mock e conferem GET, POST, 401, 404 e que um certificado que não bate com o fixado é recusado.
 
+## Invocador logado (`summoner`)
+
+`summoner::current_summoner(&lcu)` lê `/lol-summoner/v1/current-summoner` e devolve um `Summoner` com Riot ID (`gameName#tagLine`), nível, ícone, puuid e id. Antes do login a LCU responde 404.
+
+```bash
+# LoL real, aberto e logado
+cargo run -p easylobby-agent --example invocador
+
+# mock-lcu (com `cargo run -p mock-lcu` em outro terminal)
+cargo run -p easylobby-agent --example invocador -- --mock
+```
+
+Com `--mock` (ou `--lockfile <arquivo>`), o example lê o lockfile do mock e fixa o `mock-lcu-ca.pem` que fica ao lado dele.
+
 ## Fixtures da LCU
 
 Respostas REST e eventos WAMP gravados de sessões reais ficam em `tests/fixtures/<patch>/` e alimentam o `mock-lcu` (#6). Cada pasta tem:

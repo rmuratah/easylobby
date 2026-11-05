@@ -174,3 +174,19 @@ async fn funciona_com_lockfile_http() {
     mock.shutdown().await;
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn mostra_o_invocador_logado() {
+    use easylobby_agent::summoner;
+
+    let (mock, creds, ca_pem, dir) = start_https("invocador").await;
+    let lcu = LcuClient::with_root_certificate(&creds, ca_pem.as_bytes()).unwrap();
+
+    let s = summoner::current_summoner(&lcu).await.unwrap();
+    assert_eq!(s.name(), "fake-name-0001#fake-tag-0001");
+    assert_eq!(s.summoner_level, 122);
+    assert_eq!(s.to_string(), "fake-name-0001#fake-tag-0001, nível 122");
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
