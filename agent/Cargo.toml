@@ -9,3 +9,5 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+thiserror = "2"
