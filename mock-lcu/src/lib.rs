@@ -17,6 +17,8 @@
 //! - [`lobby`]: criar lobby, trocar a fila e sair (#17); escolher os cargos
 //!   (#18).
 //! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19).
+//! - [`perks`]: páginas de runas: criar, editar, apagar e aplicar, e as
+//!   árvores de runas (#26).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
 //!
@@ -25,6 +27,7 @@
 pub mod champ_select;
 pub mod lobby;
 pub mod matchmaking;
+pub mod perks;
 pub mod state;
 pub mod tls;
 pub mod wamp;
@@ -631,6 +634,40 @@ async fn handle_request(
             }
             response
         }
+        // Páginas de runas (#26).
+        (&Method::GET, perks::INVENTORY) => perks::inventory(&shared.state()),
+        (&Method::GET, p) if perks::page_id(p).is_some() => {
+            perks::get_page(&shared.state(), perks::page_id(p).unwrap_or_default())
+        }
+        (&Method::GET, perks::PERK_STYLES | perks::PERKS) => {
+            let state = shared.state();
+            perks::game_data(&state, &path).unwrap_or_else(|| state.get(&path))
+        }
+        (&Method::POST, perks::PAGES) => {
+            let body = read_json(request).await;
+            let (response, events) = perks::create(&shared.state(), &body);
+            emit_all(&shared, events);
+            response
+        }
+        (&Method::PUT, perks::CURRENT_PAGE) => {
+            let body = read_json(request).await;
+            let (response, events) = perks::select(&shared.state(), &body);
+            emit_all(&shared, events);
+            response
+        }
+        (&Method::PUT, p) if perks::page_id(p).is_some() => {
+            let id = perks::page_id(p).unwrap_or_default();
+            let body = read_json(request).await;
+            let (response, events) = perks::update(&shared.state(), id, &body);
+            emit_all(&shared, events);
+            response
+        }
+        (&Method::DELETE, p) if perks::page_id(p).is_some() => {
+            let id = perks::page_id(p).unwrap_or_default();
+            let (response, events) = perks::delete(&shared.state(), id);
+            emit_all(&shared, events);
+            response
+        }
         // Seleção de campeões (#23): hover, ban e pick.
         (&Method::PATCH, p) if champ_select::parse_route(p).is_some() => {
             let Some(champ_select::ActionRoute::Action(id)) = champ_select::parse_route(p) else {
@@ -720,6 +757,21 @@ const READY_CHECK_DECLINE: &str = "/lol-matchmaking/v1/ready-check/decline";
 
 /// Responde o ready check em andamento como a LCU: muda o `playerResponse`
 /// e avisa pelo WAMP. A reprodução segue depois com os eventos gravados.
+/// Corpo JSON do pedido, ou `null` se não for JSON.
+async fn read_json(request: Request) -> Value {
+    axum::body::to_bytes(request.into_body(), 64 * 1024)
+        .await
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .unwrap_or(Value::Null)
+}
+
+fn emit_all(shared: &Shared, events: Vec<EventFixture>) {
+    for event in events {
+        emit(shared, event);
+    }
+}
+
 fn answer_ready_check(shared: &Shared, response: &str) -> Response {
     let answered = shared.state().answer_ready_check(response);
     match answered {

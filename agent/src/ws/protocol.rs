@@ -12,6 +12,8 @@
 //! {"type":"readyCheck","readyCheck":{"state":"InProgress","playerResponse":"None","timer":3.0,"duration":12.0}}
 //! {"type":"lobby","lobby":{"queueId":420,"queue":"rankedSolo",...}}
 //! {"type":"champSelect","champSelect":{"timer":{"phase":"BAN_PICK",...},"myTeam":[...],...}}
+//! {"type":"runePages","runePages":{"pages":[...],"currentPageId":994528921,"canCreatePage":true}}
+//! {"type":"runeCatalog","runeCatalog":{"styles":[...],"perks":[...]}}
 //! {"type":"friends","friends":[{"id":"...","gameName":"...","availability":"online",...}]}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
@@ -19,6 +21,7 @@
 //! ```json
 //! {"id":7,"command":{"type":"ping"}}
 //! {"id":8,"command":{"type":"createLobby","queue":"rankedSolo"}}
+//! {"id":9,"command":{"type":"selectRunePage","pageId":994528921}}
 //! {"id":9,"command":{"type":"confirmAction","actionId":13,"championId":121}}
 //! ```
 //!
@@ -45,6 +48,9 @@ use crate::gameflow::GameflowPhase;
 use crate::lobby::{Lobby, LobbyMember, Position, Queue};
 use crate::matchmaking::{Matchmaking, MatchmakingError, SearchState};
 use crate::ready_check::{ReadyCheck, ReadyCheckResponse, ReadyCheckState};
+use crate::runes::{
+    Perk, RuneCatalog, RunePage, RunePageInput, RunePages, RuneSlot, RuneSlotKind, RuneStyle,
+};
 use crate::summoner::Summoner;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
@@ -93,6 +99,14 @@ pub enum ServerMessage {
     /// seleção, não só o que mudou. `null` quando a seleção fecha (partida
     /// abrindo, dodge) e com o LoL fechado.
     ChampSelect { champ_select: Option<ChampSelect> },
+    /// As páginas de runas (#26) mudaram: criada, editada, apagada, outra
+    /// aplicada, ou a recomendada da seleção apareceu ou sumiu. Sempre a lista
+    /// inteira. `null` com o LoL fechado.
+    RunePages { rune_pages: Option<RunePages> },
+    /// As árvores de runas para o editor (#26). Chega uma vez por conexão
+    /// com o LoL, logo depois de conectar. `null` com o LoL fechado ou se a
+    /// LCU não mandou as árvores.
+    RuneCatalog { rune_catalog: Option<RuneCatalog> },
     /// A lista de amigos (#30) mudou: alguém ficou online ou offline, entrou
     /// numa partida, virou amigo ou deixou de ser. Sempre a lista inteira,
     /// já ordenada (disponíveis primeiro, depois por nome). Vazia com o LoL
@@ -118,6 +132,10 @@ pub struct AgentState {
     pub matchmaking: Option<Matchmaking>,
     /// Seleção de campeões em andamento (#22), ou `null`.
     pub champ_select: Option<ChampSelect>,
+    /// Páginas de runas (#26), ou `null` com o LoL fechado.
+    pub rune_pages: Option<RunePages>,
+    /// Árvores de runas para o editor (#26), ou `null`.
+    pub rune_catalog: Option<RuneCatalog>,
     /// Amigos com a presença de cada um (#30), na ordem da tela.
     pub friends: Vec<Friend>,
 }
@@ -224,6 +242,39 @@ pub enum Command {
     /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
     /// recusar.
     StopQueue,
+    /// Aplica a página de runas `pageId` (#26). As páginas com o
+    /// `currentPageId` novo chegam numa mensagem `runePages` antes da
+    /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
+    /// recusar (página que não existe...).
+    SelectRunePage {
+        #[ts(type = "number")]
+        page_id: u64,
+    },
+    /// Cria uma página de runas e já a aplica (#26). A página é conferida
+    /// com as árvores do `runeCatalog` antes de ir para a LCU: nome vazio,
+    /// árvores iguais ou runa fora da linha voltam `invalidCommand` (veja
+    /// `selectedPerkIds` em `RunePage` para a ordem das runas). A lista nova
+    /// chega numa mensagem `runePages` antes da resposta. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar, como sem
+    /// espaço para página nova (`canCreatePage: false`).
+    CreateRunePage { page: RunePageInput },
+    /// Troca nome, árvores e runas da página `pageId` (#26), com a mesma
+    /// conferência do `createRunePage`. Não muda qual página está em uso.
+    /// Mesmos erros do `createRunePage`; `lcu` também quando a página não
+    /// existe ou não é editável (`isEditable: false`).
+    UpdateRunePage {
+        #[ts(type = "number")]
+        page_id: u64,
+        page: RunePageInput,
+    },
+    /// Apaga a página `pageId` (#26). A lista nova chega numa mensagem
+    /// `runePages` antes da resposta. Responde `notConnected` com o LoL
+    /// fechado e `lcu` se a LCU recusar (página que não existe ou não pode
+    /// ser apagada, `isDeletable: false`).
+    DeleteRunePage {
+        #[ts(type = "number")]
+        page_id: u64,
+    },
     /// Marca o campeão `championId` na ação `actionId` da seleção (#23), sem
     /// confirmar: o hover de um ban ou de um pick na vez do jogador, ou a
     /// intenção de pick antes da vez dele (etapa `PLANNING` ou durante os
@@ -313,6 +364,14 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<ChampSelectBans>(&cfg)?,
         file::<ChampSelectAction>(&cfg)?,
         file::<ChampSelectActionType>(&cfg)?,
+        file::<RunePages>(&cfg)?,
+        file::<RunePage>(&cfg)?,
+        file::<RuneCatalog>(&cfg)?,
+        file::<RuneStyle>(&cfg)?,
+        file::<RuneSlot>(&cfg)?,
+        file::<RuneSlotKind>(&cfg)?,
+        file::<Perk>(&cfg)?,
+        file::<RunePageInput>(&cfg)?,
         file::<ClientMessage>(&cfg)?,
         file::<Command>(&cfg)?,
         file::<CommandResult>(&cfg)?,
@@ -354,6 +413,8 @@ mod tests {
                     "lobby": null,
                     "matchmaking": null,
                     "champSelect": null,
+                    "runePages": null,
+                    "runeCatalog": null,
                     "friends": [],
                 },
             })
@@ -487,6 +548,55 @@ mod tests {
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 11, "command": {"type": "stopQueue"}})).unwrap();
         assert_eq!(msg.command, Command::StopQueue);
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 12, "command": {"type": "selectRunePage", "pageId": 994528921}}),
+        )
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::SelectRunePage {
+                page_id: 994_528_921
+            }
+        );
+        let page = json!({
+            "name": "Nova",
+            "primaryStyleId": 8000,
+            "subStyleId": 8300,
+            "selectedPerkIds": [8005, 9111, 9104, 8017, 8313, 8321, 5005, 5008, 5011],
+        });
+        let input = RunePageInput {
+            name: "Nova".into(),
+            primary_style_id: 8000,
+            sub_style_id: 8300,
+            selected_perk_ids: vec![8005, 9111, 9104, 8017, 8313, 8321, 5005, 5008, 5011],
+        };
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 13, "command": {"type": "createRunePage", "page": page}}),
+        )
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::CreateRunePage {
+                page: input.clone()
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 14,
+            "command": {"type": "updateRunePage", "pageId": 7, "page": page},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::UpdateRunePage {
+                page_id: 7,
+                page: input
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 15, "command": {"type": "deleteRunePage", "pageId": 7}}),
+        )
+        .unwrap();
+        assert_eq!(msg.command, Command::DeleteRunePage { page_id: 7 });
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 12,
             "command": {"type": "hoverChampion", "actionId": 13, "championId": 121},

@@ -12,6 +12,10 @@ use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError, LOBBY_PATH};
 use crate::matchmaking::{self, Matchmaking, SEARCH_PATH};
 use crate::ready_check::{self, ReadyCheck, READY_CHECK_PATH};
 use crate::rest::{LcuClient, LcuError};
+use crate::runes::{
+    self, RuneCatalog, RunePageError, RunePageInput, RunePages, CURRENT_PAGE_PATH, INVENTORY_PATH,
+    PAGES_PATH,
+};
 use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
 use crate::ux;
 use crate::wamp::{EventType, LcuEvent};
@@ -356,6 +360,118 @@ impl Hub {
         });
     }
 
+    pub fn set_rune_pages(&self, rune_pages: Option<RunePages>) {
+        self.update(|shared| {
+            if shared.state.rune_pages == rune_pages {
+                return None;
+            }
+            shared.state.rune_pages = rune_pages.clone();
+            Some(ServerMessage::RunePages { rune_pages })
+        });
+    }
+
+    /// Muda uma parte das páginas de runas (lista, página em uso ou
+    /// espaço livre) a partir de um evento. Antes de ler as páginas, começa
+    /// de uma lista vazia.
+    fn edit_rune_pages(&self, f: impl FnOnce(&mut RunePages)) {
+        self.update(|shared| {
+            let mut rune_pages = shared.state.rune_pages.clone().unwrap_or_default();
+            f(&mut rune_pages);
+            if shared.state.rune_pages.as_ref() == Some(&rune_pages) {
+                return None;
+            }
+            shared.state.rune_pages = Some(rune_pages.clone());
+            Some(ServerMessage::RunePages {
+                rune_pages: Some(rune_pages),
+            })
+        });
+    }
+
+    pub fn set_rune_catalog(&self, rune_catalog: Option<RuneCatalog>) {
+        self.update(|shared| {
+            if shared.state.rune_catalog == rune_catalog {
+                return None;
+            }
+            shared.state.rune_catalog = rune_catalog.clone();
+            Some(ServerMessage::RuneCatalog { rune_catalog })
+        });
+    }
+
+    /// Aplica a página de runas `id` (comando `selectRunePage`, #26).
+    pub async fn select_rune_page(&self, id: u64) -> CommandResult {
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        let result = runes::select_page(&client, id).await;
+        self.after_rune_command(&client, result).await
+    }
+
+    /// Cria uma página de runas e a aplica (comando `createRunePage`, #26).
+    pub async fn create_rune_page(&self, page: RunePageInput) -> CommandResult {
+        let catalog = self.state().rune_catalog;
+        // Página inválida não depende do LoL aberto.
+        if let Err(invalid) = runes::check_page(&page, catalog.as_ref()) {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        let result = runes::create_page(&client, &page, catalog.as_ref()).await;
+        self.after_rune_page_command(&client, result).await
+    }
+
+    /// Edita a página de runas `id` (comando `updateRunePage`, #26).
+    pub async fn update_rune_page(&self, id: u64, page: RunePageInput) -> CommandResult {
+        let catalog = self.state().rune_catalog;
+        if let Err(invalid) = runes::check_page(&page, catalog.as_ref()) {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        let result = runes::update_page(&client, id, &page, catalog.as_ref()).await;
+        self.after_rune_page_command(&client, result).await
+    }
+
+    /// Apaga a página de runas `id` (comando `deleteRunePage`, #26).
+    pub async fn delete_rune_page(&self, id: u64) -> CommandResult {
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        let result = runes::delete_page(&client, id).await;
+        self.after_rune_command(&client, result).await
+    }
+
+    async fn after_rune_page_command(
+        &self,
+        client: &LcuClient,
+        result: Result<(), RunePageError>,
+    ) -> CommandResult {
+        match result {
+            Ok(()) => self.after_rune_command(client, Ok(())).await,
+            Err(RunePageError::Invalid(invalid)) => {
+                CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string())
+            }
+            Err(RunePageError::Lcu(error)) => self.after_rune_command(client, Err(error)).await,
+        }
+    }
+
+    /// Depois de um comando de runas que deu certo, relê as páginas pelo
+    /// REST e publica antes de devolver, sem esperar o evento do WAMP.
+    async fn after_rune_command(
+        &self,
+        client: &LcuClient,
+        result: Result<(), LcuError>,
+    ) -> CommandResult {
+        if result.is_ok() {
+            // Se a releitura falhar, o evento do WAMP corrige depois.
+            if let Ok(rune_pages) = runes::current_pages(client).await {
+                self.set_rune_pages(Some(rune_pages));
+            }
+        }
+        command_result(result)
+    }
+
     /// Marca um campeão numa ação da seleção sem confirmar (comando
     /// `hoverChampion`, #23). Confere o pedido contra a seleção atual, e
     /// relê a sessão pelo REST e a publica antes de devolver.
@@ -478,9 +594,9 @@ impl Hub {
     /// Atualiza o estado com o que a [`LcuConnection`] devolveu.
     ///
     /// Num `Connected`, relê pelo REST o invocador, a fase, o lobby, a fila,
-    /// o ready check e a seleção de campeões, porque os eventos de antes da
-    /// conexão se perderam. Num `Disconnected`, limpa o
-    /// que dependia do LoL.
+    /// o ready check, a seleção de campeões, as páginas e as árvores de
+    /// runas, porque os eventos de antes da conexão se perderam. Num
+    /// `Disconnected`, limpa o que dependia do LoL.
     pub async fn apply(&self, event: ConnectionEvent) {
         match event {
             ConnectionEvent::Connected(session) => {
@@ -497,11 +613,13 @@ impl Hub {
                 self.set_lcu_status(LcuStatus::Connected {
                     session: u32::try_from(session.id).unwrap_or(u32::MAX),
                 });
-                let (summoner, phase, lobby, search, friend_list) = tokio::join!(
+                let (summoner, phase, lobby, search, rune_pages, rune_catalog, friend_list) = tokio::join!(
                     summoner::current_summoner(&client),
                     gameflow::current_phase(&client),
                     lobby::current_lobby(&client),
                     matchmaking::current_search(&client),
+                    runes::current_pages(&client),
+                    runes::catalog(&client),
                     friends::friends(&client),
                 );
                 // 404 antes do login; qualquer outro erro também deixa vazio,
@@ -512,6 +630,9 @@ impl Hub {
                 // Um comando que publicou durante a releitura é mais novo.
                 self.set_lobby_if(lobby_stamp, lobby.ok().flatten());
                 self.set_matchmaking_if(search_stamp, search.ok().flatten());
+                // O catálogo antes das páginas, para a UI já poder desenhá-las.
+                self.set_rune_catalog(rune_catalog.ok().flatten());
+                self.set_rune_pages(rune_pages.ok());
                 // Com o chat ainda conectando a LCU pode responder erro ou
                 // lista vazia; os eventos de cada amigo completam a lista.
                 // Nenhum comando mexe nos amigos e os eventos só são
@@ -544,6 +665,8 @@ impl Hub {
                 self.set_lobby(None);
                 self.set_matchmaking(None);
                 self.set_champ_select(None);
+                self.set_rune_pages(None);
+                self.set_rune_catalog(None);
                 self.set_friends(Vec::new());
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
@@ -596,6 +719,12 @@ impl Hub {
                     self.set_champ_select(Some(session));
                 }
             }
+            // A lista, a página em uso e o inventário chegam separados; cada
+            // um muda a sua parte. `Delete` neles não acontece na prática.
+            PAGES_PATH | CURRENT_PAGE_PATH | INVENTORY_PATH if deleted => {}
+            PAGES_PATH => self.edit_rune_pages(|r| r.apply_pages(&event.data)),
+            CURRENT_PAGE_PATH => self.edit_rune_pages(|r| r.apply_current_page(&event.data)),
+            INVENTORY_PATH => self.edit_rune_pages(|r| r.apply_inventory(&event.data)),
             uri if uri.starts_with(friends::FRIEND_EVENT_PREFIX) => {
                 // `Delete` pode vir sem o amigo em `data`; o id está no URI.
                 if deleted {
@@ -807,6 +936,102 @@ mod tests {
             .await;
         assert!(rx.try_recv().is_err());
         assert_eq!(hub.state().gameflow_phase, Some(GameflowPhase::Unknown));
+    }
+
+    #[tokio::test]
+    async fn segue_as_paginas_de_runas() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        let page = |id: u64, current: bool| {
+            json!({
+                "id": id,
+                "name": format!("Página {id}"),
+                "primaryStyleId": 8000,
+                "subStyleId": 8100,
+                "selectedPerkIds": [8005, 9111, 9104, 8017, 8126, 8135, 5005, 5008, 5011],
+                "current": current,
+                "isEditable": true,
+                "isDeletable": true,
+                "isValid": true,
+            })
+        };
+        hub.apply(event(
+            PAGES_PATH,
+            EventType::Update,
+            json!([page(1, true), page(2, false)]),
+        ))
+        .await;
+        match rx.try_recv().unwrap() {
+            ServerMessage::RunePages {
+                rune_pages: Some(runes),
+            } => {
+                assert_eq!(runes.pages.len(), 2);
+                assert_eq!(runes.current_page_id, Some(1));
+                assert!(runes.can_create_page);
+            }
+            other => panic!("esperava as páginas: {other:?}"),
+        }
+        hub.apply(event(CURRENT_PAGE_PATH, EventType::Update, page(2, true)))
+            .await;
+        hub.apply(event(
+            INVENTORY_PATH,
+            EventType::Update,
+            json!({"canAddCustomPage": false, "ownedPageCount": 2}),
+        ))
+        .await;
+        // Repetido não gera mensagem.
+        hub.apply(event(CURRENT_PAGE_PATH, EventType::Update, page(2, true)))
+            .await;
+        hub.apply(event(PAGES_PATH, EventType::Delete, json!(null)))
+            .await;
+        let mut seen = Vec::new();
+        while let Ok(ServerMessage::RunePages { rune_pages }) = rx.try_recv() {
+            seen.push(rune_pages.unwrap());
+        }
+        assert_eq!(seen.len(), 2);
+        assert_eq!(seen[0].current_page_id, Some(2));
+        assert!(!seen[1].can_create_page);
+        assert_eq!(hub.state().rune_pages.unwrap().pages.len(), 2);
+
+        hub.apply(ConnectionEvent::Disconnected(
+            crate::connection::DisconnectReason::Closed,
+        ))
+        .await;
+        assert_eq!(hub.state().rune_pages, None);
+    }
+
+    #[tokio::test]
+    async fn comandos_de_runas_sem_lol_ou_pagina_invalida() {
+        let hub = Hub::new();
+        let page = RunePageInput {
+            name: "Nova".into(),
+            primary_style_id: 8000,
+            sub_style_id: 8000,
+            selected_perk_ids: vec![1; 9],
+        };
+        let code = |result: CommandResult| match result {
+            CommandResult::Error { code, .. } => code,
+            CommandResult::Ok => panic!("esperava erro"),
+        };
+        // Página inválida volta `invalidCommand` mesmo com o LoL fechado.
+        assert_eq!(
+            code(hub.create_rune_page(page.clone()).await),
+            ErrorCode::InvalidCommand
+        );
+        assert_eq!(
+            code(hub.update_rune_page(1, page.clone()).await),
+            ErrorCode::InvalidCommand
+        );
+        let valid = RunePageInput {
+            sub_style_id: 8100,
+            ..page
+        };
+        assert_eq!(
+            code(hub.create_rune_page(valid).await),
+            ErrorCode::NotConnected
+        );
+        assert_eq!(code(hub.select_rune_page(1).await), ErrorCode::NotConnected);
+        assert_eq!(code(hub.delete_rune_page(1).await), ErrorCode::NotConnected);
     }
 
     #[tokio::test]
