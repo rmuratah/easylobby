@@ -131,6 +131,11 @@ pub enum Command {
     /// Pede um [`ServerMessage::Hello`] novo com o estado inteiro, que chega
     /// antes da resposta.
     GetState,
+    /// Abre o LoL pelo Riot Client ([`crate::launcher`]). Responde `ok` assim
+    /// que o pedido sai, ou se o LoL já estava aberto; a subida do LoL chega
+    /// pelas mensagens `lcu`. Erro `launchFailed` quando não dá para abrir
+    /// (Riot Client não encontrado, falha ao chamar o executável).
+    LaunchLeague,
 }
 
 /// Resultado de um comando.
@@ -153,6 +158,8 @@ pub enum ErrorCode {
     NotConnected,
     /// A LCU respondeu com erro ou não respondeu.
     Lcu,
+    /// Não foi possível abrir o LoL pelo Riot Client.
+    LaunchFailed,
 }
 
 impl CommandResult {
@@ -273,6 +280,13 @@ mod tests {
                 id: 7,
                 command: Command::GetState
             }
+        );
+        let msg: ClientMessage =
+            serde_json::from_value(json!({"id": 8, "command": {"type": "launchLeague"}})).unwrap();
+        assert_eq!(msg.command, Command::LaunchLeague);
+        assert_eq!(
+            serde_json::to_value(ErrorCode::LaunchFailed).unwrap(),
+            json!("launchFailed")
         );
         assert!(serde_json::from_value::<ClientMessage>(json!({"id": 1})).is_err());
         assert!(serde_json::from_value::<ClientMessage>(
