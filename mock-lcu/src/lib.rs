@@ -17,6 +17,7 @@
 //! - [`lobby`]: criar lobby, trocar a fila e sair (#17); escolher os cargos
 //!   (#18).
 //! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19).
+//! - [`chat`]: mandar mensagem e marcar a conversa ativa no chat 1:1 (#31).
 //! - [`perks`]: páginas de runas: criar, editar, apagar e aplicar, e as
 //!   árvores de runas (#26).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
@@ -25,6 +26,7 @@
 //! [`Credentials::from_lockfile_path`]: easylobby_agent::lockfile::Credentials::from_lockfile_path
 
 pub mod champ_select;
+pub mod chat;
 pub mod lobby;
 pub mod matchmaking;
 pub mod perks;
@@ -634,6 +636,31 @@ async fn handle_request(
             }
             response
         }
+        // Chat 1:1 (#31).
+        (&Method::POST, p) if chat::messages_path(p).is_some() => {
+            let encoded_id = chat::messages_path(p).unwrap_or_default().to_owned();
+            let body = read_json(request).await;
+            let (response, events) = chat::send(&shared.state(), &encoded_id, &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::PUT, chat::ACTIVE) => {
+            let body = read_json(request).await;
+            let (response, events) = chat::set_active(&shared.state(), &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::DELETE, chat::ACTIVE) => {
+            let (response, events) = chat::clear_active();
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
         // Páginas de runas (#26).
         (&Method::GET, perks::INVENTORY) => perks::inventory(&shared.state()),
         (&Method::GET, p) if perks::page_id(p).is_some() => {
@@ -743,6 +770,15 @@ async fn handle_request(
     json_response(&response)
 }
 
+/// Corpo JSON do pedido, ou `null` se não der para ler.
+async fn read_json(request: Request) -> Value {
+    axum::body::to_bytes(request.into_body(), 64 * 1024)
+        .await
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .unwrap_or(Value::Null)
+}
+
 fn take_hold(shared: &Shared, method: &Method, path: &str) -> Option<PendingHold> {
     let mut holds = shared.holds.lock().unwrap_or_else(|e| e.into_inner());
     let index = holds
@@ -755,23 +791,14 @@ fn take_hold(shared: &Shared, method: &Method, path: &str) -> Option<PendingHold
 const READY_CHECK_ACCEPT: &str = "/lol-matchmaking/v1/ready-check/accept";
 const READY_CHECK_DECLINE: &str = "/lol-matchmaking/v1/ready-check/decline";
 
-/// Responde o ready check em andamento como a LCU: muda o `playerResponse`
-/// e avisa pelo WAMP. A reprodução segue depois com os eventos gravados.
-/// Corpo JSON do pedido, ou `null` se não for JSON.
-async fn read_json(request: Request) -> Value {
-    axum::body::to_bytes(request.into_body(), 64 * 1024)
-        .await
-        .ok()
-        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
-        .unwrap_or(Value::Null)
-}
-
 fn emit_all(shared: &Shared, events: Vec<EventFixture>) {
     for event in events {
         emit(shared, event);
     }
 }
 
+/// Responde o ready check em andamento como a LCU: muda o `playerResponse`
+/// e avisa pelo WAMP. A reprodução segue depois com os eventos gravados.
 fn answer_ready_check(shared: &Shared, response: &str) -> Response {
     let answered = shared.state().answer_ready_check(response);
     match answered {
