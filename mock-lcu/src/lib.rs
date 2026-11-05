@@ -791,16 +791,14 @@ fn take_hold(shared: &Shared, method: &Method, path: &str) -> Option<PendingHold
 const READY_CHECK_ACCEPT: &str = "/lol-matchmaking/v1/ready-check/accept";
 const READY_CHECK_DECLINE: &str = "/lol-matchmaking/v1/ready-check/decline";
 
-/// Responde o ready check em andamento como a LCU: muda o `playerResponse`
-/// e avisa pelo WAMP. A reprodução segue depois com os eventos gravados.
-/// Corpo JSON do pedido, ou `null` se não for JSON.
-
 fn emit_all(shared: &Shared, events: Vec<EventFixture>) {
     for event in events {
         emit(shared, event);
     }
 }
 
+/// Responde o ready check em andamento como a LCU: muda o `playerResponse`
+/// e avisa pelo WAMP. A reprodução segue depois com os eventos gravados.
 fn answer_ready_check(shared: &Shared, response: &str) -> Response {
     let answered = shared.state().answer_ready_check(response);
     match answered {
