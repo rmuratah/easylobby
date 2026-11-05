@@ -21,6 +21,9 @@ export const testChampSelect: ChampSelect = {
   theirTeam: [], bans: { myTeam: [], theirTeam: [] },
   actions: [{ id: 1, type: 'ban', actorCellId: 0, championId: null, completed: false, isInProgress: true, isAllyAction: true, turn: 1 }],
   pendingAction: null,
+  trades: [],
+  pickOrderSwaps: [],
+  positionSwaps: [],
 };
 export const testInvitation: ReceivedInvitation = {
   invitationId: 'convite-1', fromSummonerId: 2, fromSummonerName: '', queueId: 420, queue: 'rankedSolo', canAccept: true,

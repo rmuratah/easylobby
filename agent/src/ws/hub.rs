@@ -21,6 +21,7 @@ use crate::runes::{
     PAGES_PATH,
 };
 use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
+use crate::swaps::{self, SwapIntent, SwapKind};
 use crate::ux;
 use crate::wamp::{EventType, LcuEvent};
 
@@ -605,6 +606,33 @@ impl Hub {
             ActionIntent::Confirm => champ_select::confirm(&client, action_id, champion_id).await,
         };
         if let Err(error) = sent {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        self.refresh_champ_select().await;
+        CommandResult::Ok
+    }
+
+    /// Pede, aceita, recusa ou cancela uma troca na seleção (comandos
+    /// `requestSwap`, `acceptSwap`, `declineSwap` e `cancelSwap`, #25).
+    /// Confere o pedido contra a seleção atual, e relê a sessão pelo REST e
+    /// a publica antes de devolver.
+    pub async fn champ_select_swap(
+        &self,
+        kind: SwapKind,
+        swap_id: u64,
+        intent: SwapIntent,
+    ) -> CommandResult {
+        let (client, champ_select) = {
+            let shared = self.lock();
+            (shared.client.clone(), shared.state.champ_select.clone())
+        };
+        let Some(client) = client else {
+            return not_connected();
+        };
+        if let Err(invalid) = swaps::check_swap(champ_select.as_ref(), kind, swap_id, intent) {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        if let Err(error) = swaps::send(&client, kind, swap_id, intent).await {
             return CommandResult::error(ErrorCode::Lcu, error.to_string());
         }
         self.refresh_champ_select().await;
