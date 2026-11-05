@@ -37,6 +37,13 @@ it.runIf(process.env.EASYLOBBY_INTEGRATION === '1')('conecta ao agente real com 
     let agent = start(join('examples', 'canal_ws'), ['--lockfile', lockfile]);
     client.start();
     await connected();
+    // Amigos e runas reais da fixture passam pela validação do protocolo.
+    await vi.waitFor(() => {
+      const state = client.getSnapshot().state;
+      expect(state?.friends.length).toBeGreaterThan(0);
+      expect(state?.runePages?.pages.length).toBeGreaterThan(0);
+      expect(state?.runeCatalog?.styles.length).toBeGreaterThan(0);
+    }, { timeout: 10000, interval: 100 });
     await expect(client.send({ type: 'ping' })).resolves.toEqual({ status: 'ok' });
     await expect(client.send({ type: 'getState' })).resolves.toEqual({ status: 'ok' });
     // O estado real deve chegar antes da resposta, inclusive ao trocar e sair.
