@@ -12,12 +12,14 @@
 //! {"type":"readyCheck","readyCheck":{"state":"InProgress","playerResponse":"None","timer":3.0,"duration":12.0}}
 //! {"type":"lobby","lobby":{"queueId":420,"queue":"rankedSolo",...}}
 //! {"type":"champSelect","champSelect":{"timer":{"phase":"BAN_PICK",...},"myTeam":[...],...}}
+//! {"type":"friends","friends":[{"id":"...","gameName":"...","availability":"online",...}]}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
 //!
 //! ```json
 //! {"id":7,"command":{"type":"ping"}}
 //! {"id":8,"command":{"type":"createLobby","queue":"rankedSolo"}}
+//! {"id":9,"command":{"type":"confirmAction","actionId":13,"championId":121}}
 //! ```
 //!
 //! Os tipos TypeScript em `ui/src/bindings/` saem destes tipos com `ts-rs`.
@@ -38,6 +40,7 @@ use crate::champ_select::{
     ChampSelect, ChampSelectAction, ChampSelectActionType, ChampSelectBans, ChampSelectPhase,
     ChampSelectPlayer, ChampSelectTimer,
 };
+use crate::friends::{Activity, Availability, Friend, LeagueActivity, LeagueStatus};
 use crate::gameflow::GameflowPhase;
 use crate::lobby::{Lobby, LobbyMember, Position, Queue};
 use crate::matchmaking::{Matchmaking, MatchmakingError, SearchState};
@@ -90,6 +93,11 @@ pub enum ServerMessage {
     /// seleção, não só o que mudou. `null` quando a seleção fecha (partida
     /// abrindo, dodge) e com o LoL fechado.
     ChampSelect { champ_select: Option<ChampSelect> },
+    /// A lista de amigos (#30) mudou: alguém ficou online ou offline, entrou
+    /// numa partida, virou amigo ou deixou de ser. Sempre a lista inteira,
+    /// já ordenada (disponíveis primeiro, depois por nome). Vazia com o LoL
+    /// fechado.
+    Friends { friends: Vec<Friend> },
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
     /// A UI mandou algo que não é um [`ClientMessage`] válido. Sem `id`,
@@ -110,6 +118,8 @@ pub struct AgentState {
     pub matchmaking: Option<Matchmaking>,
     /// Seleção de campeões em andamento (#22), ou `null`.
     pub champ_select: Option<ChampSelect>,
+    /// Amigos com a presença de cada um (#30), na ordem da tela.
+    pub friends: Vec<Friend>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -214,6 +224,22 @@ pub enum Command {
     /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
     /// recusar.
     StopQueue,
+    /// Marca o campeão `championId` na ação `actionId` da seleção (#23), sem
+    /// confirmar: o hover de um ban ou de um pick na vez do jogador, ou a
+    /// intenção de pick antes da vez dele (etapa `PLANNING` ou durante os
+    /// bans). `actionId` é o `id` de uma ação do jogador logado em
+    /// `champSelect.actions`, em geral o de `champSelect.pendingAction`.
+    /// Responde `invalidCommand` sem falar com a LCU fora da seleção, com
+    /// `championId` 0, com ação de outro jogador, já confirmada, que não é
+    /// ban nem pick, ou com ban fora da vez. A seleção nova chega numa
+    /// mensagem `champSelect` antes da resposta. Responde `notConnected` com
+    /// o LoL fechado e `lcu` se a LCU recusar (campeão que o jogador não
+    /// tem, já banido ou escolhido...).
+    HoverChampion { action_id: u32, champion_id: u32 },
+    /// Confirma o ban ou o pick do campeão `championId` na ação `actionId`
+    /// (#23): marca o campeão e confirma, como o botão do client oficial.
+    /// Só na vez da ação (`isInProgress`). Mesmos erros do `hoverChampion`.
+    ConfirmAction { action_id: u32, champion_id: u32 },
 }
 
 /// Resultado de um comando.
@@ -292,6 +318,11 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<CommandResult>(&cfg)?,
         file::<ErrorCode>(&cfg)?,
         file::<AssetKind>(&cfg)?,
+        file::<Friend>(&cfg)?,
+        file::<Availability>(&cfg)?,
+        file::<Activity>(&cfg)?,
+        file::<LeagueActivity>(&cfg)?,
+        file::<LeagueStatus>(&cfg)?,
     ];
     files.sort();
     Ok(files)
@@ -323,6 +354,7 @@ mod tests {
                     "lobby": null,
                     "matchmaking": null,
                     "champSelect": null,
+                    "friends": [],
                 },
             })
         );
@@ -455,6 +487,30 @@ mod tests {
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 11, "command": {"type": "stopQueue"}})).unwrap();
         assert_eq!(msg.command, Command::StopQueue);
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 12,
+            "command": {"type": "hoverChampion", "actionId": 13, "championId": 121},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::HoverChampion {
+                action_id: 13,
+                champion_id: 121,
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 13,
+            "command": {"type": "confirmAction", "actionId": 13, "championId": 121},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::ConfirmAction {
+                action_id: 13,
+                champion_id: 121,
+            }
+        );
         // Só as filas que o easylobby oferece.
         assert!(serde_json::from_value::<ClientMessage>(
             json!({"id": 1, "command": {"type": "createLobby", "queue": "tft"}})

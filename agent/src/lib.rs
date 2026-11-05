@@ -23,11 +23,13 @@
 //! - [`ready_check`]: partida encontrada, com aceitar e recusar (#20)
 //! - [`champ_select`]: estado da seleção de campeões (sessão, times, timer e
 //!   ações pendentes) (#22)
+//! - [`friends`]: lista de amigos com presença (#30)
 
 pub mod assets;
 pub mod champ_select;
 pub mod connection;
 pub mod fixtures;
+pub mod friends;
 pub mod gameflow;
 pub mod launcher;
 pub mod lobby;
