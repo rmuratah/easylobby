@@ -13,7 +13,8 @@
 //!   [`drive`] o mantém atualizado a partir de uma [`LcuConnection`].
 //! - [`router`] e [`serve`]: o servidor `axum` com a rota `/ws` e as
 //!   imagens do jogo em `/assets/<tipo>/<id>` ([`crate::assets`], #29).
-//! - [`run`]: as duas coisas juntas, como o app desktop vai usar.
+//! - [`run`] e [`run_with_hub`]: as duas coisas juntas, como o app desktop
+//!   usa.
 //!
 //! O servidor só deve escutar em `127.0.0.1`. Como qualquer página aberta
 //! no navegador consegue abrir um WebSocket para o localhost, o servidor
@@ -152,7 +153,18 @@ pub async fn run(
     listener: TcpListener,
     config: WsConfig,
 ) -> io::Result<()> {
-    let hub = Hub::new();
+    run_with_hub(connection, listener, config, Hub::new()).await
+}
+
+/// O mesmo que [`run`], mas com um [`Hub`] de quem chama. Com um clone do
+/// `hub`, o app desktop lê o estado e manda comandos de fora do canal, como o
+/// [`Hub::launch_ux`] ao sair pela bandeja (#89).
+pub async fn run_with_hub(
+    connection: LcuConnection,
+    listener: TcpListener,
+    config: WsConfig,
+    hub: Hub,
+) -> io::Result<()> {
     // A guarda encerra a conexão com o LoL quando `run` termina e também
     // quando o futuro de `run` é cancelado (derrubado) no meio do `serve`:
     // sem ela, a tarefa do `tokio::spawn` seguiria viva, conectada ou
@@ -376,5 +388,34 @@ mod tests {
         assert!(!with("http://localhost:3000"));
         assert!(!with("https://exemplo.com"));
         assert!(!with("null"));
+    }
+
+    #[tokio::test]
+    async fn run_with_hub_atualiza_o_hub_de_quem_chama() {
+        use crate::connection::{CredentialSource, ReconnectConfig};
+        use protocol::LcuStatus;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let lockfile = std::env::temp_dir()
+            .join("easylobby-run-with-hub-nao-existe")
+            .join("lockfile");
+        let connection = LcuConnection::new(ReconnectConfig::with_source(
+            CredentialSource::Lockfile(lockfile),
+        ));
+        let hub = Hub::new();
+        let (_, mut changes) = hub.subscribe();
+        let task = tokio::spawn(run_with_hub(
+            connection,
+            listener,
+            WsConfig::default(),
+            hub.clone(),
+        ));
+        // Sem lockfile, o driver publica `retrying` no hub que passamos.
+        tokio::time::timeout(std::time::Duration::from_secs(5), changes.recv())
+            .await
+            .expect("o driver não mexeu no hub")
+            .unwrap();
+        assert!(matches!(hub.state().lcu, LcuStatus::Retrying { .. }));
+        task.abort();
     }
 }
