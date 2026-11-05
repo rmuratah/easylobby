@@ -148,8 +148,7 @@ Do agente para a UI (`ServerMessage`, campo `type`):
 
 | Mensagem | Quando |
 | --- | --- |
-| `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`, `lobby`, `readyCheck`, `matchmaking`, `champSelect`, `receivedInvitations`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
-| `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`, `lobby`, `readyCheck`, `matchmaking`, `champSelect`, `runePages`, `runeCatalog`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
+| `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`, `lobby`, `readyCheck`, `matchmaking`, `champSelect`, `receivedInvitations`, `conversations`, `runePages`, `runeCatalog`, `friends`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
 | `lcu` | A conexão com o LoL mudou: `starting`, `connected` (com `session`), `disconnected` (com `reason`) ou `retrying` (com `attempt`, `retryInMs`, `clientNotRunning` e `error`). |
 | `summoner` | O invocador logado mudou; `null` com o LoL fechado ou antes do login. |
 | `gameflowPhase` | A fase mudou (`None`, `Lobby`, `Matchmaking`, `ReadyCheck`, `ChampSelect`, `InProgress`, `EndOfGame`...; o tipo `GameflowPhase` lista todas, com `Unknown` para uma fase nova); `null` com o LoL fechado. |
