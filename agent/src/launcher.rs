@@ -310,25 +310,22 @@ fn read_installs_file() -> Option<InstallsFile> {
     Some(InstallsFile { path, installs })
 }
 
-/// Dispara o processo sem esperar e sem prender a janela do console a ele.
+/// Dispara o processo sem esperar por ele.
+///
+/// Chama o Riot Client como o PowerShell ou o atalho do LoL chamam: mesma
+/// pasta de trabalho, sem `DETACHED_PROCESS` e sem trocar a saída padrão. Com
+/// essas mudanças, o Riot Client já aberto recebia o pedido e não abria o LoL
+/// (testado no Windows).
 fn spawn_detached(path: &Path, args: &[String]) -> Result<u32, LaunchError> {
     let mut command = Command::new(path);
-    command
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
-        command.current_dir(dir);
-    }
+    command.args(args).stdin(Stdio::null());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        // Sem console próprio e fora do grupo do agente: fechar o easylobby
-        // (ou dar Ctrl+C no terminal) não derruba o Riot Client.
-        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        // Fora do grupo do agente: Ctrl+C no terminal do agente não chega no
+        // Riot Client.
         const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-        command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+        command.creation_flags(CREATE_NEW_PROCESS_GROUP);
     }
     let child = command.spawn().map_err(|source| LaunchError::Spawn {
         path: path.to_path_buf(),
