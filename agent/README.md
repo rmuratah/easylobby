@@ -140,17 +140,18 @@ Do agente para a UI (`ServerMessage`, campo `type`):
 
 | Mensagem | Quando |
 | --- | --- |
-| `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`, `readyCheck`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
+| `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`, `lobby`, `readyCheck`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
 | `lcu` | A conexão com o LoL mudou: `starting`, `connected` (com `session`), `disconnected` (com `reason`) ou `retrying` (com `attempt`, `retryInMs`, `clientNotRunning` e `error`). |
 | `summoner` | O invocador logado mudou; `null` com o LoL fechado ou antes do login. |
 | `gameflowPhase` | A fase mudou (`None`, `Lobby`, `Matchmaking`, `ReadyCheck`, `ChampSelect`, `InProgress`, `EndOfGame`...; o tipo `GameflowPhase` lista todas, com `Unknown` para uma fase nova); `null` com o LoL fechado. |
+| `lobby` | O lobby mudou (criado, fila trocada, alguém entrou ou saiu): `queueId`, `queue` (`normalDraft`, `swiftplay`, `rankedSolo`, `rankedFlex`, `aram` ou `null` para outra fila), `maxLobbySize`, `isLeader`, `canStartActivity` e `members`. `null` fora de lobby e com o LoL fechado. |
 | `readyCheck` | O ready check (partida encontrada) abriu, andou ou fechou, com `readyCheck` (`state`, `playerResponse`, `timer`, `duration`); chega mais ou menos a cada segundo enquanto está aberto. `null` quando não há ready check ou com o LoL fechado. |
 | `response` | Resposta a um comando, com o mesmo `id` e `result` `ok` ou `error` (`code` e `message`). |
 | `invalidMessage` | A UI mandou algo que não é um `ClientMessage` válido. |
 
-Da UI para o agente (`ClientMessage`): `{"id": 1, "command": {"type": "ping"}}`. Comandos por enquanto: `ping`, `getState`, `acceptReadyCheck` e `declineReadyCheck` (aceitar e recusar a partida encontrada; `notConnected` com o LoL fechado e `lcu` se a LCU recusar, por exemplo sem ready check aberto; a mudança chega depois como `readyCheck`). Os comandos das próximas issues (como `launch-ux`, #13) entram em `ws::protocol::Command`.
+Da UI para o agente (`ClientMessage`): `{"id": 1, "command": {"type": "ping"}}`. Comandos por enquanto: `ping`, `getState`, `createLobby` (`{"type": "createLobby", "queue": "rankedSolo"}`: cria o lobby ou troca a fila; o `lobby` novo chega antes da resposta), `leaveLobby` (#17), `acceptReadyCheck` e `declineReadyCheck` (aceitar e recusar a partida encontrada; `notConnected` com o LoL fechado e `lcu` se a LCU recusar, por exemplo sem ready check aberto; a mudança chega depois como `readyCheck`). Os comandos das próximas issues (como `launch-ux`, #13) entram em `ws::protocol::Command`.
 
-`ws::run(lcu, listener, config)` liga uma `LcuConnection` ao canal. Por partes: `Hub` guarda o estado, `ws::drive` o atualiza a partir da conexão (relendo invocador, fase e, na fase `ReadyCheck`, o ready check pelo REST a cada `Connected` e limpando tudo no `Disconnected`) e `ws::serve` serve o `/ws`. O servidor recusa com 403 pedidos com `Origin` fora de `WsConfig::allowed_origins` (padrão: a janela do Tauri e o Vite em `localhost:5173`), para uma página aberta no navegador não conseguir falar com o agente.
+`ws::run(lcu, listener, config)` liga uma `LcuConnection` ao canal. Por partes: `Hub` guarda o estado, `ws::drive` o atualiza a partir da conexão (relendo invocador, fase, lobby e, na fase `ReadyCheck`, o ready check pelo REST a cada `Connected` e limpando tudo no `Disconnected`) e `ws::serve` serve o `/ws`. O servidor recusa com 403 pedidos com `Origin` fora de `WsConfig::allowed_origins` (padrão: a janela do Tauri e o Vite em `localhost:5173`), para uma página aberta no navegador não conseguir falar com o agente.
 
 Para desenvolver a UI contra o mock-lcu:
 

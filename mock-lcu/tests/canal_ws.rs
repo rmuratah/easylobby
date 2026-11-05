@@ -181,33 +181,38 @@ async fn acompanha_uma_partida_e_o_lol_fechando() {
         other => panic!("esperava hello: {other:?}"),
     }
 
-    // Comandos.
+    // Comandos. Eventos atrasados da gravação (como o lobby sendo apagado)
+    // podem chegar antes de cada resposta.
     send(&mut late, 1, Command::Ping).await;
+    let seen = until(&mut late, |m| matches!(m, ServerMessage::Response { .. })).await;
     assert_eq!(
-        recv(&mut late).await,
-        ServerMessage::Response {
+        seen.last(),
+        Some(&ServerMessage::Response {
             id: 1,
             result: CommandResult::Ok
-        }
+        })
     );
     send(&mut late, 2, Command::GetState).await;
-    assert!(matches!(recv(&mut late).await, ServerMessage::Hello { .. }));
+    let seen = until(&mut late, |m| matches!(m, ServerMessage::Response { .. })).await;
+    assert!(seen
+        .iter()
+        .any(|m| matches!(m, ServerMessage::Hello { .. })));
     assert_eq!(
-        recv(&mut late).await,
-        ServerMessage::Response {
+        seen.last(),
+        Some(&ServerMessage::Response {
             id: 2,
             result: CommandResult::Ok
-        }
+        })
     );
     late.send(Message::text(
         "{\"id\": 3, \"command\": {\"type\": \"comprarSkin\"}}",
     ))
     .await
     .unwrap();
-    assert!(matches!(
-        recv(&mut late).await,
-        ServerMessage::InvalidMessage { .. }
-    ));
+    until(&mut late, |m| {
+        matches!(m, ServerMessage::InvalidMessage { .. })
+    })
+    .await;
 
     // O LoL fecha: o estado que dependia dele some e o agente continua de pé.
     mock.shutdown().await;

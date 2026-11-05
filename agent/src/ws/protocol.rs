@@ -10,11 +10,13 @@
 //! {"type":"summoner","summoner":{"gameName":"...","tagLine":"...",...}}
 //! {"type":"gameflowPhase","phase":"Lobby"}
 //! {"type":"readyCheck","readyCheck":{"state":"InProgress","playerResponse":"None","timer":3.0,"duration":12.0}}
+//! {"type":"lobby","lobby":{"queueId":420,"queue":"rankedSolo",...}}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
 //!
 //! ```json
 //! {"id":7,"command":{"type":"ping"}}
+//! {"id":8,"command":{"type":"createLobby","queue":"rankedSolo"}}
 //! ```
 //!
 //! Os tipos TypeScript em `ui/src/bindings/` saem destes tipos com `ts-rs`.
@@ -31,6 +33,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::gameflow::GameflowPhase;
+use crate::lobby::{Lobby, LobbyMember, Queue};
 use crate::ready_check::{ReadyCheck, ReadyCheckResponse, ReadyCheckState};
 use crate::summoner::Summoner;
 
@@ -66,6 +69,9 @@ pub enum ServerMessage {
     /// mais ou menos a cada segundo enquanto ele está aberto, com o `timer`
     /// novo. `null` quando não há ready check (fechou, ou o LoL fechou).
     ReadyCheck { ready_check: Option<ReadyCheck> },
+    /// O lobby mudou (criado, fila trocada, alguém entrou ou saiu). `null`
+    /// fora de lobby e com o LoL fechado.
+    Lobby { lobby: Option<Lobby> },
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
     /// A UI mandou algo que não é um [`ClientMessage`] válido. Sem `id`,
@@ -82,6 +88,7 @@ pub struct AgentState {
     pub gameflow_phase: Option<GameflowPhase>,
     /// Ready check aberto (partida encontrada, #20), ou `null`.
     pub ready_check: Option<ReadyCheck>,
+    pub lobby: Option<Lobby>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -155,6 +162,14 @@ pub enum Command {
     /// a LCU recusar. O agente não fecha a UI de novo sozinho até a próxima
     /// conexão com o LoL.
     LaunchUx,
+    /// Cria um lobby na fila pedida, ou troca a fila do lobby atual (só o
+    /// líder pode). O lobby novo chega numa mensagem `lobby` antes da
+    /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
+    /// recusar (fila fechada, jogador não é o líder, já está na fila...).
+    CreateLobby { queue: Queue },
+    /// Sai do lobby. A mensagem `lobby` com `null` chega antes da resposta.
+    /// Responde `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
+    LeaveLobby,
 }
 
 /// Resultado de um comando.
@@ -208,6 +223,9 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<ReadyCheck>(&cfg)?,
         file::<ReadyCheckState>(&cfg)?,
         file::<ReadyCheckResponse>(&cfg)?,
+        file::<Lobby>(&cfg)?,
+        file::<LobbyMember>(&cfg)?,
+        file::<Queue>(&cfg)?,
         file::<ClientMessage>(&cfg)?,
         file::<Command>(&cfg)?,
         file::<CommandResult>(&cfg)?,
@@ -240,6 +258,7 @@ mod tests {
                     "summoner": null,
                     "gameflowPhase": null,
                     "readyCheck": null,
+                    "lobby": null,
                 },
             })
         );
@@ -334,6 +353,24 @@ mod tests {
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 8, "command": {"type": "launchUx"}})).unwrap();
         assert_eq!(msg.command, Command::LaunchUx);
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 8, "command": {"type": "createLobby", "queue": "rankedFlex"}}),
+        )
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::CreateLobby {
+                queue: Queue::RankedFlex
+            }
+        );
+        let msg: ClientMessage =
+            serde_json::from_value(json!({"id": 9, "command": {"type": "leaveLobby"}})).unwrap();
+        assert_eq!(msg.command, Command::LeaveLobby);
+        // Só as filas que o easylobby oferece.
+        assert!(serde_json::from_value::<ClientMessage>(
+            json!({"id": 1, "command": {"type": "createLobby", "queue": "tft"}})
+        )
+        .is_err());
         assert!(serde_json::from_value::<ClientMessage>(json!({"id": 1})).is_err());
         assert!(serde_json::from_value::<ClientMessage>(
             json!({"id": 1, "command": {"type": "comprarSkin"}})

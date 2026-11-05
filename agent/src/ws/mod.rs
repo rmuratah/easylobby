@@ -4,7 +4,8 @@
 //! `ws://127.0.0.1:<porta>/ws` e troca as mensagens de [`protocol`] com o
 //! agente. Ao conectar, a UI recebe um `hello` com o estado inteiro
 //! ([`protocol::AgentState`]) e depois só as mudanças. Os comandos vão com um
-//! `id` e voltam como `response` com o mesmo `id`.
+//! `id` e voltam como `response` com o mesmo `id`; as mudanças de estado
+//! publicadas enquanto o comando rodava chegam antes da resposta.
 //!
 //! As peças:
 //!
@@ -45,7 +46,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use tokio::net::TcpListener;
-use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 
 use crate::connection::LcuConnection;
 
@@ -194,7 +195,22 @@ async fn session(mut socket: WebSocket, hub: Hub) {
                             Command::AcceptReadyCheck => hub.accept_ready_check().await,
                             Command::DeclineReadyCheck => hub.decline_ready_check().await,
                             Command::LaunchUx => hub.launch_ux().await,
+                            Command::CreateLobby { queue } => hub.create_lobby(queue).await,
+                            Command::LeaveLobby => hub.leave_lobby().await,
                         };
+                        // As mudanças que o comando publicou (como o lobby
+                        // novo) chegam antes da resposta.
+                        loop {
+                            match changes.try_recv() {
+                                Ok(change) => replies.push(change),
+                                Err(TryRecvError::Lagged(_)) => {
+                                    let (state, fresh) = hub.subscribe();
+                                    changes = fresh;
+                                    replies.push(hello(state));
+                                }
+                                Err(TryRecvError::Empty | TryRecvError::Closed) => break,
+                            }
+                        }
                         replies.push(ServerMessage::Response { id, result });
                         replies
                     }

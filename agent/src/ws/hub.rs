@@ -6,6 +6,7 @@ use tokio::sync::broadcast;
 
 use crate::connection::{ConnectionEvent, LcuConnection};
 use crate::gameflow::{self, GameflowPhase};
+use crate::lobby::{self, Lobby, Queue, LOBBY_PATH};
 use crate::ready_check::{self, ReadyCheck, READY_CHECK_PATH};
 use crate::rest::{LcuClient, LcuError};
 use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
@@ -141,6 +142,48 @@ impl Hub {
         }
     }
 
+    pub fn set_lobby(&self, lobby: Option<Lobby>) {
+        self.update(|shared| {
+            if shared.state.lobby == lobby {
+                return None;
+            }
+            shared.state.lobby = lobby.clone();
+            Some(ServerMessage::Lobby { lobby })
+        });
+    }
+
+    /// Cria um lobby na fila `queue` ou troca a fila do lobby atual (comando
+    /// `createLobby`, #17). Publica o lobby que a LCU respondeu antes de
+    /// devolver, sem esperar o evento do WAMP.
+    pub async fn create_lobby(&self, queue: Queue) -> CommandResult {
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        match lobby::create_lobby(&client, queue).await {
+            Ok(lobby) => {
+                if lobby.is_some() {
+                    self.set_lobby(lobby);
+                }
+                CommandResult::Ok
+            }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
+    /// Sai do lobby (comando `leaveLobby`, #17).
+    pub async fn leave_lobby(&self) -> CommandResult {
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        match lobby::leave_lobby(&client).await {
+            Ok(()) => {
+                self.set_lobby(None);
+                CommandResult::Ok
+            }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
     /// Atualiza o estado com o que a [`LcuConnection`] devolveu.
     ///
     /// Num `Connected`, relê pelo REST o invocador, a fase e o ready check, porque os
@@ -154,15 +197,17 @@ impl Hub {
                 self.set_lcu_status(LcuStatus::Connected {
                     session: u32::try_from(session.id).unwrap_or(u32::MAX),
                 });
-                let (summoner, phase) = tokio::join!(
+                let (summoner, phase, lobby) = tokio::join!(
                     summoner::current_summoner(&client),
                     gameflow::current_phase(&client),
+                    lobby::current_lobby(&client),
                 );
                 // 404 antes do login; qualquer outro erro também deixa vazio,
                 // e o próximo evento da LCU corrige.
                 self.set_summoner(summoner.ok());
                 let phase = phase.ok();
                 self.set_gameflow_phase(phase);
+                self.set_lobby(lobby.ok().flatten());
                 // Só existe ready check aberto nessa fase; nas outras a LCU
                 // responde 404 ou `Invalid`, e não vale o pedido a mais.
                 if phase == Some(GameflowPhase::ReadyCheck) {
@@ -176,6 +221,7 @@ impl Hub {
                 self.set_summoner(None);
                 self.set_gameflow_phase(None);
                 self.set_ready_check(None);
+                self.set_lobby(None);
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
                 });
@@ -210,6 +256,12 @@ impl Hub {
             }
             READY_CHECK_PATH if deleted => self.set_ready_check(None),
             READY_CHECK_PATH => self.set_ready_check(ReadyCheck::from_json(&event.data)),
+            LOBBY_PATH if deleted => self.set_lobby(None),
+            LOBBY_PATH => {
+                if let Some(lobby) = Lobby::from_json(&event.data) {
+                    self.set_lobby(Some(lobby));
+                }
+            }
             _ => {}
         }
     }
@@ -308,7 +360,14 @@ mod tests {
             }),
         ))
         .await;
-        hub.apply(event("/lol-lobby/v2/lobby", EventType::Update, json!({})))
+        // Recurso que o hub não acompanha, ou JSON que não é lobby: ignorado.
+        hub.apply(event(
+            "/lol-lobby/v2/lobby/members",
+            EventType::Update,
+            json!([]),
+        ))
+        .await;
+        hub.apply(event(LOBBY_PATH, EventType::Update, json!({})))
             .await;
         hub.apply(event(GAMEFLOW_PHASE_PATH, EventType::Delete, json!(null)))
             .await;
@@ -381,15 +440,65 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn segue_o_lobby() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        let lobby = |queue_id: u32| {
+            json!({
+                "canStartActivity": true,
+                "gameConfig": {"queueId": queue_id, "maxLobbySize": 5},
+                "localMember": {"puuid": "p", "isLeader": true},
+                "members": [{"puuid": "p", "summonerId": 1, "isLeader": true}],
+            })
+        };
+        hub.apply(event(LOBBY_PATH, EventType::Create, lobby(400)))
+            .await;
+        hub.apply(event(LOBBY_PATH, EventType::Update, lobby(400)))
+            .await;
+        hub.apply(event(LOBBY_PATH, EventType::Update, lobby(450)))
+            .await;
+        hub.apply(event(LOBBY_PATH, EventType::Delete, json!(null)))
+            .await;
+
+        let queues: Vec<Option<Queue>> = std::iter::from_fn(|| rx.try_recv().ok())
+            .map(|m| match m {
+                ServerMessage::Lobby { lobby } => lobby.and_then(|l| l.queue),
+                other => panic!("esperava lobby: {other:?}"),
+            })
+            .collect();
+        assert_eq!(queues, [Some(Queue::NormalDraft), Some(Queue::Aram), None]);
+        assert_eq!(hub.state().lobby, None);
+    }
+
+    #[tokio::test]
+    async fn comandos_de_lobby_sem_lol_respondem_not_connected() {
+        let hub = Hub::new();
+        for result in [
+            hub.create_lobby(Queue::RankedSolo).await,
+            hub.leave_lobby().await,
+        ] {
+            assert!(matches!(
+                result,
+                CommandResult::Error {
+                    code: ErrorCode::NotConnected,
+                    ..
+                }
+            ));
+        }
+    }
+
+    #[tokio::test]
     async fn queda_limpa_o_estado() {
         let hub = Hub::new();
         hub.set_gameflow_phase(Some(GameflowPhase::ChampSelect));
+        hub.set_lobby(Lobby::from_json(&json!({"gameConfig": {"queueId": 420}})));
         hub.apply(ConnectionEvent::Disconnected(
             crate::connection::DisconnectReason::Closed,
         ))
         .await;
         let state = hub.state();
         assert_eq!(state.gameflow_phase, None);
+        assert_eq!(state.lobby, None);
         assert!(matches!(state.lcu, LcuStatus::Disconnected { .. }));
         assert!(hub.client().is_none());
     }

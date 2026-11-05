@@ -3,6 +3,7 @@ import type { AgentState } from "./AgentState";
 import type { CommandResult } from "./CommandResult";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
+import type { Lobby } from "./Lobby";
 import type { ReadyCheck } from "./ReadyCheck";
 import type { Summoner } from "./Summoner";
 
@@ -13,4 +14,4 @@ export type ServerMessage = { "type": "hello",
 /**
  * [`PROTOCOL_VERSION`] do agente.
  */
-protocol: number, agentVersion: string, state: AgentState, } | { "type": "lcu", status: LcuStatus, } | { "type": "summoner", summoner: Summoner | null, } | { "type": "gameflowPhase", phase: GameflowPhase | null, } | { "type": "readyCheck", readyCheck: ReadyCheck | null, } | { "type": "response", id: number, result: CommandResult, } | { "type": "invalidMessage", message: string, };
+protocol: number, agentVersion: string, state: AgentState, } | { "type": "lcu", status: LcuStatus, } | { "type": "summoner", summoner: Summoner | null, } | { "type": "gameflowPhase", phase: GameflowPhase | null, } | { "type": "readyCheck", readyCheck: ReadyCheck | null, } | { "type": "lobby", lobby: Lobby | null, } | { "type": "response", id: number, result: CommandResult, } | { "type": "invalidMessage", message: string, };
