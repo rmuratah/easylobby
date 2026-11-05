@@ -1,0 +1,14 @@
+[
+  {"id": 21, "name": "Barreira", "description": "Ganha um escudo por alguns segundos.", "summonerLevel": 4, "cooldown": 180, "gameModes": ["CLASSIC", "ARAM", "SWIFTPLAY", "URF"], "iconPath": "/lol-game-data/assets/DATA/Spells/Icons2D/SummonerBarrier.png"},
+  {"id": 1, "name": "Purificar", "description": "Remove efeitos de controle.", "summonerLevel": 9, "cooldown": 210, "gameModes": ["CLASSIC", "ARAM", "SWIFTPLAY", "URF"], "iconPath": "/lol-game-data/assets/DATA/Spells/Icons2D/Summoner_boost.png"},
+  {"id": 13, "name": "Clareza", "description": "Recupera mana sua e de aliados próximos.", "summonerLevel": 6, "cooldown": 240, "gameModes": ["ARAM"], "iconPath": "/lol-game-data/assets/DATA/Spells/Icons2D/SummonerMana.png"},
+  {"id": 3, "name": "Exaustão", "description": "Deixa um campeão inimigo mais lento e reduz o dano dele.", "summonerLevel": 4, "cooldown": 210, "gameModes": ["CLASSIC", "ARAM", "SWIFTPLAY", "URF"], "iconPath": "/lol-game-data/assets/DATA/Spells/Icons2D/Summoner_Exhaust.png"},
+  {"id": 4, "name": "Flash", "description": "Teleporta seu campeão a uma curta distância.", "summonerLevel": 7, "cooldown": 300, "gameModes": ["CLASSIC", "ARAM", "SWIFTPLAY", "URF"], "iconPath": "/lol-game-data/assets/DATA/Spells/Icons2D/Summoner_flash.png"},
+  {"id": 6, "name": "Fantasma", "description": "Ganha velocidade de movimento.", "summonerLevel": 1, "cooldown": 240, "gameModes": ["CLASSIC", "ARAM", "SWIFTPLAY", "URF"], "iconPath": "/lol-game-data/assets/DATA/Spells/Icons2D/Summoner_haste.png"},
+  {"id": 7, "name": "Curar", "description": "Cura você e um aliado.", "summonerLevel": 1, "cooldown": 240, "gameModes": ["CLASSIC", "ARAM", "SWIFTPLAY", "URF"], "iconPath": "/lol-game-data/assets/DATA/Spells/Icons2D/Summoner_heal.png"},
+  {"id": 14, "name": "Incendiar", "description": "Causa dano verdadeiro ao longo do tempo.", "summonerLevel": 9, "cooldown": 180, "gameModes": ["CLASSIC", "ARAM", "SWIFTPLAY", "URF"], "iconPath": "/lol-game-data/assets/DATA/Spells/Icons2D/SummonerIgnite.png"},
+  {"id": 32, "name": "Marcar", "description": "Arremessa uma bola de neve.", "summonerLevel": 6, "cooldown": 80, "gameModes": ["ARAM"], "iconPath": "/lol-game-data/assets/DATA/Spells/Icons2D/Summoner_Mark.png"},
+  {"id": 11, "name": "Golpear", "description": "Causa dano verdadeiro a um monstro ou tropa.", "summonerLevel": 3, "cooldown": 15, "gameModes": ["CLASSIC", "SWIFTPLAY", "URF"], "iconPath": "/lol-game-data/assets/DATA/Spells/Icons2D/Summoner_smite.png"},
+  {"id": 12, "name": "Teleporte", "description": "Teleporta até uma estrutura aliada.", "summonerLevel": 7, "cooldown": 360, "gameModes": ["CLASSIC", "SWIFTPLAY"], "iconPath": "/lol-game-data/assets/DATA/Spells/Icons2D/Summoner_teleport.png"},
+  {"id": 54, "name": "Placeholder", "description": "", "summonerLevel": 1, "cooldown": 0, "gameModes": [], "iconPath": "/lol-game-data/assets/DATA/Spells/Icons2D/Summoner_empty.png"}
+]

@@ -303,6 +303,10 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                                 action_id,
                                 champion_id,
                             } => hub.confirm_action(action_id, champion_id).await,
+                            Command::SetSummonerSpells {
+                                spell1_id,
+                                spell2_id,
+                            } => hub.set_summoner_spells(spell1_id, spell2_id).await,
                         };
                         // As mudanças que o comando publicou (como o lobby
                         // novo) chegam antes da resposta.

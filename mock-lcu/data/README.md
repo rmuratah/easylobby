@@ -9,3 +9,8 @@ São **dados sintéticos**, montados à mão no formato da LCU: os `id`s e as li
 seguem o patch 16.22 (e batem com as páginas gravadas), mas as descrições são de
 mentira e os nomes podem não bater com o client. Quando o `gravar_fixtures`
 gravar os arquivos de verdade, eles passam na frente.
+
+`summoner-spells.json` imita `/lol-game-data/assets/v1/summoner-spells.json` (os
+feitiços de invocador, #24), também **sintético**: os `id`s e os modos de jogo
+seguem o client, mas nomes, descrições e níveis mínimos podem não bater. O
+`gravar_fixtures` já grava o arquivo de verdade, que passa na frente.

@@ -28,6 +28,7 @@
 //! - [`runes`]: páginas de runas: listar, editar, criar, apagar e aplicar,
 //!   com as árvores para o editor (#26)
 //! - [`friends`]: lista de amigos com presença (#30)
+//! - [`summoner_spells`]: feitiços de invocador na seleção de campeões (#24)
 
 pub mod assets;
 pub mod champ_select;
@@ -45,6 +46,7 @@ pub mod ready_check;
 pub mod rest;
 pub mod runes;
 pub mod summoner;
+pub mod summoner_spells;
 pub mod ux;
 pub mod wamp;
 pub mod ws;
