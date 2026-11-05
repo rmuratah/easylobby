@@ -31,6 +31,7 @@ use std::collections::HashSet;
 use std::io;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -156,6 +157,8 @@ struct Shared {
     speed: f64,
     /// Soma um segundo na fila a cada segundo, enquanto procura (#19).
     queue_timer: Mutex<Option<JoinHandle<()>>>,
+    /// WebSockets WAMP abertos agora.
+    wamp_clients: AtomicUsize,
 }
 
 impl Shared {
@@ -237,6 +240,7 @@ impl MockLcu {
             verbose: config.verbose,
             speed: config.speed,
             queue_timer: Mutex::new(None),
+            wamp_clients: AtomicUsize::new(0),
         });
 
         let app = Router::new()
@@ -317,6 +321,12 @@ impl MockLcu {
     /// `league_of_legends/live`.
     pub fn launches(&self) -> Vec<String> {
         self.shared.state().launches().to_vec()
+    }
+
+    /// Quantos clientes estão com o WebSocket WAMP aberto agora. Serve para
+    /// conferir que o agente não deixou conexões para trás (#58).
+    pub fn wamp_clients(&self) -> usize {
+        self.shared.wamp_clients.load(Ordering::SeqCst)
     }
 
     /// Começa a reprodução agora, sem esperar uma inscrição WAMP.
@@ -633,7 +643,24 @@ fn json_response(response: &Response) -> HttpResponse {
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 
+/// Conta um WebSocket WAMP aberto enquanto existe.
+struct WampClient(Arc<Shared>);
+
+impl WampClient {
+    fn open(shared: Arc<Shared>) -> Self {
+        shared.wamp_clients.fetch_add(1, Ordering::SeqCst);
+        Self(shared)
+    }
+}
+
+impl Drop for WampClient {
+    fn drop(&mut self) {
+        self.0.wamp_clients.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
 async fn serve_wamp(shared: Arc<Shared>, socket: WebSocket) {
+    let _client = WampClient::open(shared.clone());
     // Inscreve no canal antes de ler qualquer mensagem: a reprodução só
     // começa depois da primeira inscrição, então nada se perde.
     let mut events = shared.events.subscribe();

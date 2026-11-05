@@ -2,6 +2,19 @@ import type { ServerMessage } from '../bindings/ServerMessage';
 import type { AgentState } from '../bindings/AgentState';
 import type { LcuStatus } from '../bindings/LcuStatus';
 import type { Summoner } from '../bindings/Summoner';
+import type { ErrorCode } from '../bindings/ErrorCode';
+
+// Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
+const errorCodes = {
+  notConnected: true,
+  lcu: true,
+  launchFailed: true,
+  invalidCommand: true,
+} satisfies Record<ErrorCode, true>;
+
+function errorCode(v: unknown): v is ErrorCode {
+  return typeof v === 'string' && Object.hasOwn(errorCodes, v);
+}
 
 const object = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
 const uint = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
@@ -36,7 +49,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'summoner': valid = summoner(v.summoner); break;
     case 'gameflowPhase': valid = nullableString(v.phase); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
-      (v.result.status === 'error' && ['notConnected', 'lcu'].includes(String(v.result.code)) && typeof v.result.message === 'string')); break;
+      (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;
     case 'invalidMessage': valid = typeof v.message === 'string'; break;
     default: return null;
   }

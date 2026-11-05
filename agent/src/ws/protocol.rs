@@ -33,6 +33,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::assets::AssetKind;
 use crate::champ_select::{
     ChampSelect, ChampSelectAction, ChampSelectActionType, ChampSelectBans, ChampSelectPhase,
     ChampSelectPlayer, ChampSelectTimer,
@@ -290,6 +291,7 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<Command>(&cfg)?,
         file::<CommandResult>(&cfg)?,
         file::<ErrorCode>(&cfg)?,
+        file::<AssetKind>(&cfg)?,
     ];
     files.sort();
     Ok(files)

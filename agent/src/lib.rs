@@ -3,6 +3,7 @@
 //! Acha o processo do LoL, lê o lockfile, conecta na LCU API (REST + WAMP) e
 //! expõe um canal `/ws` tipado para a UI. Módulos:
 //!
+//! - [`assets`]: cache local de ícones e imagens, servido em `/assets` (#29)
 //! - [`lockfile`]: acha o LoL e lê porta e senha da LCU (#4)
 //! - [`fixtures`]: formato e sanitização das fixtures gravadas da LCU (#5)
 //! - [`rest`]: cliente REST da LCU, com Basic Auth e certificado fixado (#8)
@@ -23,6 +24,7 @@
 //! - [`champ_select`]: estado da seleção de campeões (sessão, times, timer e
 //!   ações pendentes) (#22)
 
+pub mod assets;
 pub mod champ_select;
 pub mod connection;
 pub mod fixtures;
