@@ -65,6 +65,6 @@ actions: Array<ChampSelectAction>,
 /**
  * A ação que é a vez do jogador logado agora (ban ou pick em andamento
  * e ainda não confirmado), ou `null` se não é a vez dele. O `id` dela
- * é o que os comandos de hover, ban e pick (#23) vão usar.
+ * é o que os comandos `hoverChampion` e `confirmAction` (#23) usam.
  */
 pendingAction: ChampSelectAction | null, };
