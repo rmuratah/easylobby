@@ -5,16 +5,18 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::sync::broadcast;
 
 use crate::connection::{ConnectionEvent, LcuConnection};
+use crate::gameflow::{self, GameflowPhase};
 use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError, LOBBY_PATH};
-use crate::rest::LcuClient;
+use crate::ready_check::{self, ReadyCheck, READY_CHECK_PATH};
+use crate::rest::{LcuClient, LcuError};
 use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
 use crate::ux;
 use crate::wamp::{EventType, LcuEvent};
 
 use super::protocol::{AgentState, CommandResult, ErrorCode, LcuStatus, ServerMessage};
 
-/// Fase do gameflow (`"Lobby"`, `"ChampSelect"`...).
-pub const GAMEFLOW_PHASE_PATH: &str = "/lol-gameflow/v1/gameflow-phase";
+/// Fase do gameflow; mora em [`crate::gameflow`] desde o #16.
+pub use crate::gameflow::GAMEFLOW_PHASE_PATH;
 
 /// Quantas mensagens uma UI lenta pode ficar devendo antes de receber um
 /// `hello` novo no lugar delas.
@@ -104,14 +106,40 @@ impl Hub {
         });
     }
 
-    pub fn set_gameflow_phase(&self, phase: Option<String>) {
+    pub fn set_gameflow_phase(&self, phase: Option<GameflowPhase>) {
         self.update(|shared| {
             if shared.state.gameflow_phase == phase {
                 return None;
             }
-            shared.state.gameflow_phase = phase.clone();
+            shared.state.gameflow_phase = phase;
             Some(ServerMessage::GameflowPhase { phase })
         });
+    }
+
+    pub fn set_ready_check(&self, ready_check: Option<ReadyCheck>) {
+        self.update(|shared| {
+            if shared.state.ready_check == ready_check {
+                return None;
+            }
+            shared.state.ready_check = ready_check.clone();
+            Some(ServerMessage::ReadyCheck { ready_check })
+        });
+    }
+
+    /// Aceita a partida encontrada (comando `acceptReadyCheck`, #20).
+    pub async fn accept_ready_check(&self) -> CommandResult {
+        match self.client() {
+            Some(client) => command_result(ready_check::accept(&client).await),
+            None => not_connected(),
+        }
+    }
+
+    /// Recusa a partida encontrada (comando `declineReadyCheck`, #20).
+    pub async fn decline_ready_check(&self) -> CommandResult {
+        match self.client() {
+            Some(client) => command_result(ready_check::decline(&client).await),
+            None => not_connected(),
+        }
     }
 
     pub fn set_lobby(&self, lobby: Option<Lobby>) {
@@ -185,7 +213,7 @@ impl Hub {
 
     /// Atualiza o estado com o que a [`LcuConnection`] devolveu.
     ///
-    /// Num `Connected`, relê pelo REST o invocador e a fase, porque os
+    /// Num `Connected`, relê pelo REST o invocador, a fase e o ready check, porque os
     /// eventos de antes da conexão se perderam. Num `Disconnected`, limpa o
     /// que dependia do LoL.
     pub async fn apply(&self, event: ConnectionEvent) {
@@ -198,20 +226,28 @@ impl Hub {
                 });
                 let (summoner, phase, lobby) = tokio::join!(
                     summoner::current_summoner(&client),
-                    client.get::<String>(GAMEFLOW_PHASE_PATH),
+                    gameflow::current_phase(&client),
                     lobby::current_lobby(&client),
                 );
                 // 404 antes do login; qualquer outro erro também deixa vazio,
                 // e o próximo evento da LCU corrige.
                 self.set_summoner(summoner.ok());
-                self.set_gameflow_phase(phase.ok());
+                let phase = phase.ok();
+                self.set_gameflow_phase(phase);
                 self.set_lobby(lobby.ok().flatten());
+                // Só existe ready check aberto nessa fase; nas outras a LCU
+                // responde 404 ou `Invalid`, e não vale o pedido a mais.
+                if phase == Some(GameflowPhase::ReadyCheck) {
+                    let ready_check = ready_check::current(&client).await;
+                    self.set_ready_check(ready_check.ok().flatten());
+                }
             }
             ConnectionEvent::Event(event) => self.apply_lcu_event(&event),
             ConnectionEvent::Disconnected(reason) => {
                 self.lock().client = None;
                 self.set_summoner(None);
                 self.set_gameflow_phase(None);
+                self.set_ready_check(None);
                 self.set_lobby(None);
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
@@ -241,10 +277,12 @@ impl Hub {
             }
             GAMEFLOW_PHASE_PATH if deleted => self.set_gameflow_phase(None),
             GAMEFLOW_PHASE_PATH => {
-                if let Some(phase) = event.data.as_str() {
-                    self.set_gameflow_phase(Some(phase.to_owned()));
+                if let Some(phase) = GameflowPhase::from_json(&event.data) {
+                    self.set_gameflow_phase(Some(phase));
                 }
             }
+            READY_CHECK_PATH if deleted => self.set_ready_check(None),
+            READY_CHECK_PATH => self.set_ready_check(ReadyCheck::from_json(&event.data)),
             LOBBY_PATH if deleted => self.set_lobby(None),
             LOBBY_PATH => {
                 if let Some(lobby) = Lobby::from_json(&event.data) {
@@ -289,6 +327,13 @@ impl std::fmt::Debug for Hub {
 
 fn not_connected() -> CommandResult {
     CommandResult::error(ErrorCode::NotConnected, "o LoL não está aberto")
+}
+
+fn command_result(result: Result<(), LcuError>) -> CommandResult {
+    match result {
+        Ok(()) => CommandResult::Ok,
+        Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+    }
 }
 
 /// Mantém o [`Hub`] atualizado com a conexão para sempre.
@@ -357,7 +402,7 @@ mod tests {
         assert_eq!(
             rx.try_recv().unwrap(),
             ServerMessage::GameflowPhase {
-                phase: Some("Lobby".into())
+                phase: Some(GameflowPhase::Lobby)
             }
         );
         match rx.try_recv().unwrap() {
@@ -372,6 +417,53 @@ mod tests {
         );
         assert!(rx.try_recv().is_err());
         assert_eq!(hub.state().summoner.unwrap().tag_line, "BR1");
+    }
+
+    #[tokio::test]
+    async fn segue_uma_partida_inteira_e_fases_novas() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        let partida = [
+            "Lobby",
+            "Matchmaking",
+            "ReadyCheck",
+            "ChampSelect",
+            "GameStart",
+            "InProgress",
+            "WaitingForStats",
+            "PreEndOfGame",
+            "EndOfGame",
+            "None",
+        ];
+        for phase in partida {
+            hub.apply(event(GAMEFLOW_PHASE_PATH, EventType::Update, json!(phase)))
+                .await;
+        }
+        let mut seen = Vec::new();
+        while let Ok(ServerMessage::GameflowPhase { phase: Some(phase) }) = rx.try_recv() {
+            seen.push(phase.as_str());
+        }
+        assert_eq!(seen, partida);
+        assert_eq!(hub.state().gameflow_phase, Some(GameflowPhase::Idle));
+
+        // Fase de um patch novo: a UI fica sabendo que mudou, sem erro.
+        hub.apply(event(
+            GAMEFLOW_PHASE_PATH,
+            EventType::Update,
+            json!("FaseDeUmPatchNovo"),
+        ))
+        .await;
+        assert_eq!(
+            rx.try_recv().unwrap(),
+            ServerMessage::GameflowPhase {
+                phase: Some(GameflowPhase::Unknown)
+            }
+        );
+        // `data` que nem é string é ignorado.
+        hub.apply(event(GAMEFLOW_PHASE_PATH, EventType::Update, json!(42)))
+            .await;
+        assert!(rx.try_recv().is_err());
+        assert_eq!(hub.state().gameflow_phase, Some(GameflowPhase::Unknown));
     }
 
     #[tokio::test]
@@ -438,7 +530,7 @@ mod tests {
     #[tokio::test]
     async fn queda_limpa_o_estado() {
         let hub = Hub::new();
-        hub.set_gameflow_phase(Some("ChampSelect".into()));
+        hub.set_gameflow_phase(Some(GameflowPhase::ChampSelect));
         hub.set_lobby(Lobby::from_json(&json!({"gameConfig": {"queueId": 420}})));
         hub.apply(ConnectionEvent::Disconnected(
             crate::connection::DisconnectReason::Closed,
@@ -449,6 +541,81 @@ mod tests {
         assert_eq!(state.lobby, None);
         assert!(matches!(state.lcu, LcuStatus::Disconnected { .. }));
         assert!(hub.client().is_none());
+    }
+
+    fn ready_check(state: &str, response: &str, timer: f64) -> ConnectionEvent {
+        event(
+            READY_CHECK_PATH,
+            EventType::Update,
+            json!({
+                "declinerIds": [],
+                "dodgeWarning": "None",
+                "playerResponse": response,
+                "state": state,
+                "suppressUx": false,
+                "timer": timer,
+            }),
+        )
+    }
+
+    #[tokio::test]
+    async fn segue_o_ready_check() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        // Na fila a LCU já manda o ready check com `Invalid`: nada muda.
+        hub.apply(ready_check("Invalid", "None", 0.0)).await;
+        assert!(rx.try_recv().is_err());
+
+        hub.apply(ready_check("InProgress", "None", 0.0)).await;
+        hub.apply(ready_check("InProgress", "Accepted", 1.0)).await;
+        hub.apply(ready_check("EveryoneReady", "Accepted", 2.0))
+            .await;
+        hub.apply(event(READY_CHECK_PATH, EventType::Delete, json!(null)))
+            .await;
+
+        let mut seen = Vec::new();
+        while let Ok(ServerMessage::ReadyCheck { ready_check }) = rx.try_recv() {
+            seen.push(ready_check.map(|c| (c.state.as_str(), c.player_response.as_str(), c.timer)));
+        }
+        assert_eq!(
+            seen,
+            [
+                Some(("InProgress", "None", 0.0)),
+                Some(("InProgress", "Accepted", 1.0)),
+                Some(("EveryoneReady", "Accepted", 2.0)),
+                None,
+            ]
+        );
+        assert_eq!(hub.state().ready_check, None);
+    }
+
+    #[tokio::test]
+    async fn queda_fecha_o_ready_check() {
+        let hub = Hub::new();
+        hub.apply(ready_check("InProgress", "None", 4.0)).await;
+        assert!(hub.state().ready_check.is_some());
+        hub.apply(ConnectionEvent::Disconnected(
+            crate::connection::DisconnectReason::Closed,
+        ))
+        .await;
+        assert_eq!(hub.state().ready_check, None);
+    }
+
+    #[tokio::test]
+    async fn aceitar_e_recusar_sem_lol_respondem_not_connected() {
+        let hub = Hub::new();
+        for result in [
+            hub.accept_ready_check().await,
+            hub.decline_ready_check().await,
+        ] {
+            assert!(matches!(
+                result,
+                CommandResult::Error {
+                    code: ErrorCode::NotConnected,
+                    ..
+                }
+            ));
+        }
     }
 
     #[tokio::test]

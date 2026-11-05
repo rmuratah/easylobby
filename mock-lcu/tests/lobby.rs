@@ -157,7 +157,7 @@ async fn cria_lobby_troca_a_fila_e_sai() {
     assert_eq!(lobby_queues(&before), [None]);
     // A fase volta para `None` pelo WAMP (antes ou depois da resposta), e
     // nenhum lobby reaparece.
-    let is_idle = |m: &ServerMessage| matches!(m, ServerMessage::GameflowPhase { phase } if phase.as_deref() == Some("None"));
+    let is_idle = |m: &ServerMessage| matches!(m, ServerMessage::GameflowPhase { phase } if phase.map(|p| p.as_str()) == Some("None"));
     let mut seen = before;
     while !seen.iter().any(is_idle) {
         seen.push(recv(&mut ui).await);

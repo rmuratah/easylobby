@@ -196,6 +196,8 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                                 replies.push(hello(state));
                                 CommandResult::Ok
                             }
+                            Command::AcceptReadyCheck => hub.accept_ready_check().await,
+                            Command::DeclineReadyCheck => hub.decline_ready_check().await,
                             Command::LaunchLeague => launch_league(&config.launch).await,
                             Command::LaunchUx => hub.launch_ux().await,
                             Command::CreateLobby { queue } => hub.create_lobby(queue).await,

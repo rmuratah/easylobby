@@ -95,18 +95,19 @@ async fn until(ui: &mut Ui, done: impl Fn(&ServerMessage) -> bool) -> Vec<Server
     }
 }
 
-fn phases(messages: &[ServerMessage]) -> Vec<Option<String>> {
+/// Fases que chegaram, com os nomes da LCU.
+fn phases(messages: &[ServerMessage]) -> Vec<Option<&'static str>> {
     messages
         .iter()
         .filter_map(|m| match m {
-            ServerMessage::GameflowPhase { phase } => Some(phase.clone()),
+            ServerMessage::GameflowPhase { phase } => Some(phase.map(|p| p.as_str())),
             _ => None,
         })
         .collect()
 }
 
 fn is_phase(message: &ServerMessage, expected: &str) -> bool {
-    matches!(message, ServerMessage::GameflowPhase { phase: Some(p) } if p == expected)
+    matches!(message, ServerMessage::GameflowPhase { phase: Some(p) } if p.as_str() == expected)
 }
 
 #[tokio::test]
@@ -170,7 +171,7 @@ async fn acompanha_uma_partida_e_o_lol_fechando() {
     ];
     let tail: Vec<&str> = phases[phases.len() - partida.len()..]
         .iter()
-        .map(|p| p.as_deref().unwrap())
+        .map(|p| p.unwrap())
         .collect();
     assert_eq!(tail, partida, "fases: {phases:?}");
 
@@ -180,7 +181,7 @@ async fn acompanha_uma_partida_e_o_lol_fechando() {
         ServerMessage::Hello { state, .. } => {
             assert_eq!(state.lcu, LcuStatus::Connected { session: 1 });
             assert_eq!(state.summoner.as_ref(), Some(&summoner));
-            assert_eq!(state.gameflow_phase.as_deref(), Some("InProgress"));
+            assert_eq!(state.gameflow_phase.map(|p| p.as_str()), Some("InProgress"));
         }
         other => panic!("esperava hello: {other:?}"),
     }
