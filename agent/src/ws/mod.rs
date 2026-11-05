@@ -54,6 +54,7 @@ use tokio::task::JoinHandle;
 use crate::assets::{AssetCache, AssetConfig, AssetError, AssetKind, ASSETS_PATH};
 use crate::connection::LcuConnection;
 use crate::launcher::{self, LaunchOptions};
+use crate::swaps::SwapIntent;
 
 pub use hub::{drive, Hub};
 use protocol::{ClientMessage, Command, CommandResult, ErrorCode, ServerMessage, PROTOCOL_VERSION};
@@ -315,6 +316,22 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                                 action_id,
                                 champion_id,
                             } => hub.confirm_action(action_id, champion_id).await,
+                            Command::RequestSwap { kind, swap_id } => {
+                                hub.champ_select_swap(kind, swap_id, SwapIntent::Request)
+                                    .await
+                            }
+                            Command::AcceptSwap { kind, swap_id } => {
+                                hub.champ_select_swap(kind, swap_id, SwapIntent::Accept)
+                                    .await
+                            }
+                            Command::DeclineSwap { kind, swap_id } => {
+                                hub.champ_select_swap(kind, swap_id, SwapIntent::Decline)
+                                    .await
+                            }
+                            Command::CancelSwap { kind, swap_id } => {
+                                hub.champ_select_swap(kind, swap_id, SwapIntent::Cancel)
+                                    .await
+                            }
                         };
                         // As mudanças que o comando publicou (como o lobby
                         // novo) chegam antes da resposta.
