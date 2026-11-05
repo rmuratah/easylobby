@@ -3,11 +3,14 @@ import type { AgentState } from "./AgentState";
 import type { ChampSelect } from "./ChampSelect";
 import type { CommandResult } from "./CommandResult";
 import type { Conversation } from "./Conversation";
+import type { Friend } from "./Friend";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
 import type { Lobby } from "./Lobby";
 import type { Matchmaking } from "./Matchmaking";
 import type { ReadyCheck } from "./ReadyCheck";
+import type { RuneCatalog } from "./RuneCatalog";
+import type { RunePages } from "./RunePages";
 import type { Summoner } from "./Summoner";
 
 /**
@@ -17,4 +20,4 @@ export type ServerMessage = { "type": "hello",
 /**
  * [`PROTOCOL_VERSION`] do agente.
  */
-protocol: number, agentVersion: string, state: AgentState, } | { "type": "lcu", status: LcuStatus, } | { "type": "summoner", summoner: Summoner | null, } | { "type": "gameflowPhase", phase: GameflowPhase | null, } | { "type": "readyCheck", readyCheck: ReadyCheck | null, } | { "type": "lobby", lobby: Lobby | null, } | { "type": "matchmaking", matchmaking: Matchmaking | null, } | { "type": "champSelect", champSelect: ChampSelect | null, } | { "type": "conversation", conversation: Conversation, } | { "type": "conversationClosed", id: string, } | { "type": "response", id: number, result: CommandResult, } | { "type": "invalidMessage", message: string, };
+protocol: number, agentVersion: string, state: AgentState, } | { "type": "lcu", status: LcuStatus, } | { "type": "summoner", summoner: Summoner | null, } | { "type": "gameflowPhase", phase: GameflowPhase | null, } | { "type": "readyCheck", readyCheck: ReadyCheck | null, } | { "type": "lobby", lobby: Lobby | null, } | { "type": "matchmaking", matchmaking: Matchmaking | null, } | { "type": "champSelect", champSelect: ChampSelect | null, } | { "type": "conversation", conversation: Conversation, } | { "type": "conversationClosed", id: string, } | { "type": "runePages", runePages: RunePages | null, } | { "type": "runeCatalog", runeCatalog: RuneCatalog | null, } | { "type": "friends", friends: Array<Friend>, } | { "type": "response", id: number, result: CommandResult, } | { "type": "invalidMessage", message: string, };

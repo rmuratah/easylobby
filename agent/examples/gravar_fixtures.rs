@@ -41,7 +41,7 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::Connector;
 
 /// Endpoints fotografados no início e a cada mudança de fase.
-const SNAPSHOT_PATHS: [&str; 14] = [
+const SNAPSHOT_PATHS: [&str; 15] = [
     "/lol-patch/v1/game-version",
     "/lol-summoner/v1/current-summoner",
     "/lol-gameflow/v1/gameflow-phase",
@@ -53,13 +53,18 @@ const SNAPSHOT_PATHS: [&str; 14] = [
     "/lol-champ-select/v1/pickable-champion-ids",
     "/lol-perks/v1/pages",
     "/lol-perks/v1/currentpage",
+    "/lol-perks/v1/inventory",
     "/lol-chat/v1/me",
     "/lol-chat/v1/friends",
     "/lol-chat/v1/conversations",
 ];
 
 /// Endpoints grandes e que quase não mudam: só no início.
-const STARTUP_ONLY_PATHS: [&str; 1] = ["/lol-game-queues/v1/queues"];
+const STARTUP_ONLY_PATHS: [&str; 3] = [
+    "/lol-game-queues/v1/queues",
+    "/lol-game-data/assets/v1/perkstyles.json",
+    "/lol-game-data/assets/v1/perks.json",
+];
 
 /// Prefixos de URI dos eventos WAMP que interessam ao easylobby.
 const EVENT_PREFIXES: [&str; 7] = [
