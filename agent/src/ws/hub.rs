@@ -25,6 +25,10 @@ pub use crate::gameflow::GAMEFLOW_PHASE_PATH;
 /// `hello` novo no lugar delas.
 const BROADCAST_CAPACITY: usize = 256;
 
+/// Quantas vezes um comando relê o lobby ou a busca quando eventos chegam
+/// no meio da leitura (veja [`Hub::refresh_lobby`]).
+const REFRESH_ATTEMPTS: usize = 3;
+
 /// Estado atual do agente e o canal que avisa cada UI conectada quando ele
 /// muda. Clonar é barato: os clones dividem o mesmo estado.
 ///
@@ -237,8 +241,8 @@ impl Hub {
         };
         match lobby::create_lobby(&client, queue).await {
             Ok(lobby) => {
-                if lobby.is_some() {
-                    self.set_lobby_if(stamp, lobby);
+                if !(lobby.is_some() && self.set_lobby_if(stamp, lobby)) {
+                    self.refresh_lobby().await;
                 }
                 CommandResult::Ok
             }
@@ -253,8 +257,11 @@ impl Hub {
         };
         match lobby::leave_lobby(&client).await {
             Ok(()) => {
-                // Um lobby que o WAMP trouxe durante a espera é mais novo.
-                self.set_lobby_if(stamp, None);
+                // Um lobby que o WAMP trouxe durante a espera pode ser só o
+                // evento atrasado de um comando anterior; relê para saber.
+                if !self.set_lobby_if(stamp, None) {
+                    self.refresh_lobby().await;
+                }
                 CommandResult::Ok
             }
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
@@ -273,13 +280,7 @@ impl Hub {
         };
         match lobby::set_positions(&client, first, second).await {
             Ok(()) => {
-                // Se a releitura falhar ou chegar atrasada, o evento do WAMP
-                // corrige ou já corrigiu.
-                if let Some((client, stamp)) = self.begin(Resource::Lobby) {
-                    if let Ok(Some(lobby)) = lobby::current_lobby(&client).await {
-                        self.set_lobby_if(stamp, Some(lobby));
-                    }
-                }
+                self.refresh_lobby().await;
                 CommandResult::Ok
             }
             Err(SetPositionsError::Invalid(invalid)) => {
@@ -365,13 +366,7 @@ impl Hub {
         if let Err(error) = matchmaking::start_search(&client).await {
             return CommandResult::error(ErrorCode::Lcu, error.to_string());
         }
-        // Se a releitura falhar ou chegar atrasada, o evento do WAMP traz ou
-        // já trouxe a busca.
-        if let Some((client, stamp)) = self.begin(Resource::Matchmaking) {
-            if let Ok(Some(search)) = matchmaking::current_search(&client).await {
-                self.set_matchmaking_if(stamp, Some(search));
-            }
-        }
+        self.refresh_matchmaking().await;
         CommandResult::Ok
     }
 
@@ -382,11 +377,54 @@ impl Hub {
         };
         match matchmaking::stop_search(&client).await {
             Ok(()) => {
-                // Uma busca que o WAMP trouxe durante a espera é mais nova.
-                self.set_matchmaking_if(stamp, None);
+                // Uma busca que o WAMP trouxe durante a espera pode ser só o
+                // evento atrasado de um comando anterior; relê para saber.
+                if !self.set_matchmaking_if(stamp, None) {
+                    self.refresh_matchmaking().await;
+                }
                 CommandResult::Ok
             }
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
+    /// Relê o lobby pelo REST depois de um comando e publica antes da
+    /// resposta.
+    ///
+    /// Um evento WAMP que chega durante a espera muda a revisão e faz o
+    /// resultado ser descartado ([`Stamp`]), mas esse evento pode ser o
+    /// atraso de um comando anterior (criar o lobby na fila A e logo trocar
+    /// para B, com o evento de A chegando durante a troca). Sem reler, a
+    /// resposta do comando sairia com o lobby velho. Tenta de novo enquanto
+    /// eventos chegam no meio, até [`REFRESH_ATTEMPTS`] vezes; se a LCU
+    /// falhar ou os eventos não pararem, o próximo evento corrige.
+    async fn refresh_lobby(&self) {
+        for _ in 0..REFRESH_ATTEMPTS {
+            let Some((client, stamp)) = self.begin(Resource::Lobby) else {
+                return;
+            };
+            let Ok(lobby) = lobby::current_lobby(&client).await else {
+                return;
+            };
+            if self.set_lobby_if(stamp, lobby) {
+                return;
+            }
+        }
+    }
+
+    /// Relê a busca pelo REST depois de um comando; como
+    /// [`Hub::refresh_lobby`].
+    async fn refresh_matchmaking(&self) {
+        for _ in 0..REFRESH_ATTEMPTS {
+            let Some((client, stamp)) = self.begin(Resource::Matchmaking) else {
+                return;
+            };
+            let Ok(search) = matchmaking::current_search(&client).await else {
+                return;
+            };
+            if self.set_matchmaking_if(stamp, search) {
+                return;
+            }
         }
     }
 
