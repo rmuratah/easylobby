@@ -53,7 +53,7 @@ A UI nunca fala direto com a LCU, só com o canal `/ws` do agente, usando os tip
 ```bash
 pnpm install
 pnpm dev:desktop        # abre a janela apontando para a UI em modo dev
-pnpm --filter easylobby-desktop build   # gera o instalador (NSIS no Windows)
+pnpm --filter easylobby-desktop build   # gera o instalador (formato do instalador é o #35)
 ```
 
 `pnpm dev:desktop` roda `pnpm --filter easylobby-ui dev` sozinho antes de abrir a janela.
@@ -68,3 +68,8 @@ pnpm --filter easylobby-desktop build   # gera o instalador (NSIS no Windows)
 | 3 · Seleção de campeões e runas | Ranqueada solo com ban e troca de runas (MVP) |
 | 4 · Social | Duo montada e chat com amigos só pelo app |
 | 5 · Celular e beta | 3 a 5 amigos usam a beta por uma semana |
+
+## Autores
+
+- [Rafa Murata](https://github.com/rmuratah)
+- [Victor Ricco](https://github.com/Victor-Ricco)
