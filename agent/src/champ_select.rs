@@ -18,7 +18,19 @@
 //! - os campeões banidos de cada time.
 //!
 //! Trocas, banco do ARAM e skins ficam para as issues que as usam (#25...).
-//! Os comandos de hover, ban e pick são da #23.
+//!
+//! As ações do jogador (#23) usam o `id` de uma ação da sessão:
+//!
+//! - [`hover`]: `PATCH /lol-champ-select/v1/session/actions/{id}` com o
+//!   campeão. Na vez do jogador, marca o campeão sem confirmar; fora da vez
+//!   (etapa `PLANNING`, ou durante os bans), a LCU guarda o campeão do pick
+//!   como intenção (`championPickIntent`), que o time vê.
+//! - [`confirm`]: o mesmo `PATCH` e depois
+//!   `POST /lol-champ-select/v1/session/actions/{id}/complete`, que confirma
+//!   o ban ou o pick.
+//!
+//! [`check_action`] confere o pedido contra a sessão atual antes de falar
+//! com a LCU, com as regras do client oficial.
 
 use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -26,6 +38,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use ts_rs::TS;
+
+use serde_json::json;
 
 use crate::lobby::{Position, Queue};
 use crate::rest::{LcuClient, LcuError};
@@ -68,7 +82,7 @@ pub struct ChampSelect {
     pub actions: Vec<ChampSelectAction>,
     /// A ação que é a vez do jogador logado agora (ban ou pick em andamento
     /// e ainda não confirmado), ou `null` se não é a vez dele. O `id` dela
-    /// é o que os comandos de hover, ban e pick (#23) vão usar.
+    /// é o que os comandos `hoverChampion` e `confirmAction` (#23) usam.
     pub pending_action: Option<ChampSelectAction>,
 }
 
@@ -508,10 +522,129 @@ pub async fn current_session(lcu: &LcuClient) -> Result<Option<ChampSelect>, Lcu
     }
 }
 
+/// Caminho de uma ação da sessão na LCU.
+pub fn action_path(action_id: u32) -> String {
+    format!("{CHAMP_SELECT_SESSION_PATH}/actions/{action_id}")
+}
+
+/// Caminho que confirma uma ação da sessão.
+pub fn complete_action_path(action_id: u32) -> String {
+    format!("{}/complete", action_path(action_id))
+}
+
+/// O que o jogador quer fazer com uma ação: só marcar o campeão ou
+/// confirmar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionIntent {
+    /// Marcar o campeão sem confirmar ([`hover`]).
+    Hover,
+    /// Confirmar o ban ou o pick ([`confirm`]).
+    Confirm,
+}
+
+/// Por que um pedido de hover, ban ou pick não vale. Nada foi mandado para a
+/// LCU.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvalidAction {
+    /// Não há seleção de campeões aberta.
+    NoChampSelect,
+    /// `championId` vazio (`0`).
+    NoChampion,
+    /// Não há ação com esse `id` na sessão.
+    UnknownAction,
+    /// A ação é de outro jogador.
+    NotYourAction,
+    /// A ação não é um ban nem um pick.
+    NotBanOrPick,
+    /// A ação já foi confirmada.
+    AlreadyCompleted,
+    /// Não é a vez dessa ação. Fora da vez só vale marcar o pick (intenção).
+    NotYourTurn,
+}
+
+impl fmt::Display for InvalidAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            InvalidAction::NoChampSelect => "não há seleção de campeões aberta",
+            InvalidAction::NoChampion => "escolha um campeão",
+            InvalidAction::UnknownAction => "essa ação não existe na seleção atual",
+            InvalidAction::NotYourAction => "essa ação é de outro jogador",
+            InvalidAction::NotBanOrPick => "essa ação não é um ban nem um pick",
+            InvalidAction::AlreadyCompleted => "essa ação já foi confirmada",
+            InvalidAction::NotYourTurn => "ainda não é a vez dessa ação",
+        })
+    }
+}
+
+impl std::error::Error for InvalidAction {}
+
+/// Confere um pedido de hover ou de confirmação contra a sessão atual, com
+/// as regras do client oficial:
+///
+/// - a ação existe, é do jogador logado, é um ban ou um pick e não foi
+///   confirmada;
+/// - confirmar só na vez da ação (`isInProgress`);
+/// - marcar um ban também só na vez dele; marcar um pick vale antes da vez,
+///   como intenção.
+pub fn check_action(
+    champ_select: Option<&ChampSelect>,
+    action_id: u32,
+    champion_id: u32,
+    intent: ActionIntent,
+) -> Result<(), InvalidAction> {
+    let cs = champ_select.ok_or(InvalidAction::NoChampSelect)?;
+    if champion_id == 0 {
+        return Err(InvalidAction::NoChampion);
+    }
+    let action = cs
+        .actions
+        .iter()
+        .find(|a| a.id == action_id)
+        .ok_or(InvalidAction::UnknownAction)?;
+    if action.actor_cell_id != cs.local_player_cell_id {
+        return Err(InvalidAction::NotYourAction);
+    }
+    if !matches!(
+        action.action_type,
+        ChampSelectActionType::Ban | ChampSelectActionType::Pick
+    ) {
+        return Err(InvalidAction::NotBanOrPick);
+    }
+    if action.completed {
+        return Err(InvalidAction::AlreadyCompleted);
+    }
+    let early_pick_intent =
+        intent == ActionIntent::Hover && action.action_type == ChampSelectActionType::Pick;
+    if !action.is_in_progress && !early_pick_intent {
+        return Err(InvalidAction::NotYourTurn);
+    }
+    Ok(())
+}
+
+/// Marca o campeão `champion_id` na ação `action_id`, sem confirmar. A LCU
+/// responde sem corpo; a sessão nova chega pelo WAMP (ou por
+/// [`current_session`]).
+pub async fn hover(lcu: &LcuClient, action_id: u32, champion_id: u32) -> Result<(), LcuError> {
+    lcu.patch::<_, Option<Value>>(
+        &action_path(action_id),
+        &json!({ "championId": champion_id }),
+    )
+    .await
+    .map(|_| ())
+}
+
+/// Confirma o ban ou o pick de `champion_id` na ação `action_id`: marca o
+/// campeão e confirma, como o botão do client oficial.
+pub async fn confirm(lcu: &LcuClient, action_id: u32, champion_id: u32) -> Result<(), LcuError> {
+    hover(lcu, action_id, champion_id).await?;
+    lcu.post::<_, Option<Value>>(&complete_action_path(action_id), &json!({}))
+        .await
+        .map(|_| ())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     fn player(cell: i32, champion: i64, intent: i64, position: &str, name: &str) -> Value {
         json!({
@@ -669,6 +802,57 @@ mod tests {
         assert_eq!(
             ChampSelect::from_json_at(&raw, 0).unwrap().pending_action,
             None
+        );
+    }
+
+    #[test]
+    fn confere_hover_e_confirmacao() {
+        use ActionIntent::{Confirm, Hover};
+        let cs = ChampSelect::from_json_at(&session(), 0).unwrap();
+        let check = |action, champion, intent| check_action(Some(&cs), action, champion, intent);
+
+        // A vez do jogador: pick 13.
+        assert_eq!(check(13, 121, Hover), Ok(()));
+        assert_eq!(check(13, 121, Confirm), Ok(()));
+        assert_eq!(
+            check_action(None, 13, 121, Hover),
+            Err(InvalidAction::NoChampSelect)
+        );
+        assert_eq!(check(13, 0, Confirm), Err(InvalidAction::NoChampion));
+        assert_eq!(check(999, 121, Hover), Err(InvalidAction::UnknownAction));
+        // Pick de outro jogador, e o ban já feito pelo jogador.
+        assert_eq!(check(15, 121, Hover), Err(InvalidAction::NotYourAction));
+        assert_eq!(check(1, 43, Confirm), Err(InvalidAction::AlreadyCompleted));
+        assert_eq!(check(100, 1, Hover), Err(InvalidAction::NotYourAction));
+
+        // Antes da vez: o pick aceita hover (intenção), mas não confirmação;
+        // o ban não aceita nenhum dos dois.
+        let mut raw = session();
+        raw["actions"][4][0]["isInProgress"] = json!(false);
+        raw["actions"][0][1]["completed"] = json!(false);
+        let cs = ChampSelect::from_json_at(&raw, 0).unwrap();
+        let check = |action, intent| check_action(Some(&cs), action, 121, intent);
+        assert_eq!(check(13, Hover), Ok(()));
+        assert_eq!(check(13, Confirm), Err(InvalidAction::NotYourTurn));
+        assert_eq!(check(1, Hover), Err(InvalidAction::NotYourTurn));
+        assert_eq!(check(1, Confirm), Err(InvalidAction::NotYourTurn));
+
+        // Ação que não é ban nem pick, do próprio jogador.
+        let mut raw = session();
+        raw["actions"][4][0]["type"] = json!("vote");
+        let cs = ChampSelect::from_json_at(&raw, 0).unwrap();
+        assert_eq!(
+            check_action(Some(&cs), 13, 121, Hover),
+            Err(InvalidAction::NotBanOrPick)
+        );
+    }
+
+    #[test]
+    fn caminhos_das_acoes() {
+        assert_eq!(action_path(13), "/lol-champ-select/v1/session/actions/13");
+        assert_eq!(
+            complete_action_path(13),
+            "/lol-champ-select/v1/session/actions/13/complete"
         );
     }
 

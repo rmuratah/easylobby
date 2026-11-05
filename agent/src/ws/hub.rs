@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use tokio::sync::broadcast;
 
-use crate::champ_select::{self, ChampSelect, CHAMP_SELECT_SESSION_PATH};
+use crate::champ_select::{self, ActionIntent, ChampSelect, CHAMP_SELECT_SESSION_PATH};
 use crate::connection::{ConnectionEvent, LcuConnection};
 use crate::gameflow::{self, GameflowPhase};
 use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError, LOBBY_PATH};
@@ -308,6 +308,53 @@ impl Hub {
             shared.state.champ_select = champ_select.clone();
             Some(ServerMessage::ChampSelect { champ_select })
         });
+    }
+
+    /// Marca um campeão numa ação da seleção sem confirmar (comando
+    /// `hoverChampion`, #23). Confere o pedido contra a seleção atual, e
+    /// relê a sessão pelo REST e a publica antes de devolver.
+    pub async fn hover_champion(&self, action_id: u32, champion_id: u32) -> CommandResult {
+        self.champ_select_action(action_id, champion_id, ActionIntent::Hover)
+            .await
+    }
+
+    /// Confirma o ban ou o pick (comando `confirmAction`, #23). Como
+    /// [`Hub::hover_champion`].
+    pub async fn confirm_action(&self, action_id: u32, champion_id: u32) -> CommandResult {
+        self.champ_select_action(action_id, champion_id, ActionIntent::Confirm)
+            .await
+    }
+
+    async fn champ_select_action(
+        &self,
+        action_id: u32,
+        champion_id: u32,
+        intent: ActionIntent,
+    ) -> CommandResult {
+        let (client, champ_select) = {
+            let shared = self.lock();
+            (shared.client.clone(), shared.state.champ_select.clone())
+        };
+        let Some(client) = client else {
+            return not_connected();
+        };
+        if let Err(invalid) =
+            champ_select::check_action(champ_select.as_ref(), action_id, champion_id, intent)
+        {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        let sent = match intent {
+            ActionIntent::Hover => champ_select::hover(&client, action_id, champion_id).await,
+            ActionIntent::Confirm => champ_select::confirm(&client, action_id, champion_id).await,
+        };
+        if let Err(error) = sent {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        // Se a releitura falhar, o evento do WAMP traz a sessão logo depois.
+        if let Ok(Some(session)) = champ_select::current_session(&client).await {
+            self.set_champ_select(Some(session));
+        }
+        CommandResult::Ok
     }
 
     /// Entra na fila com o lobby atual (comando `startQueue`, #19). Relê a
