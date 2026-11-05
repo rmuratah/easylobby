@@ -15,7 +15,8 @@
 //! Para o mock-lcu, use [`LcuEvents::with_root_certificate`] com a CA dele.
 //!
 //! Uma [`LcuEvents`] é uma conexão. Quando o LoL fecha, [`LcuEvents::next`]
-//! devolve `None`; reconectar fica com quem chama (#10).
+//! devolve `None`. Para reconectar sozinho quando o LoL reabre, use
+//! [`crate::connection::LcuConnection`] (#10).
 //!
 //! ```no_run
 //! # async fn exemplo() -> Result<(), Box<dyn std::error::Error>> {

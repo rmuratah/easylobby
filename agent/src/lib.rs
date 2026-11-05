@@ -8,7 +8,10 @@
 //! - [`rest`]: cliente REST da LCU, com Basic Auth e certificado fixado (#8)
 //! - [`summoner`]: invocador logado (#7)
 //! - [`wamp`]: eventos da LCU em tempo real pelo WebSocket WAMP (#9)
+//! - [`connection`]: conexão REST + WAMP que reconecta quando o LoL fecha ou
+//!   reinicia (#10)
 
+pub mod connection;
 pub mod fixtures;
 pub mod lockfile;
 pub mod rest;
