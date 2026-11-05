@@ -44,6 +44,18 @@ it.runIf(process.env.EASYLOBBY_INTEGRATION === '1')('conecta ao agente real com 
       await expect(client.send({ type: 'createLobby', queue })).resolves.toEqual({ status: 'ok' });
       expect(client.getSnapshot().state?.lobby?.queue).toBe(queue);
       expect(client.getSnapshot().state?.lobby?.members.length).toBeGreaterThan(0);
+      if (client.getSnapshot().state?.lobby?.showPositionSelector) {
+        for (const [first, second] of [['middle', 'jungle'], ['fill', 'unselected'], ['unselected', 'unselected']] as const) {
+          await expect(client.send({ type: 'setPositions', first, second })).resolves.toEqual({ status: 'ok' });
+          const state = client.getSnapshot().state;
+          const local = state?.lobby?.members.find(member => member.puuid === state.summoner?.puuid);
+          expect(local?.firstPosition).toBe(first);
+          expect(local?.secondPosition).toBe(second);
+        }
+        await expect(client.send({ type: 'setPositions', first: 'top', second: 'top' }))
+          .resolves.toMatchObject({ status: 'error', code: 'invalidCommand' });
+      }
+
     }
     await expect(client.send({ type: 'leaveLobby' })).resolves.toEqual({ status: 'ok' });
     expect(client.getSnapshot().state?.lobby).toBeNull();
