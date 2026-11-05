@@ -18,6 +18,9 @@ use serde_json::{json, Value};
 /// Recurso com a fase do gameflow.
 pub const GAMEFLOW_PHASE: &str = "/lol-gameflow/v1/gameflow-phase";
 
+/// Recurso do ready check (partida encontrada).
+pub const READY_CHECK: &str = "/lol-matchmaking/v1/ready-check";
+
 /// Fase quando não há resposta gravada para dizer outra.
 const DEFAULT_PHASE: &str = "None";
 
@@ -175,6 +178,26 @@ impl LcuState {
         self.phases.push(phase.to_owned());
     }
 
+    /// Evento que a LCU mandaria se o jogador respondesse o ready check com
+    /// `response` (`"Accepted"` ou `"Declined"`): o ready check atual com o
+    /// `playerResponse` novo. `Err` com a resposta HTTP de erro quando não há
+    /// ready check em andamento. O chamador emite o evento.
+    pub fn answer_ready_check(&self, response: &str) -> Result<EventFixture, Response> {
+        let current = self.get(READY_CHECK);
+        let in_progress = current.status == 200 && current.body["state"] == "InProgress";
+        if !in_progress {
+            return Err(Response::error(404, "Not attached to a matchmaking queue."));
+        }
+        let mut data = current.body;
+        data["playerResponse"] = Value::String(response.to_owned());
+        Ok(EventFixture {
+            t_ms: 0,
+            uri: READY_CHECK.to_owned(),
+            event_type: "Update".to_owned(),
+            data,
+        })
+    }
+
     /// Volta ao começo da gravação. A UI oficial continua como está.
     pub fn reset(&mut self) {
         self.phases = vec![self.initial_phase.clone()];
@@ -303,6 +326,29 @@ mod tests {
         let missing = s.get("/lol-nada/v1/coisa");
         assert_eq!(missing.status, 404);
         assert_eq!(missing.body["errorCode"], "RPC_ERROR");
+    }
+
+    #[test]
+    fn responde_o_ready_check() {
+        let mut s = LcuState::new(&set());
+        assert_eq!(s.answer_ready_check("Accepted").unwrap_err().status, 404);
+
+        s.apply(&event(
+            READY_CHECK,
+            "Update",
+            json!({ "state": "InProgress", "playerResponse": "None", "timer": 2.0 }),
+        ));
+        let accepted = s.answer_ready_check("Accepted").unwrap();
+        assert_eq!(accepted.uri, READY_CHECK);
+        assert_eq!(accepted.data["playerResponse"], "Accepted");
+        assert_eq!(accepted.data["timer"], 2.0);
+
+        s.apply(&event(
+            READY_CHECK,
+            "Update",
+            json!({ "state": "Invalid", "playerResponse": "None", "timer": 0.0 }),
+        ));
+        assert!(s.answer_ready_check("Declined").is_err());
     }
 
     #[test]

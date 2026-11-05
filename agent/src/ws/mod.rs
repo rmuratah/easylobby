@@ -191,6 +191,8 @@ async fn session(mut socket: WebSocket, hub: Hub) {
                                 replies.push(hello(state));
                                 CommandResult::Ok
                             }
+                            Command::AcceptReadyCheck => hub.accept_ready_check().await,
+                            Command::DeclineReadyCheck => hub.decline_ready_check().await,
                         };
                         replies.push(ServerMessage::Response { id, result });
                         replies
