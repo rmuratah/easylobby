@@ -11,7 +11,8 @@
 //!
 //! - [`Hub`]: o estado atual e o canal que avisa as UIs conectadas.
 //!   [`drive`] o mantém atualizado a partir de uma [`LcuConnection`].
-//! - [`router`] e [`serve`]: o servidor `axum` com a rota `/ws`.
+//! - [`router`] e [`serve`]: o servidor `axum` com a rota `/ws` e as
+//!   imagens do jogo em `/assets/<tipo>/<id>` ([`crate::assets`], #29).
 //! - [`run`]: as duas coisas juntas, como o app desktop vai usar.
 //!
 //! O servidor só deve escutar em `127.0.0.1`. Como qualquer página aberta
@@ -39,15 +40,17 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::State;
-use axum::http::header::ORIGIN;
+use axum::extract::{Path, State};
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, ORIGIN, X_CONTENT_TYPE_OPTIONS};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use tokio::net::TcpListener;
 use tokio::sync::broadcast::error::{RecvError, TryRecvError};
+use tokio::task::JoinHandle;
 
+use crate::assets::{AssetCache, AssetConfig, AssetError, AssetKind, ASSETS_PATH};
 use crate::connection::LcuConnection;
 use crate::launcher::{self, LaunchOptions};
 
@@ -87,6 +90,8 @@ pub struct WsConfig {
     pub allowed_origins: Vec<String>,
     /// Como o comando `launchLeague` abre o LoL.
     pub launch: LaunchOptions,
+    /// De onde baixar e onde guardar as imagens de `/assets` (#29).
+    pub assets: AssetConfig,
 }
 
 impl Default for WsConfig {
@@ -94,6 +99,7 @@ impl Default for WsConfig {
         Self {
             allowed_origins: DEFAULT_ALLOWED_ORIGINS.map(String::from).to_vec(),
             launch: LaunchOptions::default(),
+            assets: AssetConfig::default(),
         }
     }
 }
@@ -114,14 +120,20 @@ impl WsConfig {
 struct App {
     hub: Hub,
     config: Arc<WsConfig>,
+    assets: AssetCache,
 }
 
-/// Rotas do canal: só o [`WS_PATH`].
+/// Rotas do canal: o [`WS_PATH`] e as imagens em `/assets/<tipo>/<id>`.
 pub fn router(hub: Hub, config: WsConfig) -> Router {
-    Router::new().route(WS_PATH, get(upgrade)).with_state(App {
-        hub,
-        config: Arc::new(config),
-    })
+    let assets = AssetCache::new(config.assets.clone());
+    Router::new()
+        .route(WS_PATH, get(upgrade))
+        .route(&format!("{ASSETS_PATH}/{{kind}}/{{id}}"), get(asset))
+        .with_state(App {
+            hub,
+            config: Arc::new(config),
+            assets,
+        })
 }
 
 /// Serve o canal em `listener` até dar erro.
@@ -131,16 +143,32 @@ pub async fn serve(listener: TcpListener, hub: Hub, config: WsConfig) -> io::Res
 
 /// Liga a conexão com o LoL ao canal: atualiza um [`Hub`] novo com a
 /// `connection` e serve o `/ws` em `listener`.
+///
+/// A conexão com o LoL vive enquanto `run` vive: ela é encerrada quando o
+/// servidor para com erro e também quando o futuro é cancelado, por exemplo
+/// com [`tokio::task::JoinHandle::abort`] na tarefa que roda `run`.
 pub async fn run(
     connection: LcuConnection,
     listener: TcpListener,
     config: WsConfig,
 ) -> io::Result<()> {
     let hub = Hub::new();
-    let driver = tokio::spawn(drive(connection, hub.clone()));
-    let result = serve(listener, hub, config).await;
-    driver.abort();
-    result
+    // A guarda encerra a conexão com o LoL quando `run` termina e também
+    // quando o futuro de `run` é cancelado (derrubado) no meio do `serve`:
+    // sem ela, a tarefa do `tokio::spawn` seguiria viva, conectada ou
+    // tentando reconectar, e reiniciar o serviço acumularia drivers (#58).
+    let _driver = AbortOnDrop(tokio::spawn(drive(connection, hub.clone())));
+    serve(listener, hub, config).await
+}
+
+/// Aborta a tarefa quando é derrubada. Derrubar um `JoinHandle` sozinho não
+/// cancela a tarefa.
+struct AbortOnDrop(JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 async fn upgrade(State(app): State<App>, headers: HeaderMap, ws: WebSocketUpgrade) -> Response {
@@ -149,6 +177,39 @@ async fn upgrade(State(app): State<App>, headers: HeaderMap, ws: WebSocketUpgrad
     }
     ws.max_message_size(MAX_MESSAGE_SIZE)
         .on_upgrade(move |socket| session(socket, app.hub, app.config))
+}
+
+/// `GET /assets/<tipo>/<id>`: a imagem do cache, baixada na primeira vez.
+/// 404 para tipo ou `id` que não existe, 502 quando não dá para baixar.
+///
+/// O `Origin` passa pela mesma regra do `/ws`. Um `<img>` comum não manda
+/// `Origin`, então qualquer página consegue mostrar as imagens; tudo bem, elas
+/// são públicas. Só saem downloads para `id`s que estão no índice do
+/// CommunityDragon, e cada imagem só uma vez.
+async fn asset(
+    State(app): State<App>,
+    headers: HeaderMap,
+    Path((kind, id)): Path<(String, String)>,
+) -> Response {
+    if !app.config.origin_allowed(&headers) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let (Some(kind), Ok(id)) = (AssetKind::parse(&kind), id.parse::<i64>()) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match app.assets.get(kind, id).await {
+        Ok(asset) => (
+            [
+                (CONTENT_TYPE, asset.content_type),
+                (CACHE_CONTROL, "public, max-age=86400"),
+                (X_CONTENT_TYPE_OPTIONS, "nosniff"),
+            ],
+            asset.bytes,
+        )
+            .into_response(),
+        Err(AssetError::NotFound) => StatusCode::NOT_FOUND.into_response(),
+        Err(_) => StatusCode::BAD_GATEWAY.into_response(),
+    }
 }
 
 /// Uma UI conectada: manda o `hello`, repassa as mudanças e responde os

@@ -193,3 +193,15 @@ cargo run -p easylobby-agent --example gravar_fixtures
 Jogue a sessão pela UI oficial (lobby, fila, ready check, champ select, chat) e aperte Ctrl+C. O gravador tira uma foto dos endpoints no início e a cada mudança de fase, grava os eventos dos tópicos usados pelo easylobby e salva em `tests/fixtures/<patch>/` (`--patch`, `--saida` e `--segundos` mudam isso). A conexão usa o certificado `certs/riotgames.pem` fixado, nunca desliga a verificação TLS.
 
 Antes de salvar, o `Sanitizer` troca puuid, ids (inclusive o `gameId` das partidas), nomes, tags e nomes de grupos de amigos por valores `fake-...` (o mesmo valor real vira sempre o mesmo falso, então as relações continuam valendo), troca o texto das mensagens de chat e apaga tokens, senhas e a senha do lockfile. Para passar uma gravação antiga pelo sanitizer atual, use `--ressanitizar tests/fixtures/<patch>`. O teste `fixtures_validas` falha se algum conjunto tiver dado que o sanitizer trocaria ou texto com cara de id ou token real. Mesmo assim, **confira os arquivos antes de commitar.**
+
+## Ícones e imagens (`assets`)
+
+O servidor do `/ws` também serve as imagens do jogo em `http://127.0.0.1:47800/assets/<tipo>/<id>` (#29), com o mesmo `id` que a LCU manda. Os tipos são o `AssetKind` gerado em `ui/src/bindings/`: `champion` (`championId`), `profileIcon` (`profileIconId`), `summonerSpell` (`spell1Id`/`spell2Id`), `perk` (`perkIds`) e `perkStyle` (`primaryStyleId`/`subStyleId`).
+
+```html
+<img src="http://127.0.0.1:47800/assets/champion/266" alt="Aatrox" />
+```
+
+O agente pega a versão do jogo no Data Dragon (`16.22.1` vira `16.22`), baixa do CommunityDragon o índice de cada tipo e cada imagem na primeira vez que alguém pede, e guarda em `%LOCALAPPDATA%\easylobby\cache\assets\<versão>\` (`~/.cache/easylobby/assets` fora do Windows; mude em `WsConfig::assets`). Quando sai um patch, a pasta do anterior é apagada. Sem internet, serve o que já está no disco. Respostas: `200` com `image/png` ou `image/jpeg`, `404` para tipo ou `id` que não existe, `502` quando não dá para baixar. Downloads só com HTTPS e a verificação TLS ligada.
+
+Os testes em `mock-lcu/tests/imagens.rs` sobem o mock-lcu e um Data Dragon/CommunityDragon falso: pedem o ícone do invocador do mock, conferem que cada imagem só é baixada uma vez, a troca de patch e o cache sem internet.
