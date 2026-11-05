@@ -11,6 +11,7 @@ import type { ReceivedInvitation } from "./ReceivedInvitation";
 import type { RuneCatalog } from "./RuneCatalog";
 import type { RunePages } from "./RunePages";
 import type { Summoner } from "./Summoner";
+import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
 
 /**
  * Tudo o que a UI precisa para desenhar a tela do zero.
@@ -41,6 +42,11 @@ runePages: RunePages | null,
  * Árvores de runas para o editor (#26), ou `null`.
  */
 runeCatalog: RuneCatalog | null, 
+/**
+ * Feitiços de invocador do jogo, para a escolha na seleção (#24), ou
+ * `null`.
+ */
+summonerSpellCatalog: SummonerSpellCatalog | null, 
 /**
  * Amigos com a presença de cada um (#30), na ordem da tela.
  */
