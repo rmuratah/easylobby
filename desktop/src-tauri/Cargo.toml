@@ -1,0 +1,21 @@
+[package]
+name = "easylobby-desktop"
+description = "Shell Tauri 2 do easylobby: embute o agente e mostra a UI React"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+name = "easylobby_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+easylobby-agent = { path = "../../agent" }
+tauri = { version = "2", features = [] }

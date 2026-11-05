@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = ["agent", "mock-lcu", "desktop/src-tauri"]
+# `cargo build` e `cargo test` na raiz rodam só o agente e o mock-lcu.
+# O shell Tauri precisa da UI compilada (ui/dist) e de dependências do sistema;
+# compile com `cargo build -p easylobby-desktop` ou `pnpm --dir desktop tauri dev`.
+default-members = ["agent", "mock-lcu"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+repository = "https://github.com/rmuratah/easylobby"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }

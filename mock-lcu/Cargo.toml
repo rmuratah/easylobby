@@ -1,0 +1,12 @@
+[package]
+name = "mock-lcu"
+description = "Servidor falso da LCU que responde com fixtures gravadas"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]

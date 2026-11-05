@@ -1,0 +1,11 @@
+[package]
+name = "easylobby-agent"
+description = "Agente que conversa com a LCU API e expõe o canal /ws para a UI"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]

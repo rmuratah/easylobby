@@ -1,0 +1,22 @@
+# Rust
+/target/
+
+# Node
+node_modules/
+dist/
+*.local
+.vite/
+coverage/
+
+# Tauri
+desktop/src-tauri/gen/schemas/
+
+# Editores e SO
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Segredos: o lockfile do LoL nunca deve ser commitado
+lockfile
