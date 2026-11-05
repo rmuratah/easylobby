@@ -31,7 +31,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::lobby::{Lobby, LobbyMember, Queue};
+use crate::lobby::{Lobby, LobbyMember, Position, Queue};
 use crate::summoner::Summoner;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
@@ -156,6 +156,15 @@ pub enum Command {
     /// Sai do lobby. A mensagem `lobby` com `null` chega antes da resposta.
     /// Responde `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
     LeaveLobby,
+    /// Escolhe o cargo primário e o secundário do jogador logado (#18). Só
+    /// vale num lobby com `showPositionSelector`. O par segue as regras do
+    /// client oficial: cargos diferentes, e `second` em `unselected` quando
+    /// `first` é `fill` ou `unselected`; fora disso responde
+    /// `invalidCommand` sem falar com a LCU. O lobby com os cargos novos
+    /// chega numa mensagem `lobby` antes da resposta. Responde `notConnected`
+    /// com o LoL fechado e `lcu` se a LCU recusar (fora de lobby, fila sem
+    /// cargos...).
+    SetPositions { first: Position, second: Position },
 }
 
 /// Resultado de um comando.
@@ -180,6 +189,10 @@ pub enum ErrorCode {
     Lcu,
     /// Não foi possível abrir o LoL pelo Riot Client.
     LaunchFailed,
+    /// O comando chegou bem formado mas com valores que não fazem sentido
+    /// (como o mesmo cargo de primário e secundário). Nada foi mandado para
+    /// a LCU.
+    InvalidCommand,
 }
 
 impl CommandResult {
@@ -209,6 +222,7 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<Summoner>(&cfg)?,
         file::<Lobby>(&cfg)?,
         file::<LobbyMember>(&cfg)?,
+        file::<Position>(&cfg)?,
         file::<Queue>(&cfg)?,
         file::<ClientMessage>(&cfg)?,
         file::<Command>(&cfg)?,
@@ -328,6 +342,18 @@ mod tests {
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 9, "command": {"type": "leaveLobby"}})).unwrap();
         assert_eq!(msg.command, Command::LeaveLobby);
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 10,
+            "command": {"type": "setPositions", "first": "middle", "second": "jungle"},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::SetPositions {
+                first: Position::Middle,
+                second: Position::Jungle,
+            }
+        );
         // Só as filas que o easylobby oferece.
         assert!(serde_json::from_value::<ClientMessage>(
             json!({"id": 1, "command": {"type": "createLobby", "queue": "tft"}})

@@ -1,4 +1,5 @@
-//! Lobby da LCU falsa (#17): `POST` e `DELETE` em `/lol-lobby/v2/lobby`.
+//! Lobby da LCU falsa (#17): `POST` e `DELETE` em `/lol-lobby/v2/lobby`, e
+//! os cargos do jogador (#18) em `PUT` [`POSITION_PREFERENCES`].
 //!
 //! As fixtures só têm `GET`, então o mock monta o lobby a partir do lobby
 //! gravado (trocando a fila) e manda os mesmos eventos que a LCU manda:
@@ -15,6 +16,21 @@ use crate::state::{LcuState, Response, GAMEFLOW_PHASE};
 
 /// Recurso do lobby.
 pub const LOBBY: &str = "/lol-lobby/v2/lobby";
+
+/// Cargos do jogador logado (#18).
+pub const POSITION_PREFERENCES: &str =
+    "/lol-lobby/v2/lobby/members/localMember/position-preferences";
+
+/// Cargos que a LCU aceita.
+const POSITIONS: [&str; 7] = [
+    "TOP",
+    "JUNGLE",
+    "MIDDLE",
+    "BOTTOM",
+    "UTILITY",
+    "FILL",
+    "UNSELECTED",
+];
 
 /// Lista de filas da LCU, usada para validar o `queueId`.
 const QUEUES: &str = "/lol-game-queues/v1/queues";
@@ -48,6 +64,10 @@ pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
         .and_then(|q| q.get("maximumParticipantListSize"))
         .and_then(Value::as_u64)
         .unwrap_or(5);
+    let show_position_selector = queue
+        .and_then(|q| q.get("showPositionSelector"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
 
     let current = state.get(LOBBY);
     let mut lobby = if current.status == 200 {
@@ -58,6 +78,7 @@ pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
     if let Some(config) = lobby.get_mut("gameConfig").and_then(Value::as_object_mut) {
         config.insert("queueId".into(), json!(queue_id));
         config.insert("maxLobbySize".into(), json!(max_lobby_size));
+        config.insert("showPositionSelector".into(), json!(show_position_selector));
     }
     let created = current.status != 200;
 
@@ -94,6 +115,64 @@ pub fn leave(state: &LcuState) -> (Response, Vec<EventFixture>) {
             body: Value::Null,
         },
         events,
+    )
+}
+
+/// `PUT` [`POSITION_PREFERENCES`] com `{"firstPreference": "MIDDLE",
+/// "secondPreference": "JUNGLE"}`: troca os cargos do jogador logado no
+/// `localMember` e na lista `members`. Fora de lobby responde 404, e numa
+/// fila sem escolha de cargos, 400.
+pub fn set_positions(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
+    let current = state.get(LOBBY);
+    if current.status != 200 {
+        return (
+            Response::error(404, "mock-lcu: LOBBY_NOT_FOUND"),
+            Vec::new(),
+        );
+    }
+    let preference = |name: &str| {
+        body.get(name)
+            .and_then(Value::as_str)
+            .filter(|p| POSITIONS.contains(p))
+    };
+    let (Some(first), Some(second)) = (
+        preference("firstPreference"),
+        preference("secondPreference"),
+    ) else {
+        return (
+            Response::error(
+                400,
+                "mock-lcu: o corpo precisa de \"firstPreference\" e \"secondPreference\" válidos",
+            ),
+            Vec::new(),
+        );
+    };
+    let mut lobby = current.body;
+    if lobby["gameConfig"]["showPositionSelector"] != json!(true) {
+        return (
+            Response::error(400, "mock-lcu: esta fila não tem escolha de cargos"),
+            Vec::new(),
+        );
+    }
+    let puuid = lobby["localMember"]["puuid"].clone();
+    let set = |member: &mut Value| {
+        if let Some(member) = member.as_object_mut() {
+            member.insert("firstPositionPreference".into(), json!(first));
+            member.insert("secondPositionPreference".into(), json!(second));
+        }
+    };
+    set(&mut lobby["localMember"]);
+    if let Some(members) = lobby.get_mut("members").and_then(Value::as_array_mut) {
+        for member in members.iter_mut().filter(|m| m["puuid"] == puuid) {
+            set(member);
+        }
+    }
+    (
+        Response {
+            status: 201,
+            body: Value::Null,
+        },
+        vec![event(LOBBY, "Update", lobby)],
     )
 }
 
@@ -186,6 +265,46 @@ mod tests {
         let (response, events) = leave(&s);
         assert_eq!(response.status, 204);
         assert!(events.is_empty());
+    }
+
+    #[test]
+    fn troca_os_cargos() {
+        let mut s = state("16.22");
+        let cargos = json!({"firstPreference": "MIDDLE", "secondPreference": "JUNGLE"});
+        // Fora de lobby.
+        assert_eq!(set_positions(&s, &cargos).0.status, 404);
+
+        let (_, events) = create(&s, &json!({"queueId": 420}));
+        apply(&mut s, &events);
+        assert_eq!(
+            s.get(LOBBY).body["gameConfig"]["showPositionSelector"],
+            true
+        );
+        let (response, events) = set_positions(&s, &cargos);
+        assert_eq!(response.status, 201);
+        assert_eq!(events.len(), 1);
+        apply(&mut s, &events);
+        let lobby = s.get(LOBBY).body;
+        assert_eq!(lobby["localMember"]["firstPositionPreference"], "MIDDLE");
+        assert_eq!(lobby["members"][0]["firstPositionPreference"], "MIDDLE");
+        assert_eq!(lobby["members"][0]["secondPositionPreference"], "JUNGLE");
+
+        // Cargo que não existe.
+        let (response, events) = set_positions(
+            &s,
+            &json!({"firstPreference": "MEIO", "secondPreference": "JUNGLE"}),
+        );
+        assert_eq!(response.status, 400);
+        assert!(events.is_empty());
+
+        // ARAM não tem cargos.
+        let (_, events) = create(&s, &json!({"queueId": 450}));
+        apply(&mut s, &events);
+        assert_eq!(
+            s.get(LOBBY).body["gameConfig"]["showPositionSelector"],
+            false
+        );
+        assert_eq!(set_positions(&s, &cargos).0.status, 400);
     }
 
     #[test]

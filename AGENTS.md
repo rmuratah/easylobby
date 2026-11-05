@@ -81,4 +81,5 @@ Siga o [CONTRIBUTING.md](CONTRIBUTING.md). Em resumo:
 3. Commits em Conventional Commits: `tipo(escopo): descrição no imperativo (#issue)`, escopos `agente`, `ui`, `desktop`, `mock-lcu`, `ci`, `docs`.
 4. PR para a `main` com título no mesmo formato, `Closes #N` e o template preenchido. CI verde, aprovação do outro dev, merge por squash.
 5. Mudanças pequenas, um PR por issue (ou por metade de uma issue dividida), com testes quando fizer sentido.
-6. Se faltar contexto, peça o arquivo ou a issue em vez de supor.
+6. Na revisão, só bug, falha de segurança ou quebra do contrato do `/ws` bloqueiam o merge. Melhorias, refatoração e estilo viram issue com a label `melhoria`. Uma rodada de revisão por PR; a segunda só confere os pontos da primeira. Veja "Revisão de PRs" no [CONTRIBUTING.md](CONTRIBUTING.md).
+7. Se faltar contexto, peça o arquivo ou a issue em vez de supor.

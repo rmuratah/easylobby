@@ -9,12 +9,18 @@
 //!
 //! Cada mudança chega pelo WAMP no mesmo URI. O [`Hub`](crate::ws::Hub) lê o
 //! lobby pelo REST a cada conexão e depois segue os eventos; a UI recebe o
-//! [`Lobby`] pelo `/ws` e pede as mudanças com os comandos `createLobby` e
-//! `leaveLobby`.
+//! [`Lobby`] pelo `/ws` e pede as mudanças com os comandos `createLobby`,
+//! `leaveLobby` e `setPositions`.
+//!
+//! Cargos (#18): nas filas com escolha de posição (normal alternada e
+//! ranqueadas, [`Lobby::show_position_selector`]) cada jogador escolhe um
+//! cargo primário e um secundário com
+//! `PUT /lol-lobby/v2/lobby/members/localMember/position-preferences`. A
+//! LCU responde sem corpo e manda o lobby novo pelo WAMP.
 //!
 //! O [`Lobby`] guarda só o que a tela de lobby usa. Os outros campos da
 //! resposta são ignorados, então um campo novo num patch não quebra a
-//! leitura. Cargos (#18) e fila (#19) entram depois.
+//! leitura.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -24,6 +30,105 @@ use crate::rest::{LcuClient, LcuError};
 
 /// Endpoint (e URI dos eventos WAMP) do lobby.
 pub const LOBBY_PATH: &str = "/lol-lobby/v2/lobby";
+
+/// Endpoint dos cargos do jogador logado (#18).
+pub const POSITION_PREFERENCES_PATH: &str =
+    "/lol-lobby/v2/lobby/members/localMember/position-preferences";
+
+/// Um cargo (posição) no lobby. Na LCU são as strings em maiúsculas de
+/// [`Position::lcu_name`]; para a UI vão em camelCase (`"top"`,
+/// `"middle"`...).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum Position {
+    /// Topo (`TOP`).
+    Top,
+    /// Selva (`JUNGLE`).
+    Jungle,
+    /// Meio (`MIDDLE`).
+    Middle,
+    /// Atirador (`BOTTOM`).
+    Bottom,
+    /// Suporte (`UTILITY`).
+    Utility,
+    /// Preenchimento, qualquer cargo (`FILL`).
+    Fill,
+    /// Nenhum cargo escolhido ainda (`UNSELECTED`). Também é o que a LCU
+    /// manda fora das filas com escolha de posição.
+    #[default]
+    Unselected,
+}
+
+impl Position {
+    /// Todos os cargos, na ordem em que a tela mostra.
+    pub const ALL: [Position; 7] = [
+        Position::Top,
+        Position::Jungle,
+        Position::Middle,
+        Position::Bottom,
+        Position::Utility,
+        Position::Fill,
+        Position::Unselected,
+    ];
+
+    /// Nome do cargo na LCU.
+    pub const fn lcu_name(self) -> &'static str {
+        match self {
+            Position::Top => "TOP",
+            Position::Jungle => "JUNGLE",
+            Position::Middle => "MIDDLE",
+            Position::Bottom => "BOTTOM",
+            Position::Utility => "UTILITY",
+            Position::Fill => "FILL",
+            Position::Unselected => "UNSELECTED",
+        }
+    }
+
+    /// O cargo de um nome da LCU. `null`, vazio ou desconhecido vira
+    /// [`Position::Unselected`].
+    pub fn from_lcu(name: Option<&str>) -> Position {
+        name.and_then(|name| Position::ALL.into_iter().find(|p| p.lcu_name() == name))
+            .unwrap_or_default()
+    }
+}
+
+/// Por que um par de cargos não vale.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvalidPositions {
+    /// O primário e o secundário são o mesmo cargo.
+    Repeated,
+    /// Com o primário em preenchimento, o secundário fica sem cargo.
+    SecondWithFill,
+    /// Secundário escolhido com o primário vazio.
+    SecondWithoutFirst,
+}
+
+impl std::fmt::Display for InvalidPositions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            InvalidPositions::Repeated => "o cargo primário e o secundário são iguais",
+            InvalidPositions::SecondWithFill => {
+                "com o primário em preenchimento, o secundário fica `unselected`"
+            }
+            InvalidPositions::SecondWithoutFirst => "escolha o cargo primário antes do secundário",
+        })
+    }
+}
+
+impl std::error::Error for InvalidPositions {}
+
+/// Confere um par de cargos com as regras do client oficial: cargos
+/// diferentes, e sem secundário quando o primário é preenchimento ou está
+/// vazio.
+pub fn check_positions(first: Position, second: Position) -> Result<(), InvalidPositions> {
+    match (first, second) {
+        (_, Position::Unselected) => Ok(()),
+        (Position::Unselected, _) => Err(InvalidPositions::SecondWithoutFirst),
+        (Position::Fill, _) => Err(InvalidPositions::SecondWithFill),
+        (a, b) if a == b => Err(InvalidPositions::Repeated),
+        _ => Ok(()),
+    }
+}
 
 /// Filas que o easylobby oferece, com o `queueId` da Riot de cada uma.
 ///
@@ -96,6 +201,9 @@ pub struct Lobby {
     pub is_leader: bool,
     /// Se a LCU deixa entrar na fila agora.
     pub can_start_activity: bool,
+    /// Se a fila tem escolha de cargos (#18): `true` na normal alternada e
+    /// nas ranqueadas, `false` no ARAM e no Jogo Dinâmico.
+    pub show_position_selector: bool,
     /// Quem está no lobby, o jogador logado incluído.
     pub members: Vec<LobbyMember>,
 }
@@ -112,6 +220,12 @@ pub struct LobbyMember {
     pub summoner_icon_id: u32,
     pub summoner_level: u32,
     pub is_leader: bool,
+    /// Cargo primário (#18). `unselected` antes de escolher e nas filas sem
+    /// escolha de cargos.
+    pub first_position: Position,
+    /// Cargo secundário (#18). `unselected` quando o primário é
+    /// preenchimento.
+    pub second_position: Position,
 }
 
 impl Lobby {
@@ -128,6 +242,8 @@ impl Lobby {
                 summoner_icon_id: m.summoner_icon_id,
                 summoner_level: m.summoner_level,
                 is_leader: m.is_leader,
+                first_position: Position::from_lcu(m.first_position_preference.as_deref()),
+                second_position: Position::from_lcu(m.second_position_preference.as_deref()),
             })
             .collect();
         Some(Lobby {
@@ -136,6 +252,7 @@ impl Lobby {
             max_lobby_size: raw.game_config.max_lobby_size,
             is_leader: raw.local_member.is_some_and(|m| m.is_leader),
             can_start_activity: raw.can_start_activity,
+            show_position_selector: raw.game_config.show_position_selector,
             members,
         })
     }
@@ -160,6 +277,8 @@ struct RawGameConfig {
     queue_id: u32,
     #[serde(default)]
     max_lobby_size: u32,
+    #[serde(default)]
+    show_position_selector: bool,
 }
 
 #[derive(Deserialize)]
@@ -175,6 +294,10 @@ struct RawMember {
     summoner_level: u32,
     #[serde(default)]
     is_leader: bool,
+    #[serde(default)]
+    first_position_preference: Option<String>,
+    #[serde(default)]
+    second_position_preference: Option<String>,
 }
 
 /// Busca o lobby atual. Fora de lobby a LCU responde `404`, que volta como
@@ -199,6 +322,37 @@ pub async fn create_lobby(lcu: &LcuClient, queue: Queue) -> Result<Option<Lobby>
 /// Sai do lobby (`DELETE /lol-lobby/v2/lobby`).
 pub async fn leave_lobby(lcu: &LcuClient) -> Result<(), LcuError> {
     lcu.delete::<Option<Value>>(LOBBY_PATH).await.map(|_| ())
+}
+
+/// Escolhe os cargos do jogador logado
+/// (`PUT /lol-lobby/v2/lobby/members/localMember/position-preferences`),
+/// depois de conferir o par com [`check_positions`]. A LCU responde sem corpo;
+/// o lobby novo chega pelo WAMP (ou por [`current_lobby`]).
+pub async fn set_positions(
+    lcu: &LcuClient,
+    first: Position,
+    second: Position,
+) -> Result<(), SetPositionsError> {
+    check_positions(first, second).map_err(SetPositionsError::Invalid)?;
+    let body = json!({
+        "firstPreference": first.lcu_name(),
+        "secondPreference": second.lcu_name(),
+    });
+    lcu.put::<_, Option<Value>>(POSITION_PREFERENCES_PATH, &body)
+        .await
+        .map_err(SetPositionsError::Lcu)?;
+    Ok(())
+}
+
+/// Erro de [`set_positions`].
+#[derive(Debug, thiserror::Error)]
+pub enum SetPositionsError {
+    /// O par de cargos não vale; nada foi mandado para a LCU.
+    #[error("{0}")]
+    Invalid(InvalidPositions),
+    /// A LCU recusou (fora de lobby, fila sem cargos...) ou não respondeu.
+    #[error(transparent)]
+    Lcu(#[from] LcuError),
 }
 
 #[cfg(test)]
@@ -242,6 +396,62 @@ mod tests {
         assert_eq!(lobby.members[0].puuid, "fake-puuid-0001");
         assert_eq!(lobby.members[0].summoner_level, 122);
         assert!(lobby.members[0].is_leader);
+        assert!(lobby.show_position_selector);
+        assert_eq!(lobby.members[0].first_position, Position::Unselected);
+
+        // Mais adiante na gravação o jogador escolheu meio e selva.
+        let escolhido = rest
+            .iter()
+            .filter(|r| r["path"] == LOBBY_PATH && r["status"] == 200)
+            .find_map(|r| {
+                let lobby = Lobby::from_json(&r["body"])?;
+                (lobby.members[0].first_position != Position::Unselected).then_some(lobby)
+            })
+            .unwrap();
+        assert_eq!(escolhido.members[0].first_position, Position::Middle);
+        assert_eq!(escolhido.members[0].second_position, Position::Jungle);
+    }
+
+    #[test]
+    fn nomes_dos_cargos() {
+        for position in Position::ALL {
+            assert_eq!(Position::from_lcu(Some(position.lcu_name())), position);
+        }
+        assert_eq!(Position::from_lcu(None), Position::Unselected);
+        assert_eq!(Position::from_lcu(Some("")), Position::Unselected);
+        assert_eq!(Position::from_lcu(Some("NONE")), Position::Unselected);
+        assert_eq!(
+            serde_json::to_value(Position::Utility).unwrap(),
+            json!("utility")
+        );
+        assert_eq!(
+            serde_json::from_value::<Position>(json!("middle")).unwrap(),
+            Position::Middle
+        );
+        assert!(serde_json::from_value::<Position>(json!("MIDDLE")).is_err());
+    }
+
+    #[test]
+    fn regras_dos_cargos() {
+        use Position::*;
+        assert_eq!(check_positions(Top, Jungle), Ok(()));
+        assert_eq!(check_positions(Middle, Unselected), Ok(()));
+        assert_eq!(check_positions(Fill, Unselected), Ok(()));
+        assert_eq!(check_positions(Unselected, Unselected), Ok(()));
+        assert_eq!(check_positions(Bottom, Fill), Ok(()));
+        assert_eq!(check_positions(Top, Top), Err(InvalidPositions::Repeated));
+        assert_eq!(
+            check_positions(Fill, Top),
+            Err(InvalidPositions::SecondWithFill)
+        );
+        assert_eq!(
+            check_positions(Fill, Fill),
+            Err(InvalidPositions::SecondWithFill)
+        );
+        assert_eq!(
+            check_positions(Unselected, Utility),
+            Err(InvalidPositions::SecondWithoutFirst)
+        );
     }
 
     #[test]
@@ -264,12 +474,15 @@ mod tests {
             max_lobby_size: 5,
             is_leader: true,
             can_start_activity: true,
+            show_position_selector: false,
             members: vec![LobbyMember {
                 puuid: "p".into(),
                 summoner_id: 1,
                 summoner_icon_id: 2,
                 summoner_level: 3,
                 is_leader: true,
+                first_position: Position::Top,
+                second_position: Position::Unselected,
             }],
         };
         assert_eq!(
@@ -280,12 +493,15 @@ mod tests {
                 "maxLobbySize": 5,
                 "isLeader": true,
                 "canStartActivity": true,
+                "showPositionSelector": false,
                 "members": [{
                     "puuid": "p",
                     "summonerId": 1,
                     "summonerIconId": 2,
                     "summonerLevel": 3,
                     "isLeader": true,
+                    "firstPosition": "top",
+                    "secondPosition": "unselected",
                 }],
             })
         );
