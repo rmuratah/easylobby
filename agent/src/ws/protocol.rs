@@ -12,6 +12,7 @@
 //! {"type":"readyCheck","readyCheck":{"state":"InProgress","playerResponse":"None","timer":3.0,"duration":12.0}}
 //! {"type":"lobby","lobby":{"queueId":420,"queue":"rankedSolo",...}}
 //! {"type":"champSelect","champSelect":{"timer":{"phase":"BAN_PICK",...},"myTeam":[...],...}}
+//! {"type":"conversation","conversation":{"id":"...","gameName":"...","messages":[...],...}}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
 //!
@@ -38,6 +39,7 @@ use crate::champ_select::{
     ChampSelect, ChampSelectAction, ChampSelectActionType, ChampSelectBans, ChampSelectPhase,
     ChampSelectPlayer, ChampSelectTimer,
 };
+use crate::chat::{ChatMessage, Conversation};
 use crate::gameflow::GameflowPhase;
 use crate::lobby::{Lobby, LobbyMember, Position, Queue};
 use crate::matchmaking::{Matchmaking, MatchmakingError, SearchState};
@@ -90,6 +92,14 @@ pub enum ServerMessage {
     /// seleção, não só o que mudou. `null` quando a seleção fecha (partida
     /// abrindo, dodge) e com o LoL fechado.
     ChampSelect { champ_select: Option<ChampSelect> },
+    /// Uma conversa 1:1 com um amigo (#31) abriu ou mudou: mensagem nova
+    /// (recebida ou mandada), não lidas, nome do amigo. Sempre a conversa
+    /// inteira, com o histórico da sessão; a UI troca a conversa de mesmo
+    /// `id` por esta, ou acrescenta se não tinha.
+    Conversation { conversation: Conversation },
+    /// A conversa `id` fechou (o amigo ou o client a fechou, ou o LoL
+    /// fechou). A UI tira ela da lista.
+    ConversationClosed { id: String },
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
     /// A UI mandou algo que não é um [`ClientMessage`] válido. Sem `id`,
@@ -110,6 +120,9 @@ pub struct AgentState {
     pub matchmaking: Option<Matchmaking>,
     /// Seleção de campeões em andamento (#22), ou `null`.
     pub champ_select: Option<ChampSelect>,
+    /// Conversas 1:1 abertas (#31), cada uma com o histórico da sessão. Sem
+    /// ordem definida; a UI ordena (pela última mensagem, por exemplo).
+    pub conversations: Vec<Conversation>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -214,6 +227,24 @@ pub enum Command {
     /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
     /// recusar.
     StopQueue,
+    /// Manda `body` na conversa 1:1 `conversationId` (#31): o `id` de uma
+    /// [`Conversation`], que é o `pid` do amigo no chat. Se a conversa ainda
+    /// não estava aberta, a LCU abre e ela chega numa mensagem
+    /// `conversation`. A mensagem mandada chega numa `conversation` antes da
+    /// resposta quando a LCU devolve a mensagem, e depois pelo WAMP nos
+    /// outros casos. Responde `invalidCommand` para texto vazio (só espaços)
+    /// sem falar com a LCU, `notConnected` com o LoL fechado e `lcu` se a
+    /// LCU recusar.
+    SendChatMessage {
+        conversation_id: String,
+        body: String,
+    },
+    /// Diz qual conversa 1:1 a UI está mostrando (#31), ou `null` para
+    /// nenhuma, como a UI oficial faz ao abrir e fechar a janela da conversa.
+    /// A LCU zera as não lidas da conversa ativa; a mudança chega numa
+    /// mensagem `conversation`. Responde `notConnected` com o LoL fechado e
+    /// `lcu` se a LCU recusar.
+    SetActiveConversation { conversation_id: Option<String> },
 }
 
 /// Resultado de um comando.
@@ -287,6 +318,8 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<ChampSelectBans>(&cfg)?,
         file::<ChampSelectAction>(&cfg)?,
         file::<ChampSelectActionType>(&cfg)?,
+        file::<Conversation>(&cfg)?,
+        file::<ChatMessage>(&cfg)?,
         file::<ClientMessage>(&cfg)?,
         file::<Command>(&cfg)?,
         file::<CommandResult>(&cfg)?,
@@ -323,6 +356,7 @@ mod tests {
                     "lobby": null,
                     "matchmaking": null,
                     "champSelect": null,
+                    "conversations": [],
                 },
             })
         );
@@ -455,6 +489,34 @@ mod tests {
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 11, "command": {"type": "stopQueue"}})).unwrap();
         assert_eq!(msg.command, Command::StopQueue);
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 12,
+            "command": {"type": "sendChatMessage", "conversationId": "a@br1.pvp.net", "body": "oi"},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::SendChatMessage {
+                conversation_id: "a@br1.pvp.net".into(),
+                body: "oi".into(),
+            }
+        );
+        for (value, expected) in [
+            (json!("a@br1.pvp.net"), Some("a@br1.pvp.net".to_owned())),
+            (json!(null), None),
+        ] {
+            let msg: ClientMessage = serde_json::from_value(json!({
+                "id": 13,
+                "command": {"type": "setActiveConversation", "conversationId": value},
+            }))
+            .unwrap();
+            assert_eq!(
+                msg.command,
+                Command::SetActiveConversation {
+                    conversation_id: expected
+                }
+            );
+        }
         // Só as filas que o easylobby oferece.
         assert!(serde_json::from_value::<ClientMessage>(
             json!({"id": 1, "command": {"type": "createLobby", "queue": "tft"}})

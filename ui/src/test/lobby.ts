@@ -8,7 +8,7 @@ export const testLobby: Lobby = {
     firstPosition: 'unselected', secondPosition: 'unselected' }],
 };
 export const testState: AgentState = {
-  lcu: { state: 'connected', session: 1 }, gameflowPhase: 'None', lobby: null, readyCheck: null, matchmaking: null, champSelect: null,
+  lcu: { state: 'connected', session: 1 }, gameflowPhase: 'None', lobby: null, readyCheck: null, matchmaking: null, champSelect: null, conversations: [],
   summoner: { gameName: 'Victor', tagLine: 'BR1', displayName: 'Victor', puuid: 'local', summonerId: 1,
     profileIconId: 1, summonerLevel: 122 },
 };

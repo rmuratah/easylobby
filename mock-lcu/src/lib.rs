@@ -16,11 +16,13 @@
 //! - [`lobby`]: criar lobby, trocar a fila e sair (#17); escolher os cargos
 //!   (#18).
 //! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19).
+//! - [`chat`]: mandar mensagem e marcar a conversa ativa no chat 1:1 (#31).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
 //!
 //! [`Credentials::from_lockfile_path`]: easylobby_agent::lockfile::Credentials::from_lockfile_path
 
+pub mod chat;
 pub mod lobby;
 pub mod matchmaking;
 pub mod state;
@@ -629,6 +631,31 @@ async fn handle_request(
             }
             response
         }
+        // Chat 1:1 (#31).
+        (&Method::POST, p) if chat::messages_path(p).is_some() => {
+            let encoded_id = chat::messages_path(p).unwrap_or_default().to_owned();
+            let body = read_json(request).await;
+            let (response, events) = chat::send(&shared.state(), &encoded_id, &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::PUT, chat::ACTIVE) => {
+            let body = read_json(request).await;
+            let (response, events) = chat::set_active(&shared.state(), &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::DELETE, chat::ACTIVE) => {
+            let (response, events) = chat::clear_active();
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
         (&Method::POST, "/riotclient/kill-ux") => {
             println!("kill-ux: UI oficial fechada (de mentira)");
             shared.state().set_ux_open(false);
@@ -676,6 +703,15 @@ async fn handle_request(
         let _ = hold.release.await;
     }
     json_response(&response)
+}
+
+/// Corpo JSON do pedido, ou `null` se não der para ler.
+async fn read_json(request: Request) -> Value {
+    axum::body::to_bytes(request.into_body(), 64 * 1024)
+        .await
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .unwrap_or(Value::Null)
 }
 
 fn take_hold(shared: &Shared, method: &Method, path: &str) -> Option<PendingHold> {

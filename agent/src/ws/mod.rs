@@ -268,6 +268,14 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                             Command::SetPositions { first, second } => {
                                 hub.set_positions(first, second).await
                             }
+                            Command::SendChatMessage {
+                                conversation_id,
+                                body,
+                            } => hub.send_chat_message(&conversation_id, &body).await,
+                            Command::SetActiveConversation { conversation_id } => {
+                                hub.set_active_conversation(conversation_id.as_deref())
+                                    .await
+                            }
                         };
                         // As mudanças que o comando publicou (como o lobby
                         // novo) chegam antes da resposta.

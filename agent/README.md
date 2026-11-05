@@ -56,6 +56,12 @@ Depois do ready check vem a seleção de campeões (#22). A LCU guarda a sessão
 
 `ready_check::accept(&lcu)` e `ready_check::decline(&lcu)` fazem `POST .../ready-check/accept` e `.../decline`. O aceite é sempre um clique do jogador: aceite automático fica fora do MVP (#39).
 
+## Chat 1:1 (`chat`)
+
+As conversas com amigos (#31) ficam em `/lol-chat/v1/conversations`. `chat::conversations(&lcu)` lista as conversas 1:1 abertas (só `type: "chat"`; as salas da seleção de campeões e de grupo ficam de fora) e `chat::messages(&lcu, &conversa)` lê as mensagens de uma. O `id` de uma conversa é o `pid` do amigo no chat (`<puuid>@br1.pvp.net`) e vai codificado nos caminhos (`chat::conversation_path`). Pelo WAMP chegam a conversa (`Create`, `Update` com `lastMessage` e `unreadMessageCount`, `Delete`), cada mensagem nova e às vezes a lista inteira; o `Hub` junta tudo numa `Conversation` (`id`, `gameName`, `tagLine`, `unreadCount`, `messages`) com o histórico da sessão em ordem, sem repetir, até `chat::MAX_MESSAGES` mensagens. Cada `ChatMessage` tem `id`, `body`, `fromMe` e `timestamp` (ISO 8601). Mensagens de sistema ficam de fora.
+
+`chat::send_message(&lcu, id, texto)` faz `POST .../{id}/messages` (a LCU abre a conversa se ela ainda não existe) e `chat::set_active(&lcu, Some(id))` faz `PUT /lol-chat/v1/conversations/active`, que zera as não lidas, como a UI oficial ao abrir a janela da conversa (`None` faz `DELETE`). Pelo `/ws` são os comandos `sendChatMessage` e `setActiveConversation`, e as mensagens `conversation` e `conversationClosed`.
+
 ## Eventos em tempo real (`wamp`)
 
 `wamp::LcuEvents` abre o WebSocket WAMP da LCU (`wss://127.0.0.1:<porta>/`), com o mesmo Basic Auth e o mesmo `riotgames.pem` fixado do cliente REST, e se inscreve em `OnJsonApiEvent`. Cada `next().await` devolve o próximo `LcuEvent` (`uri`, `event_type` `Create`/`Update`/`Delete` e `data`) que passa no `EventFilter`, na ordem em que a LCU mandou.
