@@ -104,6 +104,43 @@ O resultado vem em `session.kill_ux`: `Killed`, `Disabled` (opção desligada) o
 
 O example `eventos` fecha a UI ao conectar e a reabre com `launch-ux` ao sair com Ctrl+C; `--manter-ui` não chama o `kill-ux`. Os testes em `mock-lcu/tests/kill_ux.rs` conferem o kill-ux ao conectar, o `launch-ux`, a opção desligada, o kill-ux de novo quando o LoL reabre e a troca da opção entre conexões.
 
+## Canal `/ws` para a UI (`ws`)
+
+O agente expõe um WebSocket em `ws://127.0.0.1:47800/ws` (#15). A UI nunca fala com a LCU: ela recebe o estado e as mudanças por aqui e manda comandos por aqui. As mensagens são JSON, definidas em `ws::protocol`, e os tipos TypeScript saem desses tipos com `ts-rs` em `ui/src/bindings/`.
+
+Do agente para a UI (`ServerMessage`, campo `type`):
+
+| Mensagem | Quando |
+| --- | --- |
+| `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
+| `lcu` | A conexão com o LoL mudou: `starting`, `connected` (com `session`), `disconnected` (com `reason`) ou `retrying` (com `attempt`, `retryInMs`, `clientNotRunning` e `error`). |
+| `summoner` | O invocador logado mudou; `null` com o LoL fechado ou antes do login. |
+| `gameflowPhase` | A fase mudou (`None`, `Lobby`, `Matchmaking`, `ReadyCheck`, `ChampSelect`, `InProgress`...); `null` com o LoL fechado. |
+| `response` | Resposta a um comando, com o mesmo `id` e `result` `ok` ou `error` (`code` e `message`). |
+| `invalidMessage` | A UI mandou algo que não é um `ClientMessage` válido. |
+
+Da UI para o agente (`ClientMessage`): `{"id": 1, "command": {"type": "ping"}}`. Comandos por enquanto: `ping` e `getState`. Os comandos das próximas issues (como `launch-ux`, #13) entram em `ws::protocol::Command`.
+
+`ws::run(lcu, listener, config)` liga uma `LcuConnection` ao canal. Por partes: `Hub` guarda o estado, `ws::drive` o atualiza a partir da conexão (relendo invocador e fase pelo REST a cada `Connected` e limpando tudo no `Disconnected`) e `ws::serve` serve o `/ws`. O servidor recusa com 403 pedidos com `Origin` fora de `WsConfig::allowed_origins` (padrão: a janela do Tauri e o Vite em `localhost:5173`), para uma página aberta no navegador não conseguir falar com o agente.
+
+Para desenvolver a UI contra o mock-lcu:
+
+```bash
+cargo run -p mock-lcu                                    # terminal 1
+cargo run -p easylobby-agent --example canal_ws -- --mock  # terminal 2
+pnpm --filter easylobby-ui dev                           # terminal 3
+```
+
+O example mostra no terminal cada mensagem que as UIs recebem. Sem `--mock`, ele acha o LoL real.
+
+Depois de mudar um tipo de `ws::protocol` (ou o `Summoner`), regenere os tipos TypeScript e comite `ui/src/bindings/`:
+
+```bash
+EASYLOBBY_UPDATE_BINDINGS=1 cargo test -p easylobby-agent bindings
+```
+
+O teste `bindings_estao_atualizados` falha no CI se os arquivos estiverem desatualizados. Os testes em `mock-lcu/tests/canal_ws.rs` sobem o mock com a gravação `16.22` e o agente, e conferem o `hello`, a partida inteira pelas mudanças de fase, o invocador, os comandos, o LoL fechando e reabrindo e o 403 para outras origens.
+
 ## Fixtures da LCU
 
 Respostas REST e eventos WAMP gravados de sessões reais ficam em `tests/fixtures/<patch>/` e alimentam o `mock-lcu` (#6). Cada pasta tem:

@@ -7,14 +7,15 @@
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::rest::{LcuClient, LcuError};
 
 /// Endpoint do invocador logado.
 pub const CURRENT_SUMMONER_PATH: &str = "/lol-summoner/v1/current-summoner";
 
-/// Invocador logado no client.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Invocador logado no client. Também vai para a UI pelo `/ws` (#15).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct Summoner {
     /// Nome do Riot ID (antes do `#`).
@@ -30,6 +31,8 @@ pub struct Summoner {
     #[serde(default)]
     pub profile_icon_id: u32,
     pub puuid: String,
+    // Cabe num `number` do JavaScript: os ids da Riot são bem menores que 2^53.
+    #[ts(type = "number")]
     pub summoner_id: u64,
 }
 
