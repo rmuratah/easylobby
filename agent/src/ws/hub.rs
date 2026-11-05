@@ -22,6 +22,7 @@ use crate::runes::{
 };
 use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
 use crate::summoner_spells::{self, SummonerSpellCatalog};
+use crate::swaps::{self, SwapIntent, SwapKind};
 use crate::ux;
 use crate::wamp::{EventType, LcuEvent};
 
@@ -65,6 +66,9 @@ struct Shared {
     matchmaking_rev: u64,
     /// O mesmo para os convites recebidos (#32).
     invitations_rev: u64,
+    /// O mesmo para a seleção de campeões e as páginas de runas (#87).
+    champ_select_rev: u64,
+    rune_pages_rev: u64,
 }
 
 /// Recurso do estado que um comando relê ou muda pelo REST.
@@ -73,6 +77,8 @@ enum Resource {
     Lobby,
     Matchmaking,
     Invitations,
+    ChampSelect,
+    RunePages,
 }
 
 impl Shared {
@@ -81,6 +87,8 @@ impl Shared {
             Resource::Lobby => &mut self.lobby_rev,
             Resource::Matchmaking => &mut self.matchmaking_rev,
             Resource::Invitations => &mut self.invitations_rev,
+            Resource::ChampSelect => &mut self.champ_select_rev,
+            Resource::RunePages => &mut self.rune_pages_rev,
         }
     }
 
@@ -119,6 +127,8 @@ impl Hub {
                     lobby_rev: 0,
                     matchmaking_rev: 0,
                     invitations_rev: 0,
+                    champ_select_rev: 0,
+                    rune_pages_rev: 0,
                 }),
                 tx,
             }),
@@ -438,23 +448,23 @@ impl Hub {
     }
 
     pub fn set_champ_select(&self, champ_select: Option<ChampSelect>) {
-        self.update(|shared| {
-            if shared.state.champ_select == champ_select {
-                return None;
-            }
-            shared.state.champ_select = champ_select.clone();
-            Some(ServerMessage::ChampSelect { champ_select })
-        });
+        self.update(|shared| write_champ_select(shared, champ_select));
+    }
+
+    fn set_champ_select_if(&self, stamp: Stamp, champ_select: Option<ChampSelect>) -> bool {
+        self.update_if(Resource::ChampSelect, stamp, |shared| {
+            write_champ_select(shared, champ_select)
+        })
     }
 
     pub fn set_rune_pages(&self, rune_pages: Option<RunePages>) {
-        self.update(|shared| {
-            if shared.state.rune_pages == rune_pages {
-                return None;
-            }
-            shared.state.rune_pages = rune_pages.clone();
-            Some(ServerMessage::RunePages { rune_pages })
-        });
+        self.update(|shared| write_rune_pages(shared, rune_pages));
+    }
+
+    fn set_rune_pages_if(&self, stamp: Stamp, rune_pages: Option<RunePages>) -> bool {
+        self.update_if(Resource::RunePages, stamp, |shared| {
+            write_rune_pages(shared, rune_pages)
+        })
     }
 
     /// Muda uma parte das páginas de runas (lista, página em uso ou
@@ -464,13 +474,7 @@ impl Hub {
         self.update(|shared| {
             let mut rune_pages = shared.state.rune_pages.clone().unwrap_or_default();
             f(&mut rune_pages);
-            if shared.state.rune_pages.as_ref() == Some(&rune_pages) {
-                return None;
-            }
-            shared.state.rune_pages = Some(rune_pages.clone());
-            Some(ServerMessage::RunePages {
-                rune_pages: Some(rune_pages),
-            })
+            write_rune_pages(shared, Some(rune_pages))
         });
     }
 
@@ -522,10 +526,7 @@ impl Hub {
         if let Err(error) = summoner_spells::set_spells(&client, spell1_id, spell2_id).await {
             return CommandResult::error(ErrorCode::Lcu, error.to_string());
         }
-        // Se a releitura falhar, o evento do WAMP traz a sessão logo depois.
-        if let Ok(Some(session)) = champ_select::current_session(&client).await {
-            self.set_champ_select(Some(session));
-        }
+        self.refresh_champ_select().await;
         CommandResult::Ok
     }
 
@@ -535,7 +536,7 @@ impl Hub {
             return not_connected();
         };
         let result = runes::select_page(&client, id).await;
-        self.after_rune_command(&client, result).await
+        self.after_rune_command(result).await
     }
 
     /// Cria uma página de runas e a aplica (comando `createRunePage`, #26).
@@ -549,7 +550,7 @@ impl Hub {
             return not_connected();
         };
         let result = runes::create_page(&client, &page, catalog.as_ref()).await;
-        self.after_rune_page_command(&client, result).await
+        self.after_rune_page_command(result).await
     }
 
     /// Edita a página de runas `id` (comando `updateRunePage`, #26).
@@ -562,7 +563,7 @@ impl Hub {
             return not_connected();
         };
         let result = runes::update_page(&client, id, &page, catalog.as_ref()).await;
-        self.after_rune_page_command(&client, result).await
+        self.after_rune_page_command(result).await
     }
 
     /// Apaga a página de runas `id` (comando `deleteRunePage`, #26).
@@ -571,37 +572,43 @@ impl Hub {
             return not_connected();
         };
         let result = runes::delete_page(&client, id).await;
-        self.after_rune_command(&client, result).await
+        self.after_rune_command(result).await
     }
 
-    async fn after_rune_page_command(
-        &self,
-        client: &LcuClient,
-        result: Result<(), RunePageError>,
-    ) -> CommandResult {
+    async fn after_rune_page_command(&self, result: Result<(), RunePageError>) -> CommandResult {
         match result {
-            Ok(()) => self.after_rune_command(client, Ok(())).await,
+            Ok(()) => self.after_rune_command(Ok(())).await,
             Err(RunePageError::Invalid(invalid)) => {
                 CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string())
             }
-            Err(RunePageError::Lcu(error)) => self.after_rune_command(client, Err(error)).await,
+            Err(RunePageError::Lcu(error)) => self.after_rune_command(Err(error)).await,
         }
     }
 
     /// Depois de um comando de runas que deu certo, relê as páginas pelo
     /// REST e publica antes de devolver, sem esperar o evento do WAMP.
-    async fn after_rune_command(
-        &self,
-        client: &LcuClient,
-        result: Result<(), LcuError>,
-    ) -> CommandResult {
+    async fn after_rune_command(&self, result: Result<(), LcuError>) -> CommandResult {
         if result.is_ok() {
-            // Se a releitura falhar, o evento do WAMP corrige depois.
-            if let Ok(rune_pages) = runes::current_pages(client).await {
-                self.set_rune_pages(Some(rune_pages));
-            }
+            self.refresh_rune_pages().await;
         }
         command_result(result)
+    }
+
+    /// Relê as páginas de runas depois de um comando; como
+    /// [`Hub::refresh_lobby`] (#87). Se a releitura falhar, o evento do WAMP
+    /// corrige depois.
+    async fn refresh_rune_pages(&self) {
+        for _ in 0..REFRESH_ATTEMPTS {
+            let Some((client, stamp)) = self.begin(Resource::RunePages) else {
+                return;
+            };
+            let Ok(rune_pages) = runes::current_pages(&client).await else {
+                return;
+            };
+            if self.set_rune_pages_if(stamp, Some(rune_pages)) {
+                return;
+            }
+        }
     }
 
     /// Marca um campeão numa ação da seleção sem confirmar (comando
@@ -644,11 +651,53 @@ impl Hub {
         if let Err(error) = sent {
             return CommandResult::error(ErrorCode::Lcu, error.to_string());
         }
-        // Se a releitura falhar, o evento do WAMP traz a sessão logo depois.
-        if let Ok(Some(session)) = champ_select::current_session(&client).await {
-            self.set_champ_select(Some(session));
-        }
+        self.refresh_champ_select().await;
         CommandResult::Ok
+    }
+
+    /// Pede, aceita, recusa ou cancela uma troca na seleção (comandos
+    /// `requestSwap`, `acceptSwap`, `declineSwap` e `cancelSwap`, #25).
+    /// Confere o pedido contra a seleção atual, e relê a sessão pelo REST e
+    /// a publica antes de devolver.
+    pub async fn champ_select_swap(
+        &self,
+        kind: SwapKind,
+        swap_id: u64,
+        intent: SwapIntent,
+    ) -> CommandResult {
+        let (client, champ_select) = {
+            let shared = self.lock();
+            (shared.client.clone(), shared.state.champ_select.clone())
+        };
+        let Some(client) = client else {
+            return not_connected();
+        };
+        if let Err(invalid) = swaps::check_swap(champ_select.as_ref(), kind, swap_id, intent) {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        if let Err(error) = swaps::send(&client, kind, swap_id, intent).await {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        self.refresh_champ_select().await;
+        CommandResult::Ok
+    }
+
+    /// Relê a sessão da seleção depois de um comando; como
+    /// [`Hub::refresh_lobby`] (#87). Um `Delete` ou uma queda durante a
+    /// espera descartam a resposta, e a seleção encerrada não volta. Sem
+    /// sessão (404) ou com erro, o evento do WAMP traz o estado logo depois.
+    async fn refresh_champ_select(&self) {
+        for _ in 0..REFRESH_ATTEMPTS {
+            let Some((client, stamp)) = self.begin(Resource::ChampSelect) else {
+                return;
+            };
+            let Ok(Some(session)) = champ_select::current_session(&client).await else {
+                return;
+            };
+            if self.set_champ_select_if(stamp, Some(session)) {
+                return;
+            }
+        }
     }
 
     /// Entra na fila com o lobby atual (comando `startQueue`, #19). Relê a
@@ -733,7 +782,7 @@ impl Hub {
         match event {
             ConnectionEvent::Connected(session) => {
                 let client = session.client.clone();
-                let (lobby_stamp, search_stamp, invitations_stamp, chat_session) = {
+                let (lobby_stamp, search_stamp, invitations_stamp, rune_pages_stamp, chat_session) = {
                     let mut shared = self.lock();
                     shared.client = Some(session.client);
                     shared.session += 1;
@@ -741,6 +790,7 @@ impl Hub {
                         shared.stamp(Resource::Lobby),
                         shared.stamp(Resource::Matchmaking),
                         shared.stamp(Resource::Invitations),
+                        shared.stamp(Resource::RunePages),
                         shared.session,
                     )
                 };
@@ -782,7 +832,7 @@ impl Hub {
                 self.restore_conversations(chat_session, conversations);
                 // O catálogo antes das páginas, para a UI já poder desenhá-las.
                 self.set_rune_catalog(rune_catalog.ok().flatten());
-                self.set_rune_pages(rune_pages.ok());
+                self.set_rune_pages_if(rune_pages_stamp, rune_pages.ok());
                 // Antes da seleção, para a UI já poder desenhar os feitiços.
                 self.set_summoner_spell_catalog(spell_catalog.ok().flatten());
                 // Com o chat ainda conectando a LCU pode responder erro ou
@@ -800,8 +850,11 @@ impl Hub {
                 // 404). Ela pode abrir um pouco antes da fase mudar, e o
                 // evento `Create` cobre esse caso.
                 if phase == Some(GameflowPhase::ChampSelect) {
-                    let session = champ_select::current_session(&client).await;
-                    self.set_champ_select(session.ok().flatten());
+                    // Um comando que publicou durante a releitura é mais novo.
+                    if let Some((client, stamp)) = self.begin(Resource::ChampSelect) {
+                        let session = champ_select::current_session(&client).await;
+                        self.set_champ_select_if(stamp, session.ok().flatten());
+                    }
                 }
             }
             ConnectionEvent::Event(event) => self.apply_lcu_event(&event),
@@ -1007,20 +1060,31 @@ impl Hub {
 
     /// Manda uma mensagem numa conversa 1:1 (comando `sendChatMessage`,
     /// #31). Publica a mensagem que a LCU respondeu antes de devolver, sem
-    /// esperar o evento do WAMP.
+    /// esperar o evento do WAMP, se a conexão ainda é a mesma.
     pub async fn send_chat_message(&self, conversation_id: &str, body: &str) -> CommandResult {
         if let Err(SendMessageError::Invalid(invalid)) = chat::check_message(conversation_id, body)
         {
             return CommandResult::error(ErrorCode::InvalidCommand, invalid);
         }
-        let Some(client) = self.client() else {
+        // O cliente e a sessão lidos juntos, como em `restore_conversations`.
+        let Some((client, session)) = ({
+            let shared = self.lock();
+            shared.client.clone().map(|client| (client, shared.session))
+        }) else {
             return not_connected();
         };
         match chat::send_message(&client, conversation_id, body).await {
             Ok(message) => {
-                // A mensagem do WAMP tem o mesmo `id` e não repete.
+                // A mensagem do WAMP tem o mesmo `id` e não repete. Se a
+                // conexão mudou durante o envio, a resposta é da sessão
+                // antiga e não entra numa conversa nova com o mesmo id (#87).
                 if let Some(message) = message {
-                    self.merge_chat_messages(conversation_id, |_| vec![message]);
+                    self.update(|shared| {
+                        if shared.session != session {
+                            return None;
+                        }
+                        write_chat_messages(shared, conversation_id, |_| vec![message])
+                    });
                 }
                 CommandResult::Ok
             }
@@ -1095,6 +1159,31 @@ fn write_matchmaking(
     }
     shared.state.matchmaking = matchmaking.clone();
     Some(ServerMessage::Matchmaking { matchmaking })
+}
+
+/// Troca a seleção de campeões, contando a escrita mesmo quando nada muda
+/// (#87).
+fn write_champ_select(
+    shared: &mut Shared,
+    champ_select: Option<ChampSelect>,
+) -> Option<ServerMessage> {
+    shared.champ_select_rev += 1;
+    if shared.state.champ_select == champ_select {
+        return None;
+    }
+    shared.state.champ_select = champ_select.clone();
+    Some(ServerMessage::ChampSelect { champ_select })
+}
+
+/// Troca as páginas de runas, contando a escrita mesmo quando nada muda
+/// (#87).
+fn write_rune_pages(shared: &mut Shared, rune_pages: Option<RunePages>) -> Option<ServerMessage> {
+    shared.rune_pages_rev += 1;
+    if shared.state.rune_pages == rune_pages {
+        return None;
+    }
+    shared.state.rune_pages = rune_pages.clone();
+    Some(ServerMessage::RunePages { rune_pages })
 }
 
 /// Troca os convites recebidos, contando a escrita mesmo quando nada muda
@@ -1631,6 +1720,57 @@ mod tests {
         .await;
         assert!(!hub.set_lobby_if(s, lobby()));
         assert_eq!(hub.state().lobby, None);
+    }
+
+    #[tokio::test]
+    async fn selecao_e_runas_velhas_sao_descartadas() {
+        let hub = Hub::new();
+        let stamp = |resource| hub.lock().stamp(resource);
+        let session = || ChampSelect::from_json(&champ_select("BAN_PICK", 86));
+
+        // O `Delete` da seleção chegou durante a releitura: ela não volta.
+        let s = stamp(Resource::ChampSelect);
+        hub.apply(event(
+            CHAMP_SELECT_SESSION_PATH,
+            EventType::Delete,
+            json!({}),
+        ))
+        .await;
+        assert!(!hub.set_champ_select_if(s, session()));
+        assert_eq!(hub.state().champ_select, None);
+        let s = stamp(Resource::ChampSelect);
+        assert!(hub.set_champ_select_if(s, session()));
+
+        // Um evento parcial das runas, mesmo sem mudar nada, também conta.
+        let pages = || Some(RunePages::default());
+        let s = stamp(Resource::RunePages);
+        hub.apply(event(
+            INVENTORY_PATH,
+            EventType::Update,
+            json!({"canAddCustomPage": false}),
+        ))
+        .await;
+        assert!(!hub.set_rune_pages_if(s, pages()));
+        let s = stamp(Resource::RunePages);
+        hub.apply(event(
+            INVENTORY_PATH,
+            EventType::Update,
+            json!({"canAddCustomPage": false}),
+        ))
+        .await;
+        assert!(!hub.set_rune_pages_if(s, pages()));
+
+        // A conexão caiu: nada da sessão antiga entra.
+        let (cs, runes) = (stamp(Resource::ChampSelect), stamp(Resource::RunePages));
+        hub.apply(ConnectionEvent::Disconnected(
+            crate::connection::DisconnectReason::Closed,
+        ))
+        .await;
+        assert!(!hub.set_champ_select_if(cs, session()));
+        assert!(!hub.set_rune_pages_if(runes, pages()));
+        let state = hub.state();
+        assert_eq!(state.champ_select, None);
+        assert_eq!(state.rune_pages, None);
     }
 
     fn ready_check(state: &str, response: &str, timer: f64) -> ConnectionEvent {

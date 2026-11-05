@@ -59,6 +59,7 @@ use crate::runes::{
 };
 use crate::summoner::Summoner;
 use crate::summoner_spells::{SummonerSpell, SummonerSpellCatalog};
+use crate::swaps::{ChampSelectSwap, SwapKind, SwapState};
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -376,6 +377,41 @@ pub enum Command {
     /// antes da resposta. Responde `notConnected` com o LoL fechado e `lcu`
     /// se a LCU recusar.
     SetSummonerSpells { spell1_id: u32, spell2_id: u32 },
+    /// Pede uma troca a um aliado na seleção (#25): de campeão
+    /// (`kind: "champion"`), de vez no draft (`"pickOrder"`) ou de cargo
+    /// (`"position"`). `swapId` é o `id` de uma entrada `AVAILABLE` em
+    /// `champSelect.trades`, `pickOrderSwaps` ou `positionSwaps`, conforme o
+    /// `kind`. Responde `invalidCommand` sem falar com a LCU fora da
+    /// seleção, com troca que não existe nesse tipo ou fora do estado
+    /// `AVAILABLE`. A seleção nova (com a troca em `SENT`) chega numa
+    /// mensagem `champSelect` antes da resposta. Responde `notConnected`
+    /// com o LoL fechado e `lcu` se a LCU recusar.
+    RequestSwap {
+        kind: SwapKind,
+        #[ts(type = "number")]
+        swap_id: u64,
+    },
+    /// Aceita a troca que o aliado pediu (entrada em `RECEIVED`), #25.
+    /// Mesmos erros do `requestSwap`.
+    AcceptSwap {
+        kind: SwapKind,
+        #[ts(type = "number")]
+        swap_id: u64,
+    },
+    /// Recusa a troca que o aliado pediu (entrada em `RECEIVED`), #25.
+    /// Mesmos erros do `requestSwap`.
+    DeclineSwap {
+        kind: SwapKind,
+        #[ts(type = "number")]
+        swap_id: u64,
+    },
+    /// Cancela a troca que o jogador pediu (entrada em `SENT`), #25.
+    /// Mesmos erros do `requestSwap`.
+    CancelSwap {
+        kind: SwapKind,
+        #[ts(type = "number")]
+        swap_id: u64,
+    },
 }
 
 /// Resultado de um comando.
@@ -453,6 +489,9 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<ChampSelectBans>(&cfg)?,
         file::<ChampSelectAction>(&cfg)?,
         file::<ChampSelectActionType>(&cfg)?,
+        file::<ChampSelectSwap>(&cfg)?,
+        file::<SwapState>(&cfg)?,
+        file::<SwapKind>(&cfg)?,
         file::<Conversation>(&cfg)?,
         file::<ChatMessage>(&cfg)?,
         file::<RunePages>(&cfg)?,
@@ -719,6 +758,40 @@ mod tests {
         );
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 14,
+            "command": {"type": "requestSwap", "kind": "pickOrder", "swapId": 28},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::RequestSwap {
+                kind: SwapKind::PickOrder,
+                swap_id: 28,
+            }
+        );
+        for (name, kind) in [
+            ("acceptSwap", SwapKind::Champion),
+            ("declineSwap", SwapKind::Position),
+            ("cancelSwap", SwapKind::Champion),
+        ] {
+            let msg: ClientMessage = serde_json::from_value(json!({
+                "id": 15,
+                "command": {"type": name, "kind": kind, "swapId": 47},
+            }))
+            .unwrap();
+            let expected = match name {
+                "acceptSwap" => Command::AcceptSwap { kind, swap_id: 47 },
+                "declineSwap" => Command::DeclineSwap { kind, swap_id: 47 },
+                _ => Command::CancelSwap { kind, swap_id: 47 },
+            };
+            assert_eq!(msg.command, expected);
+        }
+        // Só os tipos de troca que existem.
+        assert!(serde_json::from_value::<ClientMessage>(
+            json!({"id": 1, "command": {"type": "requestSwap", "kind": "skin", "swapId": 1}})
+        )
+        .is_err());
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 16,
             "command": {"type": "setSummonerSpells", "spell1Id": 4, "spell2Id": 14},
         }))
         .unwrap();

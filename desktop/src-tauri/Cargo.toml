@@ -19,4 +19,8 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 easylobby-agent = { path = "../../agent" }
 tauri = { version = "2", features = ["tray-icon"] }
-tokio = { version = "1", features = ["net"] }
+# Caixa de erro nativa quando o canal do agente não sobe (#90, #91).
+tauri-plugin-dialog = "2"
+# Abrir o app de novo mostra a janela que já está aberta (#90).
+tauri-plugin-single-instance = "2"
+tokio = { version = "1", features = ["net", "time"] }
