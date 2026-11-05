@@ -85,9 +85,18 @@ async fn status_de_erro_vira_lcu_error_com_a_mensagem() {
     assert_eq!(response.status, 404);
     assert!(!response.is_success());
 
-    // O mock só reproduz GET; outros métodos chegam lá com corpo JSON.
+    // O corpo JSON chega no mock: a fila 99999 não existe na gravação, e o
+    // mock recusa citando a fila.
     let err = lcu
-        .post::<_, Value>("/lol-lobby/v2/lobby", &json!({ "queueId": 430 }))
+        .post::<_, Value>("/lol-lobby/v2/lobby", &json!({ "queueId": 99999 }))
+        .await
+        .unwrap_err();
+    assert_eq!(err.status(), Some(400), "{err}");
+    assert!(err.to_string().contains("99999"), "{err}");
+
+    // Fora das rotas que o mock imita, só GET é reproduzido.
+    let err = lcu
+        .put::<_, Value>("/lol-lobby/v2/lobby", &json!({ "queueId": 420 }))
         .await
         .unwrap_err();
     assert_eq!(err.status(), Some(501), "{err}");
