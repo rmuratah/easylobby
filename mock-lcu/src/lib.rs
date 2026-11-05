@@ -15,12 +15,14 @@
 //! - [`state`]: que resposta cada `GET` recebe em cada momento.
 //! - [`lobby`]: criar lobby, trocar a fila e sair (#17); escolher os cargos
 //!   (#18).
+//! - [`invitations`]: convites de lobby recebidos e enviados (#32).
 //! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
 //!
 //! [`Credentials::from_lockfile_path`]: easylobby_agent::lockfile::Credentials::from_lockfile_path
 
+pub mod invitations;
 pub mod lobby;
 pub mod matchmaking;
 pub mod state;
@@ -400,6 +402,19 @@ impl MockLcu {
         emit(&self.shared, event);
     }
 
+    /// Um amigo convida o jogador para um lobby (#32), como a rota
+    /// [`invitations::SIMULATE`]. Devolve o id do convite.
+    pub fn receive_invitation(&self) -> String {
+        let (response, events) = invitations::simulate(&self.shared.state());
+        for event in events {
+            emit(&self.shared, event);
+        }
+        response.body["invitationId"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned()
+    }
+
     /// Derruba os WebSockets abertos e recusa os novos, mas continua
     /// respondendo ao REST: o agente vê a conexão cair enquanto uma resposta
     /// segurada ainda está a caminho.
@@ -609,6 +624,43 @@ async fn handle_request(
                 emit(&shared, event);
             }
             response
+        }
+        // Convites (#32).
+        (&Method::GET, invitations::RECEIVED) => invitations::received(&shared.state()),
+        (&Method::POST, invitations::SIMULATE) => {
+            let (response, events) = invitations::simulate(&shared.state());
+            println!(
+                "convite recebido: {} (de mentira)",
+                response.body["invitationId"].as_str().unwrap_or("")
+            );
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::POST, invitations::LOBBY_INVITATIONS) => {
+            let body = axum::body::to_bytes(request.into_body(), 64 * 1024)
+                .await
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .unwrap_or(Value::Null);
+            let (response, events) = invitations::invite(&shared.state(), &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::POST, p) if p.starts_with(invitations::RECEIVED) => {
+            let answered = invitations::answer(&shared.state(), &p[invitations::RECEIVED.len()..]);
+            match answered {
+                Some((response, events)) => {
+                    for event in events {
+                        emit(&shared, event);
+                    }
+                    response
+                }
+                None => Response::error(404, format!("mock-lcu: {path} não existe")),
+            }
         }
         // Fila (#19): o relógio da fila anda enquanto procura.
         (&Method::POST, matchmaking::LOBBY_SEARCH) => {

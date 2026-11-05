@@ -5,6 +5,7 @@ import type { LcuStatus } from "./LcuStatus";
 import type { Lobby } from "./Lobby";
 import type { Matchmaking } from "./Matchmaking";
 import type { ReadyCheck } from "./ReadyCheck";
+import type { ReceivedInvitation } from "./ReceivedInvitation";
 import type { Summoner } from "./Summoner";
 
 /**
@@ -18,4 +19,8 @@ readyCheck: ReadyCheck | null, lobby: Lobby | null, matchmaking: Matchmaking | n
 /**
  * Seleção de campeões em andamento (#22), ou `null`.
  */
-champSelect: ChampSelect | null, };
+champSelect: ChampSelect | null, 
+/**
+ * Convites de lobby recebidos e ainda pendentes (#32).
+ */
+receivedInvitations: Array<ReceivedInvitation>, };
