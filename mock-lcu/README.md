@@ -1,7 +1,36 @@
 # mock-lcu
 
-Servidor falso da LCU para desenvolver sem abrir o LoL. Responde com as respostas gravadas em `agent/tests/fixtures/<patch>/` e reproduz os eventos WAMP (issue #6).
+Servidor falso da LCU para desenvolver e testar sem abrir o LoL (#6). Responde aos `GET` com as respostas gravadas em `agent/tests/fixtures/<patch>/` (#5) e reproduz os eventos WAMP no ritmo da gravação.
 
 ```bash
-cargo run -p mock-lcu
+cargo run -p mock-lcu                                   # gravação real mais nova, HTTPS
+cargo run -p mock-lcu -- --fixtures exemplo --velocidade 10 --repetir
+cargo run -p mock-lcu -- --http --porta 2999 --verbose
+```
+
+Ao subir, ele mostra a porta, o lockfile e o certificado da CA. Pare com Ctrl+C; o lockfile e o certificado são apagados.
+
+## O que imita da LCU
+
+- Escuta em `127.0.0.1`, numa porta livre (ou `--porta`), com REST e WebSocket na mesma porta.
+- Basic Auth `riot:<senha>`. Sem a senha certa, 401. A senha é aleatória a cada execução (ou `--senha`).
+- Escreve um **lockfile** no formato do LoL, `LeagueClient:<pid>:<porta>:<senha>:<protocolo>`, em `<temp>/easylobby-mock-lcu/lockfile` (ou `--lockfile`). O agente lê com `Credentials::from_lockfile_path` (#4).
+- **HTTPS** com um certificado para `127.0.0.1` gerado na hora e assinado por uma CA também gerada na hora. O PEM da CA fica em `mock-lcu-ca.pem`, ao lado do lockfile. O cliente fixa esse PEM no lugar do `riotgames.pem`, do mesmo jeito; **a verificação TLS nunca é desligada**. Com `--http` o servidor fala HTTP puro e o lockfile diz `http`.
+- `POST /riotclient/kill-ux` e `POST /riotclient/launch-ux` respondem 204 (e só registram o pedido).
+- WebSocket WAMP em `/` (subprotocolo `wamp`): `[5, "OnJsonApiEvent"]` inscreve em tudo, `[5, "OnJsonApiEvent_lol-gameflow_v1_gameflow-phase"]` num recurso e nos sub-recursos dele, `[6, tópico]` cancela. Os eventos chegam como `[8, tópico, {"data", "eventType", "uri"}]`.
+
+## Como as respostas mudam
+
+- O mock começa na fase do gameflow da primeira resposta gravada (normalmente `None`).
+- A reprodução começa na **primeira inscrição WAMP**, para o cliente ler o estado inicial e não perder evento nenhum (`--iniciar-ja` começa na hora; `--parado` nunca começa). `--velocidade 10` reproduz 10 vezes mais rápido; `--repetir` recomeça no fim, mandando um evento de volta para a fase inicial.
+- Um `GET` devolve a resposta gravada na fase atual ou, se não houver, na fase visitada mais recente que tenha uma.
+- Cada evento muda o recurso: `Create`/`Update` viram a resposta do `GET` (200 com o `data`), `Delete` faz o recurso responder 404. Quando a fase muda, as respostas gravadas na nova fase voltam a valer para os recursos que elas cobrem.
+- Caminho sem resposta gravada nem evento: 404 no formato de erro da LCU. Outros métodos (`POST`, `PUT`, `PATCH`, `DELETE`): 501, porque as fixtures só têm `GET`.
+
+## Usar nos testes
+
+O crate também é uma biblioteca: `MockLcu::start(Config::new(fixtures))` sobe o servidor dentro do teste, numa porta livre. Veja `tests/servidor.rs`, que conecta como o agente vai conectar (lockfile, TLS nativo com o certificado fixado, Basic Auth e WAMP).
+
+```bash
+cargo test -p mock-lcu
 ```
