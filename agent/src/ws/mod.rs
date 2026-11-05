@@ -268,6 +268,16 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                             Command::SetPositions { first, second } => {
                                 hub.set_positions(first, second).await
                             }
+                            Command::SelectRunePage { page_id } => {
+                                hub.select_rune_page(page_id).await
+                            }
+                            Command::CreateRunePage { page } => hub.create_rune_page(page).await,
+                            Command::UpdateRunePage { page_id, page } => {
+                                hub.update_rune_page(page_id, page).await
+                            }
+                            Command::DeleteRunePage { page_id } => {
+                                hub.delete_rune_page(page_id).await
+                            }
                         };
                         // As mudanças que o comando publicou (como o lobby
                         // novo) chegam antes da resposta.

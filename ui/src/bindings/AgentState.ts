@@ -5,6 +5,8 @@ import type { LcuStatus } from "./LcuStatus";
 import type { Lobby } from "./Lobby";
 import type { Matchmaking } from "./Matchmaking";
 import type { ReadyCheck } from "./ReadyCheck";
+import type { RuneCatalog } from "./RuneCatalog";
+import type { RunePages } from "./RunePages";
 import type { Summoner } from "./Summoner";
 
 /**
@@ -18,4 +20,12 @@ readyCheck: ReadyCheck | null, lobby: Lobby | null, matchmaking: Matchmaking | n
 /**
  * Seleção de campeões em andamento (#22), ou `null`.
  */
-champSelect: ChampSelect | null, };
+champSelect: ChampSelect | null, 
+/**
+ * Páginas de runas (#26), ou `null` com o LoL fechado.
+ */
+runePages: RunePages | null, 
+/**
+ * Árvores de runas para o editor (#26), ou `null`.
+ */
+runeCatalog: RuneCatalog | null, };
