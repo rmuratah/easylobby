@@ -192,6 +192,7 @@ async fn session(mut socket: WebSocket, hub: Hub) {
                                 replies.push(hello(state));
                                 CommandResult::Ok
                             }
+                            Command::LaunchUx => hub.launch_ux().await,
                             Command::CreateLobby { queue } => hub.create_lobby(queue).await,
                             Command::LeaveLobby => hub.leave_lobby().await,
                         };

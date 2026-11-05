@@ -4,4 +4,4 @@ import type { Queue } from "./Queue";
 /**
  * O que a UI pode pedir ao agente.
  */
-export type Command = { "type": "ping" } | { "type": "getState" } | { "type": "createLobby", queue: Queue, } | { "type": "leaveLobby" };
+export type Command = { "type": "ping" } | { "type": "getState" } | { "type": "launchUx" } | { "type": "createLobby", queue: Queue, } | { "type": "leaveLobby" };

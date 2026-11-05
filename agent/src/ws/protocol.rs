@@ -138,6 +138,11 @@ pub enum Command {
     /// Pede um [`ServerMessage::Hello`] novo com o estado inteiro, que chega
     /// antes da resposta.
     GetState,
+    /// Reabre a UI oficial do LoL (`POST /riotclient/launch-ux`), a saída de
+    /// emergência (#13). Responde `notConnected` com o LoL fechado e `lcu` se
+    /// a LCU recusar. O agente não fecha a UI de novo sozinho até a próxima
+    /// conexão com o LoL.
+    LaunchUx,
     /// Cria um lobby na fila pedida, ou troca a fila do lobby atual (só o
     /// líder pode). O lobby novo chega numa mensagem `lobby` antes da
     /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
@@ -293,6 +298,9 @@ mod tests {
                 command: Command::GetState
             }
         );
+        let msg: ClientMessage =
+            serde_json::from_value(json!({"id": 8, "command": {"type": "launchUx"}})).unwrap();
+        assert_eq!(msg.command, Command::LaunchUx);
         let msg: ClientMessage = serde_json::from_value(
             json!({"id": 8, "command": {"type": "createLobby", "queue": "rankedFlex"}}),
         )
