@@ -175,7 +175,7 @@ async fn entra_na_fila_conta_o_tempo_e_sai() {
     assert_eq!(searches(&before).last(), Some(&None));
     // A fase volta para `Lobby` pelo WAMP, o lobby continua e a busca não
     // volta.
-    let in_lobby = |m: &ServerMessage| matches!(m, ServerMessage::GameflowPhase { phase } if phase.as_deref() == Some("Lobby"));
+    let in_lobby = |m: &ServerMessage| matches!(m, ServerMessage::GameflowPhase { phase } if phase.map(|p| p.as_str()) == Some("Lobby"));
     let mut seen = before;
     while !seen.iter().any(in_lobby) {
         seen.push(recv(&mut ui).await);

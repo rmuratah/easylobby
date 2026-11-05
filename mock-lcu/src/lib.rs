@@ -13,7 +13,8 @@
 //! Módulos:
 //!
 //! - [`state`]: que resposta cada `GET` recebe em cada momento.
-//! - [`lobby`]: criar lobby, trocar a fila e sair (#17).
+//! - [`lobby`]: criar lobby, trocar a fila e sair (#17); escolher os cargos
+//!   (#18).
 //! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
@@ -512,6 +513,19 @@ async fn handle_request(
             }
             response
         }
+        // Cargos (#18).
+        (&Method::PUT, lobby::POSITION_PREFERENCES) => {
+            let body = axum::body::to_bytes(request.into_body(), 64 * 1024)
+                .await
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .unwrap_or(Value::Null);
+            let (response, events) = lobby::set_positions(&shared.state(), &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
         // Fila (#19): o relógio da fila anda enquanto procura.
         (&Method::POST, matchmaking::LOBBY_SEARCH) => {
             let (response, events) = matchmaking::start(&shared.state());
@@ -547,6 +561,8 @@ async fn handle_request(
                 body: Value::Null,
             }
         }
+        (&Method::POST, READY_CHECK_ACCEPT) => answer_ready_check(&shared, "Accepted"),
+        (&Method::POST, READY_CHECK_DECLINE) => answer_ready_check(&shared, "Declined"),
         // O Riot Client tem uma API local igual à da LCU; o agente usa esta
         // rota para abrir o LoL quando o Riot Client já está aberto (#11).
         (&Method::POST, p) if p.starts_with(PRODUCT_LAUNCHER_PREFIX) => {
@@ -572,6 +588,27 @@ async fn handle_request(
         println!("{method} {path} -> {}", response.status);
     }
     json_response(&response)
+}
+
+/// Aceitar e recusar a partida encontrada (#20).
+const READY_CHECK_ACCEPT: &str = "/lol-matchmaking/v1/ready-check/accept";
+const READY_CHECK_DECLINE: &str = "/lol-matchmaking/v1/ready-check/decline";
+
+/// Responde o ready check em andamento como a LCU: muda o `playerResponse`
+/// e avisa pelo WAMP. A reprodução segue depois com os eventos gravados.
+fn answer_ready_check(shared: &Shared, response: &str) -> Response {
+    let answered = shared.state().answer_ready_check(response);
+    match answered {
+        Ok(event) => {
+            println!("ready check: {response} (de mentira)");
+            emit(shared, event);
+            Response {
+                status: 204,
+                body: Value::Null,
+            }
+        }
+        Err(error) => error,
+    }
 }
 
 /// Prefixo da rota do Riot Client que abre um produto.

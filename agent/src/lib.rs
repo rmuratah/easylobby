@@ -17,13 +17,18 @@
 //! - [`lobby`]: lobby e escolha de fila (#17)
 //! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19)
 //! - [`ws`]: canal `/ws` com eventos e comandos tipados para a UI (#15)
+//! - [`gameflow`]: fase do gameflow (lobby, fila, ready check, champ
+//!   select, em jogo, pós-jogo) (#16)
+//! - [`ready_check`]: partida encontrada, com aceitar e recusar (#20)
 
 pub mod connection;
 pub mod fixtures;
+pub mod gameflow;
 pub mod launcher;
 pub mod lobby;
 pub mod lockfile;
 pub mod matchmaking;
+pub mod ready_check;
 pub mod rest;
 pub mod summoner;
 pub mod ux;

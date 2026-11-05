@@ -1,13 +1,13 @@
-//! Criar lobby e escolher fila pelo `/ws` (#17), com o agente conectado no
-//! mock-lcu: a UI cria o lobby, troca a fila e sai, e vê cada mudança chegar
-//! antes da resposta do comando.
+//! Criar lobby e escolher fila (#17) e cargos (#18) pelo `/ws`, com o agente
+//! conectado no mock-lcu: a UI cria o lobby, troca a fila, escolhe os cargos
+//! e sai, e vê cada mudança chegar antes da resposta do comando.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use easylobby_agent::connection::{CredentialSource, LcuConnection, ReconnectConfig};
 use easylobby_agent::fixtures::FixtureSet;
-use easylobby_agent::lobby::Queue;
+use easylobby_agent::lobby::{Position, Queue};
 use easylobby_agent::ws::protocol::{
     ClientMessage, Command, CommandResult, ErrorCode, ServerMessage,
 };
@@ -157,7 +157,7 @@ async fn cria_lobby_troca_a_fila_e_sai() {
     assert_eq!(lobby_queues(&before), [None]);
     // A fase volta para `None` pelo WAMP (antes ou depois da resposta), e
     // nenhum lobby reaparece.
-    let is_idle = |m: &ServerMessage| matches!(m, ServerMessage::GameflowPhase { phase } if phase.as_deref() == Some("None"));
+    let is_idle = |m: &ServerMessage| matches!(m, ServerMessage::GameflowPhase { phase } if phase.map(|p| p.as_str()) == Some("None"));
     let mut seen = before;
     while !seen.iter().any(is_idle) {
         seen.push(recv(&mut ui).await);
@@ -167,6 +167,137 @@ async fn cria_lobby_troca_a_fila_e_sai() {
 
     mock.shutdown().await;
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Espera o agente conectar e reler o estado pelo REST.
+async fn wait_summoner(ui: &mut Ui) {
+    loop {
+        match recv(ui).await {
+            ServerMessage::Hello { state, .. } if state.summoner.is_some() => break,
+            ServerMessage::Summoner { summoner: Some(_) } => break,
+            _ => {}
+        }
+    }
+}
+
+fn is_error(result: &CommandResult, expected: ErrorCode) -> bool {
+    matches!(result, CommandResult::Error { code, .. } if *code == expected)
+}
+
+#[tokio::test]
+async fn escolhe_os_cargos() {
+    let dir = temp_dir("cargos");
+    let mock = start_mock(&dir).await;
+    let url = start_agent(&dir).await;
+    let mut ui = tokio_tungstenite::connect_async(&url).await.unwrap().0;
+    wait_summoner(&mut ui).await;
+
+    // Fora de lobby a LCU recusa.
+    let meio_selva = Command::SetPositions {
+        first: Position::Middle,
+        second: Position::Jungle,
+    };
+    send(&mut ui, 1, meio_selva.clone()).await;
+    let (_, result) = until_response(&mut ui, 1).await;
+    assert!(is_error(&result, ErrorCode::Lcu), "{result:?}");
+
+    send(
+        &mut ui,
+        2,
+        Command::CreateLobby {
+            queue: Queue::RankedSolo,
+        },
+    )
+    .await;
+    let (before, result) = until_response(&mut ui, 2).await;
+    assert_eq!(result, CommandResult::Ok);
+    let lobby = before
+        .iter()
+        .find_map(|m| match m {
+            ServerMessage::Lobby { lobby } => lobby.clone(),
+            _ => None,
+        })
+        .unwrap();
+    assert!(lobby.show_position_selector);
+    assert_eq!(lobby.members[0].first_position, Position::Unselected);
+
+    // Escolhe meio e selva: o lobby com os cargos chega antes da resposta.
+    send(&mut ui, 3, meio_selva).await;
+    let (before, result) = until_response(&mut ui, 3).await;
+    assert_eq!(result, CommandResult::Ok);
+    let lobby = before
+        .iter()
+        .rev()
+        .find_map(|m| match m {
+            ServerMessage::Lobby { lobby } => lobby.clone(),
+            _ => None,
+        })
+        .expect("o lobby com os cargos chega antes da resposta");
+    let me = &lobby.members[0];
+    assert_eq!(
+        (me.first_position, me.second_position),
+        (Position::Middle, Position::Jungle)
+    );
+
+    // Par inválido: o agente recusa sem mudar nada.
+    send(
+        &mut ui,
+        4,
+        Command::SetPositions {
+            first: Position::Fill,
+            second: Position::Top,
+        },
+    )
+    .await;
+    let (_, result) = until_response(&mut ui, 4).await;
+    assert!(is_error(&result, ErrorCode::InvalidCommand), "{result:?}");
+
+    // Preenchimento sozinho vale.
+    send(
+        &mut ui,
+        5,
+        Command::SetPositions {
+            first: Position::Fill,
+            second: Position::Unselected,
+        },
+    )
+    .await;
+    let (_, result) = until_response(&mut ui, 5).await;
+    assert_eq!(result, CommandResult::Ok);
+    let me = &mock_lobby(&url).await.members[0];
+    assert_eq!(me.first_position, Position::Fill);
+
+    // No ARAM não há cargos: a LCU recusa.
+    send(&mut ui, 6, Command::CreateLobby { queue: Queue::Aram }).await;
+    let (before, result) = until_response(&mut ui, 6).await;
+    assert_eq!(result, CommandResult::Ok);
+    assert!(before.iter().any(|m| matches!(
+        m,
+        ServerMessage::Lobby { lobby: Some(l) } if !l.show_position_selector
+    )));
+    send(
+        &mut ui,
+        7,
+        Command::SetPositions {
+            first: Position::Top,
+            second: Position::Utility,
+        },
+    )
+    .await;
+    let (_, result) = until_response(&mut ui, 7).await;
+    assert!(is_error(&result, ErrorCode::Lcu), "{result:?}");
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// O lobby que uma UI nova recebe no `hello`.
+async fn mock_lobby(url: &str) -> easylobby_agent::lobby::Lobby {
+    let mut ui = tokio_tungstenite::connect_async(url).await.unwrap().0;
+    match recv(&mut ui).await {
+        ServerMessage::Hello { state, .. } => state.lobby.expect("sem lobby no hello"),
+        other => panic!("esperava hello: {other:?}"),
+    }
 }
 
 #[tokio::test]

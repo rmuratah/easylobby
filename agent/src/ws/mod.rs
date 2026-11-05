@@ -49,9 +49,10 @@ use tokio::net::TcpListener;
 use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 
 use crate::connection::LcuConnection;
+use crate::launcher::{self, LaunchOptions};
 
 pub use hub::{drive, Hub};
-use protocol::{ClientMessage, Command, CommandResult, ServerMessage, PROTOCOL_VERSION};
+use protocol::{ClientMessage, Command, CommandResult, ErrorCode, ServerMessage, PROTOCOL_VERSION};
 
 /// Caminho do WebSocket.
 pub const WS_PATH: &str = "/ws";
@@ -84,12 +85,15 @@ pub struct WsConfig {
     /// Valores do cabeçalho `Origin` aceitos. Pedido sem `Origin` sempre
     /// passa.
     pub allowed_origins: Vec<String>,
+    /// Como o comando `launchLeague` abre o LoL.
+    pub launch: LaunchOptions,
 }
 
 impl Default for WsConfig {
     fn default() -> Self {
         Self {
             allowed_origins: DEFAULT_ALLOWED_ORIGINS.map(String::from).to_vec(),
+            launch: LaunchOptions::default(),
         }
     }
 }
@@ -144,12 +148,12 @@ async fn upgrade(State(app): State<App>, headers: HeaderMap, ws: WebSocketUpgrad
         return StatusCode::FORBIDDEN.into_response();
     }
     ws.max_message_size(MAX_MESSAGE_SIZE)
-        .on_upgrade(move |socket| session(socket, app.hub))
+        .on_upgrade(move |socket| session(socket, app.hub, app.config))
 }
 
 /// Uma UI conectada: manda o `hello`, repassa as mudanças e responde os
 /// comandos, até a UI fechar.
-async fn session(mut socket: WebSocket, hub: Hub) {
+async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
     let (state, mut changes) = hub.subscribe();
     if send(&mut socket, &hello(state)).await.is_err() {
         return;
@@ -192,11 +196,17 @@ async fn session(mut socket: WebSocket, hub: Hub) {
                                 replies.push(hello(state));
                                 CommandResult::Ok
                             }
+                            Command::AcceptReadyCheck => hub.accept_ready_check().await,
+                            Command::DeclineReadyCheck => hub.decline_ready_check().await,
+                            Command::LaunchLeague => launch_league(&config.launch).await,
                             Command::LaunchUx => hub.launch_ux().await,
                             Command::CreateLobby { queue } => hub.create_lobby(queue).await,
                             Command::LeaveLobby => hub.leave_lobby().await,
                             Command::StartQueue => hub.start_queue().await,
                             Command::StopQueue => hub.stop_queue().await,
+                            Command::SetPositions { first, second } => {
+                                hub.set_positions(first, second).await
+                            }
                         };
                         // As mudanças que o comando publicou (como o lobby
                         // novo) chegam antes da resposta.
@@ -225,6 +235,15 @@ async fn session(mut socket: WebSocket, hub: Hub) {
                 }
             }
         }
+    }
+}
+
+/// Abre o LoL e traduz o resultado para a UI. Não espera o LoL subir: isso
+/// chega pelas mensagens `lcu`.
+async fn launch_league(options: &LaunchOptions) -> CommandResult {
+    match launcher::launch_league(options).await {
+        Ok(_) => CommandResult::Ok,
+        Err(e) => CommandResult::error(ErrorCode::LaunchFailed, e.to_string()),
     }
 }
 

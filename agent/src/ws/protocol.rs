@@ -9,15 +9,14 @@
 //! {"type":"lcu","status":{"state":"connected","session":1}}
 //! {"type":"summoner","summoner":{"gameName":"...","tagLine":"...",...}}
 //! {"type":"gameflowPhase","phase":"Lobby"}
+//! {"type":"readyCheck","readyCheck":{"state":"InProgress","playerResponse":"None","timer":3.0,"duration":12.0}}
 //! {"type":"lobby","lobby":{"queueId":420,"queue":"rankedSolo",...}}
-//! {"type":"matchmaking","matchmaking":{"searchState":"Searching","timeInQueue":12.0,...}}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
 //!
 //! ```json
 //! {"id":7,"command":{"type":"ping"}}
 //! {"id":8,"command":{"type":"createLobby","queue":"rankedSolo"}}
-//! {"id":9,"command":{"type":"startQueue"}}
 //! ```
 //!
 //! Os tipos TypeScript em `ui/src/bindings/` saem destes tipos com `ts-rs`.
@@ -33,8 +32,10 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::lobby::{Lobby, LobbyMember, Queue};
+use crate::gameflow::GameflowPhase;
+use crate::lobby::{Lobby, LobbyMember, Position, Queue};
 use crate::matchmaking::{Matchmaking, MatchmakingError, SearchState};
+use crate::ready_check::{ReadyCheck, ReadyCheckResponse, ReadyCheckState};
 use crate::summoner::Summoner;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
@@ -62,9 +63,13 @@ pub enum ServerMessage {
     /// O invocador logado mudou. `null` quando o LoL fecha ou antes do login.
     Summoner { summoner: Option<Summoner> },
     /// A fase do gameflow mudou (`None`, `Lobby`, `Matchmaking`,
-    /// `ReadyCheck`, `ChampSelect`, `InProgress`...). `null` com o LoL
-    /// fechado.
-    GameflowPhase { phase: Option<String> },
+    /// `ReadyCheck`, `ChampSelect`, `InProgress`...; veja [`GameflowPhase`]).
+    /// `null` com o LoL fechado ou quando a LCU ainda não respondeu a fase.
+    GameflowPhase { phase: Option<GameflowPhase> },
+    /// O ready check (partida encontrada, #20) abriu, andou ou fechou. Chega
+    /// mais ou menos a cada segundo enquanto ele está aberto, com o `timer`
+    /// novo. `null` quando não há ready check (fechou, ou o LoL fechou).
+    ReadyCheck { ready_check: Option<ReadyCheck> },
     /// O lobby mudou (criado, fila trocada, alguém entrou ou saiu). `null`
     /// fora de lobby e com o LoL fechado.
     Lobby { lobby: Option<Lobby> },
@@ -85,7 +90,9 @@ pub enum ServerMessage {
 pub struct AgentState {
     pub lcu: LcuStatus,
     pub summoner: Option<Summoner>,
-    pub gameflow_phase: Option<String>,
+    pub gameflow_phase: Option<GameflowPhase>,
+    /// Ready check aberto (partida encontrada, #20), ou `null`.
+    pub ready_check: Option<ReadyCheck>,
     pub lobby: Option<Lobby>,
     pub matchmaking: Option<Matchmaking>,
 }
@@ -146,6 +153,21 @@ pub enum Command {
     /// Pede um [`ServerMessage::Hello`] novo com o estado inteiro, que chega
     /// antes da resposta.
     GetState,
+    /// Aceita a partida encontrada (`POST
+    /// /lol-matchmaking/v1/ready-check/accept`, #20). Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (por
+    /// exemplo, sem ready check aberto). A mudança chega depois como
+    /// `readyCheck` com `playerResponse: "Accepted"`.
+    AcceptReadyCheck,
+    /// Recusa a partida encontrada (`POST
+    /// /lol-matchmaking/v1/ready-check/decline`, #20). Mesmos erros do
+    /// `acceptReadyCheck`.
+    DeclineReadyCheck,
+    /// Abre o LoL pelo Riot Client ([`crate::launcher`]). Responde `ok` assim
+    /// que o pedido sai, ou se o LoL já estava aberto; a subida do LoL chega
+    /// pelas mensagens `lcu`. Erro `launchFailed` quando não dá para abrir
+    /// (Riot Client não encontrado, falha ao chamar o executável).
+    LaunchLeague,
     /// Reabre a UI oficial do LoL (`POST /riotclient/launch-ux`), a saída de
     /// emergência (#13). Responde `notConnected` com o LoL fechado e `lcu` se
     /// a LCU recusar. O agente não fecha a UI de novo sozinho até a próxima
@@ -159,6 +181,15 @@ pub enum Command {
     /// Sai do lobby. A mensagem `lobby` com `null` chega antes da resposta.
     /// Responde `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
     LeaveLobby,
+    /// Escolhe o cargo primário e o secundário do jogador logado (#18). Só
+    /// vale num lobby com `showPositionSelector`. O par segue as regras do
+    /// client oficial: cargos diferentes, e `second` em `unselected` quando
+    /// `first` é `fill` ou `unselected`; fora disso responde
+    /// `invalidCommand` sem falar com a LCU. O lobby com os cargos novos
+    /// chega numa mensagem `lobby` antes da resposta. Responde `notConnected`
+    /// com o LoL fechado e `lcu` se a LCU recusar (fora de lobby, fila sem
+    /// cargos...).
+    SetPositions { first: Position, second: Position },
     /// Entra na fila com o lobby atual (só o líder pode). A mensagem
     /// `matchmaking` com a busca chega antes da resposta. Responde
     /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (fora de
@@ -190,6 +221,12 @@ pub enum ErrorCode {
     NotConnected,
     /// A LCU respondeu com erro ou não respondeu.
     Lcu,
+    /// Não foi possível abrir o LoL pelo Riot Client.
+    LaunchFailed,
+    /// O comando chegou bem formado mas com valores que não fazem sentido
+    /// (como o mesmo cargo de primário e secundário). Nada foi mandado para
+    /// a LCU.
+    InvalidCommand,
 }
 
 impl CommandResult {
@@ -217,8 +254,13 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<AgentState>(&cfg)?,
         file::<LcuStatus>(&cfg)?,
         file::<Summoner>(&cfg)?,
+        file::<GameflowPhase>(&cfg)?,
+        file::<ReadyCheck>(&cfg)?,
+        file::<ReadyCheckState>(&cfg)?,
+        file::<ReadyCheckResponse>(&cfg)?,
         file::<Lobby>(&cfg)?,
         file::<LobbyMember>(&cfg)?,
+        file::<Position>(&cfg)?,
         file::<Queue>(&cfg)?,
         file::<Matchmaking>(&cfg)?,
         file::<MatchmakingError>(&cfg)?,
@@ -254,6 +296,7 @@ mod tests {
                     "lcu": {"state": "starting"},
                     "summoner": null,
                     "gameflowPhase": null,
+                    "readyCheck": null,
                     "lobby": null,
                     "matchmaking": null,
                 },
@@ -283,11 +326,31 @@ mod tests {
         );
 
         let phase = ServerMessage::GameflowPhase {
-            phase: Some("Lobby".into()),
+            phase: Some(GameflowPhase::Lobby),
         };
         assert_eq!(
             serde_json::to_value(&phase).unwrap(),
             json!({"type": "gameflowPhase", "phase": "Lobby"})
+        );
+
+        let ready_check = ServerMessage::ReadyCheck {
+            ready_check: ReadyCheck::from_json(&json!({
+                "state": "InProgress",
+                "playerResponse": "None",
+                "timer": 3.0,
+            })),
+        };
+        assert_eq!(
+            serde_json::to_value(&ready_check).unwrap(),
+            json!({
+                "type": "readyCheck",
+                "readyCheck": {
+                    "state": "InProgress",
+                    "playerResponse": "None",
+                    "timer": 3.0,
+                    "duration": 12.0,
+                },
+            })
         );
 
         let erro = ServerMessage::Response {
@@ -319,6 +382,21 @@ mod tests {
                 command: Command::GetState
             }
         );
+        for (name, command) in [
+            ("acceptReadyCheck", Command::AcceptReadyCheck),
+            ("declineReadyCheck", Command::DeclineReadyCheck),
+        ] {
+            let msg: ClientMessage =
+                serde_json::from_value(json!({"id": 9, "command": {"type": name}})).unwrap();
+            assert_eq!(msg.command, command);
+        }
+        let msg: ClientMessage =
+            serde_json::from_value(json!({"id": 8, "command": {"type": "launchLeague"}})).unwrap();
+        assert_eq!(msg.command, Command::LaunchLeague);
+        assert_eq!(
+            serde_json::to_value(ErrorCode::LaunchFailed).unwrap(),
+            json!("launchFailed")
+        );
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 8, "command": {"type": "launchUx"}})).unwrap();
         assert_eq!(msg.command, Command::LaunchUx);
@@ -335,6 +413,18 @@ mod tests {
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 9, "command": {"type": "leaveLobby"}})).unwrap();
         assert_eq!(msg.command, Command::LeaveLobby);
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 10,
+            "command": {"type": "setPositions", "first": "middle", "second": "jungle"},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::SetPositions {
+                first: Position::Middle,
+                second: Position::Jungle,
+            }
+        );
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 10, "command": {"type": "startQueue"}})).unwrap();
         assert_eq!(msg.command, Command::StartQueue);

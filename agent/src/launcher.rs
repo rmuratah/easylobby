@@ -79,7 +79,9 @@ pub const RIOT_CLIENT_LOCKFILE: [&str; 4] = ["Riot Games", "Riot Client", "Confi
 pub struct LaunchOptions {
     /// Caminho do `RiotClientServices.exe`. `None` procura sozinho.
     pub riot_client: Option<PathBuf>,
-    /// Lockfile do Riot Client. `None` usa o do `%LOCALAPPDATA%`.
+    /// Lockfile do Riot Client. `None` usa o do `%LOCALAPPDATA%`. Se houver um
+    /// `mock-lcu-ca.pem` ao lado, essa CA é fixada no lugar do
+    /// `riotgames.pem` (o mock-lcu no papel do Riot Client).
     pub riot_client_lockfile: Option<PathBuf>,
     /// Produto do Riot Client; [`LEAGUE_PRODUCT`] por padrão.
     pub product: String,
@@ -290,9 +292,21 @@ async fn request_from_riot_client(options: &LaunchOptions) -> Result<u16, RiotCl
         None => riot_client_lockfile_path().ok_or(RiotClientApiError::NoLockfilePath)?,
     };
     let credentials = Credentials::from_lockfile_path(&path)?;
-    let client = LcuClient::new(&credentials)?;
+    let client = match mock_ca(options) {
+        Some(pem) => LcuClient::with_root_certificate(&credentials, &pem)?,
+        None => LcuClient::new(&credentials)?,
+    };
     request_launch(&client, options).await?;
     Ok(credentials.port)
+}
+
+/// CA do mock-lcu ao lado de um lockfile configurado à mão, como na
+/// [`CredentialSource::Lockfile`](crate::connection::CredentialSource). O lockfile
+/// do Riot Client de verdade nunca tem esse arquivo ao lado, então lá vale
+/// sempre o `riotgames.pem`.
+fn mock_ca(options: &LaunchOptions) -> Option<Vec<u8>> {
+    let lockfile = options.riot_client_lockfile.as_ref()?;
+    std::fs::read(lockfile.with_file_name(crate::connection::MOCK_CA_FILE)).ok()
 }
 
 /// Pede ao Riot Client, pela API local dele, que abra o produto de `options`.
@@ -643,7 +657,22 @@ mod tests {
         else {
             panic!("esperava Launch");
         };
-        spawn_detached(&riot_client.path, &args).unwrap();
+        // Outro teste pode fazer fork enquanto o script ainda está aberto para
+        // escrita, e o exec dá ETXTBSY ("Text file busy") até esse filho
+        // fechar a cópia do descritor. Isso só acontece no teste.
+        let mut tentativas = 0;
+        loop {
+            match spawn_detached(&riot_client.path, &args) {
+                Ok(_) => break,
+                Err(LaunchError::Spawn { source, .. })
+                    if source.kind() == io::ErrorKind::ExecutableFileBusy && tentativas < 50 =>
+                {
+                    tentativas += 1;
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                Err(e) => panic!("{e}"),
+            }
+        }
 
         let prazo = Instant::now() + Duration::from_secs(10);
         let conteudo = loop {
