@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentClient } from './client';
 import type { AgentState } from '../bindings/AgentState';
 import type { ServerMessage } from '../bindings/ServerMessage';
+import type { Command } from '../bindings/Command';
+import type { CommandResult } from '../bindings/CommandResult';
 
 class Socket {
   static OPEN = 1;
@@ -60,6 +62,62 @@ describe('canal do agente', () => {
     socket().receive({ type: 'response', id: 1, result: { status: 'ok' } });
     await expect(first).resolves.toEqual({ status: 'ok' });
     await expect(second).resolves.toEqual({ status: 'error', code: 'lcu', message: 'falhou' });
+  });
+  it.each([
+    { command: { type: 'launchLeague' }, result: { status: 'error', code: 'launchFailed', message: 'Riot Client não encontrado' } },
+    { command: { type: 'setPositions', first: 'middle', second: 'middle' }, result: { status: 'error', code: 'invalidCommand', message: 'Os cargos devem ser diferentes' } },
+    { command: { type: 'launchUx' }, result: { status: 'error', code: 'notConnected', message: 'LoL fechado' } },
+    { command: { type: 'launchUx' }, result: { status: 'error', code: 'lcu', message: 'A LCU recusou o comando' } },
+  ] satisfies { command: Command; result: CommandResult }[])('entrega $result.code sem alterar estado nem reconectar', async ({ command, result }) => {
+    const connection = socket();
+    connection.receive(hello());
+    const snapshot = client.getSnapshot();
+    const listener = vi.fn();
+    const unsubscribe = client.subscribe(listener);
+    const response = client.send(command);
+    expect(JSON.parse(connection.send.mock.calls[0][0])).toEqual({ id: 1, command });
+    connection.receive({ type: 'response', id: 1, result });
+    await expect(response).resolves.toEqual(result);
+
+    expect(client.getSnapshot()).toBe(snapshot);
+    expect(client.getSnapshot().status).toBe('connected');
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(60000);
+    expect(client.getSnapshot()).toBe(snapshot);
+    expect(listener).not.toHaveBeenCalled();
+    expect(connection.close).not.toHaveBeenCalled();
+    expect(Socket.instances).toHaveLength(1);
+
+    const next = client.send({ type: 'ping' });
+    expect(JSON.parse(connection.send.mock.calls[1][0])).toEqual({ id: 2, command: { type: 'ping' } });
+    connection.receive({ type: 'response', id: 2, result: { status: 'ok' } });
+    await expect(next).resolves.toEqual({ status: 'ok' });
+    unsubscribe();
+  });
+  it.each([
+    ['JSON inválido', '{'],
+    ...[
+      ['código desconhecido', { status: 'error', code: 'unknown', message: 'erro' }],
+      ['código herdado', { status: 'error', code: 'toString', message: 'erro' }],
+      ['código em array', { status: 'error', code: ['lcu'], message: 'erro' }],
+      ['código ausente', { status: 'error', message: 'erro' }],
+      ['código nulo', { status: 'error', code: null, message: 'erro' }],
+      ['mensagem ausente', { status: 'error', code: 'launchFailed' }],
+      ['mensagem não textual', { status: 'error', code: 'invalidCommand', message: 42 }],
+      ['status inválido', { status: 'failed', code: 'launchFailed', message: 'erro' }],
+      ['resultado nulo', null],
+    ].map(([name, result]) => [String(name), JSON.stringify({ type: 'response', id: 1, result })]),
+    ['id inválido', JSON.stringify({ type: 'response', id: '1', result: { status: 'error', code: 'launchFailed', message: 'erro' } })],
+  ])('rejeita resposta malformada: %s', async (_name, data) => {
+    const connection = socket();
+    connection.receive(hello());
+    const response = expect(client.send({ type: 'ping' })).rejects.toThrow('Conexão com o agente encerrada.');
+    connection.onmessage?.({ data });
+    await response;
+    expect(client.getSnapshot()).toEqual({ status: 'reconnecting', state: null, error: 'Recebemos uma mensagem inválida do agente.' });
+    expect(connection.close).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(1000);
+    expect(Socket.instances).toHaveLength(2);
   });
   it('rejeita comando sem conexão e limita o tempo de resposta', async () => {
     await expect(client.send({ type: 'ping' })).rejects.toThrow('não está conectado');
