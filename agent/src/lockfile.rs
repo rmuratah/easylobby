@@ -311,14 +311,24 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    const LOCKFILE: &str = "LeagueClient:12345:54321:s3nh4-Secreta_x:https";
+    // Valores falsos, só para os testes.
+    const SENHA_FALSA: &str = "valor-falso-do-lockfile";
+    const TOKEN_FALSO: &str = "valor-falso-dos-argumentos";
+    const LOCKFILE: &str = "LeagueClient:12345:54321:valor-falso-do-lockfile:https";
 
-    fn ux(args: &[&str]) -> ProcessInfo {
+    fn args_validos() -> Vec<String> {
+        vec![
+            "--app-port=50000".into(),
+            format!("--remoting-auth-token={TOKEN_FALSO}"),
+        ]
+    }
+
+    fn ux<S: AsRef<str>>(args: &[S]) -> ProcessInfo {
         ProcessInfo {
             pid: 200,
             name: "LeagueClientUx.exe".into(),
             exe: Some(PathBuf::from("/riot/lol/LeagueClientUx.exe")),
-            args: args.iter().map(|s| s.to_string()).collect(),
+            args: args.iter().map(|s| s.as_ref().to_owned()).collect(),
         }
     }
 
@@ -358,7 +368,7 @@ mod tests {
         let c = parse_lockfile(LOCKFILE, Path::new("lockfile")).unwrap();
         assert_eq!(c.pid, Some(12345));
         assert_eq!(c.port, 54321);
-        assert_eq!(c.password, "s3nh4-Secreta_x");
+        assert_eq!(c.password, SENHA_FALSA);
         assert_eq!(c.protocol, Protocol::Https);
         assert_eq!(c.base_url(), "https://127.0.0.1:54321");
     }
@@ -393,7 +403,7 @@ mod tests {
     fn debug_nao_mostra_a_senha() {
         let c = parse_lockfile(LOCKFILE, Path::new("lockfile")).unwrap();
         let debug = format!("{c:?}");
-        assert!(!debug.contains("s3nh4"), "{debug}");
+        assert!(!debug.contains(SENHA_FALSA), "{debug}");
         assert!(debug.contains("54321"));
     }
 
@@ -403,13 +413,13 @@ mod tests {
             200,
             &[
                 "\"--app-port=50000\"",
-                "--remoting-auth-token=tok3n",
+                &format!("--remoting-auth-token={TOKEN_FALSO}"),
                 "--foo",
             ],
         )
         .unwrap();
         assert_eq!(c.port, 50000);
-        assert_eq!(c.password, "tok3n");
+        assert_eq!(c.password, TOKEN_FALSO);
         assert_eq!(c.source, Source::ProcessArgs { pid: 200 });
     }
 
@@ -445,17 +455,14 @@ mod tests {
 
     #[test]
     fn lockfile_tem_prioridade_sobre_argumentos() {
-        let processes = [ux(&["--app-port=50000", "--remoting-auth-token=tok3n"])];
+        let processes = [ux(&args_validos())];
         let c = discover_from(&processes, fs(&[("/riot/lol/lockfile", LOCKFILE)])).unwrap();
         assert_eq!(c.port, 54321);
     }
 
     #[test]
     fn usa_argumentos_quando_nao_ha_lockfile() {
-        let processes = [
-            client(),
-            ux(&["--app-port=50000", "--remoting-auth-token=tok3n"]),
-        ];
+        let processes = [client(), ux(&args_validos())];
         let c = discover_from(&processes, fs(&[])).unwrap();
         assert_eq!(c.port, 50000);
         assert_eq!(c.source, Source::ProcessArgs { pid: 200 });
@@ -463,7 +470,7 @@ mod tests {
 
     #[test]
     fn lockfile_invalido_cai_no_fallback() {
-        let processes = [ux(&["--app-port=50000", "--remoting-auth-token=tok3n"])];
+        let processes = [ux(&args_validos())];
         let c = discover_from(&processes, fs(&[("/riot/lol/lockfile", "lixo")])).unwrap();
         assert_eq!(c.port, 50000);
     }
