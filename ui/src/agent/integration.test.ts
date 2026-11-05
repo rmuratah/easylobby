@@ -39,6 +39,14 @@ it.runIf(process.env.EASYLOBBY_INTEGRATION === '1')('conecta ao agente real com 
     await connected();
     await expect(client.send({ type: 'ping' })).resolves.toEqual({ status: 'ok' });
     await expect(client.send({ type: 'getState' })).resolves.toEqual({ status: 'ok' });
+    // O estado real deve chegar antes da resposta, inclusive ao trocar e sair.
+    for (const queue of ['normalDraft', 'swiftplay', 'rankedSolo', 'rankedFlex', 'aram'] as const) {
+      await expect(client.send({ type: 'createLobby', queue })).resolves.toEqual({ status: 'ok' });
+      expect(client.getSnapshot().state?.lobby?.queue).toBe(queue);
+      expect(client.getSnapshot().state?.lobby?.members.length).toBeGreaterThan(0);
+    }
+    await expect(client.send({ type: 'leaveLobby' })).resolves.toEqual({ status: 'ok' });
+    expect(client.getSnapshot().state?.lobby).toBeNull();
     await stop(agent);
     await vi.waitFor(() => expect(client.getSnapshot().state).toBeNull(), { timeout: 5000 });
     agent = start(join('examples', 'canal_ws'), ['--lockfile', lockfile]);

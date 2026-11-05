@@ -101,6 +101,7 @@ export class AgentClient {
           switch (message.type) {
             case 'lcu': this.publish({ ...this.snapshot, state: { ...state, lcu: message.status } }); break;
             case 'summoner': this.publish({ ...this.snapshot, state: { ...state, summoner: message.summoner } }); break;
+            case 'lobby': this.publish({ ...this.snapshot, state: { ...state, lobby: message.lobby } }); break;
             case 'gameflowPhase': this.publish({ ...this.snapshot, state: { ...state, gameflowPhase: message.phase } }); break;
             case 'response': {
               const pending = this.pending.get(message.id);
