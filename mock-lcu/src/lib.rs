@@ -49,7 +49,7 @@ use easylobby_agent::lockfile::LCU_USERNAME;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use thiserror::Error;
-use tokio::sync::{broadcast, watch, Notify};
+use tokio::sync::{broadcast, oneshot, watch, Notify};
 use tokio::task::JoinHandle;
 
 use crate::state::{LcuState, Response, GAMEFLOW_PHASE};
@@ -159,6 +159,43 @@ struct Shared {
     queue_timer: Mutex<Option<JoinHandle<()>>>,
     /// WebSockets WAMP abertos agora.
     wamp_clients: AtomicUsize,
+    /// Respostas que os testes pediram para segurar (#73).
+    holds: Mutex<Vec<PendingHold>>,
+}
+
+/// Pedido de [`MockLcu::hold`] que ainda não pegou nenhuma requisição.
+struct PendingHold {
+    method: Method,
+    path: String,
+    arrived: oneshot::Sender<()>,
+    release: oneshot::Receiver<()>,
+}
+
+/// Uma resposta segurada por [`MockLcu::hold`].
+///
+/// A requisição já foi atendida (o estado mudou e os eventos WAMP saíram),
+/// mas a resposta só vai para o cliente com [`Hold::release`]. Soltar o
+/// `Hold` sem chamar `release` também libera.
+#[derive(Debug)]
+pub struct Hold {
+    arrived: Option<oneshot::Receiver<()>>,
+    release: Option<oneshot::Sender<()>>,
+}
+
+impl Hold {
+    /// Espera a requisição chegar e ser atendida, com a resposta já pronta.
+    pub async fn arrived(&mut self) {
+        if let Some(arrived) = self.arrived.take() {
+            let _ = arrived.await;
+        }
+    }
+
+    /// Manda a resposta segurada.
+    pub fn release(mut self) {
+        if let Some(release) = self.release.take() {
+            let _ = release.send(());
+        }
+    }
 }
 
 impl Shared {
@@ -241,6 +278,7 @@ impl MockLcu {
             speed: config.speed,
             queue_timer: Mutex::new(None),
             wamp_clients: AtomicUsize::new(0),
+            holds: Mutex::new(Vec::new()),
         });
 
         let app = Router::new()
@@ -332,6 +370,41 @@ impl MockLcu {
     /// Começa a reprodução agora, sem esperar uma inscrição WAMP.
     pub fn start_replay(&self) {
         self.shared.start.notify_one();
+    }
+
+    /// Segura a resposta da próxima requisição `method path` (só o caminho,
+    /// sem a query) até [`Hold::release`], para testar respostas atrasadas
+    /// (#73). A requisição é atendida na hora; só a resposta espera.
+    pub fn hold(&self, method: Method, path: &str) -> Hold {
+        let (arrived_tx, arrived_rx) = oneshot::channel();
+        let (release_tx, release_rx) = oneshot::channel();
+        self.shared
+            .holds
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(PendingHold {
+                method,
+                path: path.to_owned(),
+                arrived: arrived_tx,
+                release: release_rx,
+            });
+        Hold {
+            arrived: Some(arrived_rx),
+            release: Some(release_tx),
+        }
+    }
+
+    /// Muda o estado e manda o evento pelo WAMP, como se a LCU tivesse
+    /// mudado sozinha.
+    pub fn emit(&self, event: EventFixture) {
+        emit(&self.shared, event);
+    }
+
+    /// Derruba os WebSockets abertos e recusa os novos, mas continua
+    /// respondendo ao REST: o agente vê a conexão cair enquanto uma resposta
+    /// segurada ainda está a caminho.
+    pub fn close_websockets(&self) {
+        self.shared.stopped.send_replace(true);
     }
 
     /// Para o servidor, esperando até um segundo pelas conexões abertas.
@@ -487,6 +560,7 @@ async fn handle_request(
     request: Request,
 ) -> HttpResponse {
     let method = request.method().clone();
+    let hold = take_hold(&shared, &method, request.uri().path());
     let path = request
         .uri()
         .path_and_query()
@@ -597,7 +671,19 @@ async fn handle_request(
     if shared.verbose {
         println!("{method} {path} -> {}", response.status);
     }
+    if let Some(hold) = hold {
+        let _ = hold.arrived.send(());
+        let _ = hold.release.await;
+    }
     json_response(&response)
+}
+
+fn take_hold(shared: &Shared, method: &Method, path: &str) -> Option<PendingHold> {
+    let mut holds = shared.holds.lock().unwrap_or_else(|e| e.into_inner());
+    let index = holds
+        .iter()
+        .position(|h| h.method == *method && h.path == path)?;
+    Some(holds.remove(index))
 }
 
 /// Aceitar e recusar a partida encontrada (#20).
