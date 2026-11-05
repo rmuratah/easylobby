@@ -984,20 +984,31 @@ impl Hub {
 
     /// Manda uma mensagem numa conversa 1:1 (comando `sendChatMessage`,
     /// #31). Publica a mensagem que a LCU respondeu antes de devolver, sem
-    /// esperar o evento do WAMP.
+    /// esperar o evento do WAMP, se a conexão ainda é a mesma.
     pub async fn send_chat_message(&self, conversation_id: &str, body: &str) -> CommandResult {
         if let Err(SendMessageError::Invalid(invalid)) = chat::check_message(conversation_id, body)
         {
             return CommandResult::error(ErrorCode::InvalidCommand, invalid);
         }
-        let Some(client) = self.client() else {
+        // O cliente e a sessão lidos juntos, como em `restore_conversations`.
+        let Some((client, session)) = ({
+            let shared = self.lock();
+            shared.client.clone().map(|client| (client, shared.session))
+        }) else {
             return not_connected();
         };
         match chat::send_message(&client, conversation_id, body).await {
             Ok(message) => {
-                // A mensagem do WAMP tem o mesmo `id` e não repete.
+                // A mensagem do WAMP tem o mesmo `id` e não repete. Se a
+                // conexão mudou durante o envio, a resposta é da sessão
+                // antiga e não entra numa conversa nova com o mesmo id (#87).
                 if let Some(message) = message {
-                    self.merge_chat_messages(conversation_id, |_| vec![message]);
+                    self.update(|shared| {
+                        if shared.session != session {
+                            return None;
+                        }
+                        write_chat_messages(shared, conversation_id, |_| vec![message])
+                    });
                 }
                 CommandResult::Ok
             }
