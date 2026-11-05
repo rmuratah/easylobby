@@ -9,6 +9,7 @@
 //! {"type":"lcu","status":{"state":"connected","session":1}}
 //! {"type":"summoner","summoner":{"gameName":"...","tagLine":"...",...}}
 //! {"type":"gameflowPhase","phase":"Lobby"}
+//! {"type":"readyCheck","readyCheck":{"state":"InProgress","playerResponse":"None","timer":3.0,"duration":12.0}}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
 //!
@@ -30,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::gameflow::GameflowPhase;
+use crate::ready_check::{ReadyCheck, ReadyCheckResponse, ReadyCheckState};
 use crate::summoner::Summoner;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
@@ -60,6 +62,10 @@ pub enum ServerMessage {
     /// `ReadyCheck`, `ChampSelect`, `InProgress`...; veja [`GameflowPhase`]).
     /// `null` com o LoL fechado ou quando a LCU ainda não respondeu a fase.
     GameflowPhase { phase: Option<GameflowPhase> },
+    /// O ready check (partida encontrada, #20) abriu, andou ou fechou. Chega
+    /// mais ou menos a cada segundo enquanto ele está aberto, com o `timer`
+    /// novo. `null` quando não há ready check (fechou, ou o LoL fechou).
+    ReadyCheck { ready_check: Option<ReadyCheck> },
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
     /// A UI mandou algo que não é um [`ClientMessage`] válido. Sem `id`,
@@ -74,6 +80,8 @@ pub struct AgentState {
     pub lcu: LcuStatus,
     pub summoner: Option<Summoner>,
     pub gameflow_phase: Option<GameflowPhase>,
+    /// Ready check aberto (partida encontrada, #20), ou `null`.
+    pub ready_check: Option<ReadyCheck>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -132,6 +140,16 @@ pub enum Command {
     /// Pede um [`ServerMessage::Hello`] novo com o estado inteiro, que chega
     /// antes da resposta.
     GetState,
+    /// Aceita a partida encontrada (`POST
+    /// /lol-matchmaking/v1/ready-check/accept`, #20). Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (por
+    /// exemplo, sem ready check aberto). A mudança chega depois como
+    /// `readyCheck` com `playerResponse: "Accepted"`.
+    AcceptReadyCheck,
+    /// Recusa a partida encontrada (`POST
+    /// /lol-matchmaking/v1/ready-check/decline`, #20). Mesmos erros do
+    /// `acceptReadyCheck`.
+    DeclineReadyCheck,
 }
 
 /// Resultado de um comando.
@@ -182,6 +200,9 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<LcuStatus>(&cfg)?,
         file::<Summoner>(&cfg)?,
         file::<GameflowPhase>(&cfg)?,
+        file::<ReadyCheck>(&cfg)?,
+        file::<ReadyCheckState>(&cfg)?,
+        file::<ReadyCheckResponse>(&cfg)?,
         file::<ClientMessage>(&cfg)?,
         file::<Command>(&cfg)?,
         file::<CommandResult>(&cfg)?,
@@ -213,6 +234,7 @@ mod tests {
                     "lcu": {"state": "starting"},
                     "summoner": null,
                     "gameflowPhase": null,
+                    "readyCheck": null,
                 },
             })
         );
@@ -247,6 +269,26 @@ mod tests {
             json!({"type": "gameflowPhase", "phase": "Lobby"})
         );
 
+        let ready_check = ServerMessage::ReadyCheck {
+            ready_check: ReadyCheck::from_json(&json!({
+                "state": "InProgress",
+                "playerResponse": "None",
+                "timer": 3.0,
+            })),
+        };
+        assert_eq!(
+            serde_json::to_value(&ready_check).unwrap(),
+            json!({
+                "type": "readyCheck",
+                "readyCheck": {
+                    "state": "InProgress",
+                    "playerResponse": "None",
+                    "timer": 3.0,
+                    "duration": 12.0,
+                },
+            })
+        );
+
         let erro = ServerMessage::Response {
             id: 3,
             result: CommandResult::error(ErrorCode::NotConnected, "o LoL não está aberto"),
@@ -276,6 +318,14 @@ mod tests {
                 command: Command::GetState
             }
         );
+        for (name, command) in [
+            ("acceptReadyCheck", Command::AcceptReadyCheck),
+            ("declineReadyCheck", Command::DeclineReadyCheck),
+        ] {
+            let msg: ClientMessage =
+                serde_json::from_value(json!({"id": 9, "command": {"type": name}})).unwrap();
+            assert_eq!(msg.command, command);
+        }
         assert!(serde_json::from_value::<ClientMessage>(json!({"id": 1})).is_err());
         assert!(serde_json::from_value::<ClientMessage>(
             json!({"id": 1, "command": {"type": "comprarSkin"}})

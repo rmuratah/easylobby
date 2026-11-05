@@ -48,6 +48,12 @@ Com `--mock` (ou `--lockfile <arquivo>`), o example lê o lockfile do mock e fix
 
 `gameflow::current_phase(&lcu)` lê `/lol-gameflow/v1/gameflow-phase` e devolve um `GameflowPhase`, com os nomes da LCU: `None` (fora de lobby; `GameflowPhase::Idle` no Rust), `Lobby`, `Matchmaking` (fila), `CheckedIntoTournament`, `ReadyCheck`, `ChampSelect`, `GameStart`, `FailedToLaunch`, `InProgress` (em jogo), `Reconnect`, `WaitingForStats`, `PreEndOfGame`, `EndOfGame` (pós-jogo) e `TerminatedInError`. Uma fase que um patch novo inventar vira `Unknown` em vez de erro. `GameflowPhase::from_json` lê o `data` dos eventos WAMP do mesmo URI. O `ws::Hub` usa os dois: lê a fase pelo REST a cada conexão e depois segue os eventos, mandando cada mudança para a UI.
 
+## Partida encontrada (`ready_check`)
+
+Quando a fila acha uma partida, a fase vai para `ReadyCheck` e a LCU abre um ready check em `/lol-matchmaking/v1/ready-check` (#20). `ready_check::current(&lcu)` lê o ready check aberto (`None` fora dele: a LCU responde 404 fora da fila e `state: "Invalid"` na fila), e `ReadyCheck::from_json` lê os eventos WAMP do mesmo URI, que chegam mais ou menos a cada segundo enquanto ele está aberto. O `ReadyCheck` tem `state` (`InProgress`, `EveryoneReady`, `StrangerNotReady`, `PartyNotReady`, `Error`, `Unknown`), `playerResponse` (`None`, `Accepted`, `Declined`, `Unknown`), `timer` (segundos desde que a partida foi encontrada, como a LCU conta) e `duration` (o tempo total para responder; a LCU não manda, é o `READY_CHECK_DURATION_SECS` do agente). Contagem regressiva: `duration - timer`.
+
+`ready_check::accept(&lcu)` e `ready_check::decline(&lcu)` fazem `POST .../ready-check/accept` e `.../decline`. O aceite é sempre um clique do jogador: aceite automático fica fora do MVP (#39).
+
 ## Eventos em tempo real (`wamp`)
 
 `wamp::LcuEvents` abre o WebSocket WAMP da LCU (`wss://127.0.0.1:<porta>/`), com o mesmo Basic Auth e o mesmo `riotgames.pem` fixado do cliente REST, e se inscreve em `OnJsonApiEvent`. Cada `next().await` devolve o próximo `LcuEvent` (`uri`, `event_type` `Create`/`Update`/`Delete` e `data`) que passa no `EventFilter`, na ordem em que a LCU mandou.
@@ -134,16 +140,17 @@ Do agente para a UI (`ServerMessage`, campo `type`):
 
 | Mensagem | Quando |
 | --- | --- |
-| `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
+| `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`, `readyCheck`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
 | `lcu` | A conexão com o LoL mudou: `starting`, `connected` (com `session`), `disconnected` (com `reason`) ou `retrying` (com `attempt`, `retryInMs`, `clientNotRunning` e `error`). |
 | `summoner` | O invocador logado mudou; `null` com o LoL fechado ou antes do login. |
 | `gameflowPhase` | A fase mudou (`None`, `Lobby`, `Matchmaking`, `ReadyCheck`, `ChampSelect`, `InProgress`, `EndOfGame`...; o tipo `GameflowPhase` lista todas, com `Unknown` para uma fase nova); `null` com o LoL fechado. |
+| `readyCheck` | O ready check (partida encontrada) abriu, andou ou fechou, com `readyCheck` (`state`, `playerResponse`, `timer`, `duration`); chega mais ou menos a cada segundo enquanto está aberto. `null` quando não há ready check ou com o LoL fechado. |
 | `response` | Resposta a um comando, com o mesmo `id` e `result` `ok` ou `error` (`code` e `message`). |
 | `invalidMessage` | A UI mandou algo que não é um `ClientMessage` válido. |
 
-Da UI para o agente (`ClientMessage`): `{"id": 1, "command": {"type": "ping"}}`. Comandos por enquanto: `ping` e `getState`. Os comandos das próximas issues (como `launch-ux`, #13) entram em `ws::protocol::Command`.
+Da UI para o agente (`ClientMessage`): `{"id": 1, "command": {"type": "ping"}}`. Comandos por enquanto: `ping`, `getState`, `acceptReadyCheck` e `declineReadyCheck` (aceitar e recusar a partida encontrada; `notConnected` com o LoL fechado e `lcu` se a LCU recusar, por exemplo sem ready check aberto; a mudança chega depois como `readyCheck`). Os comandos das próximas issues (como `launch-ux`, #13) entram em `ws::protocol::Command`.
 
-`ws::run(lcu, listener, config)` liga uma `LcuConnection` ao canal. Por partes: `Hub` guarda o estado, `ws::drive` o atualiza a partir da conexão (relendo invocador e fase pelo REST a cada `Connected` e limpando tudo no `Disconnected`) e `ws::serve` serve o `/ws`. O servidor recusa com 403 pedidos com `Origin` fora de `WsConfig::allowed_origins` (padrão: a janela do Tauri e o Vite em `localhost:5173`), para uma página aberta no navegador não conseguir falar com o agente.
+`ws::run(lcu, listener, config)` liga uma `LcuConnection` ao canal. Por partes: `Hub` guarda o estado, `ws::drive` o atualiza a partir da conexão (relendo invocador, fase e, na fase `ReadyCheck`, o ready check pelo REST a cada `Connected` e limpando tudo no `Disconnected`) e `ws::serve` serve o `/ws`. O servidor recusa com 403 pedidos com `Origin` fora de `WsConfig::allowed_origins` (padrão: a janela do Tauri e o Vite em `localhost:5173`), para uma página aberta no navegador não conseguir falar com o agente.
 
 Para desenvolver a UI contra o mock-lcu:
 
@@ -161,7 +168,7 @@ Depois de mudar um tipo de `ws::protocol` (ou o `Summoner`), regenere os tipos T
 EASYLOBBY_UPDATE_BINDINGS=1 cargo test -p easylobby-agent bindings
 ```
 
-O teste `bindings_estao_atualizados` falha no CI se os arquivos estiverem desatualizados. Os testes em `mock-lcu/tests/canal_ws.rs` sobem o mock com a gravação `16.22` e o agente, e conferem o `hello`, a partida inteira pelas mudanças de fase, o invocador, os comandos, o LoL fechando e reabrindo e o 403 para outras origens.
+O teste `bindings_estao_atualizados` falha no CI se os arquivos estiverem desatualizados. Os testes em `mock-lcu/tests/ready_check.rs` acompanham o ready check da gravação e aceitam e recusam a partida pelo `/ws`. Os testes em `mock-lcu/tests/canal_ws.rs` sobem o mock com a gravação `16.22` e o agente, e conferem o `hello`, a partida inteira pelas mudanças de fase, o invocador, os comandos, o LoL fechando e reabrindo e o 403 para outras origens.
 
 ## Fixtures da LCU
 
