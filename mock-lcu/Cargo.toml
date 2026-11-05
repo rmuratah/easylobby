@@ -10,3 +10,22 @@ publish = false
 workspace = true
 
 [dependencies]
+easylobby-agent = { path = "../agent" }
+axum = { version = "0.8", features = ["ws"] }
+# `ring` em vez do aws-lc-rs padrão: não precisa de cmake/nasm no Windows.
+axum-server = { version = "0.7", default-features = false, features = ["tls-rustls-no-provider"] }
+base64 = "0.22"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+getrandom = "0.3"
+rcgen = { version = "0.13", default-features = false, features = ["ring", "pem"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time", "net"] }
+
+# O teste conecta como o agente vai conectar: TLS nativo do sistema com o
+# certificado do mock fixado.
+[dev-dependencies]
+native-tls = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["native-tls"] }
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
