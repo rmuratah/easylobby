@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "easylobby",
         "width": 1100,
         "height": 700,
