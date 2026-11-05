@@ -24,11 +24,17 @@
 //! - [`ready_check`]: partida encontrada, com aceitar e recusar (#20)
 //! - [`champ_select`]: estado da seleção de campeões (sessão, times, timer e
 //!   ações pendentes) (#22)
+//! - [`chat`]: conversas 1:1 com amigos e o histórico da sessão (#31)
+//! - [`runes`]: páginas de runas: listar, editar, criar, apagar e aplicar,
+//!   com as árvores para o editor (#26)
+//! - [`friends`]: lista de amigos com presença (#30)
 
 pub mod assets;
 pub mod champ_select;
+pub mod chat;
 pub mod connection;
 pub mod fixtures;
+pub mod friends;
 pub mod gameflow;
 pub mod invitations;
 pub mod launcher;
@@ -37,6 +43,7 @@ pub mod lockfile;
 pub mod matchmaking;
 pub mod ready_check;
 pub mod rest;
+pub mod runes;
 pub mod summoner;
 pub mod ux;
 pub mod wamp;

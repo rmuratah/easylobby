@@ -19,7 +19,7 @@ class Socket {
 }
 const hello: ServerMessage = {
   type: 'hello', protocol: 1, agentVersion: '0.1.0',
-  state: { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: null, readyCheck: null, lobby: null, matchmaking: null, champSelect: null, receivedInvitations: [] },
+  state: { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: null, readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], friends: [], runeCatalog: null, runePages: null, receivedInvitations: [] },
 };
 beforeEach(() => {
   vi.useFakeTimers();

@@ -277,6 +277,24 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                             Command::InviteToLobby { invitees } => {
                                 hub.invite_to_lobby(&invitees).await
                             }
+                            Command::SendChatMessage {
+                                conversation_id,
+                                body,
+                            } => hub.send_chat_message(&conversation_id, &body).await,
+                            Command::SetActiveConversation { conversation_id } => {
+                                hub.set_active_conversation(conversation_id.as_deref())
+                                    .await
+                            }
+                            Command::SelectRunePage { page_id } => {
+                                hub.select_rune_page(page_id).await
+                            }
+                            Command::CreateRunePage { page } => hub.create_rune_page(page).await,
+                            Command::UpdateRunePage { page_id, page } => {
+                                hub.update_rune_page(page_id, page).await
+                            }
+                            Command::DeleteRunePage { page_id } => {
+                                hub.delete_rune_page(page_id).await
+                            }
                             Command::HoverChampion {
                                 action_id,
                                 champion_id,
