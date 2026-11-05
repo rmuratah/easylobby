@@ -274,20 +274,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn queda_limpa_o_estado() {
-        let hub = Hub::new();
-        hub.set_gameflow_phase(Some(GameflowPhase::ChampSelect));
-        hub.apply(ConnectionEvent::Disconnected(
-            crate::connection::DisconnectReason::Closed,
-        ))
-        .await;
-        let state = hub.state();
-        assert_eq!(state.gameflow_phase, None);
-        assert!(matches!(state.lcu, LcuStatus::Disconnected { .. }));
-        assert!(hub.client().is_none());
-    }
-
-    #[tokio::test]
     async fn segue_uma_partida_inteira_e_fases_novas() {
         let hub = Hub::new();
         let (_, mut rx) = hub.subscribe();
@@ -332,5 +318,19 @@ mod tests {
             .await;
         assert!(rx.try_recv().is_err());
         assert_eq!(hub.state().gameflow_phase, Some(GameflowPhase::Unknown));
+    }
+
+    #[tokio::test]
+    async fn queda_limpa_o_estado() {
+        let hub = Hub::new();
+        hub.set_gameflow_phase(Some(GameflowPhase::ChampSelect));
+        hub.apply(ConnectionEvent::Disconnected(
+            crate::connection::DisconnectReason::Closed,
+        ))
+        .await;
+        let state = hub.state();
+        assert_eq!(state.gameflow_phase, None);
+        assert!(matches!(state.lcu, LcuStatus::Disconnected { .. }));
+        assert!(hub.client().is_none());
     }
 }
