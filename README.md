@@ -4,6 +4,8 @@ Client leve para o League of Legends. Fecha a interface oficial (LeagueClientUx)
 
 Leia [AGENTS.md](AGENTS.md) para a visão geral da arquitetura e das decisões, e [CONTRIBUTING.md](CONTRIBUTING.md) para o fluxo de branches, commits e PRs.
 
+Consulte também o [registro de decisões](docs/decisoes.md) para os limites do produto e as escolhas de arquitetura.
+
 ## Estrutura
 
 ```

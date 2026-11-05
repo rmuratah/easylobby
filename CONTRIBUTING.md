@@ -2,6 +2,8 @@
 
 Este guia vale para todo mundo que mexe no código, inclusive assistentes de IA (Claude, ChatGPT etc.). Leia antes de abrir a primeira branch.
 
+Antes de começar, leia [AGENTS.md](AGENTS.md) e [docs/decisoes.md](docs/decisoes.md). Ao abrir uma issue, escolha o template de tarefa ou de bug e preencha escopo, critérios de conclusão e validação. Defina os responsáveis em **Assignees**, as labels e o milestone conforme a tarefa.
+
 ## Fluxo de trabalho
 
 1. **Escolha uma issue.** Todo trabalho começa numa issue. Atribua a issue a você antes de começar, para os dois não pegarem a mesma tarefa. Se a tarefa não tem issue, crie uma.

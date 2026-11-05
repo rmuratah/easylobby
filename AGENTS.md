@@ -42,7 +42,7 @@ LoL (LCU API: REST + WAMP)  <-->  agente Rust  <-->  /ws tipado  <-->  UI React 
 
 ## Decisões já tomadas
 
-Não reabra sem conversar com os dois devs.
+Não reabra sem conversar com os dois devs. Consulte também o [registro de decisões](docs/decisoes.md).
 
 - Tauri 2, núcleo em Rust, front em React + TypeScript.
 - Fechar a UI oficial com `kill-ux` (com opção para desligar) e reabrir com `launch-ux`.
