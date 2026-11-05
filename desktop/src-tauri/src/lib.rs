@@ -1,11 +1,71 @@
-//! Shell Tauri 2 do easylobby.
-//!
-//! Por enquanto só abre a janela com a UI. Bandeja (#14) e a integração com o
-//! agente (#15) entram nas próximas issues.
+//! Shell Tauri 2 com janela e bandeja. O canal do agente é implementado na #15.
+
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager,
+};
+
+fn show_main_window(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.show()?;
+        window.unminimize()?;
+        window.set_focus()?;
+    }
+    Ok(())
+}
+
+fn open_from_tray(app: &tauri::AppHandle) {
+    if let Err(error) = show_main_window(app) {
+        eprintln!("erro ao abrir a janela: {error}");
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            let open = MenuItem::with_id(app, "open", "Abrir easylobby", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open, &quit])?;
+            let icon = app
+                .default_window_icon()
+                .ok_or_else(|| std::io::Error::other("ícone do aplicativo ausente"))?
+                .clone();
+
+            TrayIconBuilder::with_id("main-tray")
+                .icon(icon)
+                .tooltip(format!("easylobby {}", easylobby_agent::VERSION))
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => open_from_tray(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        open_from_tray(tray.app_handle());
+                    }
+                })
+                .build(app)?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    match window.hide() {
+                        Ok(()) => api.prevent_close(),
+                        Err(error) => eprintln!("erro ao ocultar a janela: {error}"),
+                    }
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o easylobby");
 }
