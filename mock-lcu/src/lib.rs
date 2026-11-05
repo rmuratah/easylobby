@@ -302,6 +302,12 @@ impl MockLcu {
         self.shared.state().ux_open()
     }
 
+    /// Pedidos ao `/product-launcher` do Riot Client recebidos até agora, como
+    /// `league_of_legends/live`.
+    pub fn launches(&self) -> Vec<String> {
+        self.shared.state().launches().to_vec()
+    }
+
     /// Começa a reprodução agora, sem esperar uma inscrição WAMP.
     pub fn start_replay(&self) {
         self.shared.start.notify_one();
@@ -455,6 +461,21 @@ async fn handle_request(
                 body: Value::Null,
             }
         }
+        // O Riot Client tem uma API local igual à da LCU; o agente usa esta
+        // rota para abrir o LoL quando o Riot Client já está aberto (#11).
+        (&Method::POST, p) if p.starts_with(PRODUCT_LAUNCHER_PREFIX) => {
+            match parse_launch(&p[PRODUCT_LAUNCHER_PREFIX.len()..]) {
+                Some(launch) => {
+                    println!("product-launcher: abrindo {launch} (de mentira)");
+                    shared.state().record_launch(launch);
+                    Response {
+                        status: 204,
+                        body: Value::Null,
+                    }
+                }
+                None => Response::error(404, format!("mock-lcu: {path} não existe")),
+            }
+        }
         (&Method::GET, _) => shared.state().get(&path),
         _ => Response::error(
             501,
@@ -465,6 +486,16 @@ async fn handle_request(
         println!("{method} {path} -> {}", response.status);
     }
     json_response(&response)
+}
+
+/// Prefixo da rota do Riot Client que abre um produto.
+const PRODUCT_LAUNCHER_PREFIX: &str = "/product-launcher/v1/products/";
+
+/// `league_of_legends/patchlines/live` -> `league_of_legends/live`.
+fn parse_launch(rest: &str) -> Option<String> {
+    let (product, patchline) = rest.split_once("/patchlines/")?;
+    let valid = |s: &str| !s.is_empty() && !s.contains(['/', '?']);
+    (valid(product) && valid(patchline)).then(|| format!("{product}/{patchline}"))
 }
 
 fn json_response(response: &Response) -> HttpResponse {

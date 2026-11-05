@@ -96,6 +96,24 @@ loop {
 
 O example `eventos` usa a reconexão: deixe-o rodando e feche e reabra o LoL (ou o `cargo run -p mock-lcu`). Os testes em `mock-lcu/tests/reconexao.rs` sobem e derrubam o mock com a gravação `16.22` e conferem a espera pelo LoL, a reconexão com porta, senha e CA novas no meio do champ select, o lockfile velho e o cancelamento do `next`.
 
+## Abrir o LoL pelo Riot Client (`launcher`)
+
+`launcher::launch_league(&LaunchOptions::default()).await` abre o LoL quando ele não está rodando (#11) e volta sem esperar; quem espera é a `LcuConnection`, que já tenta de novo até conectar. A ordem:
+
+1. Se já existe `LeagueClient`/`LeagueClientUx` (inclusive depois do `kill-ux`), devolve `LaunchOutcome::AlreadyRunning` e não faz nada.
+2. Se o Riot Client está aberto, pede o LoL pela API local dele: `POST /product-launcher/v1/products/league_of_legends/patchlines/live`, com porta e senha do lockfile do Riot Client (`%LOCALAPPDATA%\Riot Games\Riot Client\Config\lockfile`), Basic Auth e o `riotgames.pem` fixado (`RequestedFromRiotClient`). Chamar o executável com o Riot Client já aberto só mostrava a janela dele.
+3. Senão, ou se a API falhar, chama `RiotClientServices.exe --launch-product=league_of_legends --launch-patchline=live` (`Launched`, com o `api_error` quando a API falhou). Se ninguém fez login, o Riot Client mostra a tela de login e abre o LoL depois.
+
+O `RiotClientServices.exe` é procurado nesta ordem: `LaunchOptions::riot_client`, se dado; o executável de um `RiotClientServices` já aberto; `rc_default`, `rc_live`, `associated_client` e `rc_beta` do `%ProgramData%\Riot Games\RiotClientInstalls.json`; e `C:\Riot Games\Riot Client\`. Sem nenhum, `LaunchError::RiotClientNotFound` lista onde procurou.
+
+```bash
+# Windows, com o LoL fechado
+cargo run -p easylobby-agent --example abrir_lol
+cargo run -p easylobby-agent --example abrir_lol -- --riot-client "D:\Riot Games\Riot Client\RiotClientServices.exe"
+```
+
+O example abre o LoL, espera conectar e mostra o invocador logado. `--patchline pbe` abre o PBE. A decisão de abrir ou não e a ordem de busca são testadas com processos e arquivos falsos (`plan_launch`/`find_riot_client`); no Linux, um teste também dispara um "Riot Client" falso e confere os argumentos. O pedido pela API (`launcher::request_launch`) é testado em `mock-lcu/tests/abrir_lol.rs`, com o mock no papel do Riot Client: ele registra os `POST /product-launcher/...` em `MockLcu::launches()`.
+
 ## Fechar a UI oficial (`ux`)
 
 A cada `Connected`, depois de REST e WAMP abrirem, a `LcuConnection` chama `POST /riotclient/kill-ux` (#12): fecha o `LeagueClientUx` e o client continua rodando, então a LCU segue respondendo. Isso vale também quando o LoL reabre. Se o agente não consegue conectar, a UI oficial fica aberta.
