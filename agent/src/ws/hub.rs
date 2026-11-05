@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use tokio::sync::broadcast;
 
-use crate::champ_select::{self, ChampSelect, CHAMP_SELECT_SESSION_PATH};
+use crate::champ_select::{self, ActionIntent, ChampSelect, CHAMP_SELECT_SESSION_PATH};
 use crate::connection::{ConnectionEvent, LcuConnection};
 use crate::gameflow::{self, GameflowPhase};
 use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError, LOBBY_PATH};
@@ -47,6 +47,50 @@ struct Shared {
     state: AgentState,
     /// Cliente REST da conexão atual, para os comandos da UI.
     client: Option<LcuClient>,
+    /// Muda a cada `Connected` e `Disconnected` (#73).
+    session: u64,
+    /// Contam as escritas no lobby e na busca, mesmo as que não mudam nada
+    /// (#73). Veja [`Stamp`].
+    lobby_rev: u64,
+    matchmaking_rev: u64,
+}
+
+/// Recurso do estado que um comando relê ou muda pelo REST.
+#[derive(Debug, Clone, Copy)]
+enum Resource {
+    Lobby,
+    Matchmaking,
+}
+
+impl Shared {
+    fn rev_mut(&mut self, resource: Resource) -> &mut u64 {
+        match resource {
+            Resource::Lobby => &mut self.lobby_rev,
+            Resource::Matchmaking => &mut self.matchmaking_rev,
+        }
+    }
+
+    fn stamp(&mut self, resource: Resource) -> Stamp {
+        Stamp {
+            session: self.session,
+            rev: *self.rev_mut(resource),
+        }
+    }
+}
+
+/// Sessão e revisão de um recurso no momento em que uma requisição REST
+/// saiu (#73).
+///
+/// Os comandos esperam a LCU fora da trava, e enquanto isso o WAMP e a queda
+/// da conexão continuam mudando o estado. Um resultado REST só é aplicado se,
+/// com a trava pega, a sessão e a revisão ainda forem as do carimbo: nesse
+/// caso nada mudou o recurso durante a espera e a resposta é a notícia mais
+/// nova. Se algo mudou, o estado já publicado é pelo menos tão novo quanto a
+/// resposta, e ela é descartada.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Stamp {
+    session: u64,
+    rev: u64,
 }
 
 impl Hub {
@@ -57,6 +101,9 @@ impl Hub {
                 shared: Mutex::new(Shared {
                     state: AgentState::default(),
                     client: None,
+                    session: 0,
+                    lobby_rev: 0,
+                    matchmaking_rev: 0,
                 }),
                 tx,
             }),
@@ -149,26 +196,52 @@ impl Hub {
     }
 
     pub fn set_lobby(&self, lobby: Option<Lobby>) {
+        self.update(|shared| write_lobby(shared, lobby));
+    }
+
+    /// Cliente da conexão atual e o carimbo de `resource`, lidos juntos.
+    /// Tire o carimbo logo antes da requisição cujo resultado vai aplicar.
+    fn begin(&self, resource: Resource) -> Option<(LcuClient, Stamp)> {
+        let mut shared = self.lock();
+        let client = shared.client.clone()?;
+        Some((client, shared.stamp(resource)))
+    }
+
+    /// Aplica o resultado de uma requisição REST só se nada mudou o recurso
+    /// desde `stamp` (veja [`Stamp`]). A conferência, a mudança e a
+    /// publicação acontecem com a mesma trava. Devolve se aplicou.
+    fn update_if(
+        &self,
+        resource: Resource,
+        stamp: Stamp,
+        f: impl FnOnce(&mut Shared) -> Option<ServerMessage>,
+    ) -> bool {
+        let mut applied = false;
         self.update(|shared| {
-            if shared.state.lobby == lobby {
+            if shared.stamp(resource) != stamp {
                 return None;
             }
-            shared.state.lobby = lobby.clone();
-            Some(ServerMessage::Lobby { lobby })
+            applied = true;
+            f(shared)
         });
+        applied
+    }
+
+    fn set_lobby_if(&self, stamp: Stamp, lobby: Option<Lobby>) -> bool {
+        self.update_if(Resource::Lobby, stamp, |shared| write_lobby(shared, lobby))
     }
 
     /// Cria um lobby na fila `queue` ou troca a fila do lobby atual (comando
     /// `createLobby`, #17). Publica o lobby que a LCU respondeu antes de
     /// devolver, sem esperar o evento do WAMP.
     pub async fn create_lobby(&self, queue: Queue) -> CommandResult {
-        let Some(client) = self.client() else {
+        let Some((client, stamp)) = self.begin(Resource::Lobby) else {
             return not_connected();
         };
         match lobby::create_lobby(&client, queue).await {
             Ok(lobby) => {
                 if lobby.is_some() {
-                    self.set_lobby(lobby);
+                    self.set_lobby_if(stamp, lobby);
                 }
                 CommandResult::Ok
             }
@@ -178,12 +251,13 @@ impl Hub {
 
     /// Sai do lobby (comando `leaveLobby`, #17).
     pub async fn leave_lobby(&self) -> CommandResult {
-        let Some(client) = self.client() else {
+        let Some((client, stamp)) = self.begin(Resource::Lobby) else {
             return not_connected();
         };
         match lobby::leave_lobby(&client).await {
             Ok(()) => {
-                self.set_lobby(None);
+                // Um lobby que o WAMP trouxe durante a espera é mais novo.
+                self.set_lobby_if(stamp, None);
                 CommandResult::Ok
             }
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
@@ -202,9 +276,12 @@ impl Hub {
         };
         match lobby::set_positions(&client, first, second).await {
             Ok(()) => {
-                // Se a releitura falhar, o evento do WAMP corrige depois.
-                if let Ok(Some(lobby)) = lobby::current_lobby(&client).await {
-                    self.set_lobby(Some(lobby));
+                // Se a releitura falhar ou chegar atrasada, o evento do WAMP
+                // corrige ou já corrigiu.
+                if let Some((client, stamp)) = self.begin(Resource::Lobby) {
+                    if let Ok(Some(lobby)) = lobby::current_lobby(&client).await {
+                        self.set_lobby_if(stamp, Some(lobby));
+                    }
                 }
                 CommandResult::Ok
             }
@@ -218,13 +295,13 @@ impl Hub {
     }
 
     pub fn set_matchmaking(&self, matchmaking: Option<Matchmaking>) {
-        self.update(|shared| {
-            if shared.state.matchmaking == matchmaking {
-                return None;
-            }
-            shared.state.matchmaking = matchmaking.clone();
-            Some(ServerMessage::Matchmaking { matchmaking })
-        });
+        self.update(|shared| write_matchmaking(shared, matchmaking));
+    }
+
+    fn set_matchmaking_if(&self, stamp: Stamp, matchmaking: Option<Matchmaking>) -> bool {
+        self.update_if(Resource::Matchmaking, stamp, |shared| {
+            write_matchmaking(shared, matchmaking)
+        })
     }
 
     pub fn set_champ_select(&self, champ_select: Option<ChampSelect>) {
@@ -349,6 +426,53 @@ impl Hub {
         command_result(result)
     }
 
+    /// Marca um campeão numa ação da seleção sem confirmar (comando
+    /// `hoverChampion`, #23). Confere o pedido contra a seleção atual, e
+    /// relê a sessão pelo REST e a publica antes de devolver.
+    pub async fn hover_champion(&self, action_id: u32, champion_id: u32) -> CommandResult {
+        self.champ_select_action(action_id, champion_id, ActionIntent::Hover)
+            .await
+    }
+
+    /// Confirma o ban ou o pick (comando `confirmAction`, #23). Como
+    /// [`Hub::hover_champion`].
+    pub async fn confirm_action(&self, action_id: u32, champion_id: u32) -> CommandResult {
+        self.champ_select_action(action_id, champion_id, ActionIntent::Confirm)
+            .await
+    }
+
+    async fn champ_select_action(
+        &self,
+        action_id: u32,
+        champion_id: u32,
+        intent: ActionIntent,
+    ) -> CommandResult {
+        let (client, champ_select) = {
+            let shared = self.lock();
+            (shared.client.clone(), shared.state.champ_select.clone())
+        };
+        let Some(client) = client else {
+            return not_connected();
+        };
+        if let Err(invalid) =
+            champ_select::check_action(champ_select.as_ref(), action_id, champion_id, intent)
+        {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        let sent = match intent {
+            ActionIntent::Hover => champ_select::hover(&client, action_id, champion_id).await,
+            ActionIntent::Confirm => champ_select::confirm(&client, action_id, champion_id).await,
+        };
+        if let Err(error) = sent {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        // Se a releitura falhar, o evento do WAMP traz a sessão logo depois.
+        if let Ok(Some(session)) = champ_select::current_session(&client).await {
+            self.set_champ_select(Some(session));
+        }
+        CommandResult::Ok
+    }
+
     /// Entra na fila com o lobby atual (comando `startQueue`, #19). Relê a
     /// busca pelo REST e a publica antes de devolver, sem esperar o evento do
     /// WAMP.
@@ -359,21 +483,25 @@ impl Hub {
         if let Err(error) = matchmaking::start_search(&client).await {
             return CommandResult::error(ErrorCode::Lcu, error.to_string());
         }
-        // Se a releitura falhar, o evento do WAMP traz a busca logo depois.
-        if let Ok(Some(search)) = matchmaking::current_search(&client).await {
-            self.set_matchmaking(Some(search));
+        // Se a releitura falhar ou chegar atrasada, o evento do WAMP traz ou
+        // já trouxe a busca.
+        if let Some((client, stamp)) = self.begin(Resource::Matchmaking) {
+            if let Ok(Some(search)) = matchmaking::current_search(&client).await {
+                self.set_matchmaking_if(stamp, Some(search));
+            }
         }
         CommandResult::Ok
     }
 
     /// Sai da fila (comando `stopQueue`, #19).
     pub async fn stop_queue(&self) -> CommandResult {
-        let Some(client) = self.client() else {
+        let Some((client, stamp)) = self.begin(Resource::Matchmaking) else {
             return not_connected();
         };
         match matchmaking::stop_search(&client).await {
             Ok(()) => {
-                self.set_matchmaking(None);
+                // Uma busca que o WAMP trouxe durante a espera é mais nova.
+                self.set_matchmaking_if(stamp, None);
                 CommandResult::Ok
             }
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
@@ -390,7 +518,15 @@ impl Hub {
         match event {
             ConnectionEvent::Connected(session) => {
                 let client = session.client.clone();
-                self.lock().client = Some(session.client);
+                let (lobby_stamp, search_stamp) = {
+                    let mut shared = self.lock();
+                    shared.client = Some(session.client);
+                    shared.session += 1;
+                    (
+                        shared.stamp(Resource::Lobby),
+                        shared.stamp(Resource::Matchmaking),
+                    )
+                };
                 self.set_lcu_status(LcuStatus::Connected {
                     session: u32::try_from(session.id).unwrap_or(u32::MAX),
                 });
@@ -407,8 +543,9 @@ impl Hub {
                 self.set_summoner(summoner.ok());
                 let phase = phase.ok();
                 self.set_gameflow_phase(phase);
-                self.set_lobby(lobby.ok().flatten());
-                self.set_matchmaking(search.ok().flatten());
+                // Um comando que publicou durante a releitura é mais novo.
+                self.set_lobby_if(lobby_stamp, lobby.ok().flatten());
+                self.set_matchmaking_if(search_stamp, search.ok().flatten());
                 // O catálogo antes das páginas, para a UI já poder desenhá-las.
                 self.set_rune_catalog(rune_catalog.ok().flatten());
                 self.set_rune_pages(rune_pages.ok());
@@ -428,7 +565,11 @@ impl Hub {
             }
             ConnectionEvent::Event(event) => self.apply_lcu_event(&event),
             ConnectionEvent::Disconnected(reason) => {
-                self.lock().client = None;
+                {
+                    let mut shared = self.lock();
+                    shared.client = None;
+                    shared.session += 1;
+                }
                 self.set_summoner(None);
                 self.set_gameflow_phase(None);
                 self.set_ready_check(None);
@@ -528,6 +669,29 @@ impl std::fmt::Debug for Hub {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Hub").field("state", &self.state()).finish()
     }
+}
+
+/// Troca o lobby, contando a escrita mesmo quando nada muda (#73).
+fn write_lobby(shared: &mut Shared, lobby: Option<Lobby>) -> Option<ServerMessage> {
+    shared.lobby_rev += 1;
+    if shared.state.lobby == lobby {
+        return None;
+    }
+    shared.state.lobby = lobby.clone();
+    Some(ServerMessage::Lobby { lobby })
+}
+
+/// Troca a busca, contando a escrita mesmo quando nada muda (#73).
+fn write_matchmaking(
+    shared: &mut Shared,
+    matchmaking: Option<Matchmaking>,
+) -> Option<ServerMessage> {
+    shared.matchmaking_rev += 1;
+    if shared.state.matchmaking == matchmaking {
+        return None;
+    }
+    shared.state.matchmaking = matchmaking.clone();
+    Some(ServerMessage::Matchmaking { matchmaking })
 }
 
 fn not_connected() -> CommandResult {
@@ -930,6 +1094,50 @@ mod tests {
         assert_eq!(state.matchmaking, None);
         assert!(matches!(state.lcu, LcuStatus::Disconnected { .. }));
         assert!(hub.client().is_none());
+    }
+
+    #[tokio::test]
+    async fn resultado_rest_velho_e_descartado() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        let search = |time: f64| {
+            Matchmaking::from_json(&json!({"searchState": "Searching", "timeInQueue": time}))
+        };
+        let stamp = |resource| hub.lock().stamp(resource);
+
+        // Nada mudou desde o carimbo: aplica e publica.
+        let s = stamp(Resource::Matchmaking);
+        assert!(hub.set_matchmaking_if(s, search(1.0)));
+        assert!(matches!(
+            rx.try_recv(),
+            Ok(ServerMessage::Matchmaking { .. })
+        ));
+
+        // O WAMP mudou durante a espera: a resposta velha não volta.
+        let s = stamp(Resource::Matchmaking);
+        hub.set_matchmaking(None);
+        assert!(!hub.set_matchmaking_if(s, search(2.0)));
+        assert_eq!(hub.state().matchmaking, None);
+
+        // Uma escrita igual, que não gera mensagem, também conta.
+        let s = stamp(Resource::Matchmaking);
+        hub.set_matchmaking(None);
+        assert!(!hub.set_matchmaking_if(s, search(3.0)));
+
+        // O carimbo de um recurso não depende do outro.
+        let lobby = || Lobby::from_json(&json!({"gameConfig": {"queueId": 420}}));
+        let s = stamp(Resource::Lobby);
+        hub.set_matchmaking(search(4.0));
+        assert!(hub.set_lobby_if(s, lobby()));
+
+        // A conexão caiu: nada da sessão antiga entra.
+        let s = stamp(Resource::Lobby);
+        hub.apply(ConnectionEvent::Disconnected(
+            crate::connection::DisconnectReason::Closed,
+        ))
+        .await;
+        assert!(!hub.set_lobby_if(s, lobby()));
+        assert_eq!(hub.state().lobby, None);
     }
 
     fn ready_check(state: &str, response: &str, timer: f64) -> ConnectionEvent {
