@@ -44,6 +44,32 @@ cargo run -p easylobby-agent --example invocador -- --mock
 
 Com `--mock` (ou `--lockfile <arquivo>`), o example lê o lockfile do mock e fixa o `mock-lcu-ca.pem` que fica ao lado dele.
 
+## Eventos em tempo real (`wamp`)
+
+`wamp::LcuEvents` abre o WebSocket WAMP da LCU (`wss://127.0.0.1:<porta>/`), com o mesmo Basic Auth e o mesmo `riotgames.pem` fixado do cliente REST, e se inscreve em `OnJsonApiEvent`. Cada `next().await` devolve o próximo `LcuEvent` (`uri`, `event_type` `Create`/`Update`/`Delete` e `data`) que passa no `EventFilter`, na ordem em que a LCU mandou.
+
+```rust
+let credentials = lockfile::discover()?;
+let mut events = LcuEvents::connect(&credentials, EventFilter::easylobby()).await?;
+while let Some(event) = events.next().await {
+    let event = event?;
+    // event.uri == "/lol-gameflow/v1/gameflow-phase", event.data == "ReadyCheck"...
+}
+// `None`: a LCU fechou a conexão (LoL fechado). Reconectar é com o #10.
+```
+
+`EventFilter::easylobby()` guarda gameflow, lobby, fila e ready check, champ select, runas, chat e o invocador logado, e tira `/lol-chat/v1/settings`. O filtro olha a `uri` antes de interpretar o `data`, então eventos grandes que não interessam custam pouco. `EventFilter::prefixes([...])` e `EventFilter::all()` servem para outros casos. Senha errada vira `WampError::Unauthorized`; LoL fechado, certificado que não bate e tempo esgotado têm `is_connect()`.
+
+```bash
+# LoL real, aberto e logado
+cargo run -p easylobby-agent --example eventos
+
+# mock-lcu (com `cargo run -p mock-lcu` em outro terminal)
+cargo run -p easylobby-agent --example eventos -- --mock
+```
+
+`--todos` mostra também os eventos fora do filtro. Os testes em `mock-lcu/tests/cliente_wamp.rs` reproduzem a gravação `16.22` e conferem que todos os eventos filtrados chegam na ordem, o filtro, o modo `http`, o 401, o certificado errado e o `None` quando o mock para.
+
 ## Fixtures da LCU
 
 Respostas REST e eventos WAMP gravados de sessões reais ficam em `tests/fixtures/<patch>/` e alimentam o `mock-lcu` (#6). Cada pasta tem:
