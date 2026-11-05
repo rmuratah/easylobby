@@ -191,6 +191,7 @@ async fn session(mut socket: WebSocket, hub: Hub) {
                                 replies.push(hello(state));
                                 CommandResult::Ok
                             }
+                            Command::LaunchUx => hub.launch_ux().await,
                         };
                         replies.push(ServerMessage::Response { id, result });
                         replies

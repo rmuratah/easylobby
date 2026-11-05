@@ -7,9 +7,10 @@ use tokio::sync::broadcast;
 use crate::connection::{ConnectionEvent, LcuConnection};
 use crate::rest::LcuClient;
 use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
+use crate::ux;
 use crate::wamp::{EventType, LcuEvent};
 
-use super::protocol::{AgentState, LcuStatus, ServerMessage};
+use super::protocol::{AgentState, CommandResult, ErrorCode, LcuStatus, ServerMessage};
 
 /// Fase do gameflow (`"Lobby"`, `"ChampSelect"`...).
 pub const GAMEFLOW_PHASE_PATH: &str = "/lol-gameflow/v1/gameflow-phase";
@@ -69,6 +70,17 @@ impl Hub {
     pub fn subscribe(&self) -> (AgentState, broadcast::Receiver<ServerMessage>) {
         let shared = self.lock();
         (shared.state.clone(), self.inner.tx.subscribe())
+    }
+
+    /// Reabre a UI oficial pela conexão atual (comando `launchUx`, #13).
+    pub async fn launch_ux(&self) -> CommandResult {
+        let Some(client) = self.client() else {
+            return CommandResult::error(ErrorCode::NotConnected, "o LoL não está aberto");
+        };
+        match ux::launch_ux(&client).await {
+            Ok(()) => CommandResult::Ok,
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
     }
 
     pub fn set_lcu_status(&self, status: LcuStatus) {
@@ -284,5 +296,17 @@ mod tests {
         assert_eq!(state.gameflow_phase, None);
         assert!(matches!(state.lcu, LcuStatus::Disconnected { .. }));
         assert!(hub.client().is_none());
+    }
+
+    #[tokio::test]
+    async fn launch_ux_sem_lol_responde_not_connected() {
+        let hub = Hub::new();
+        assert!(matches!(
+            hub.launch_ux().await,
+            CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            }
+        ));
     }
 }
