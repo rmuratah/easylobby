@@ -268,6 +268,15 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                             Command::SetPositions { first, second } => {
                                 hub.set_positions(first, second).await
                             }
+                            Command::AcceptInvitation { invitation_id } => {
+                                hub.accept_invitation(&invitation_id).await
+                            }
+                            Command::DeclineInvitation { invitation_id } => {
+                                hub.decline_invitation(&invitation_id).await
+                            }
+                            Command::InviteToLobby { invitees } => {
+                                hub.invite_to_lobby(&invitees).await
+                            }
                             Command::SendChatMessage {
                                 conversation_id,
                                 body,

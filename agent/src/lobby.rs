@@ -18,6 +18,10 @@
 //! `PUT /lol-lobby/v2/lobby/members/localMember/position-preferences`. A
 //! LCU responde sem corpo e manda o lobby novo pelo WAMP.
 //!
+//! Convites (#32): o lobby traz os convites que o grupo mandou em
+//! `invitations` e, no `localMember`, se o jogador pode convidar
+//! (`allowedInviteOthers`). Veja [`crate::invitations`].
+//!
 //! O [`Lobby`] guarda só o que a tela de lobby usa. Os outros campos da
 //! resposta são ignorados, então um campo novo num patch não quebra a
 //! leitura.
@@ -206,6 +210,84 @@ pub struct Lobby {
     pub show_position_selector: bool,
     /// Quem está no lobby, o jogador logado incluído.
     pub members: Vec<LobbyMember>,
+    /// Se o jogador logado pode convidar (#32): o líder sempre pode, e os
+    /// outros quando o líder libera.
+    pub can_invite: bool,
+    /// Convites que o grupo mandou e que não foram aceitos (#32): pendentes,
+    /// recusados, expulsos ou que deram erro. Quem aceitou aparece em
+    /// `members`.
+    pub invitations: Vec<LobbyInvitation>,
+}
+
+/// Um convite que o grupo mandou (#32).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct LobbyInvitation {
+    /// Quem foi convidado. A UI cruza com a lista de amigos para o nome.
+    pub puuid: String,
+    #[ts(type = "number")]
+    pub summoner_id: u64,
+    pub state: InvitationState,
+}
+
+/// Estado de um convite enviado, como a LCU manda.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+pub enum InvitationState {
+    /// Saindo; a LCU ainda não confirmou o envio.
+    Requested,
+    /// Enviado, esperando a resposta.
+    Pending,
+    /// Aceito. O [`Lobby`] não mostra esses: o jogador está em `members`.
+    Accepted,
+    /// Recusado.
+    Declined,
+    /// O jogador entrou e foi expulso do lobby.
+    Kicked,
+    /// Em espera (lobby cheio, por exemplo).
+    OnHold,
+    /// A LCU não conseguiu entregar.
+    Error,
+    /// Um estado que a LCU não mandava quando este código foi escrito.
+    // Lido por [`InvitationState::from_lcu`]; o `#[serde(other)]` faria o
+    // mesmo, mas o ts-rs não o entende.
+    Unknown,
+}
+
+impl InvitationState {
+    /// Todos os estados, com [`InvitationState::Unknown`] no fim.
+    pub const ALL: [InvitationState; 8] = [
+        InvitationState::Requested,
+        InvitationState::Pending,
+        InvitationState::Accepted,
+        InvitationState::Declined,
+        InvitationState::Kicked,
+        InvitationState::OnHold,
+        InvitationState::Error,
+        InvitationState::Unknown,
+    ];
+
+    /// Nome do estado na LCU (e no `/ws`).
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            InvitationState::Requested => "Requested",
+            InvitationState::Pending => "Pending",
+            InvitationState::Accepted => "Accepted",
+            InvitationState::Declined => "Declined",
+            InvitationState::Kicked => "Kicked",
+            InvitationState::OnHold => "OnHold",
+            InvitationState::Error => "Error",
+            InvitationState::Unknown => "Unknown",
+        }
+    }
+
+    /// O estado de um nome da LCU; um nome desconhecido vira
+    /// [`InvitationState::Unknown`].
+    pub fn from_lcu(name: &str) -> InvitationState {
+        InvitationState::ALL
+            .into_iter()
+            .find(|s| s.as_str() == name)
+            .unwrap_or(InvitationState::Unknown)
+    }
 }
 
 /// Um jogador no lobby. A LCU não manda o nome aqui; a UI cruza o `puuid`
@@ -245,15 +327,32 @@ impl Lobby {
                 first_position: Position::from_lcu(m.first_position_preference.as_deref()),
                 second_position: Position::from_lcu(m.second_position_preference.as_deref()),
             })
+            .collect::<Vec<LobbyMember>>();
+        // A LCU lista em `invitations` até o próprio jogador logado, como
+        // `Accepted`. Quem aceitou está em `members` (ou entrou e saiu), e
+        // fica de fora.
+        let invitations = raw
+            .invitations
+            .into_iter()
+            .filter(|i| InvitationState::from_lcu(&i.state) != InvitationState::Accepted)
+            .filter(|i| i.to_puuid.is_empty() || !members.iter().any(|m| m.puuid == i.to_puuid))
+            .map(|i| LobbyInvitation {
+                puuid: i.to_puuid,
+                summoner_id: i.to_summoner_id,
+                state: InvitationState::from_lcu(&i.state),
+            })
             .collect();
+        let local_member = raw.local_member.as_ref();
         Some(Lobby {
             queue_id: raw.game_config.queue_id,
             queue: Queue::from_id(raw.game_config.queue_id),
             max_lobby_size: raw.game_config.max_lobby_size,
-            is_leader: raw.local_member.is_some_and(|m| m.is_leader),
+            is_leader: local_member.is_some_and(|m| m.is_leader),
             can_start_activity: raw.can_start_activity,
             show_position_selector: raw.game_config.show_position_selector,
             members,
+            can_invite: local_member.is_some_and(|m| m.is_leader || m.allowed_invite_others),
+            invitations,
         })
     }
 }
@@ -269,6 +368,19 @@ struct RawLobby {
     local_member: Option<RawMember>,
     #[serde(default)]
     members: Vec<RawMember>,
+    #[serde(default)]
+    invitations: Vec<RawInvitation>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawInvitation {
+    #[serde(default)]
+    state: String,
+    #[serde(default)]
+    to_puuid: String,
+    #[serde(default)]
+    to_summoner_id: u64,
 }
 
 #[derive(Deserialize)]
@@ -294,6 +406,8 @@ struct RawMember {
     summoner_level: u32,
     #[serde(default)]
     is_leader: bool,
+    #[serde(default)]
+    allowed_invite_others: bool,
     #[serde(default)]
     first_position_preference: Option<String>,
     #[serde(default)]
@@ -398,6 +512,9 @@ mod tests {
         assert!(lobby.members[0].is_leader);
         assert!(lobby.show_position_selector);
         assert_eq!(lobby.members[0].first_position, Position::Unselected);
+        assert!(lobby.can_invite);
+        // O convite `Accepted` do próprio jogador não aparece.
+        assert_eq!(lobby.invitations, []);
 
         // Mais adiante na gravação o jogador escolheu meio e selva.
         let escolhido = rest
@@ -461,6 +578,8 @@ mod tests {
         assert_eq!(lobby.queue, None);
         assert!(!lobby.is_leader);
         assert!(lobby.members.is_empty());
+        assert!(!lobby.can_invite);
+        assert!(lobby.invitations.is_empty());
 
         assert_eq!(Lobby::from_json(&json!(null)), None);
         assert_eq!(Lobby::from_json(&json!({"errorCode": "RPC_ERROR"})), None);
@@ -484,6 +603,12 @@ mod tests {
                 first_position: Position::Top,
                 second_position: Position::Unselected,
             }],
+            can_invite: true,
+            invitations: vec![LobbyInvitation {
+                puuid: "amigo".into(),
+                summoner_id: 4,
+                state: InvitationState::Pending,
+            }],
         };
         assert_eq!(
             serde_json::to_value(&lobby).unwrap(),
@@ -503,7 +628,53 @@ mod tests {
                     "firstPosition": "top",
                     "secondPosition": "unselected",
                 }],
+                "canInvite": true,
+                "invitations": [{"puuid": "amigo", "summonerId": 4, "state": "Pending"}],
             })
         );
+    }
+
+    #[test]
+    fn convites_enviados() {
+        let invitation = |puuid: &str, state: &str| {
+            json!({"invitationId": "", "invitationType": "lobby", "state": state,
+                   "timestamp": "0", "toPuuid": puuid, "toSummonerId": 7, "toSummonerName": ""})
+        };
+        let lobby = Lobby::from_json(&json!({
+            "gameConfig": {"queueId": 400},
+            "localMember": {"puuid": "eu", "isLeader": false, "allowedInviteOthers": true},
+            "members": [{"puuid": "eu"}, {"puuid": "entrou"}],
+            "invitations": [
+                invitation("eu", "Accepted"),
+                invitation("entrou", "Accepted"),
+                invitation("esperando", "Pending"),
+                invitation("recusou", "Declined"),
+                invitation("saiu", "Accepted"),
+                invitation("novo", "EstadoDeUmPatchNovo"),
+            ],
+        }))
+        .unwrap();
+        assert!(lobby.can_invite, "o líder liberou os convites");
+        let seen: Vec<(&str, InvitationState)> = lobby
+            .invitations
+            .iter()
+            .map(|i| (i.puuid.as_str(), i.state))
+            .collect();
+        assert_eq!(
+            seen,
+            [
+                ("esperando", InvitationState::Pending),
+                ("recusou", InvitationState::Declined),
+                ("novo", InvitationState::Unknown),
+            ]
+        );
+        assert_eq!(lobby.invitations[0].summoner_id, 7);
+
+        let sem_permissao = Lobby::from_json(&json!({
+            "gameConfig": {"queueId": 400},
+            "localMember": {"puuid": "eu", "isLeader": false, "allowedInviteOthers": false},
+        }))
+        .unwrap();
+        assert!(!sem_permissao.can_invite);
     }
 }

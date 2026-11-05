@@ -16,6 +16,7 @@
 //! - [`ux`]: fecha a UI oficial ao conectar (`kill-ux`) e reabre
 //!   (`launch-ux`) (#12)
 //! - [`lobby`]: lobby e escolha de fila (#17)
+//! - [`invitations`]: convites de lobby recebidos e enviados (#32)
 //! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19)
 //! - [`ws`]: canal `/ws` com eventos e comandos tipados para a UI (#15)
 //! - [`gameflow`]: fase do gameflow (lobby, fila, ready check, champ
@@ -35,6 +36,7 @@ pub mod connection;
 pub mod fixtures;
 pub mod friends;
 pub mod gameflow;
+pub mod invitations;
 pub mod launcher;
 pub mod lobby;
 pub mod lockfile;

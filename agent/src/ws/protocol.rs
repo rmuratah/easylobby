@@ -12,6 +12,7 @@
 //! {"type":"readyCheck","readyCheck":{"state":"InProgress","playerResponse":"None","timer":3.0,"duration":12.0}}
 //! {"type":"lobby","lobby":{"queueId":420,"queue":"rankedSolo",...}}
 //! {"type":"champSelect","champSelect":{"timer":{"phase":"BAN_PICK",...},"myTeam":[...],...}}
+//! {"type":"receivedInvitations","invitations":[{"invitationId":"...","fromSummonerId":1,...}]}
 //! {"type":"conversation","conversation":{"id":"...","gameName":"...","messages":[...],...}}
 //! {"type":"runePages","runePages":{"pages":[...],"currentPageId":994528921,"canCreatePage":true}}
 //! {"type":"runeCatalog","runeCatalog":{"styles":[...],"perks":[...]}}
@@ -47,7 +48,8 @@ use crate::champ_select::{
 use crate::chat::{ChatMessage, Conversation};
 use crate::friends::{Activity, Availability, Friend, LeagueActivity, LeagueStatus};
 use crate::gameflow::GameflowPhase;
-use crate::lobby::{Lobby, LobbyMember, Position, Queue};
+use crate::invitations::{Invitee, ReceivedInvitation};
+use crate::lobby::{InvitationState, Lobby, LobbyInvitation, LobbyMember, Position, Queue};
 use crate::matchmaking::{Matchmaking, MatchmakingError, SearchState};
 use crate::ready_check::{ReadyCheck, ReadyCheckResponse, ReadyCheckState};
 use crate::runes::{
@@ -101,6 +103,12 @@ pub enum ServerMessage {
     /// seleção, não só o que mudou. `null` quando a seleção fecha (partida
     /// abrindo, dodge) e com o LoL fechado.
     ChampSelect { champ_select: Option<ChampSelect> },
+    /// Os convites de lobby recebidos mudaram (#32): chegou um, ou um foi
+    /// aceito, recusado ou cancelado. Sempre a lista inteira dos pendentes;
+    /// vazia quando não há nenhum e com o LoL fechado.
+    ReceivedInvitations {
+        invitations: Vec<ReceivedInvitation>,
+    },
     /// Uma conversa 1:1 com um amigo (#31) abriu ou mudou: mensagem nova
     /// (recebida ou mandada), não lidas, nome do amigo. Sempre a conversa
     /// inteira, com o histórico da sessão; a UI troca a conversa de mesmo
@@ -142,6 +150,8 @@ pub struct AgentState {
     pub matchmaking: Option<Matchmaking>,
     /// Seleção de campeões em andamento (#22), ou `null`.
     pub champ_select: Option<ChampSelect>,
+    /// Convites de lobby recebidos e ainda pendentes (#32).
+    pub received_invitations: Vec<ReceivedInvitation>,
     /// Conversas 1:1 abertas (#31), cada uma com o histórico da sessão. Sem
     /// ordem definida; a UI ordena (pela última mensagem, por exemplo).
     pub conversations: Vec<Conversation>,
@@ -255,6 +265,26 @@ pub enum Command {
     /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
     /// recusar.
     StopQueue,
+    /// Aceita um convite de lobby recebido (#32) e entra no lobby de quem
+    /// convidou. O lobby novo e a lista de convites sem o aceito chegam nas
+    /// mensagens `lobby` e `receivedInvitations` antes da resposta (o lobby
+    /// pode chegar um pouco depois, pelo WAMP). Responde `invalidCommand`
+    /// sem falar com a LCU se o id tiver caracteres que a LCU não usa,
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (convite
+    /// expirado, jogador na fila...).
+    AcceptInvitation { invitation_id: String },
+    /// Recusa um convite de lobby recebido (#32). A lista sem ele chega numa
+    /// mensagem `receivedInvitations` antes da resposta. Mesmos erros do
+    /// `acceptInvitation`.
+    DeclineInvitation { invitation_id: String },
+    /// Convida jogadores para o lobby atual (#32), com o `summonerId` e o
+    /// `puuid` da lista de amigos. Só vale com `canInvite` no lobby. Os
+    /// convites aparecem em `invitations` do lobby, que chega numa mensagem
+    /// `lobby` antes da resposta. Responde `invalidCommand` sem falar com a
+    /// LCU com a lista vazia ou um convidado sem `summonerId` nem `puuid`,
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (fora de
+    /// lobby, sem permissão, lobby cheio...).
+    InviteToLobby { invitees: Vec<Invitee> },
     /// Manda `body` na conversa 1:1 `conversationId` (#31): o `id` de uma
     /// [`Conversation`], que é o `pid` do amigo no chat. Se a conversa ainda
     /// não estava aberta, a LCU abre e ela chega numa mensagem
@@ -382,6 +412,10 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<ReadyCheckState>(&cfg)?,
         file::<ReadyCheckResponse>(&cfg)?,
         file::<Lobby>(&cfg)?,
+        file::<LobbyInvitation>(&cfg)?,
+        file::<InvitationState>(&cfg)?,
+        file::<ReceivedInvitation>(&cfg)?,
+        file::<Invitee>(&cfg)?,
         file::<LobbyMember>(&cfg)?,
         file::<Position>(&cfg)?,
         file::<Queue>(&cfg)?,
@@ -446,6 +480,7 @@ mod tests {
                     "lobby": null,
                     "matchmaking": null,
                     "champSelect": null,
+                    "receivedInvitations": [],
                     "conversations": [],
                     "runePages": null,
                     "runeCatalog": null,
@@ -683,6 +718,42 @@ mod tests {
                 }
             );
         }
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 12,
+            "command": {"type": "acceptInvitation", "invitationId": "abc"},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::AcceptInvitation {
+                invitation_id: "abc".into()
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 13,
+            "command": {"type": "declineInvitation", "invitationId": "abc"},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::DeclineInvitation {
+                invitation_id: "abc".into()
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 14,
+            "command": {"type": "inviteToLobby", "invitees": [{"summonerId": 1003, "puuid": "p"}]},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::InviteToLobby {
+                invitees: vec![Invitee {
+                    summoner_id: 1003,
+                    puuid: "p".into()
+                }]
+            }
+        );
         // Só as filas que o easylobby oferece.
         assert!(serde_json::from_value::<ClientMessage>(
             json!({"id": 1, "command": {"type": "createLobby", "queue": "tft"}})
