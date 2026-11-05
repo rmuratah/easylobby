@@ -205,7 +205,7 @@ fn write(path: &Path, content: &str) -> Result<(), FixtureError> {
 }
 
 /// Chaves com identificadores da conta, trocados por texto falso.
-const ID_STRING_KEYS: [&str; 7] = [
+const ID_STRING_KEYS: [&str; 8] = [
     "puuid",
     "obfuscatedPuuid",
     "pid",
@@ -213,6 +213,9 @@ const ID_STRING_KEYS: [&str; 7] = [
     "summonerId",
     "obfuscatedSummonerId",
     "playerId",
+    // Com o id da partida e a região dá para achar os participantes no
+    // histórico, inclusive a partida em que um amigo está agora.
+    "gameId",
 ];
 
 /// Chaves com nomes de jogadores.
@@ -224,6 +227,9 @@ const NAME_KEYS: [&str; 6] = [
     "playerName",
     "gameTag",
 ];
+
+/// Chaves com nomes de grupos de amigos, que o jogador escolhe.
+const GROUP_KEYS: [&str; 2] = ["groupName", "displayGroupName"];
 
 /// Chaves com texto livre escrito por jogadores.
 const FREE_TEXT_KEYS: [&str; 3] = ["statusMessage", "note", "lastSeenMessage"];
@@ -327,6 +333,8 @@ impl Sanitizer {
                 // `name` é ambíguo (campeão, fila, runa). Só é nome de jogador
                 // quando o objeto também identifica um jogador.
                 let is_player = map.contains_key("puuid") || map.contains_key("pid");
+                // Grupo de amigos (`/lol-chat/v1/friend-groups`).
+                let is_group = map.contains_key("isMetaGroup");
                 let mut out = serde_json::Map::new();
                 for (key, child) in map {
                     let new = if is_secret_key(key) {
@@ -335,6 +343,8 @@ impl Sanitizer {
                         self.fake_id(key_kind(key), child)
                     } else if NAME_KEYS.contains(&key.as_str()) || (is_player && key == "name") {
                         self.fake_text("name", child)
+                    } else if GROUP_KEYS.contains(&key.as_str()) || (is_group && key == "name") {
+                        self.fake_group(child)
                     } else if key == "tagLine" {
                         self.fake_text("tag", child)
                     } else if key == "body" {
@@ -378,16 +388,35 @@ impl Sanitizer {
             Value::Number(n) => match n.as_u64() {
                 Some(real) if real < FAKE_NUMBER_LIMIT => value.clone(),
                 None => value.clone(),
-                Some(real) => {
-                    let next = 1000 + self.numbers.len() as u64 + 1;
-                    Value::from(*self.numbers.entry(real).or_insert(next))
-                }
+                Some(real) => Value::from(self.fake_number(real)),
             },
+            // A LCU às vezes manda ids numéricos como texto (`"lol": {"gameId": "123"}`).
+            Value::String(s) if !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) => {
+                match s.parse::<u64>() {
+                    Ok(real) if real >= FAKE_NUMBER_LIMIT => {
+                        Value::String(self.fake_number(real).to_string())
+                    }
+                    _ => value.clone(),
+                }
+            }
             Value::String(_) => self.fake_text(kind, value),
             Value::Array(items) => {
                 Value::Array(items.iter().map(|v| self.fake_id(kind, v)).collect())
             }
             other => other.clone(),
+        }
+    }
+
+    fn fake_number(&mut self, real: u64) -> u64 {
+        let next = 1000 + self.numbers.len() as u64 + 1;
+        *self.numbers.entry(real).or_insert(next)
+    }
+
+    /// Nomes de grupo começando com `**` são os do sistema (`**Default`).
+    fn fake_group(&mut self, value: &Value) -> Value {
+        match value {
+            Value::String(s) if s.starts_with("**") => value.clone(),
+            _ => self.fake_text("group", value),
         }
     }
 
@@ -490,6 +519,22 @@ mod tests {
         assert_eq!(out["body"], FAKE_CHAT_BODY);
         assert_eq!(out["statusMessage"], "");
         assert_eq!(out["url"], "https://riot:REDACTED@127.0.0.1");
+    }
+
+    #[test]
+    fn troca_id_da_partida_e_grupos_de_amigos() {
+        let mut s = Sanitizer::new();
+        let out = s.sanitize(&json!({
+            "friend": { "puuid": "eeee-5555-real", "groupName": "amigos da facul", "displayGroupName": "**Default",
+                        "lol": { "gameId": "3300811915" } },
+            "session": { "gameData": { "gameId": 3300811915_u64 } },
+            "group": { "isMetaGroup": false, "name": "amigos da facul" }
+        }));
+        assert_eq!(out["friend"]["lol"]["gameId"], "1001");
+        assert_eq!(out["session"]["gameData"]["gameId"], 1001);
+        assert_eq!(out["friend"]["groupName"], "fake-group-0001");
+        assert_eq!(out["friend"]["displayGroupName"], "**Default");
+        assert_eq!(out["group"]["name"], "fake-group-0001");
     }
 
     #[test]

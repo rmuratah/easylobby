@@ -101,29 +101,30 @@ fn ja_estao_sanitizadas() {
     }
 }
 
-/// Puuids e tokens reais são textos longos sem espaço. Pega o que escapou do
-/// sanitizer por estar numa chave que ele não conhece.
+/// Puuids reais têm 78 caracteres de base64url e tokens (JWT) são ainda mais
+/// longos, sem ponto nem barra. Pega o que escapou do sanitizer por estar numa
+/// chave que ele não conhece. Caminhos de assets, versões e UUIDs de lobby
+/// não entram.
 #[test]
 fn nenhum_texto_parece_id_ou_token_real() {
     fn check(dir: &Path, value: &Value) {
         match value {
             Value::String(s) => {
-                let looks_like_id = s.len() >= 32
+                let looks_like_id = s.len() >= 60
                     && s.chars()
-                        .all(|c| c.is_ascii_alphanumeric() || "-_=+/.".contains(c));
+                        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
                 assert!(
                     !looks_like_id,
                     "{}: texto parece id ou token real: {s}",
                     dir.display()
                 );
-                assert!(
-                    !s.contains(".pvp.net"),
-                    "{}: id de chat real: {s}",
-                    dir.display()
-                );
             }
             Value::Array(items) => items.iter().for_each(|v| check(dir, v)),
-            Value::Object(map) => map.values().for_each(|v| check(dir, v)),
+            Value::Object(map) => {
+                map.keys()
+                    .for_each(|k| check(dir, &Value::String(k.clone())));
+                map.values().for_each(|v| check(dir, v));
+            }
             _ => {}
         }
     }

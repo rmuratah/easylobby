@@ -13,6 +13,12 @@
 //! cada mudança de fase do gameflow. Pare com Ctrl+C (ou `--segundos`). Tudo
 //! passa pelo `Sanitizer` antes de ir para `agent/tests/fixtures/<patch>/`.
 //!
+//! Para passar uma gravação antiga pelo sanitizer atual, sem abrir o LoL:
+//!
+//! ```bash
+//! cargo run -p easylobby-agent --example gravar_fixtures -- --ressanitizar agent/tests/fixtures/16.22
+//! ```
+//!
 //! Este example não usa `kill-ux`: deixe a UI oficial aberta e jogue a sessão
 //! por ela. Confira os arquivos antes de commitar.
 
@@ -68,6 +74,15 @@ const EVENT_PREFIXES: [&str; 7] = [
     "/lol-summoner/v1/current-summoner",
 ];
 
+/// URIs dentro dos prefixos que não interessam e carregam preferências do
+/// jogador (como os nomes dos grupos de amigos).
+const EVENT_EXCLUDED: [&str; 1] = ["/lol-chat/v1/settings"];
+
+fn wanted_event(uri: &str) -> bool {
+    EVENT_PREFIXES.iter().any(|p| uri.starts_with(p))
+        && !EVENT_EXCLUDED.iter().any(|p| uri.starts_with(p))
+}
+
 /// Tipos de mensagem WAMP 1 usados pela LCU.
 const WAMP_SUBSCRIBE: u8 = 5;
 const WAMP_EVENT: u8 = 8;
@@ -76,6 +91,7 @@ struct Args {
     patch: Option<String>,
     out: Option<PathBuf>,
     seconds: Option<u64>,
+    resanitize: Option<PathBuf>,
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -83,6 +99,7 @@ fn parse_args() -> Result<Args, String> {
         patch: None,
         out: None,
         seconds: None,
+        resanitize: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -93,8 +110,10 @@ fn parse_args() -> Result<Args, String> {
             "--segundos" => {
                 args.seconds = Some(value()?.parse().map_err(|_| "--segundos inválido")?)
             }
+            "--ressanitizar" => args.resanitize = Some(PathBuf::from(value()?)),
             "-h" | "--help" => {
                 println!("uso: gravar_fixtures [--patch 14.22] [--saida pasta] [--segundos N]");
+                println!("     gravar_fixtures --ressanitizar pasta");
                 std::process::exit(0);
             }
             _ => return Err(format!("argumento desconhecido: {arg}")),
@@ -173,7 +192,7 @@ impl Recorder {
     /// fase quando o evento é uma mudança de fase do gameflow.
     fn on_event(&mut self, payload: &Value) -> Option<String> {
         let uri = payload.get("uri")?.as_str()?;
-        if !EVENT_PREFIXES.iter().any(|p| uri.starts_with(p)) {
+        if !wanted_event(uri) {
             return None;
         }
         let event_type = payload
@@ -215,6 +234,9 @@ async fn main() {
 
 async fn run() -> Result<(), String> {
     let args = parse_args()?;
+    if let Some(dir) = &args.resanitize {
+        return resanitize(dir);
+    }
     let credentials = lockfile::discover().map_err(|e| e.to_string())?;
     println!("LCU em {}", credentials.base_url());
 
@@ -330,6 +352,29 @@ async fn run() -> Result<(), String> {
         out.display()
     );
     println!("confira os arquivos antes de commitar: nada de nomes, ids ou mensagens reais");
+    Ok(())
+}
+
+/// Passa um conjunto já gravado pelo sanitizer atual e grava por cima.
+fn resanitize(dir: &std::path::Path) -> Result<(), String> {
+    let mut set = FixtureSet::load(dir).map_err(|e| e.to_string())?;
+    set.events.retain(|e| wanted_event(&e.uri));
+    let mut sanitizer = Sanitizer::new();
+    // Os dados primeiro, para os ids que aparecem nos caminhos já serem conhecidos.
+    for r in &mut set.rest {
+        r.body = sanitizer.sanitize(&r.body);
+    }
+    for e in &mut set.events {
+        e.data = sanitizer.sanitize(&e.data);
+    }
+    for r in &mut set.rest {
+        r.path = sanitizer.sanitize_str(&r.path);
+    }
+    for e in &mut set.events {
+        e.uri = sanitizer.sanitize_str(&e.uri);
+    }
+    set.save(dir).map_err(|e| e.to_string())?;
+    println!("{} sanitizado de novo", dir.display());
     Ok(())
 }
 
