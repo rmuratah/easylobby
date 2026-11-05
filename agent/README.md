@@ -55,7 +55,7 @@ while let Some(event) = events.next().await {
     let event = event?;
     // event.uri == "/lol-gameflow/v1/gameflow-phase", event.data == "ReadyCheck"...
 }
-// `None`: a LCU fechou a conexão (LoL fechado). Reconectar é com o #10.
+// `None`: a LCU fechou a conexão (LoL fechado). Para reconectar, veja `connection`.
 ```
 
 `EventFilter::easylobby()` guarda gameflow, lobby, fila e ready check, champ select, runas, chat e o invocador logado, e tira `/lol-chat/v1/settings`. O filtro olha a `uri` antes de interpretar o `data`, então eventos grandes que não interessam custam pouco. `EventFilter::prefixes([...])` e `EventFilter::all()` servem para outros casos. Senha errada vira `WampError::Unauthorized`; LoL fechado, certificado que não bate e tempo esgotado têm `is_connect()`.
@@ -69,6 +69,32 @@ cargo run -p easylobby-agent --example eventos -- --mock
 ```
 
 `--todos` mostra também os eventos fora do filtro. Os testes em `mock-lcu/tests/cliente_wamp.rs` reproduzem a gravação `16.22` e conferem que todos os eventos filtrados chegam na ordem, o filtro, o modo `http`, o 401, o certificado errado e o `None` quando o mock para.
+
+## Reconexão automática (`connection`)
+
+`connection::LcuConnection` junta descoberta, REST e WAMP numa conexão que sobrevive ao LoL fechar e reabrir (#10). Cada `next().await` devolve um `ConnectionEvent`:
+
+| Evento | Quando |
+| --- | --- |
+| `Connected(session)` | Conectou num client (o primeiro ou um que reabriu). `session.client` é o `LcuClient` para os comandos; os eventos de antes se perderam, então releia pelo REST o estado que acompanha. |
+| `Event(event)` | Um `LcuEvent` que passou no filtro. |
+| `Disconnected(reason)` | A conexão caiu (LoL fechou ou reiniciou). O `LcuClient` antigo não serve mais. |
+| `Retrying { attempt, delay, error }` | Uma tentativa falhou (LoL fechado, lockfile velho...). A próxima sai depois de `delay`: 0,5 s, 1 s, 2 s, 4 s e depois a cada 5 s. |
+
+```rust
+let mut lcu = LcuConnection::new(ReconnectConfig::default());
+loop {
+    match lcu.next().await {
+        ConnectionEvent::Connected(session) => { /* reler o estado */ }
+        ConnectionEvent::Event(event) => { /* ... */ }
+        ConnectionEvent::Disconnected(_) | ConnectionEvent::Retrying { .. } => {}
+    }
+}
+```
+
+`next` nunca termina por conta própria e pode ser cancelado num `tokio::select!` sem perder evento nem reiniciar a espera. Cada tentativa redescobre as credenciais (`CredentialSource::Discover`) ou relê o lockfile e a CA do mock ao lado dele (`CredentialSource::Lockfile`), porque porta, senha e certificado mudam quando o LoL reabre. `error.is_client_not_running()` separa o LoL fechado dos outros erros.
+
+O example `eventos` usa a reconexão: deixe-o rodando e feche e reabra o LoL (ou o `cargo run -p mock-lcu`). Os testes em `mock-lcu/tests/reconexao.rs` sobem e derrubam o mock com a gravação `16.22` e conferem a espera pelo LoL, a reconexão com porta, senha e CA novas no meio do champ select, o lockfile velho e o cancelamento do `next`.
 
 ## Fixtures da LCU
 

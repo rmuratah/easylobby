@@ -16,16 +16,19 @@
 //! Com `--todos`, mostra também os eventos que o easylobby não usa. Com
 //! `--lockfile`, se o lockfile diz `https` e há um `mock-lcu-ca.pem` ao lado
 //! dele, essa CA é fixada no lugar do `riotgames.pem`. A verificação TLS nunca
-//! é desligada. Ctrl+C para sair.
+//! é desligada.
+//!
+//! O example reconecta sozinho (#10): pode abrir antes do LoL, e fechar e
+//! reabrir o LoL (ou o mock-lcu) não o derruba. Ctrl+C para sair.
 
 use std::path::PathBuf;
 
-use easylobby_agent::lockfile::{self, Credentials, Protocol};
-use easylobby_agent::wamp::{EventFilter, LcuEvent, LcuEvents};
+use easylobby_agent::connection::{
+    ConnectionEvent, CredentialSource, LcuConnection, ReconnectConfig,
+};
+use easylobby_agent::lockfile;
+use easylobby_agent::wamp::{EventFilter, LcuEvent};
 use serde_json::Value;
-
-/// Arquivo da CA que o mock-lcu grava ao lado do lockfile.
-const MOCK_CA_FILE: &str = "mock-lcu-ca.pem";
 
 /// Tamanho máximo do `data` impresso em cada linha.
 const MAX_DATA_CHARS: usize = 100;
@@ -61,38 +64,47 @@ async fn run() -> Result<(), String> {
     } else {
         EventFilter::easylobby()
     };
-    let mut events = match args.lockfile {
-        None => {
-            let credentials = lockfile::discover().map_err(|e| e.to_string())?;
-            LcuEvents::connect(&credentials, filter).await
-        }
-        Some(path) => {
-            let credentials = Credentials::from_lockfile_path(&path).map_err(|e| e.to_string())?;
-            let ca_path = path.with_file_name(MOCK_CA_FILE);
-            match (credentials.protocol, std::fs::read(&ca_path)) {
-                (Protocol::Https, Ok(ca_pem)) => {
-                    println!("CA fixada: {}", ca_path.display());
-                    LcuEvents::with_root_certificate(&credentials, &ca_pem, filter).await
-                }
-                _ => LcuEvents::connect(&credentials, filter).await,
-            }
-        }
-    }
-    .map_err(|e| e.to_string())?;
-    println!("Inscrito em {} (Ctrl+C para sair)", events.url());
+    let source = match args.lockfile {
+        None => CredentialSource::Discover,
+        Some(path) => CredentialSource::Lockfile(path),
+    };
+    let mut lcu = LcuConnection::new(ReconnectConfig {
+        filter,
+        ..ReconnectConfig::with_source(source)
+    });
+    println!("Procurando o LoL (Ctrl+C para sair)");
 
+    // Repete o motivo da falha só quando ele muda.
+    let mut last_error = String::new();
     loop {
         tokio::select! {
-            event = events.next() => match event {
-                Some(Ok(event)) => print_event(&event),
-                Some(Err(e)) => return Err(e.to_string()),
-                None => {
-                    println!("A LCU fechou a conexão.");
-                    return Ok(());
+            event = lcu.next() => match event {
+                ConnectionEvent::Connected(session) => {
+                    last_error.clear();
+                    let phase = session
+                        .client
+                        .get::<String>("/lol-gameflow/v1/gameflow-phase")
+                        .await
+                        .unwrap_or_else(|e| format!("? ({e})"));
+                    println!(
+                        "Conectado (#{}) na porta {}, fase {phase}",
+                        session.id, session.credentials.port
+                    );
+                }
+                ConnectionEvent::Event(event) => print_event(&event),
+                ConnectionEvent::Disconnected(reason) => {
+                    println!("Desconectado: {reason}. Procurando o LoL de novo.")
+                }
+                ConnectionEvent::Retrying { error, .. } => {
+                    let error = error.to_string();
+                    if error != last_error {
+                        println!("{error}");
+                        last_error = error;
+                    }
                 }
             },
             _ = tokio::signal::ctrl_c() => {
-                events.close().await;
+                lcu.close().await;
                 return Ok(());
             }
         }
