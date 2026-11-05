@@ -3,4 +3,4 @@
 /**
  * Por que um comando falhou.
  */
-export type ErrorCode = "notConnected" | "lcu";
+export type ErrorCode = "notConnected" | "lcu" | "invalidCommand";

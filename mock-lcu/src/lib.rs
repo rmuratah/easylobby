@@ -13,7 +13,8 @@
 //! Módulos:
 //!
 //! - [`state`]: que resposta cada `GET` recebe em cada momento.
-//! - [`lobby`]: criar lobby, trocar a fila e sair (#17).
+//! - [`lobby`]: criar lobby, trocar a fila e sair (#17); escolher os cargos
+//!   (#18).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
 //!
@@ -462,6 +463,19 @@ async fn handle_request(
         }
         (&Method::DELETE, lobby::LOBBY) => {
             let (response, events) = lobby::leave(&shared.state());
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        // Cargos (#18).
+        (&Method::PUT, lobby::POSITION_PREFERENCES) => {
+            let body = axum::body::to_bytes(request.into_body(), 64 * 1024)
+                .await
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .unwrap_or(Value::Null);
+            let (response, events) = lobby::set_positions(&shared.state(), &body);
             for event in events {
                 emit(&shared, event);
             }

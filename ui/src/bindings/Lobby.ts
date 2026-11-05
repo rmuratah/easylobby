@@ -29,6 +29,11 @@ isLeader: boolean,
  */
 canStartActivity: boolean, 
 /**
+ * Se a fila tem escolha de cargos (#18): `true` na normal alternada e
+ * nas ranqueadas, `false` no ARAM e no Jogo Dinâmico.
+ */
+showPositionSelector: boolean, 
+/**
  * Quem está no lobby, o jogador logado incluído.
  */
 members: Array<LobbyMember>, };
