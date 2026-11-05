@@ -29,6 +29,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::gameflow::GameflowPhase;
 use crate::summoner::Summoner;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
@@ -56,9 +57,9 @@ pub enum ServerMessage {
     /// O invocador logado mudou. `null` quando o LoL fecha ou antes do login.
     Summoner { summoner: Option<Summoner> },
     /// A fase do gameflow mudou (`None`, `Lobby`, `Matchmaking`,
-    /// `ReadyCheck`, `ChampSelect`, `InProgress`...). `null` com o LoL
-    /// fechado.
-    GameflowPhase { phase: Option<String> },
+    /// `ReadyCheck`, `ChampSelect`, `InProgress`...; veja [`GameflowPhase`]).
+    /// `null` com o LoL fechado ou quando a LCU ainda não respondeu a fase.
+    GameflowPhase { phase: Option<GameflowPhase> },
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
     /// A UI mandou algo que não é um [`ClientMessage`] válido. Sem `id`,
@@ -72,7 +73,7 @@ pub enum ServerMessage {
 pub struct AgentState {
     pub lcu: LcuStatus,
     pub summoner: Option<Summoner>,
-    pub gameflow_phase: Option<String>,
+    pub gameflow_phase: Option<GameflowPhase>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -180,6 +181,7 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<AgentState>(&cfg)?,
         file::<LcuStatus>(&cfg)?,
         file::<Summoner>(&cfg)?,
+        file::<GameflowPhase>(&cfg)?,
         file::<ClientMessage>(&cfg)?,
         file::<Command>(&cfg)?,
         file::<CommandResult>(&cfg)?,
@@ -238,7 +240,7 @@ mod tests {
         );
 
         let phase = ServerMessage::GameflowPhase {
-            phase: Some("Lobby".into()),
+            phase: Some(GameflowPhase::Lobby),
         };
         assert_eq!(
             serde_json::to_value(&phase).unwrap(),

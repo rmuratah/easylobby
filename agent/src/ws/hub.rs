@@ -5,14 +5,15 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::sync::broadcast;
 
 use crate::connection::{ConnectionEvent, LcuConnection};
+use crate::gameflow::{self, GameflowPhase};
 use crate::rest::LcuClient;
 use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
 use crate::wamp::{EventType, LcuEvent};
 
 use super::protocol::{AgentState, LcuStatus, ServerMessage};
 
-/// Fase do gameflow (`"Lobby"`, `"ChampSelect"`...).
-pub const GAMEFLOW_PHASE_PATH: &str = "/lol-gameflow/v1/gameflow-phase";
+/// Fase do gameflow; mora em [`crate::gameflow`] desde o #16.
+pub use crate::gameflow::GAMEFLOW_PHASE_PATH;
 
 /// Quantas mensagens uma UI lenta pode ficar devendo antes de receber um
 /// `hello` novo no lugar delas.
@@ -91,12 +92,12 @@ impl Hub {
         });
     }
 
-    pub fn set_gameflow_phase(&self, phase: Option<String>) {
+    pub fn set_gameflow_phase(&self, phase: Option<GameflowPhase>) {
         self.update(|shared| {
             if shared.state.gameflow_phase == phase {
                 return None;
             }
-            shared.state.gameflow_phase = phase.clone();
+            shared.state.gameflow_phase = phase;
             Some(ServerMessage::GameflowPhase { phase })
         });
     }
@@ -116,7 +117,7 @@ impl Hub {
                 });
                 let (summoner, phase) = tokio::join!(
                     summoner::current_summoner(&client),
-                    client.get::<String>(GAMEFLOW_PHASE_PATH),
+                    gameflow::current_phase(&client),
                 );
                 // 404 antes do login; qualquer outro erro também deixa vazio,
                 // e o próximo evento da LCU corrige.
@@ -156,8 +157,8 @@ impl Hub {
             }
             GAMEFLOW_PHASE_PATH if deleted => self.set_gameflow_phase(None),
             GAMEFLOW_PHASE_PATH => {
-                if let Some(phase) = event.data.as_str() {
-                    self.set_gameflow_phase(Some(phase.to_owned()));
+                if let Some(phase) = GameflowPhase::from_json(&event.data) {
+                    self.set_gameflow_phase(Some(phase));
                 }
             }
             _ => {}
@@ -255,7 +256,7 @@ mod tests {
         assert_eq!(
             rx.try_recv().unwrap(),
             ServerMessage::GameflowPhase {
-                phase: Some("Lobby".into())
+                phase: Some(GameflowPhase::Lobby)
             }
         );
         match rx.try_recv().unwrap() {
@@ -275,7 +276,7 @@ mod tests {
     #[tokio::test]
     async fn queda_limpa_o_estado() {
         let hub = Hub::new();
-        hub.set_gameflow_phase(Some("ChampSelect".into()));
+        hub.set_gameflow_phase(Some(GameflowPhase::ChampSelect));
         hub.apply(ConnectionEvent::Disconnected(
             crate::connection::DisconnectReason::Closed,
         ))
@@ -284,5 +285,52 @@ mod tests {
         assert_eq!(state.gameflow_phase, None);
         assert!(matches!(state.lcu, LcuStatus::Disconnected { .. }));
         assert!(hub.client().is_none());
+    }
+
+    #[tokio::test]
+    async fn segue_uma_partida_inteira_e_fases_novas() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        let partida = [
+            "Lobby",
+            "Matchmaking",
+            "ReadyCheck",
+            "ChampSelect",
+            "GameStart",
+            "InProgress",
+            "WaitingForStats",
+            "PreEndOfGame",
+            "EndOfGame",
+            "None",
+        ];
+        for phase in partida {
+            hub.apply(event(GAMEFLOW_PHASE_PATH, EventType::Update, json!(phase)))
+                .await;
+        }
+        let mut seen = Vec::new();
+        while let Ok(ServerMessage::GameflowPhase { phase: Some(phase) }) = rx.try_recv() {
+            seen.push(phase.as_str());
+        }
+        assert_eq!(seen, partida);
+        assert_eq!(hub.state().gameflow_phase, Some(GameflowPhase::Idle));
+
+        // Fase de um patch novo: a UI fica sabendo que mudou, sem erro.
+        hub.apply(event(
+            GAMEFLOW_PHASE_PATH,
+            EventType::Update,
+            json!("FaseDeUmPatchNovo"),
+        ))
+        .await;
+        assert_eq!(
+            rx.try_recv().unwrap(),
+            ServerMessage::GameflowPhase {
+                phase: Some(GameflowPhase::Unknown)
+            }
+        );
+        // `data` que nem é string é ignorado.
+        hub.apply(event(GAMEFLOW_PHASE_PATH, EventType::Update, json!(42)))
+            .await;
+        assert!(rx.try_recv().is_err());
+        assert_eq!(hub.state().gameflow_phase, Some(GameflowPhase::Unknown));
     }
 }

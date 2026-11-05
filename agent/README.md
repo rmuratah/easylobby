@@ -44,6 +44,10 @@ cargo run -p easylobby-agent --example invocador -- --mock
 
 Com `--mock` (ou `--lockfile <arquivo>`), o example lê o lockfile do mock e fixa o `mock-lcu-ca.pem` que fica ao lado dele.
 
+## Fase do gameflow (`gameflow`)
+
+`gameflow::current_phase(&lcu)` lê `/lol-gameflow/v1/gameflow-phase` e devolve um `GameflowPhase`, com os nomes da LCU: `None` (fora de lobby; `GameflowPhase::Idle` no Rust), `Lobby`, `Matchmaking` (fila), `CheckedIntoTournament`, `ReadyCheck`, `ChampSelect`, `GameStart`, `FailedToLaunch`, `InProgress` (em jogo), `Reconnect`, `WaitingForStats`, `PreEndOfGame`, `EndOfGame` (pós-jogo) e `TerminatedInError`. Uma fase que um patch novo inventar vira `Unknown` em vez de erro. `GameflowPhase::from_json` lê o `data` dos eventos WAMP do mesmo URI. O `ws::Hub` usa os dois: lê a fase pelo REST a cada conexão e depois segue os eventos, mandando cada mudança para a UI.
+
 ## Eventos em tempo real (`wamp`)
 
 `wamp::LcuEvents` abre o WebSocket WAMP da LCU (`wss://127.0.0.1:<porta>/`), com o mesmo Basic Auth e o mesmo `riotgames.pem` fixado do cliente REST, e se inscreve em `OnJsonApiEvent`. Cada `next().await` devolve o próximo `LcuEvent` (`uri`, `event_type` `Create`/`Update`/`Delete` e `data`) que passa no `EventFilter`, na ordem em que a LCU mandou.
@@ -133,7 +137,7 @@ Do agente para a UI (`ServerMessage`, campo `type`):
 | `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
 | `lcu` | A conexão com o LoL mudou: `starting`, `connected` (com `session`), `disconnected` (com `reason`) ou `retrying` (com `attempt`, `retryInMs`, `clientNotRunning` e `error`). |
 | `summoner` | O invocador logado mudou; `null` com o LoL fechado ou antes do login. |
-| `gameflowPhase` | A fase mudou (`None`, `Lobby`, `Matchmaking`, `ReadyCheck`, `ChampSelect`, `InProgress`...); `null` com o LoL fechado. |
+| `gameflowPhase` | A fase mudou (`None`, `Lobby`, `Matchmaking`, `ReadyCheck`, `ChampSelect`, `InProgress`, `EndOfGame`...; o tipo `GameflowPhase` lista todas, com `Unknown` para uma fase nova); `null` com o LoL fechado. |
 | `response` | Resposta a um comando, com o mesmo `id` e `result` `ok` ou `error` (`code` e `message`). |
 | `invalidMessage` | A UI mandou algo que não é um `ClientMessage` válido. |
 

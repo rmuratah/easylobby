@@ -15,9 +15,12 @@
 //! - [`ux`]: fecha a UI oficial ao conectar (`kill-ux`) e reabre
 //!   (`launch-ux`) (#12)
 //! - [`ws`]: canal `/ws` com eventos e comandos tipados para a UI (#15)
+//! - [`gameflow`]: fase do gameflow (lobby, fila, ready check, champ
+//!   select, em jogo, pós-jogo) (#16)
 
 pub mod connection;
 pub mod fixtures;
+pub mod gameflow;
 pub mod launcher;
 pub mod lockfile;
 pub mod rest;
