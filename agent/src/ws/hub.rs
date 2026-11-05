@@ -6,7 +6,7 @@ use tokio::sync::broadcast;
 
 use crate::connection::{ConnectionEvent, LcuConnection};
 use crate::gameflow::{self, GameflowPhase};
-use crate::lobby::{self, Lobby, Queue, LOBBY_PATH};
+use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError, LOBBY_PATH};
 use crate::ready_check::{self, ReadyCheck, READY_CHECK_PATH};
 use crate::rest::{LcuClient, LcuError};
 use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
@@ -181,6 +181,33 @@ impl Hub {
                 CommandResult::Ok
             }
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
+    /// Escolhe os cargos do jogador logado (comando `setPositions`, #18).
+    /// Relê o lobby pelo REST e publica antes de devolver, sem esperar o
+    /// evento do WAMP.
+    pub async fn set_positions(&self, first: Position, second: Position) -> CommandResult {
+        if let Err(invalid) = lobby::check_positions(first, second) {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        match lobby::set_positions(&client, first, second).await {
+            Ok(()) => {
+                // Se a releitura falhar, o evento do WAMP corrige depois.
+                if let Ok(Some(lobby)) = lobby::current_lobby(&client).await {
+                    self.set_lobby(Some(lobby));
+                }
+                CommandResult::Ok
+            }
+            Err(SetPositionsError::Invalid(invalid)) => {
+                CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string())
+            }
+            Err(SetPositionsError::Lcu(error)) => {
+                CommandResult::error(ErrorCode::Lcu, error.to_string())
+            }
         }
     }
 
@@ -476,6 +503,7 @@ mod tests {
         for result in [
             hub.create_lobby(Queue::RankedSolo).await,
             hub.leave_lobby().await,
+            hub.set_positions(Position::Top, Position::Jungle).await,
         ] {
             assert!(matches!(
                 result,
@@ -485,6 +513,18 @@ mod tests {
                 }
             ));
         }
+    }
+
+    #[tokio::test]
+    async fn cargos_invalidos_nem_precisam_do_lol() {
+        let hub = Hub::new();
+        assert!(matches!(
+            hub.set_positions(Position::Top, Position::Top).await,
+            CommandResult::Error {
+                code: ErrorCode::InvalidCommand,
+                ..
+            }
+        ));
     }
 
     #[tokio::test]

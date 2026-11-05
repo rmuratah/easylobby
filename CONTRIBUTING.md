@@ -70,6 +70,16 @@ tipo(escopo): descrição curta no imperativo (#issue)
 - Merge sempre por **squash**; o título do PR vira a mensagem do commit na `main`.
 - Depois do merge, a branch é apagada.
 
+## Revisão de PRs
+
+A revisão serve para achar problemas que impedem o merge, não para deixar o código perfeito. Para não virar um ciclo sem fim:
+
+- **Só bloqueia o merge:** bug, falha de segurança ou quebra do contrato do `/ws` (tipos, eventos e comandos).
+- **Não bloqueia:** melhorias, refatoração e estilo. Viram issue com a label `melhoria` e ficam para a rodada de melhorias depois que o app estiver completo, junto com o UAT da #62.
+- **Uma rodada por PR:** quem revisa junta todos os pontos numa revisão só. A segunda rodada só confere se aqueles pontos foram resolvidos, sem procurar itens novos.
+- **Revisão com IA:** quem usa uma IA (ChatGPT, Claude etc.) filtra os pontos antes de pedir, em vez de colar a resposta inteira, e separa o que é bloqueante do que é `melhoria`.
+- **Aprovação com ressalvas:** liste as ressalvas no comentário da aprovação ou abra as issues `melhoria` correspondentes.
+
 ## Verificações automáticas
 
 O workflow `CI` roda em cada PR e nos pushes para `main`. Acompanhe os resultados na aba **Checks** do PR ou em **Actions**:
