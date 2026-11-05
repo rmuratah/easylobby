@@ -196,6 +196,7 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                                 CommandResult::Ok
                             }
                             Command::LaunchLeague => launch_league(&config.launch).await,
+                            Command::LaunchUx => hub.launch_ux().await,
                         };
                         replies.push(ServerMessage::Response { id, result });
                         replies
