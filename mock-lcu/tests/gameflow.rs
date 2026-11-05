@@ -26,7 +26,7 @@ fn temp_dir(name: &str) -> PathBuf {
 
 async fn start_mock(dir: &Path) -> MockLcu {
     let mut config = Config::new(fixtures());
-    config.speed = 2000.0;
+    config.speed = 500.0;
     config.replay_start = ReplayStart::OnFirstSubscribe;
     config.lockfile = Some(dir.join("lockfile"));
     config.ca_file = Some(dir.join("mock-lcu-ca.pem"));
@@ -77,19 +77,27 @@ async fn segue_a_fase_de_uma_ranqueada() {
         }
     }
 
-    // Fora de lobby no começo da gravação, e a partida inteira depois, sem
-    // nenhuma fase desconhecida.
+    // A reprodução começa quando o agente se inscreve no WAMP, então a fase
+    // lida pelo REST na conexão pode já estar adiantada em relação aos
+    // eventos que ainda estão na fila. O que importa: a partida inteira, na
+    // ordem, no fim, e nenhuma fase desconhecida.
+    let partida = [
+        GameflowPhase::Lobby,
+        GameflowPhase::Matchmaking,
+        GameflowPhase::ReadyCheck,
+        GameflowPhase::ChampSelect,
+        GameflowPhase::GameStart,
+        GameflowPhase::InProgress,
+    ];
+    assert!(phases.len() >= partida.len(), "fases: {phases:?}");
     assert_eq!(
-        phases,
-        [
-            GameflowPhase::Idle,
-            GameflowPhase::Lobby,
-            GameflowPhase::Matchmaking,
-            GameflowPhase::ReadyCheck,
-            GameflowPhase::ChampSelect,
-            GameflowPhase::GameStart,
-            GameflowPhase::InProgress,
-        ]
+        phases[phases.len() - partida.len()..],
+        partida,
+        "fases: {phases:?}"
+    );
+    assert!(
+        !phases.contains(&GameflowPhase::Unknown),
+        "fases: {phases:?}"
     );
 
     // O REST conta a mesma fase que os eventos.
