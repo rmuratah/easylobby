@@ -9,6 +9,7 @@ use crate::gameflow::{self, GameflowPhase};
 use crate::ready_check::{self, ReadyCheck, READY_CHECK_PATH};
 use crate::rest::{LcuClient, LcuError};
 use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
+use crate::ux;
 use crate::wamp::{EventType, LcuEvent};
 
 use super::protocol::{AgentState, CommandResult, ErrorCode, LcuStatus, ServerMessage};
@@ -71,6 +72,17 @@ impl Hub {
     pub fn subscribe(&self) -> (AgentState, broadcast::Receiver<ServerMessage>) {
         let shared = self.lock();
         (shared.state.clone(), self.inner.tx.subscribe())
+    }
+
+    /// Reabre a UI oficial pela conexão atual (comando `launchUx`, #13).
+    pub async fn launch_ux(&self) -> CommandResult {
+        let Some(client) = self.client() else {
+            return CommandResult::error(ErrorCode::NotConnected, "o LoL não está aberto");
+        };
+        match ux::launch_ux(&client).await {
+            Ok(()) => CommandResult::Ok,
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
     }
 
     pub fn set_lcu_status(&self, status: LcuStatus) {
@@ -455,5 +467,17 @@ mod tests {
                 }
             ));
         }
+    }
+
+    #[tokio::test]
+    async fn launch_ux_sem_lol_responde_not_connected() {
+        let hub = Hub::new();
+        assert!(matches!(
+            hub.launch_ux().await,
+            CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            }
+        ));
     }
 }

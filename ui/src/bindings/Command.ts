@@ -3,4 +3,4 @@
 /**
  * O que a UI pode pedir ao agente.
  */
-export type Command = { "type": "ping" } | { "type": "getState" } | { "type": "acceptReadyCheck" } | { "type": "declineReadyCheck" };
+export type Command = { "type": "ping" } | { "type": "getState" } | { "type": "acceptReadyCheck" } | { "type": "declineReadyCheck" } | { "type": "launchUx" };

@@ -193,6 +193,7 @@ async fn session(mut socket: WebSocket, hub: Hub) {
                             }
                             Command::AcceptReadyCheck => hub.accept_ready_check().await,
                             Command::DeclineReadyCheck => hub.decline_ready_check().await,
+                            Command::LaunchUx => hub.launch_ux().await,
                         };
                         replies.push(ServerMessage::Response { id, result });
                         replies

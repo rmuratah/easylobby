@@ -150,6 +150,11 @@ pub enum Command {
     /// /lol-matchmaking/v1/ready-check/decline`, #20). Mesmos erros do
     /// `acceptReadyCheck`.
     DeclineReadyCheck,
+    /// Reabre a UI oficial do LoL (`POST /riotclient/launch-ux`), a saída de
+    /// emergência (#13). Responde `notConnected` com o LoL fechado e `lcu` se
+    /// a LCU recusar. O agente não fecha a UI de novo sozinho até a próxima
+    /// conexão com o LoL.
+    LaunchUx,
 }
 
 /// Resultado de um comando.
@@ -326,6 +331,9 @@ mod tests {
                 serde_json::from_value(json!({"id": 9, "command": {"type": name}})).unwrap();
             assert_eq!(msg.command, command);
         }
+        let msg: ClientMessage =
+            serde_json::from_value(json!({"id": 8, "command": {"type": "launchUx"}})).unwrap();
+        assert_eq!(msg.command, Command::LaunchUx);
         assert!(serde_json::from_value::<ClientMessage>(json!({"id": 1})).is_err());
         assert!(serde_json::from_value::<ClientMessage>(
             json!({"id": 1, "command": {"type": "comprarSkin"}})

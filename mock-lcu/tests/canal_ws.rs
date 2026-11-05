@@ -8,7 +8,7 @@ use std::time::Duration;
 use easylobby_agent::connection::{CredentialSource, LcuConnection, ReconnectConfig};
 use easylobby_agent::fixtures::FixtureSet;
 use easylobby_agent::ws::protocol::{
-    ClientMessage, Command, CommandResult, LcuStatus, ServerMessage, PROTOCOL_VERSION,
+    ClientMessage, Command, CommandResult, ErrorCode, LcuStatus, ServerMessage, PROTOCOL_VERSION,
 };
 use easylobby_agent::ws::{self, WsConfig};
 use futures_util::{SinkExt, StreamExt};
@@ -264,4 +264,61 @@ async fn recusa_origem_de_fora() {
         .insert("Origin", HeaderValue::from_static("http://localhost:5173"));
     let (mut ui, _) = tokio_tungstenite::connect_async(request).await.unwrap();
     assert!(matches!(recv(&mut ui).await, ServerMessage::Hello { .. }));
+}
+
+/// Botão de emergência (#13): o agente fecha a UI oficial ao conectar e o
+/// comando `launchUx` reabre.
+#[tokio::test]
+async fn launch_ux_reabre_a_ui_oficial() {
+    let dir = temp_dir("launch-ux");
+    let url = start_agent(&dir).await;
+    let mut ui = connect(&url).await;
+    assert!(matches!(recv(&mut ui).await, ServerMessage::Hello { .. }));
+
+    // Sem o LoL aberto, não tem o que reabrir.
+    send(&mut ui, 1, Command::LaunchUx).await;
+    let seen = until(&mut ui, |m| {
+        matches!(m, ServerMessage::Response { id: 1, .. })
+    })
+    .await;
+    assert!(matches!(
+        seen.last().unwrap(),
+        ServerMessage::Response {
+            result: CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            },
+            ..
+        }
+    ));
+
+    let mock = start_mock(&dir, ReplayStart::Never).await;
+    until(&mut ui, |m| {
+        matches!(
+            m,
+            ServerMessage::Lcu {
+                status: LcuStatus::Connected { .. }
+            }
+        )
+    })
+    .await;
+    // O kill-ux sai antes de a conexão ser anunciada.
+    assert!(!mock.ux_open());
+
+    send(&mut ui, 2, Command::LaunchUx).await;
+    let seen = until(&mut ui, |m| {
+        matches!(m, ServerMessage::Response { id: 2, .. })
+    })
+    .await;
+    assert_eq!(
+        seen.last().unwrap(),
+        &ServerMessage::Response {
+            id: 2,
+            result: CommandResult::Ok
+        }
+    );
+    assert!(mock.ux_open());
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
 }
