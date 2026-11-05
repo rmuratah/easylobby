@@ -19,7 +19,11 @@
 //! é desligada.
 //!
 //! O example reconecta sozinho (#10): pode abrir antes do LoL, e fechar e
-//! reabrir o LoL (ou o mock-lcu) não o derruba. Ctrl+C para sair.
+//! reabrir o LoL (ou o mock-lcu) não o derruba.
+//!
+//! A cada conexão, ele fecha a UI oficial com `kill-ux` (#12); `--manter-ui`
+//! deixa a UI aberta. Ao sair com Ctrl+C, reabre a UI oficial com
+//! `launch-ux` se a fechou.
 
 use std::path::PathBuf;
 
@@ -27,6 +31,7 @@ use easylobby_agent::connection::{
     ConnectionEvent, CredentialSource, LcuConnection, ReconnectConfig,
 };
 use easylobby_agent::lockfile;
+use easylobby_agent::ux::{self, KillUx};
 use easylobby_agent::wamp::{EventFilter, LcuEvent};
 use serde_json::Value;
 
@@ -34,7 +39,7 @@ use serde_json::Value;
 const MAX_DATA_CHARS: usize = 100;
 
 const USAGE: &str = "\
-uso: eventos [--mock | --lockfile <arquivo>] [--todos]
+uso: eventos [--mock | --lockfile <arquivo>] [--todos] [--manter-ui]
 
   (sem opções)          acha o LoL aberto e usa o riotgames.pem
   --mock                usa o lockfile padrão do mock-lcu
@@ -42,11 +47,13 @@ uso: eventos [--mock | --lockfile <arquivo>] [--todos]
   --lockfile <arquivo>  usa este lockfile; fixa o mock-lcu-ca.pem ao lado
                         dele, se existir
   --todos               mostra todos os eventos, não só os que o easylobby usa
+  --manter-ui           não fecha a UI oficial (sem kill-ux)
 ";
 
 struct Args {
     lockfile: Option<PathBuf>,
     all: bool,
+    keep_ux: bool,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -70,6 +77,7 @@ async fn run() -> Result<(), String> {
     };
     let mut lcu = LcuConnection::new(ReconnectConfig {
         filter,
+        kill_ux: !args.keep_ux,
         ..ReconnectConfig::with_source(source)
     });
     println!("Procurando o LoL (Ctrl+C para sair)");
@@ -90,6 +98,11 @@ async fn run() -> Result<(), String> {
                         "Conectado (#{}) na porta {}, fase {phase}",
                         session.id, session.credentials.port
                     );
+                    match &session.kill_ux {
+                        KillUx::Killed => println!("UI oficial fechada (kill-ux)"),
+                        KillUx::Disabled => println!("UI oficial mantida (--manter-ui)"),
+                        KillUx::Failed(e) => println!("kill-ux falhou: {e}"),
+                    }
                 }
                 ConnectionEvent::Event(event) => print_event(&event),
                 ConnectionEvent::Disconnected(reason) => {
@@ -104,6 +117,13 @@ async fn run() -> Result<(), String> {
                 }
             },
             _ = tokio::signal::ctrl_c() => {
+                // Não deixa o usuário sem UI oficial depois de sair.
+                if let Some(session) = lcu.session().filter(|s| s.kill_ux.is_killed()) {
+                    match ux::launch_ux(&session.client).await {
+                        Ok(()) => println!("UI oficial reaberta (launch-ux)"),
+                        Err(e) => println!("launch-ux falhou: {e}"),
+                    }
+                }
                 lcu.close().await;
                 return Ok(());
             }
@@ -129,6 +149,7 @@ fn parse_args() -> Result<Args, String> {
     let mut args = Args {
         lockfile: None,
         all: false,
+        keep_ux: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -146,6 +167,7 @@ fn parse_args() -> Result<Args, String> {
                 ))
             }
             "--todos" => args.all = true,
+            "--manter-ui" => args.keep_ux = true,
             "-h" | "--help" => {
                 print!("{USAGE}");
                 std::process::exit(0);

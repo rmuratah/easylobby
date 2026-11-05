@@ -114,6 +114,14 @@ cargo run -p easylobby-agent --example abrir_lol -- --riot-client "D:\Riot Games
 
 O example abre o LoL, espera conectar e mostra o invocador logado. `--patchline pbe` abre o PBE. A decisão de abrir ou não e a ordem de busca são testadas com processos e arquivos falsos (`plan_launch`/`find_riot_client`); no Linux, um teste também dispara um "Riot Client" falso e confere os argumentos. O pedido pela API (`launcher::request_launch`) é testado em `mock-lcu/tests/abrir_lol.rs`, com o mock no papel do Riot Client: ele registra os `POST /product-launcher/...` em `MockLcu::launches()`.
 
+## Fechar a UI oficial (`ux`)
+
+A cada `Connected`, depois de REST e WAMP abrirem, a `LcuConnection` chama `POST /riotclient/kill-ux` (#12): fecha o `LeagueClientUx` e o client continua rodando, então a LCU segue respondendo. Isso vale também quando o LoL reabre. Se o agente não consegue conectar, a UI oficial fica aberta.
+
+O resultado vem em `session.kill_ux`: `Killed`, `Disabled` (opção desligada) ou `Failed(erro)`. Uma falha não derruba a conexão. Para desligar, use `ReconnectConfig { kill_ux: false, .. }` ou `lcu.set_kill_ux(false)`, que vale a partir da próxima conexão e não reabre a UI agora. Para fechar ou reabrir na hora (o botão de emergência), use `ux::kill_ux(&session.client)` e `ux::launch_ux(&session.client)`.
+
+O example `eventos` fecha a UI ao conectar e a reabre com `launch-ux` ao sair com Ctrl+C; `--manter-ui` não chama o `kill-ux`. Os testes em `mock-lcu/tests/kill_ux.rs` conferem o kill-ux ao conectar, o `launch-ux`, a opção desligada, o kill-ux de novo quando o LoL reabre e a troca da opção entre conexões.
+
 ## Canal `/ws` para a UI (`ws`)
 
 O agente expõe um WebSocket em `ws://127.0.0.1:47800/ws` (#15). A UI nunca fala com a LCU: ela recebe o estado e as mudanças por aqui e manda comandos por aqui. As mensagens são JSON, definidas em `ws::protocol`, e os tipos TypeScript saem desses tipos com `ts-rs` em `ui/src/bindings/`.
