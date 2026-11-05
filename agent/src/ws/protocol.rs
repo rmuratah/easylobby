@@ -9,11 +9,13 @@
 //! {"type":"lcu","status":{"state":"connected","session":1}}
 //! {"type":"summoner","summoner":{"gameName":"...","tagLine":"...",...}}
 //! {"type":"gameflowPhase","phase":"Lobby"}
+//! {"type":"lobby","lobby":{"queueId":420,"queue":"rankedSolo",...}}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
 //!
 //! ```json
 //! {"id":7,"command":{"type":"ping"}}
+//! {"id":8,"command":{"type":"createLobby","queue":"rankedSolo"}}
 //! ```
 //!
 //! Os tipos TypeScript em `ui/src/bindings/` saem destes tipos com `ts-rs`.
@@ -29,6 +31,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::lobby::{Lobby, LobbyMember, Queue};
 use crate::summoner::Summoner;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
@@ -59,6 +62,9 @@ pub enum ServerMessage {
     /// `ReadyCheck`, `ChampSelect`, `InProgress`...). `null` com o LoL
     /// fechado.
     GameflowPhase { phase: Option<String> },
+    /// O lobby mudou (criado, fila trocada, alguém entrou ou saiu). `null`
+    /// fora de lobby e com o LoL fechado.
+    Lobby { lobby: Option<Lobby> },
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
     /// A UI mandou algo que não é um [`ClientMessage`] válido. Sem `id`,
@@ -73,6 +79,7 @@ pub struct AgentState {
     pub lcu: LcuStatus,
     pub summoner: Option<Summoner>,
     pub gameflow_phase: Option<String>,
+    pub lobby: Option<Lobby>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -141,6 +148,14 @@ pub enum Command {
     /// a LCU recusar. O agente não fecha a UI de novo sozinho até a próxima
     /// conexão com o LoL.
     LaunchUx,
+    /// Cria um lobby na fila pedida, ou troca a fila do lobby atual (só o
+    /// líder pode). O lobby novo chega numa mensagem `lobby` antes da
+    /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
+    /// recusar (fila fechada, jogador não é o líder, já está na fila...).
+    CreateLobby { queue: Queue },
+    /// Sai do lobby. A mensagem `lobby` com `null` chega antes da resposta.
+    /// Responde `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
+    LeaveLobby,
 }
 
 /// Resultado de um comando.
@@ -192,6 +207,9 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<AgentState>(&cfg)?,
         file::<LcuStatus>(&cfg)?,
         file::<Summoner>(&cfg)?,
+        file::<Lobby>(&cfg)?,
+        file::<LobbyMember>(&cfg)?,
+        file::<Queue>(&cfg)?,
         file::<ClientMessage>(&cfg)?,
         file::<Command>(&cfg)?,
         file::<CommandResult>(&cfg)?,
@@ -223,6 +241,7 @@ mod tests {
                     "lcu": {"state": "starting"},
                     "summoner": null,
                     "gameflowPhase": null,
+                    "lobby": null,
                 },
             })
         );
@@ -296,6 +315,24 @@ mod tests {
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 8, "command": {"type": "launchUx"}})).unwrap();
         assert_eq!(msg.command, Command::LaunchUx);
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 8, "command": {"type": "createLobby", "queue": "rankedFlex"}}),
+        )
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::CreateLobby {
+                queue: Queue::RankedFlex
+            }
+        );
+        let msg: ClientMessage =
+            serde_json::from_value(json!({"id": 9, "command": {"type": "leaveLobby"}})).unwrap();
+        assert_eq!(msg.command, Command::LeaveLobby);
+        // Só as filas que o easylobby oferece.
+        assert!(serde_json::from_value::<ClientMessage>(
+            json!({"id": 1, "command": {"type": "createLobby", "queue": "tft"}})
+        )
+        .is_err());
         assert!(serde_json::from_value::<ClientMessage>(json!({"id": 1})).is_err());
         assert!(serde_json::from_value::<ClientMessage>(
             json!({"id": 1, "command": {"type": "comprarSkin"}})
