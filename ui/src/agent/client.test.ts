@@ -18,7 +18,7 @@ class Socket {
   constructor() { Socket.instances.push(this); }
   receive(message: ServerMessage) { this.onmessage?.({ data: JSON.stringify(message) }); }
 }
-const state: AgentState = { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: 'Lobby', readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], friends: [], runeCatalog: null, runePages: null, receivedInvitations: [] };
+const state: AgentState = { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: 'Lobby', readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], champSelectChat: null, friends: [], runeCatalog: null, runePages: null, receivedInvitations: [] };
 const hello = (overrides: Partial<AgentState> = {}): ServerMessage => ({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: { ...state, ...overrides } });
 let client: AgentClient;
 const socket = () => Socket.instances.at(-1)!;

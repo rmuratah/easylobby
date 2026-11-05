@@ -285,6 +285,9 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                                 hub.set_active_conversation(conversation_id.as_deref())
                                     .await
                             }
+                            Command::SendChampSelectMessage { body } => {
+                                hub.send_champ_select_message(&body).await
+                            }
                             Command::SelectRunePage { page_id } => {
                                 hub.select_rune_page(page_id).await
                             }

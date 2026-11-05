@@ -192,6 +192,15 @@ pub struct ChampSelectPlayer {
     /// Feitiços de invocador, ou `null` quando escondidos.
     pub spell1_id: Option<u32>,
     pub spell2_id: Option<u32>,
+    /// `puuid` do jogador, vazio quando a LCU esconde o nome, e o
+    /// `obfuscatedPuuid` que ela manda no lugar. Servem para ligar as
+    /// mensagens do chat da seleção (#27) a quem mandou. Não vão para a UI.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub puuid: String,
+    #[serde(skip)]
+    #[ts(skip)]
+    pub obfuscated_puuid: String,
 }
 
 /// Campeões banidos de cada time.
@@ -357,6 +366,8 @@ impl ChampSelect {
             selected_skin_id: champion(p.selected_skin_id),
             spell1_id: champion(p.spell1_id),
             spell2_id: champion(p.spell2_id),
+            puuid: p.puuid,
+            obfuscated_puuid: p.obfuscated_puuid,
         };
 
         let time_left_ms = clamp_ms(raw.timer.adjusted_time_left_in_phase);
@@ -446,6 +457,10 @@ struct RawPlayer {
     spell1_id: i64,
     #[serde(default)]
     spell2_id: i64,
+    #[serde(default)]
+    puuid: String,
+    #[serde(default)]
+    obfuscated_puuid: String,
 }
 
 #[derive(Deserialize)]

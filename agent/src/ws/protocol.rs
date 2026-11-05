@@ -14,6 +14,7 @@
 //! {"type":"champSelect","champSelect":{"timer":{"phase":"BAN_PICK",...},"myTeam":[...],...}}
 //! {"type":"receivedInvitations","invitations":[{"invitationId":"...","fromSummonerId":1,...}]}
 //! {"type":"conversation","conversation":{"id":"...","gameName":"...","messages":[...],...}}
+//! {"type":"champSelectChat","champSelectChat":{"messages":[{"id":"...","body":"...","fromCellId":0,...}]}}
 //! {"type":"runePages","runePages":{"pages":[...],"currentPageId":994528921,"canCreatePage":true}}
 //! {"type":"runeCatalog","runeCatalog":{"styles":[...],"perks":[...]}}
 //! {"type":"friends","friends":[{"id":"...","gameName":"...","availability":"online",...}]}
@@ -45,6 +46,7 @@ use crate::champ_select::{
     ChampSelect, ChampSelectAction, ChampSelectActionType, ChampSelectBans, ChampSelectPhase,
     ChampSelectPlayer, ChampSelectTimer,
 };
+use crate::champ_select_chat::{ChampSelectChat, ChampSelectChatMessage};
 use crate::chat::{ChatMessage, Conversation};
 use crate::friends::{Activity, Availability, Friend, LeagueActivity, LeagueStatus};
 use crate::gameflow::GameflowPhase;
@@ -117,6 +119,13 @@ pub enum ServerMessage {
     /// A conversa `id` fechou (o amigo ou o client a fechou, ou o LoL
     /// fechou). A UI tira ela da lista.
     ConversationClosed { id: String },
+    /// A sala de chat do time na seleção de campeões (#27) abriu, recebeu
+    /// mensagem (de um aliado ou do jogador) ou fechou. Sempre a sala
+    /// inteira, com as mensagens desde que ela abriu. `null` quando a sala
+    /// fecha (fim da seleção, dodge) e com o LoL fechado.
+    ChampSelectChat {
+        champ_select_chat: Option<ChampSelectChat>,
+    },
     /// As páginas de runas (#26) mudaram: criada, editada, apagada, outra
     /// aplicada, ou a recomendada da seleção apareceu ou sumiu. Sempre a lista
     /// inteira. `null` com o LoL fechado.
@@ -155,6 +164,9 @@ pub struct AgentState {
     /// Conversas 1:1 abertas (#31), cada uma com o histórico da sessão. Sem
     /// ordem definida; a UI ordena (pela última mensagem, por exemplo).
     pub conversations: Vec<Conversation>,
+    /// Sala de chat do time na seleção de campeões (#27), ou `null` fora da
+    /// seleção.
+    pub champ_select_chat: Option<ChampSelectChat>,
     /// Páginas de runas (#26), ou `null` com o LoL fechado.
     pub rune_pages: Option<RunePages>,
     /// Árvores de runas para o editor (#26), ou `null`.
@@ -303,6 +315,14 @@ pub enum Command {
     /// mensagem `conversation`. Responde `notConnected` com o LoL fechado e
     /// `lcu` se a LCU recusar.
     SetActiveConversation { conversation_id: Option<String> },
+    /// Manda `body` na sala de chat do time na seleção de campeões (#27).
+    /// Não precisa dizer a sala: vai para a que está aberta. A mensagem
+    /// chega numa `champSelectChat` antes da resposta quando a LCU devolve a
+    /// mensagem, e depois pelo WAMP nos outros casos. Responde
+    /// `invalidCommand` para texto vazio (só espaços) ou sem sala aberta,
+    /// sem falar com a LCU, `notConnected` com o LoL fechado e `lcu` se a
+    /// LCU recusar.
+    SendChampSelectMessage { body: String },
     /// Aplica a página de runas `pageId` (#26). As páginas com o
     /// `currentPageId` novo chegam numa mensagem `runePages` antes da
     /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
@@ -431,6 +451,8 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<ChampSelectActionType>(&cfg)?,
         file::<Conversation>(&cfg)?,
         file::<ChatMessage>(&cfg)?,
+        file::<ChampSelectChat>(&cfg)?,
+        file::<ChampSelectChatMessage>(&cfg)?,
         file::<RunePages>(&cfg)?,
         file::<RunePage>(&cfg)?,
         file::<RuneCatalog>(&cfg)?,
@@ -482,6 +504,7 @@ mod tests {
                     "champSelect": null,
                     "receivedInvitations": [],
                     "conversations": [],
+                    "champSelectChat": null,
                     "runePages": null,
                     "runeCatalog": null,
                     "friends": [],
@@ -718,6 +741,17 @@ mod tests {
                 }
             );
         }
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 14,
+            "command": {"type": "sendChampSelectMessage", "body": "vou mid"},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::SendChampSelectMessage {
+                body: "vou mid".into()
+            }
+        );
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 12,
             "command": {"type": "acceptInvitation", "invitationId": "abc"},
