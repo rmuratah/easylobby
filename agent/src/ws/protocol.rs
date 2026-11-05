@@ -10,12 +10,14 @@
 //! {"type":"summoner","summoner":{"gameName":"...","tagLine":"...",...}}
 //! {"type":"gameflowPhase","phase":"Lobby"}
 //! {"type":"lobby","lobby":{"queueId":420,"queue":"rankedSolo",...}}
+//! {"type":"matchmaking","matchmaking":{"searchState":"Searching","timeInQueue":12.0,...}}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
 //!
 //! ```json
 //! {"id":7,"command":{"type":"ping"}}
 //! {"id":8,"command":{"type":"createLobby","queue":"rankedSolo"}}
+//! {"id":9,"command":{"type":"startQueue"}}
 //! ```
 //!
 //! Os tipos TypeScript em `ui/src/bindings/` saem destes tipos com `ts-rs`.
@@ -32,6 +34,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::lobby::{Lobby, LobbyMember, Queue};
+use crate::matchmaking::{Matchmaking, MatchmakingError, SearchState};
 use crate::summoner::Summoner;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
@@ -65,6 +68,10 @@ pub enum ServerMessage {
     /// O lobby mudou (criado, fila trocada, alguém entrou ou saiu). `null`
     /// fora de lobby e com o LoL fechado.
     Lobby { lobby: Option<Lobby> },
+    /// A busca de partida mudou: entrou ou saiu da fila, mais um segundo na
+    /// fila (chega a cada segundo enquanto procura), partida encontrada.
+    /// `null` fora da fila e com o LoL fechado.
+    Matchmaking { matchmaking: Option<Matchmaking> },
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
     /// A UI mandou algo que não é um [`ClientMessage`] válido. Sem `id`,
@@ -80,6 +87,7 @@ pub struct AgentState {
     pub summoner: Option<Summoner>,
     pub gameflow_phase: Option<String>,
     pub lobby: Option<Lobby>,
+    pub matchmaking: Option<Matchmaking>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -151,6 +159,15 @@ pub enum Command {
     /// Sai do lobby. A mensagem `lobby` com `null` chega antes da resposta.
     /// Responde `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
     LeaveLobby,
+    /// Entra na fila com o lobby atual (só o líder pode). A mensagem
+    /// `matchmaking` com a busca chega antes da resposta. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (fora de
+    /// lobby, não é o líder, punição de fila...).
+    StartQueue,
+    /// Sai da fila. A mensagem `matchmaking` com `null` chega antes da
+    /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
+    /// recusar.
+    StopQueue,
 }
 
 /// Resultado de um comando.
@@ -203,6 +220,9 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<Lobby>(&cfg)?,
         file::<LobbyMember>(&cfg)?,
         file::<Queue>(&cfg)?,
+        file::<Matchmaking>(&cfg)?,
+        file::<MatchmakingError>(&cfg)?,
+        file::<SearchState>(&cfg)?,
         file::<ClientMessage>(&cfg)?,
         file::<Command>(&cfg)?,
         file::<CommandResult>(&cfg)?,
@@ -235,6 +255,7 @@ mod tests {
                     "summoner": null,
                     "gameflowPhase": null,
                     "lobby": null,
+                    "matchmaking": null,
                 },
             })
         );
@@ -314,6 +335,12 @@ mod tests {
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 9, "command": {"type": "leaveLobby"}})).unwrap();
         assert_eq!(msg.command, Command::LeaveLobby);
+        let msg: ClientMessage =
+            serde_json::from_value(json!({"id": 10, "command": {"type": "startQueue"}})).unwrap();
+        assert_eq!(msg.command, Command::StartQueue);
+        let msg: ClientMessage =
+            serde_json::from_value(json!({"id": 11, "command": {"type": "stopQueue"}})).unwrap();
+        assert_eq!(msg.command, Command::StopQueue);
         // Só as filas que o easylobby oferece.
         assert!(serde_json::from_value::<ClientMessage>(
             json!({"id": 1, "command": {"type": "createLobby", "queue": "tft"}})

@@ -15,6 +15,7 @@
 //! - [`ux`]: fecha a UI oficial ao conectar (`kill-ux`) e reabre
 //!   (`launch-ux`) (#12)
 //! - [`lobby`]: lobby e escolha de fila (#17)
+//! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19)
 //! - [`ws`]: canal `/ws` com eventos e comandos tipados para a UI (#15)
 
 pub mod connection;
@@ -22,6 +23,7 @@ pub mod fixtures;
 pub mod launcher;
 pub mod lobby;
 pub mod lockfile;
+pub mod matchmaking;
 pub mod rest;
 pub mod summoner;
 pub mod ux;

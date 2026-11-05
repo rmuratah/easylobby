@@ -14,12 +14,14 @@
 //!
 //! - [`state`]: que resposta cada `GET` recebe em cada momento.
 //! - [`lobby`]: criar lobby, trocar a fila e sair (#17).
+//! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
 //!
 //! [`Credentials::from_lockfile_path`]: easylobby_agent::lockfile::Credentials::from_lockfile_path
 
 pub mod lobby;
+pub mod matchmaking;
 pub mod state;
 pub mod tls;
 pub mod wamp;
@@ -149,6 +151,10 @@ struct Shared {
     /// Valor esperado do cabeçalho `Authorization`.
     authorization: String,
     verbose: bool,
+    /// Velocidade da reprodução; também acelera o relógio da fila.
+    speed: f64,
+    /// Soma um segundo na fila a cada segundo, enquanto procura (#19).
+    queue_timer: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl Shared {
@@ -228,6 +234,8 @@ impl MockLcu {
                 base64::engine::general_purpose::STANDARD.encode(credentials)
             ),
             verbose: config.verbose,
+            speed: config.speed,
+            queue_timer: Mutex::new(None),
         });
 
         let app = Router::new()
@@ -330,6 +338,7 @@ impl Drop for MockLcu {
         self.shared.stopped.send_replace(true);
         self.handle.shutdown();
         self.replay.abort();
+        stop_queue_timer(&self.shared);
         for path in &self.files {
             let _ = std::fs::remove_file(path);
         }
@@ -402,6 +411,42 @@ fn emit(shared: &Shared, event: EventFixture) {
     let _ = shared.events.send(event);
 }
 
+/// Começa a somar um segundo na fila a cada segundo. Para sozinho quando a
+/// busca deixa de procurar.
+fn start_queue_timer(shared: &Arc<Shared>) {
+    let period = Duration::from_secs_f64(1.0 / shared.speed);
+    let weak = Arc::downgrade(shared);
+    let timer = tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(period).await;
+            let Some(shared) = weak.upgrade() else { return };
+            let Some(event) = matchmaking::tick(&shared.state()) else {
+                return;
+            };
+            emit(&shared, event);
+        }
+    });
+    let old = shared
+        .queue_timer
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .replace(timer);
+    if let Some(old) = old {
+        old.abort();
+    }
+}
+
+fn stop_queue_timer(shared: &Shared) {
+    let timer = shared
+        .queue_timer
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take();
+    if let Some(timer) = timer {
+        timer.abort();
+    }
+}
+
 async fn require_auth(
     State(shared): State<Arc<Shared>>,
     headers: HeaderMap,
@@ -462,6 +507,25 @@ async fn handle_request(
         }
         (&Method::DELETE, lobby::LOBBY) => {
             let (response, events) = lobby::leave(&shared.state());
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        // Fila (#19): o relógio da fila anda enquanto procura.
+        (&Method::POST, matchmaking::LOBBY_SEARCH) => {
+            let (response, events) = matchmaking::start(&shared.state());
+            if !events.is_empty() {
+                for event in events {
+                    emit(&shared, event);
+                }
+                start_queue_timer(&shared);
+            }
+            response
+        }
+        (&Method::DELETE, matchmaking::LOBBY_SEARCH) => {
+            stop_queue_timer(&shared);
+            let (response, events) = matchmaking::stop(&shared.state());
             for event in events {
                 emit(&shared, event);
             }

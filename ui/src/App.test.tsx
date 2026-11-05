@@ -6,7 +6,7 @@ import type { LcuStatus } from './bindings/LcuStatus';
 
 vi.mock('./agent/useAgent');
 function connected(lcu: LcuStatus) {
-  vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: { lcu, summoner: null, gameflowPhase: null, lobby: null }, send: vi.fn() });
+  vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: { lcu, summoner: null, gameflowPhase: null, lobby: null, matchmaking: null }, send: vi.fn() });
 }
 describe('App', () => {
   it('mostra o título e a espera pelo agente', () => {

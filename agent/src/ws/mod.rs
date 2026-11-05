@@ -195,6 +195,8 @@ async fn session(mut socket: WebSocket, hub: Hub) {
                             Command::LaunchUx => hub.launch_ux().await,
                             Command::CreateLobby { queue } => hub.create_lobby(queue).await,
                             Command::LeaveLobby => hub.leave_lobby().await,
+                            Command::StartQueue => hub.start_queue().await,
+                            Command::StopQueue => hub.stop_queue().await,
                         };
                         // As mudanças que o comando publicou (como o lobby
                         // novo) chegam antes da resposta.
