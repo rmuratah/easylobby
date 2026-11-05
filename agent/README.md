@@ -7,3 +7,13 @@ cargo test -p easylobby-agent
 ```
 
 Fixtures gravadas de sessões reais ficam em `tests/fixtures/<patch>/` (issue #5) e alimentam o `mock-lcu`.
+
+## Descoberta da LCU (`lockfile`)
+
+`lockfile::discover()` acha os processos `LeagueClientUx`/`LeagueClient`, lê o `lockfile` (`nome:pid:porta:senha:protocolo`) na pasta do `--install-directory=` ou do executável e, se não achar, usa `--app-port=` e `--remoting-auth-token=` dos argumentos do `LeagueClientUx`. O `Debug` das credenciais esconde a senha.
+
+Para conferir no LoL real:
+
+```bash
+cargo run -p easylobby-agent --example descobrir_lcu
+```
