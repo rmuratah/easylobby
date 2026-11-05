@@ -1,0 +1,7 @@
+{
+  "formatVersion": 1,
+  "patch": "exemplo",
+  "recordedAt": "2026-11-05T00:00:00Z",
+  "synthetic": true,
+  "notes": "Conjunto escrito à mão, não gravado do LoL. Normal às cegas em duo: lobby, mensagem no chat, fila, ready check aceito e champ select até travar o campeão. Os formatos seguem a LCU, mas campos podem faltar; prefira uma gravação real (gravar_fixtures) quando houver."
+}

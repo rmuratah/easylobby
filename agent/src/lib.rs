@@ -4,9 +4,11 @@
 //! expõe um canal `/ws` tipado para a UI. Módulos:
 //!
 //! - [`lockfile`]: acha o LoL e lê porta e senha da LCU (#4)
+//! - [`fixtures`]: formato e sanitização das fixtures gravadas da LCU (#5)
 //!
 //! Próximas issues da Fase 0: #8 cliente REST da LCU, #9 cliente WebSocket WAMP.
 
+pub mod fixtures;
 pub mod lockfile;
 
 /// Versão do agente, a mesma do `Cargo.toml`.

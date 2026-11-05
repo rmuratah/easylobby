@@ -1,0 +1,1068 @@
+[
+  {
+    "method": "GET",
+    "path": "/lol-patch/v1/game-version",
+    "phase": "None",
+    "status": 200,
+    "body": "0.0.000.0000"
+  },
+  {
+    "method": "GET",
+    "path": "/lol-gameflow/v1/gameflow-phase",
+    "phase": "None",
+    "status": 200,
+    "body": "None"
+  },
+  {
+    "method": "GET",
+    "path": "/lol-gameflow/v1/session",
+    "phase": "None",
+    "status": 200,
+    "body": {
+      "gameClient": {
+        "observerServerIp": "",
+        "observerServerPort": 0,
+        "running": false,
+        "serverIp": "",
+        "serverPort": 0,
+        "visible": false
+      },
+      "gameData": {
+        "gameId": 0,
+        "isCustomGame": false,
+        "playerChampionSelections": [],
+        "queue": {},
+        "spectatorsAllowed": false,
+        "teamOne": [],
+        "teamTwo": []
+      },
+      "map": {},
+      "phase": "None"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-summoner/v1/current-summoner",
+    "phase": "None",
+    "status": 200,
+    "body": {
+      "accountId": 1002,
+      "displayName": "fake-name-0001",
+      "gameName": "fake-name-0001",
+      "tagLine": "fake-tag-0001",
+      "internalName": "fake-name-0001",
+      "nameChangeFlag": false,
+      "percentCompleteForNextLevel": 42,
+      "privacy": "PUBLIC",
+      "profileIconId": 29,
+      "puuid": "fake-puuid-0001",
+      "rerollPoints": {
+        "currentPoints": 0,
+        "maxRolls": 2,
+        "numberOfRolls": 0,
+        "pointsCostToRoll": 250,
+        "pointsToReroll": 250
+      },
+      "summonerId": 1001,
+      "summonerLevel": 87,
+      "unnamed": false,
+      "xpSinceLastLevel": 1100,
+      "xpUntilNextLevel": 2600
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-chat/v1/me",
+    "phase": "None",
+    "status": 200,
+    "body": {
+      "availability": "chat",
+      "gameName": "fake-name-0001",
+      "gameTag": "fake-tag-0001",
+      "icon": 29,
+      "id": "fake-pid-0001",
+      "lastSeenOnlineTimestamp": null,
+      "lol": {
+        "gameQueueType": "",
+        "gameStatus": "outOfGame",
+        "level": "87"
+      },
+      "name": "fake-name-0001",
+      "obfuscatedSummonerId": 0,
+      "patchline": "live",
+      "pid": "fake-pid-0001",
+      "platformId": "BR1",
+      "product": "league_of_legends",
+      "productName": "",
+      "puuid": "fake-puuid-0001",
+      "statusMessage": "",
+      "summary": "",
+      "summonerId": 1001,
+      "time": 0
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-chat/v1/friends",
+    "phase": "None",
+    "status": 200,
+    "body": [
+      {
+        "availability": "chat",
+        "gameName": "fake-name-0002",
+        "gameTag": "fake-tag-0001",
+        "icon": 29,
+        "id": "fake-pid-0002",
+        "lastSeenOnlineTimestamp": null,
+        "lol": {
+          "gameQueueType": "",
+          "gameStatus": "outOfGame",
+          "level": "87"
+        },
+        "name": "fake-name-0002",
+        "obfuscatedSummonerId": 0,
+        "patchline": "live",
+        "pid": "fake-pid-0002",
+        "platformId": "BR1",
+        "product": "league_of_legends",
+        "productName": "",
+        "puuid": "fake-puuid-0002",
+        "statusMessage": "",
+        "summary": "",
+        "summonerId": 1003,
+        "time": 0,
+        "displayGroupId": 0,
+        "displayGroupName": "**Default",
+        "groupId": 0,
+        "groupName": "**Default",
+        "note": ""
+      }
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/lol-chat/v1/conversations",
+    "phase": "None",
+    "status": 200,
+    "body": [
+      {
+        "gameName": "fake-name-0002",
+        "gameTag": "fake-tag-0001",
+        "id": "fake-pid-0002",
+        "inviterId": "",
+        "isMuted": false,
+        "lastMessage": null,
+        "name": "fake-name-0002",
+        "password": "",
+        "pid": "fake-pid-0002",
+        "targetRegion": "",
+        "type": "chat",
+        "unreadMessageCount": 0
+      }
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/lol-lobby/v2/lobby",
+    "phase": "None",
+    "status": 404,
+    "body": {
+      "errorCode": "RPC_ERROR",
+      "httpStatus": 404,
+      "implementationDetails": {},
+      "message": "Nada em /lol-lobby/v2/lobby nesta fase"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-matchmaking/v1/search",
+    "phase": "None",
+    "status": 404,
+    "body": {
+      "errorCode": "RPC_ERROR",
+      "httpStatus": 404,
+      "implementationDetails": {},
+      "message": "Nada em /lol-matchmaking/v1/search nesta fase"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-matchmaking/v1/ready-check",
+    "phase": "None",
+    "status": 404,
+    "body": {
+      "errorCode": "RPC_ERROR",
+      "httpStatus": 404,
+      "implementationDetails": {},
+      "message": "Nada em /lol-matchmaking/v1/ready-check nesta fase"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-champ-select/v1/session",
+    "phase": "None",
+    "status": 404,
+    "body": {
+      "errorCode": "RPC_ERROR",
+      "httpStatus": 404,
+      "implementationDetails": {},
+      "message": "Nada em /lol-champ-select/v1/session nesta fase"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-perks/v1/pages",
+    "phase": "None",
+    "status": 200,
+    "body": [
+      {
+        "autoModifiedSelections": [],
+        "current": true,
+        "id": 1001,
+        "isActive": true,
+        "isDeletable": true,
+        "isEditable": true,
+        "isRecommendationOverride": false,
+        "isTemporary": false,
+        "isValid": true,
+        "lastModified": 1767225600000,
+        "name": "Página de exemplo",
+        "order": 0,
+        "pageKeystone": {},
+        "primaryStyleId": 8100,
+        "quickPlayChampionIds": [],
+        "recommendationChampionId": 0,
+        "recommendationIndex": 0,
+        "selectedPerkIds": [
+          8112,
+          8126,
+          8138,
+          8135,
+          8226,
+          8210,
+          5008,
+          5008,
+          5001
+        ],
+        "subStyleId": 8200,
+        "uiPerks": []
+      }
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/lol-perks/v1/currentpage",
+    "phase": "None",
+    "status": 200,
+    "body": {
+      "autoModifiedSelections": [],
+      "current": true,
+      "id": 1001,
+      "isActive": true,
+      "isDeletable": true,
+      "isEditable": true,
+      "isRecommendationOverride": false,
+      "isTemporary": false,
+      "isValid": true,
+      "lastModified": 1767225600000,
+      "name": "Página de exemplo",
+      "order": 0,
+      "pageKeystone": {},
+      "primaryStyleId": 8100,
+      "quickPlayChampionIds": [],
+      "recommendationChampionId": 0,
+      "recommendationIndex": 0,
+      "selectedPerkIds": [
+        8112,
+        8126,
+        8138,
+        8135,
+        8226,
+        8210,
+        5008,
+        5008,
+        5001
+      ],
+      "subStyleId": 8200,
+      "uiPerks": []
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-game-queues/v1/queues",
+    "phase": "None",
+    "status": 200,
+    "body": [
+      {
+        "id": 430,
+        "name": "Normal às cegas",
+        "description": "Normal às cegas",
+        "shortName": "Às cegas",
+        "gameMode": "CLASSIC",
+        "mapId": 11,
+        "type": "NORMAL",
+        "category": "PvP",
+        "queueAvailability": "Available",
+        "isRanked": false,
+        "maximumParticipantListSize": 5,
+        "minimumParticipantListSize": 0
+      },
+      {
+        "id": 420,
+        "name": "Ranqueada Solo/Duo",
+        "description": "Ranqueada Solo/Duo",
+        "shortName": "Solo/Duo",
+        "gameMode": "CLASSIC",
+        "mapId": 11,
+        "type": "RANKED_SOLO_5x5",
+        "category": "PvP",
+        "queueAvailability": "Available",
+        "isRanked": true,
+        "maximumParticipantListSize": 2,
+        "minimumParticipantListSize": 0
+      }
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/lol-gameflow/v1/gameflow-phase",
+    "phase": "Lobby",
+    "status": 200,
+    "body": "Lobby"
+  },
+  {
+    "method": "GET",
+    "path": "/lol-gameflow/v1/session",
+    "phase": "Lobby",
+    "status": 200,
+    "body": {
+      "gameClient": {
+        "observerServerIp": "",
+        "observerServerPort": 0,
+        "running": false,
+        "serverIp": "",
+        "serverPort": 0,
+        "visible": false
+      },
+      "gameData": {
+        "gameId": 0,
+        "isCustomGame": false,
+        "playerChampionSelections": [],
+        "queue": {
+          "id": 430,
+          "type": "NORMAL",
+          "description": "Normal às cegas",
+          "gameMode": "CLASSIC",
+          "mapId": 11,
+          "isRanked": false
+        },
+        "spectatorsAllowed": false,
+        "teamOne": [],
+        "teamTwo": []
+      },
+      "map": {
+        "id": 11,
+        "gameMode": "CLASSIC",
+        "name": "Summoner's Rift"
+      },
+      "phase": "Lobby"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-lobby/v2/lobby",
+    "phase": "Lobby",
+    "status": 200,
+    "body": {
+      "canStartActivity": true,
+      "chatRoomId": "fake-lobby-room-0001",
+      "chatRoomKey": "fake-lobby-room-key-0001",
+      "gameConfig": {
+        "allowablePremadeSizes": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "customLobbyName": "",
+        "customMutatorName": "",
+        "customRewardsDisabledReasons": [],
+        "customSpectatorPolicy": "NotAllowed",
+        "customSpectators": [],
+        "customTeam100": [],
+        "customTeam200": [],
+        "gameMode": "CLASSIC",
+        "isCustom": false,
+        "isLobbyFull": false,
+        "isTeamBuilderManaged": false,
+        "mapId": 11,
+        "maxHumanPlayers": 0,
+        "maxLobbySize": 5,
+        "maxTeamSize": 5,
+        "pickType": "",
+        "premadeSizeAllowed": true,
+        "queueId": 430,
+        "shouldForceScarcePositionSelection": false,
+        "showPositionSelector": false,
+        "showQuickPlaySlotSelection": false
+      },
+      "invitations": [
+        {
+          "invitationId": "",
+          "invitationType": "lobby",
+          "state": "Accepted",
+          "timestamp": "0",
+          "toSummonerId": 1001,
+          "toSummonerName": "fake-name-0001"
+        }
+      ],
+      "localMember": {
+        "allowedChangeActivity": true,
+        "allowedInviteOthers": true,
+        "allowedKickOthers": true,
+        "allowedStartActivity": true,
+        "allowedToggleInvite": true,
+        "autoFillEligible": false,
+        "autoFillProtectedForPromos": false,
+        "autoFillProtectedForSoloing": false,
+        "autoFillProtectedForStreak": false,
+        "botChampionId": 0,
+        "botDifficulty": "NONE",
+        "botId": "",
+        "firstPositionPreference": "",
+        "secondPositionPreference": "",
+        "intraSubteamPosition": null,
+        "isBot": false,
+        "isLeader": true,
+        "isSpectator": false,
+        "playerSlots": [],
+        "puuid": "fake-puuid-0001",
+        "ready": true,
+        "showGhostedBanner": false,
+        "subteamIndex": null,
+        "summonerIconId": 29,
+        "summonerId": 1001,
+        "summonerInternalName": "fake-name-0001",
+        "summonerLevel": 87,
+        "summonerName": "fake-name-0001",
+        "teamId": 0
+      },
+      "members": [
+        {
+          "allowedChangeActivity": true,
+          "allowedInviteOthers": true,
+          "allowedKickOthers": true,
+          "allowedStartActivity": true,
+          "allowedToggleInvite": true,
+          "autoFillEligible": false,
+          "autoFillProtectedForPromos": false,
+          "autoFillProtectedForSoloing": false,
+          "autoFillProtectedForStreak": false,
+          "botChampionId": 0,
+          "botDifficulty": "NONE",
+          "botId": "",
+          "firstPositionPreference": "",
+          "secondPositionPreference": "",
+          "intraSubteamPosition": null,
+          "isBot": false,
+          "isLeader": true,
+          "isSpectator": false,
+          "playerSlots": [],
+          "puuid": "fake-puuid-0001",
+          "ready": true,
+          "showGhostedBanner": false,
+          "subteamIndex": null,
+          "summonerIconId": 29,
+          "summonerId": 1001,
+          "summonerInternalName": "fake-name-0001",
+          "summonerLevel": 87,
+          "summonerName": "fake-name-0001",
+          "teamId": 0
+        },
+        {
+          "allowedChangeActivity": false,
+          "allowedInviteOthers": true,
+          "allowedKickOthers": false,
+          "allowedStartActivity": false,
+          "allowedToggleInvite": false,
+          "autoFillEligible": false,
+          "autoFillProtectedForPromos": false,
+          "autoFillProtectedForSoloing": false,
+          "autoFillProtectedForStreak": false,
+          "botChampionId": 0,
+          "botDifficulty": "NONE",
+          "botId": "",
+          "firstPositionPreference": "",
+          "secondPositionPreference": "",
+          "intraSubteamPosition": null,
+          "isBot": false,
+          "isLeader": false,
+          "isSpectator": false,
+          "playerSlots": [],
+          "puuid": "fake-puuid-0002",
+          "ready": true,
+          "showGhostedBanner": false,
+          "subteamIndex": null,
+          "summonerIconId": 29,
+          "summonerId": 1003,
+          "summonerInternalName": "fake-name-0002",
+          "summonerLevel": 87,
+          "summonerName": "fake-name-0002",
+          "teamId": 0
+        }
+      ],
+      "mucJwtDto": null,
+      "multiUserChatId": "fake-lobby-room-0001",
+      "multiUserChatPassword": null,
+      "partyId": "fake-party-0001",
+      "partyType": "open",
+      "restrictions": [],
+      "scarcePositions": [],
+      "warnings": []
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-gameflow/v1/gameflow-phase",
+    "phase": "Matchmaking",
+    "status": 200,
+    "body": "Matchmaking"
+  },
+  {
+    "method": "GET",
+    "path": "/lol-gameflow/v1/session",
+    "phase": "Matchmaking",
+    "status": 200,
+    "body": {
+      "gameClient": {
+        "observerServerIp": "",
+        "observerServerPort": 0,
+        "running": false,
+        "serverIp": "",
+        "serverPort": 0,
+        "visible": false
+      },
+      "gameData": {
+        "gameId": 0,
+        "isCustomGame": false,
+        "playerChampionSelections": [],
+        "queue": {
+          "id": 430,
+          "type": "NORMAL",
+          "description": "Normal às cegas",
+          "gameMode": "CLASSIC",
+          "mapId": 11,
+          "isRanked": false
+        },
+        "spectatorsAllowed": false,
+        "teamOne": [],
+        "teamTwo": []
+      },
+      "map": {
+        "id": 11,
+        "gameMode": "CLASSIC",
+        "name": "Summoner's Rift"
+      },
+      "phase": "Matchmaking"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-matchmaking/v1/search",
+    "phase": "Matchmaking",
+    "status": 200,
+    "body": {
+      "dodgeData": {
+        "dodgerId": 0,
+        "state": "Invalid"
+      },
+      "errors": [],
+      "estimatedQueueTime": 95.5,
+      "isCurrentlyInQueue": true,
+      "lobbyId": "",
+      "lowPriorityData": {
+        "bustedLeaverAccessToken": "",
+        "penalizedSummonerIds": [],
+        "penaltyTime": 0.0,
+        "penaltyTimeRemaining": 0.0,
+        "reason": ""
+      },
+      "queueId": 430,
+      "readyCheck": {
+        "declinerIds": [],
+        "dodgeWarning": "None",
+        "playerResponse": "None",
+        "state": "Invalid",
+        "suppressUx": false,
+        "timer": 0.0
+      },
+      "searchState": "Searching",
+      "timeInQueue": 12.0
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-gameflow/v1/gameflow-phase",
+    "phase": "ReadyCheck",
+    "status": 200,
+    "body": "ReadyCheck"
+  },
+  {
+    "method": "GET",
+    "path": "/lol-gameflow/v1/session",
+    "phase": "ReadyCheck",
+    "status": 200,
+    "body": {
+      "gameClient": {
+        "observerServerIp": "",
+        "observerServerPort": 0,
+        "running": false,
+        "serverIp": "",
+        "serverPort": 0,
+        "visible": false
+      },
+      "gameData": {
+        "gameId": 0,
+        "isCustomGame": false,
+        "playerChampionSelections": [],
+        "queue": {
+          "id": 430,
+          "type": "NORMAL",
+          "description": "Normal às cegas",
+          "gameMode": "CLASSIC",
+          "mapId": 11,
+          "isRanked": false
+        },
+        "spectatorsAllowed": false,
+        "teamOne": [],
+        "teamTwo": []
+      },
+      "map": {
+        "id": 11,
+        "gameMode": "CLASSIC",
+        "name": "Summoner's Rift"
+      },
+      "phase": "ReadyCheck"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-matchmaking/v1/ready-check",
+    "phase": "ReadyCheck",
+    "status": 200,
+    "body": {
+      "declinerIds": [],
+      "dodgeWarning": "None",
+      "playerResponse": "None",
+      "state": "InProgress",
+      "suppressUx": false,
+      "timer": 3.0
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-matchmaking/v1/search",
+    "phase": "ReadyCheck",
+    "status": 200,
+    "body": {
+      "dodgeData": {
+        "dodgerId": 0,
+        "state": "Invalid"
+      },
+      "errors": [],
+      "estimatedQueueTime": 95.5,
+      "isCurrentlyInQueue": true,
+      "lobbyId": "",
+      "lowPriorityData": {
+        "bustedLeaverAccessToken": "",
+        "penalizedSummonerIds": [],
+        "penaltyTime": 0.0,
+        "penaltyTimeRemaining": 0.0,
+        "reason": ""
+      },
+      "queueId": 430,
+      "readyCheck": {
+        "declinerIds": [],
+        "dodgeWarning": "None",
+        "playerResponse": "None",
+        "state": "InProgress",
+        "suppressUx": false,
+        "timer": 3.0
+      },
+      "searchState": "Found",
+      "timeInQueue": 12.0
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-gameflow/v1/gameflow-phase",
+    "phase": "ChampSelect",
+    "status": 200,
+    "body": "ChampSelect"
+  },
+  {
+    "method": "GET",
+    "path": "/lol-gameflow/v1/session",
+    "phase": "ChampSelect",
+    "status": 200,
+    "body": {
+      "gameClient": {
+        "observerServerIp": "",
+        "observerServerPort": 0,
+        "running": false,
+        "serverIp": "",
+        "serverPort": 0,
+        "visible": false
+      },
+      "gameData": {
+        "gameId": 0,
+        "isCustomGame": false,
+        "playerChampionSelections": [],
+        "queue": {
+          "id": 430,
+          "type": "NORMAL",
+          "description": "Normal às cegas",
+          "gameMode": "CLASSIC",
+          "mapId": 11,
+          "isRanked": false
+        },
+        "spectatorsAllowed": false,
+        "teamOne": [],
+        "teamTwo": []
+      },
+      "map": {
+        "id": 11,
+        "gameMode": "CLASSIC",
+        "name": "Summoner's Rift"
+      },
+      "phase": "ChampSelect"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-champ-select/v1/session",
+    "phase": "ChampSelect",
+    "status": 200,
+    "body": {
+      "actions": [
+        [
+          {
+            "actorCellId": 0,
+            "championId": 0,
+            "completed": false,
+            "id": 1,
+            "isAllyAction": true,
+            "isInProgress": true,
+            "pickTurn": 1,
+            "type": "pick"
+          },
+          {
+            "actorCellId": 1,
+            "championId": 0,
+            "completed": false,
+            "id": 2,
+            "isAllyAction": true,
+            "isInProgress": true,
+            "pickTurn": 1,
+            "type": "pick"
+          },
+          {
+            "actorCellId": 2,
+            "championId": 0,
+            "completed": false,
+            "id": 3,
+            "isAllyAction": true,
+            "isInProgress": true,
+            "pickTurn": 1,
+            "type": "pick"
+          },
+          {
+            "actorCellId": 3,
+            "championId": 0,
+            "completed": false,
+            "id": 4,
+            "isAllyAction": true,
+            "isInProgress": true,
+            "pickTurn": 1,
+            "type": "pick"
+          },
+          {
+            "actorCellId": 4,
+            "championId": 0,
+            "completed": false,
+            "id": 5,
+            "isAllyAction": true,
+            "isInProgress": true,
+            "pickTurn": 1,
+            "type": "pick"
+          },
+          {
+            "actorCellId": 5,
+            "championId": 0,
+            "completed": false,
+            "id": 6,
+            "isAllyAction": false,
+            "isInProgress": false,
+            "pickTurn": 1,
+            "type": "pick"
+          },
+          {
+            "actorCellId": 6,
+            "championId": 0,
+            "completed": false,
+            "id": 7,
+            "isAllyAction": false,
+            "isInProgress": false,
+            "pickTurn": 1,
+            "type": "pick"
+          },
+          {
+            "actorCellId": 7,
+            "championId": 0,
+            "completed": false,
+            "id": 8,
+            "isAllyAction": false,
+            "isInProgress": false,
+            "pickTurn": 1,
+            "type": "pick"
+          },
+          {
+            "actorCellId": 8,
+            "championId": 0,
+            "completed": false,
+            "id": 9,
+            "isAllyAction": false,
+            "isInProgress": false,
+            "pickTurn": 1,
+            "type": "pick"
+          },
+          {
+            "actorCellId": 9,
+            "championId": 0,
+            "completed": false,
+            "id": 10,
+            "isAllyAction": false,
+            "isInProgress": false,
+            "pickTurn": 1,
+            "type": "pick"
+          }
+        ]
+      ],
+      "allowBattleBoost": false,
+      "allowDuplicatePicks": false,
+      "allowLockedEvents": false,
+      "allowRerolling": false,
+      "allowSkinSelection": true,
+      "bans": {
+        "myTeamBans": [],
+        "numBans": 0,
+        "theirTeamBans": []
+      },
+      "benchChampions": [],
+      "benchEnabled": false,
+      "boostableSkinCount": 1,
+      "chatDetails": {
+        "mucJwtDto": null,
+        "multiUserChatId": "fake-champ-select-room-0001",
+        "multiUserChatPassword": null
+      },
+      "counter": 0,
+      "gameId": 0,
+      "hasSimultaneousBans": false,
+      "hasSimultaneousPicks": true,
+      "isCustomGame": false,
+      "isSpectating": false,
+      "localPlayerCellId": 0,
+      "lockedEventIndex": -1,
+      "myTeam": [
+        {
+          "assignedPosition": "",
+          "cellId": 0,
+          "championId": 0,
+          "championPickIntent": 0,
+          "nameVisibilityType": "VISIBLE",
+          "obfuscatedPuuid": "",
+          "obfuscatedSummonerId": 0,
+          "puuid": "fake-puuid-0001",
+          "selectedSkinId": 0,
+          "spell1Id": 4,
+          "spell2Id": 14,
+          "summonerId": 1001,
+          "team": 1,
+          "wardSkinId": -1
+        },
+        {
+          "assignedPosition": "",
+          "cellId": 1,
+          "championId": 0,
+          "championPickIntent": 0,
+          "nameVisibilityType": "VISIBLE",
+          "obfuscatedPuuid": "",
+          "obfuscatedSummonerId": 0,
+          "puuid": "fake-puuid-0002",
+          "selectedSkinId": 0,
+          "spell1Id": 4,
+          "spell2Id": 14,
+          "summonerId": 1003,
+          "team": 1,
+          "wardSkinId": -1
+        },
+        {
+          "assignedPosition": "",
+          "cellId": 2,
+          "championId": 0,
+          "championPickIntent": 0,
+          "nameVisibilityType": "VISIBLE",
+          "obfuscatedPuuid": "",
+          "obfuscatedSummonerId": 0,
+          "puuid": "fake-puuid-0003",
+          "selectedSkinId": 0,
+          "spell1Id": 4,
+          "spell2Id": 14,
+          "summonerId": 1003,
+          "team": 1,
+          "wardSkinId": -1
+        },
+        {
+          "assignedPosition": "",
+          "cellId": 3,
+          "championId": 0,
+          "championPickIntent": 0,
+          "nameVisibilityType": "VISIBLE",
+          "obfuscatedPuuid": "",
+          "obfuscatedSummonerId": 0,
+          "puuid": "fake-puuid-0004",
+          "selectedSkinId": 0,
+          "spell1Id": 4,
+          "spell2Id": 14,
+          "summonerId": 1004,
+          "team": 1,
+          "wardSkinId": -1
+        },
+        {
+          "assignedPosition": "",
+          "cellId": 4,
+          "championId": 0,
+          "championPickIntent": 0,
+          "nameVisibilityType": "VISIBLE",
+          "obfuscatedPuuid": "",
+          "obfuscatedSummonerId": 0,
+          "puuid": "fake-puuid-0005",
+          "selectedSkinId": 0,
+          "spell1Id": 4,
+          "spell2Id": 14,
+          "summonerId": 1005,
+          "team": 1,
+          "wardSkinId": -1
+        }
+      ],
+      "pickOrderSwaps": [],
+      "recoveryCounter": 0,
+      "rerollsRemaining": 0,
+      "skipChampionSelect": false,
+      "theirTeam": [
+        {
+          "assignedPosition": "",
+          "cellId": 5,
+          "championId": 0,
+          "championPickIntent": 0,
+          "nameVisibilityType": "VISIBLE",
+          "obfuscatedPuuid": "",
+          "obfuscatedSummonerId": 0,
+          "puuid": "",
+          "selectedSkinId": 0,
+          "spell1Id": 4,
+          "spell2Id": 14,
+          "summonerId": 0,
+          "team": 2,
+          "wardSkinId": -1
+        },
+        {
+          "assignedPosition": "",
+          "cellId": 6,
+          "championId": 0,
+          "championPickIntent": 0,
+          "nameVisibilityType": "VISIBLE",
+          "obfuscatedPuuid": "",
+          "obfuscatedSummonerId": 0,
+          "puuid": "",
+          "selectedSkinId": 0,
+          "spell1Id": 4,
+          "spell2Id": 14,
+          "summonerId": 0,
+          "team": 2,
+          "wardSkinId": -1
+        },
+        {
+          "assignedPosition": "",
+          "cellId": 7,
+          "championId": 0,
+          "championPickIntent": 0,
+          "nameVisibilityType": "VISIBLE",
+          "obfuscatedPuuid": "",
+          "obfuscatedSummonerId": 0,
+          "puuid": "",
+          "selectedSkinId": 0,
+          "spell1Id": 4,
+          "spell2Id": 14,
+          "summonerId": 0,
+          "team": 2,
+          "wardSkinId": -1
+        },
+        {
+          "assignedPosition": "",
+          "cellId": 8,
+          "championId": 0,
+          "championPickIntent": 0,
+          "nameVisibilityType": "VISIBLE",
+          "obfuscatedPuuid": "",
+          "obfuscatedSummonerId": 0,
+          "puuid": "",
+          "selectedSkinId": 0,
+          "spell1Id": 4,
+          "spell2Id": 14,
+          "summonerId": 0,
+          "team": 2,
+          "wardSkinId": -1
+        },
+        {
+          "assignedPosition": "",
+          "cellId": 9,
+          "championId": 0,
+          "championPickIntent": 0,
+          "nameVisibilityType": "VISIBLE",
+          "obfuscatedPuuid": "",
+          "obfuscatedSummonerId": 0,
+          "puuid": "",
+          "selectedSkinId": 0,
+          "spell1Id": 4,
+          "spell2Id": 14,
+          "summonerId": 0,
+          "team": 2,
+          "wardSkinId": -1
+        }
+      ],
+      "timer": {
+        "adjustedTimeLeftInPhase": 93000,
+        "internalNowInEpochMs": 1767225600000,
+        "isInfinite": false,
+        "phase": "BAN_PICK",
+        "totalTimeInPhase": 93000
+      },
+      "trades": []
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-champ-select/v1/pickable-champion-ids",
+    "phase": "ChampSelect",
+    "status": 200,
+    "body": [
+      1,
+      22,
+      103,
+      222
+    ]
+  }
+]

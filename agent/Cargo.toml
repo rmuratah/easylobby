@@ -11,3 +11,15 @@ workspace = true
 [dependencies]
 sysinfo = { version = "0.37", default-features = false, features = ["system"] }
 thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Só para o example `gravar_fixtures` (#5). O cliente REST (#8) e o WAMP (#9)
+# do agente vão trazer as próprias dependências.
+[dev-dependencies]
+base64 = "0.22"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+native-tls = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["native-tls"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
