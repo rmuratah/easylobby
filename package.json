@@ -1,0 +1,12 @@
+{
+  "name": "easylobby",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev:ui": "pnpm --filter easylobby-ui dev",
+    "dev:desktop": "pnpm --filter easylobby-desktop dev",
+    "lint": "pnpm --filter easylobby-ui lint",
+    "test": "pnpm --filter easylobby-ui test",
+    "build:ui": "pnpm --filter easylobby-ui build"
+  }
+}
