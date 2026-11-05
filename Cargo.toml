@@ -9,11 +9,10 @@ default-members = ["agent", "mock-lcu"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "MIT"
 repository = "https://github.com/rmuratah/easylobby"
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }

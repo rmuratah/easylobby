@@ -3,7 +3,6 @@ name = "easylobby-desktop"
 description = "Shell Tauri 2 do easylobby: embute o agente e mostra a UI React"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 repository.workspace = true
 publish = false
 
