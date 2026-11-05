@@ -6,7 +6,8 @@
 //! cargo run -p easylobby-agent --example abrir_lol -- --patchline pbe
 //! ```
 //!
-//! Se o LoL já está aberto, só conecta. Senão, chama o Riot Client e espera o
+//! Se o LoL já está aberto, só conecta. Senão, pede o LoL pela API do Riot
+//! Client (se ele estiver aberto) ou chama o executável dele, e espera o
 //! LoL subir (e o login, se o Riot Client pedir) até mostrar o invocador
 //! logado. Ctrl+C para sair.
 
@@ -21,6 +22,7 @@ const USAGE: &str = "\
 uso: abrir_lol [--riot-client <RiotClientServices.exe>] [--patchline <patchline>]
 
   --riot-client <arquivo>  usa este Riot Client em vez de procurar
+  --lockfile-rc <arquivo>  usa este lockfile do Riot Client
   --patchline <nome>       patchline do LoL (padrão: live)
 ";
 
@@ -34,17 +36,28 @@ async fn main() {
 
 async fn run() -> Result<(), String> {
     let options = parse_args()?;
-    let outcome = tokio::task::spawn_blocking(move || launcher::launch_league(&options))
+    let outcome = launcher::launch_league(&options)
         .await
-        .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())?;
     match outcome {
         LaunchOutcome::AlreadyRunning { pid } => println!("O LoL já está aberto (pid {pid})"),
-        LaunchOutcome::Launched { riot_client, pid } => println!(
-            "Riot Client chamado (pid {pid}): {} ({:?})",
-            riot_client.path.display(),
-            riot_client.source
-        ),
+        LaunchOutcome::RequestedFromRiotClient { port } => {
+            println!("LoL pedido pela API do Riot Client (porta {port})")
+        }
+        LaunchOutcome::Launched {
+            riot_client,
+            pid,
+            api_error,
+        } => {
+            if let Some(e) = api_error {
+                println!("A API do Riot Client não serviu: {e}");
+            }
+            println!(
+                "Riot Client chamado (pid {pid}): {} ({:?})",
+                riot_client.path.display(),
+                riot_client.source
+            )
+        }
     }
 
     println!("Esperando o LoL conectar (Ctrl+C para sair)");
@@ -85,6 +98,11 @@ fn parse_args() -> Result<LaunchOptions, String> {
             "--riot-client" => {
                 options.riot_client = Some(PathBuf::from(
                     it.next().ok_or("--riot-client precisa de um caminho")?,
+                ))
+            }
+            "--lockfile-rc" => {
+                options.riot_client_lockfile = Some(PathBuf::from(
+                    it.next().ok_or("--lockfile-rc precisa de um caminho")?,
                 ))
             }
             "--patchline" => {

@@ -1,10 +1,21 @@
 //! Abre o LoL pelo Riot Client quando ele não está rodando (#11).
 //!
-//! O LoL não abre sozinho: quem abre é o Riot Client, com
-//! `RiotClientServices.exe --launch-product=league_of_legends
-//! --launch-patchline=live`. Se o Riot Client já está aberto, esse comando só
-//! repassa o pedido para ele. Se ninguém fez login, o Riot Client mostra a tela
-//! de login e abre o LoL depois.
+//! O LoL não abre sozinho: quem abre é o Riot Client. [`launch_league`] tenta,
+//! nesta ordem:
+//!
+//! 1. Se já existe `LeagueClient` ou `LeagueClientUx`, não faz nada
+//!    ([`LaunchOutcome::AlreadyRunning`]).
+//! 2. Se o Riot Client está aberto, pede o LoL pela API local dele:
+//!    `POST /product-launcher/v1/products/league_of_legends/patchlines/live`,
+//!    com porta e senha do lockfile do Riot Client
+//!    (`%LOCALAPPDATA%\Riot Games\Riot Client\Config\lockfile`), Basic Auth e o
+//!    `riotgames.pem` fixado, como na LCU
+//!    ([`LaunchOutcome::RequestedFromRiotClient`]). Chamar o executável com o
+//!    Riot Client já aberto só mostrava a janela dele, sem abrir o LoL.
+//! 3. Senão (ou se a API falhar), chama `RiotClientServices.exe
+//!    --launch-product=league_of_legends --launch-patchline=live`
+//!    ([`LaunchOutcome::Launched`]). Se ninguém fez login, o Riot Client
+//!    mostra a tela de login e abre o LoL depois.
 //!
 //! O executável é procurado nesta ordem:
 //!
@@ -15,20 +26,23 @@
 //!    e `rc_beta`).
 //! 4. A pasta padrão, `C:\Riot Games\Riot Client\`.
 //!
-//! [`launch_league`] não espera o LoL subir: ele só dispara o Riot Client e
-//! volta. Quem espera é a [`LcuConnection`](crate::connection::LcuConnection),
-//! que já tenta de novo até o client abrir.
+//! [`launch_league`] não espera o LoL subir: ele só faz o pedido e volta. Quem
+//! espera é a [`LcuConnection`](crate::connection::LcuConnection), que já
+//! tenta de novo até o client abrir.
 //!
 //! ```no_run
+//! # async fn exemplo() -> Result<(), easylobby_agent::launcher::LaunchError> {
 //! use easylobby_agent::launcher::{self, LaunchOptions, LaunchOutcome};
 //!
-//! match launcher::launch_league(&LaunchOptions::default())? {
+//! match launcher::launch_league(&LaunchOptions::default()).await? {
 //!     LaunchOutcome::AlreadyRunning { pid } => println!("o LoL já está aberto ({pid})"),
+//!     LaunchOutcome::RequestedFromRiotClient { .. } => println!("pedido ao Riot Client"),
 //!     LaunchOutcome::Launched { riot_client, .. } => {
 //!         println!("abrindo pelo {}", riot_client.path.display())
 //!     }
 //! }
-//! # Ok::<(), launcher::LaunchError>(())
+//! # Ok(())
+//! # }
 //! ```
 
 use std::collections::BTreeMap;
@@ -39,7 +53,8 @@ use std::process::{Command, Stdio};
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::lockfile::{self, ProcessInfo};
+use crate::lockfile::{self, Credentials, LockfileError, ProcessInfo};
+use crate::rest::{LcuClient, LcuError};
 
 /// Processo e executável do Riot Client.
 pub const RIOT_CLIENT_PROCESS: &str = "RiotClientServices";
@@ -56,11 +71,16 @@ pub const RIOT_CLIENT_INSTALLS_FILE: &str = "RiotClientInstalls.json";
 /// Onde o instalador da Riot põe o Riot Client por padrão.
 pub const DEFAULT_RIOT_CLIENT_PATH: &str = r"C:\Riot Games\Riot Client\RiotClientServices.exe";
 
+/// Caminho do lockfile do Riot Client dentro do `%LOCALAPPDATA%`.
+pub const RIOT_CLIENT_LOCKFILE: [&str; 4] = ["Riot Games", "Riot Client", "Config", "lockfile"];
+
 /// O que abrir e como achar o Riot Client.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaunchOptions {
     /// Caminho do `RiotClientServices.exe`. `None` procura sozinho.
     pub riot_client: Option<PathBuf>,
+    /// Lockfile do Riot Client. `None` usa o do `%LOCALAPPDATA%`.
+    pub riot_client_lockfile: Option<PathBuf>,
     /// Produto do Riot Client; [`LEAGUE_PRODUCT`] por padrão.
     pub product: String,
     /// Patchline; [`LIVE_PATCHLINE`] por padrão (`pbe` para o PBE).
@@ -71,6 +91,7 @@ impl Default for LaunchOptions {
     fn default() -> Self {
         Self {
             riot_client: None,
+            riot_client_lockfile: None,
             product: LEAGUE_PRODUCT.into(),
             patchline: LIVE_PATCHLINE.into(),
         }
@@ -78,6 +99,14 @@ impl Default for LaunchOptions {
 }
 
 impl LaunchOptions {
+    /// Rota da API local do Riot Client que abre o produto.
+    pub fn product_launcher_path(&self) -> String {
+        format!(
+            "/product-launcher/v1/products/{}/patchlines/{}",
+            self.product, self.patchline
+        )
+    }
+
     /// Argumentos passados ao Riot Client.
     pub fn args(&self) -> Vec<String> {
         vec![
@@ -147,17 +176,34 @@ pub struct RiotClient {
 }
 
 /// Resultado de [`launch_league`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum LaunchOutcome {
     /// O LoL já estava aberto; nada foi feito.
     AlreadyRunning { pid: u32 },
-    /// O Riot Client foi chamado para abrir o LoL.
+    /// O LoL foi pedido pela API local do Riot Client, que estava aberto.
+    RequestedFromRiotClient {
+        /// Porta da API do Riot Client.
+        port: u16,
+    },
+    /// O executável do Riot Client foi chamado para abrir o LoL.
     Launched {
         riot_client: RiotClient,
-        /// Pid do processo disparado. Se o Riot Client já estava aberto, esse
-        /// processo só repassa o pedido e fecha.
+        /// Pid do processo disparado.
         pid: u32,
+        /// Por que a API do Riot Client não serviu, quando ele estava aberto.
+        api_error: Option<RiotClientApiError>,
     },
+}
+
+/// Erro ao pedir o LoL pela API local do Riot Client.
+#[derive(Debug, Error)]
+pub enum RiotClientApiError {
+    #[error("não sei onde fica o lockfile do Riot Client (%LOCALAPPDATA% não definido)")]
+    NoLockfilePath,
+    #[error(transparent)]
+    Lockfile(#[from] LockfileError),
+    #[error(transparent)]
+    Rest(#[from] LcuError),
 }
 
 /// O que [`plan_launch`] decidiu fazer.
@@ -202,20 +248,76 @@ pub struct InstallsFile {
     pub installs: RiotClientInstalls,
 }
 
-/// Abre o LoL pelo Riot Client, se ele ainda não estiver aberto.
-///
-/// Não espera o LoL subir. É bloqueante (lista os processos e lê arquivos):
-/// em código async, chame dentro de `spawn_blocking`.
-pub fn launch_league(options: &LaunchOptions) -> Result<LaunchOutcome, LaunchError> {
-    let processes = lockfile::list_processes();
-    let installs = read_installs_file();
+/// Abre o LoL pelo Riot Client, se ele ainda não estiver aberto, na ordem
+/// descrita no [módulo](self). Não espera o LoL subir.
+pub async fn launch_league(options: &LaunchOptions) -> Result<LaunchOutcome, LaunchError> {
+    // Listar processos e ler arquivos é bloqueante.
+    let (processes, installs) =
+        tokio::task::spawn_blocking(|| (lockfile::list_processes(), read_installs_file()))
+            .await
+            .unwrap_or_default();
+
+    if let Some(client) = processes.iter().find(|p| p.is_client()) {
+        return Ok(LaunchOutcome::AlreadyRunning { pid: client.pid });
+    }
+
+    let mut api_error = None;
+    if processes.iter().any(is_riot_client) || options.riot_client_lockfile.is_some() {
+        match request_from_riot_client(options).await {
+            Ok(port) => return Ok(LaunchOutcome::RequestedFromRiotClient { port }),
+            Err(e) => api_error = Some(e),
+        }
+    }
+
     match plan_launch(&processes, options, installs.as_ref(), |p| p.is_file())? {
         LaunchPlan::AlreadyRunning { pid } => Ok(LaunchOutcome::AlreadyRunning { pid }),
         LaunchPlan::Launch { riot_client, args } => {
             let pid = spawn_detached(&riot_client.path, &args)?;
-            Ok(LaunchOutcome::Launched { riot_client, pid })
+            Ok(LaunchOutcome::Launched {
+                riot_client,
+                pid,
+                api_error,
+            })
         }
     }
+}
+
+/// Lê o lockfile do Riot Client e pede o LoL pela API dele, com o
+/// `riotgames.pem` fixado. Devolve a porta da API.
+async fn request_from_riot_client(options: &LaunchOptions) -> Result<u16, RiotClientApiError> {
+    let path = match &options.riot_client_lockfile {
+        Some(path) => path.clone(),
+        None => riot_client_lockfile_path().ok_or(RiotClientApiError::NoLockfilePath)?,
+    };
+    let credentials = Credentials::from_lockfile_path(&path)?;
+    let client = LcuClient::new(&credentials)?;
+    request_launch(&client, options).await?;
+    Ok(credentials.port)
+}
+
+/// Pede ao Riot Client, pela API local dele, que abra o produto de `options`.
+///
+/// `client` aponta para o Riot Client (porta e senha do lockfile dele), não
+/// para a LCU.
+pub async fn request_launch(client: &LcuClient, options: &LaunchOptions) -> Result<(), LcuError> {
+    client
+        .post::<_, serde_json::Value>(&options.product_launcher_path(), &serde_json::Value::Null)
+        .await
+        .map(drop)
+}
+
+/// Lockfile do Riot Client, a partir do `%LOCALAPPDATA%`.
+pub fn riot_client_lockfile_path() -> Option<PathBuf> {
+    let local = std::env::var_os("LOCALAPPDATA")?;
+    Some(
+        RIOT_CLIENT_LOCKFILE
+            .iter()
+            .fold(PathBuf::from(local), |p, c| p.join(c)),
+    )
+}
+
+fn is_riot_client(p: &ProcessInfo) -> bool {
+    p.base_name().eq_ignore_ascii_case(RIOT_CLIENT_PROCESS)
 }
 
 /// Decide o que [`launch_league`] faz, com processos, o
@@ -260,7 +362,7 @@ where
 
     let running = processes
         .iter()
-        .filter(|p| p.base_name().eq_ignore_ascii_case(RIOT_CLIENT_PROCESS))
+        .filter(|p| is_riot_client(p))
         .filter_map(|p| {
             Some((
                 p.exe.clone()?,
@@ -310,12 +412,8 @@ fn read_installs_file() -> Option<InstallsFile> {
     Some(InstallsFile { path, installs })
 }
 
-/// Dispara o processo sem esperar por ele.
-///
-/// Chama o Riot Client como o PowerShell ou o atalho do LoL chamam: mesma
-/// pasta de trabalho, sem `DETACHED_PROCESS` e sem trocar a saída padrão. Com
-/// essas mudanças, o Riot Client já aberto recebia o pedido e não abria o LoL
-/// (testado no Windows).
+/// Dispara o processo sem esperar por ele, como o PowerShell ou o atalho do LoL
+/// chamam.
 fn spawn_detached(path: &Path, args: &[String]) -> Result<u32, LaunchError> {
     let mut command = Command::new(path);
     command.args(args).stdin(Stdio::null());

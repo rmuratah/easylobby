@@ -55,6 +55,9 @@ pub struct LcuState {
     overlay: HashMap<String, Option<Value>>,
     /// Se a UI oficial está aberta (`kill-ux` fecha, `launch-ux` abre).
     ux_open: bool,
+    /// Pedidos ao `/product-launcher` do Riot Client, como
+    /// `league_of_legends/live`.
+    launches: Vec<String>,
 }
 
 impl LcuState {
@@ -83,6 +86,7 @@ impl LcuState {
             initial_phase,
             overlay: HashMap::new(),
             ux_open: true,
+            launches: Vec::new(),
         }
     }
 
@@ -97,6 +101,15 @@ impl LcuState {
 
     pub fn set_ux_open(&mut self, open: bool) {
         self.ux_open = open;
+    }
+
+    /// Pedidos ao `/product-launcher`, do primeiro ao último.
+    pub fn launches(&self) -> &[String] {
+        &self.launches
+    }
+
+    pub fn record_launch(&mut self, product_patchline: String) {
+        self.launches.push(product_patchline);
     }
 
     /// Resposta de `GET path`. `path` pode ter query; tenta primeiro o caminho
