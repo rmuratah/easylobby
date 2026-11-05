@@ -1,0 +1,8 @@
+{
+  "formatVersion": 1,
+  "patch": "16.22",
+  "gameVersion": "16.22.8348910+branch.releases-16-22.code.public.content.release.anticheat.vanguard",
+  "recordedAt": "2026-11-05T01:17:34Z",
+  "synthetic": false,
+  "notes": "Gravação real, sanitizada. Ranqueada Solo/Duo: lobby, mensagens no chat, fila, ready check aceito, champ select com os 10 bans, escolha de campeão e troca de runas, até a partida em andamento (GameStart e InProgress)."
+}
