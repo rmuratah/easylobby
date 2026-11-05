@@ -341,7 +341,9 @@ fn spawn_detached(path: &Path, args: &[String]) -> Result<u32, LaunchError> {
 mod tests {
     use super::*;
 
-    const RC: &str = "C:/Riot Games/Riot Client/RiotClientServices.exe";
+    // Diferente da pasta padrão: no Windows, `C:/...` e `C:\...` são o mesmo
+    // `Path`.
+    const RC: &str = "E:/Riot Games/Riot Client/RiotClientServices.exe";
     const RC_OUTRO: &str = "D:/Jogos/Riot Client/RiotClientServices.exe";
 
     fn processo(pid: u32, name: &str, exe: Option<&str>) -> ProcessInfo {
