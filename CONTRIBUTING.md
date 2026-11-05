@@ -69,3 +69,14 @@ tipo(escopo): descrição curta no imperativo (#issue)
 - Preencha o template: o que mudou, como testar e o que ficou de fora.
 - Merge sempre por **squash**; o título do PR vira a mensagem do commit na `main`.
 - Depois do merge, a branch é apagada.
+
+## Verificações automáticas
+
+O workflow `CI` roda em cada PR e nos pushes para `main`. Acompanhe os resultados na aba **Checks** do PR ou em **Actions**:
+
+- **Rust (Windows)**: Rust estável, `cargo +stable fmt --all --check`, `cargo +stable clippy --locked --all-targets -- -D warnings` e `cargo +stable test --locked`. A formatação cobre o workspace; Clippy e testes usam os membros padrão (`agent` e `mock-lcu`).
+- **UI**: Node.js 22 e a versão do pnpm definida em `package.json`, instalação com `pnpm install --frozen-lockfile`, `pnpm lint` e `pnpm test` (Vitest sem modo watch).
+
+Esses comandos também podem ser executados na raiz do repositório antes de abrir o PR. O CI não executa o LoL real nem compila o instalador Tauri. Informe no PR os testes manuais pertinentes à entrega.
+
+Uma falha deve ser investigada nos logs do passo correspondente antes do merge. Para tornar os checks obrigatórios, um administrador deve selecionar **Rust (Windows)** e **UI** na regra de proteção da `main`; o arquivo do workflow não altera essa configuração.
