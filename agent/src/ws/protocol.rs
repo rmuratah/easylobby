@@ -157,6 +157,11 @@ pub enum Command {
     /// /lol-matchmaking/v1/ready-check/decline`, #20). Mesmos erros do
     /// `acceptReadyCheck`.
     DeclineReadyCheck,
+    /// Abre o LoL pelo Riot Client ([`crate::launcher`]). Responde `ok` assim
+    /// que o pedido sai, ou se o LoL já estava aberto; a subida do LoL chega
+    /// pelas mensagens `lcu`. Erro `launchFailed` quando não dá para abrir
+    /// (Riot Client não encontrado, falha ao chamar o executável).
+    LaunchLeague,
     /// Reabre a UI oficial do LoL (`POST /riotclient/launch-ux`), a saída de
     /// emergência (#13). Responde `notConnected` com o LoL fechado e `lcu` se
     /// a LCU recusar. O agente não fecha a UI de novo sozinho até a próxima
@@ -201,6 +206,8 @@ pub enum ErrorCode {
     NotConnected,
     /// A LCU respondeu com erro ou não respondeu.
     Lcu,
+    /// Não foi possível abrir o LoL pelo Riot Client.
+    LaunchFailed,
     /// O comando chegou bem formado mas com valores que não fazem sentido
     /// (como o mesmo cargo de primário e secundário). Nada foi mandado para
     /// a LCU.
@@ -364,6 +371,13 @@ mod tests {
                 serde_json::from_value(json!({"id": 9, "command": {"type": name}})).unwrap();
             assert_eq!(msg.command, command);
         }
+        let msg: ClientMessage =
+            serde_json::from_value(json!({"id": 8, "command": {"type": "launchLeague"}})).unwrap();
+        assert_eq!(msg.command, Command::LaunchLeague);
+        assert_eq!(
+            serde_json::to_value(ErrorCode::LaunchFailed).unwrap(),
+            json!("launchFailed")
+        );
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 8, "command": {"type": "launchUx"}})).unwrap();
         assert_eq!(msg.command, Command::LaunchUx);

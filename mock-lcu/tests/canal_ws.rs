@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use easylobby_agent::connection::{CredentialSource, LcuConnection, ReconnectConfig};
 use easylobby_agent::fixtures::FixtureSet;
+use easylobby_agent::launcher::LaunchOptions;
 use easylobby_agent::ws::protocol::{
     ClientMessage, Command, CommandResult, ErrorCode, LcuStatus, ServerMessage, PROTOCOL_VERSION,
 };
@@ -43,6 +44,10 @@ async fn start_mock(dir: &Path, replay_start: ReplayStart) -> MockLcu {
 
 /// Sobe o agente (conexão com o LoL + `/ws`) numa porta livre.
 async fn start_agent(dir: &Path) -> String {
+    start_agent_with(dir, WsConfig::default()).await
+}
+
+async fn start_agent_with(dir: &Path, config: WsConfig) -> String {
     let lcu = LcuConnection::new(ReconnectConfig {
         retry_min: Duration::from_millis(20),
         retry_max: Duration::from_millis(100),
@@ -50,7 +55,7 @@ async fn start_agent(dir: &Path) -> String {
     });
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("ws://{}{}", listener.local_addr().unwrap(), ws::WS_PATH);
-    tokio::spawn(ws::run(lcu, listener, WsConfig::default()));
+    tokio::spawn(ws::run(lcu, listener, config));
     url
 }
 
@@ -269,6 +274,68 @@ async fn recusa_origem_de_fora() {
         .insert("Origin", HeaderValue::from_static("http://localhost:5173"));
     let (mut ui, _) = tokio_tungstenite::connect_async(request).await.unwrap();
     assert!(matches!(recv(&mut ui).await, ServerMessage::Hello { .. }));
+}
+
+/// Resposta ao comando com este `id`, pulando as outras mensagens.
+async fn response(ui: &mut Ui, id: u32) -> CommandResult {
+    let seen = until(
+        ui,
+        |m| matches!(m, ServerMessage::Response { id: i, .. } if *i == id),
+    )
+    .await;
+    match seen.into_iter().last() {
+        Some(ServerMessage::Response { result, .. }) => result,
+        other => panic!("esperava response: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn launch_league_pede_o_lol_ao_riot_client() {
+    // O LoL está fechado; um segundo mock faz o papel do Riot Client aberto.
+    let dir = temp_dir("abrir-lol");
+    let rc_dir = temp_dir("abrir-lol-rc");
+    let riot_client = start_mock(&rc_dir, ReplayStart::Never).await;
+    let config = WsConfig {
+        launch: LaunchOptions {
+            riot_client_lockfile: Some(rc_dir.join("lockfile")),
+            ..LaunchOptions::default()
+        },
+        ..WsConfig::default()
+    };
+    let url = start_agent_with(&dir, config).await;
+
+    let mut ui = connect(&url).await;
+    send(&mut ui, 1, Command::LaunchLeague).await;
+    assert_eq!(response(&mut ui, 1).await, CommandResult::Ok);
+    assert_eq!(riot_client.launches(), ["league_of_legends/live"]);
+
+    riot_client.shutdown().await;
+    let _ = std::fs::remove_dir_all(&rc_dir);
+}
+
+#[tokio::test]
+async fn launch_league_sem_riot_client_da_launch_failed() {
+    let dir = temp_dir("abrir-lol-falha");
+    let nao_existe = dir.join("nao-existe");
+    let config = WsConfig {
+        launch: LaunchOptions {
+            riot_client: Some(nao_existe.join("RiotClientServices.exe")),
+            riot_client_lockfile: Some(nao_existe.join("lockfile")),
+            ..LaunchOptions::default()
+        },
+        ..WsConfig::default()
+    };
+    let url = start_agent_with(&dir, config).await;
+
+    let mut ui = connect(&url).await;
+    send(&mut ui, 2, Command::LaunchLeague).await;
+    match response(&mut ui, 2).await {
+        CommandResult::Error { code, message } => {
+            assert_eq!(code, ErrorCode::LaunchFailed);
+            assert!(message.contains("Riot Client"), "{message}");
+        }
+        other => panic!("esperava erro: {other:?}"),
+    }
 }
 
 /// Botão de emergência (#13): o agente fecha a UI oficial ao conectar e o
