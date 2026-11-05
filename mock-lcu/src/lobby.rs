@@ -177,7 +177,7 @@ pub fn set_positions(state: &LcuState, body: &Value) -> (Response, Vec<EventFixt
 }
 
 /// Lobby novo: o gravado, ou um mínimo com o invocador logado de líder.
-fn template(state: &LcuState) -> Value {
+pub fn template(state: &LcuState) -> Value {
     if let Some(recorded) = state.recorded_body(LOBBY) {
         return recorded.clone();
     }

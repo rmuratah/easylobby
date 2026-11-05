@@ -16,15 +16,22 @@
 //! - [`champ_select`]: hover, ban e pick na seleção de campeões (#23).
 //! - [`lobby`]: criar lobby, trocar a fila e sair (#17); escolher os cargos
 //!   (#18).
+//! - [`invitations`]: convites de lobby recebidos e enviados (#32).
 //! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19).
+//! - [`chat`]: mandar mensagem e marcar a conversa ativa no chat 1:1 (#31).
+//! - [`perks`]: páginas de runas: criar, editar, apagar e aplicar, e as
+//!   árvores de runas (#26).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
 //!
 //! [`Credentials::from_lockfile_path`]: easylobby_agent::lockfile::Credentials::from_lockfile_path
 
 pub mod champ_select;
+pub mod chat;
+pub mod invitations;
 pub mod lobby;
 pub mod matchmaking;
+pub mod perks;
 pub mod state;
 pub mod tls;
 pub mod wamp;
@@ -402,6 +409,19 @@ impl MockLcu {
         emit(&self.shared, event);
     }
 
+    /// Um amigo convida o jogador para um lobby (#32), como a rota
+    /// [`invitations::SIMULATE`]. Devolve o id do convite.
+    pub fn receive_invitation(&self) -> String {
+        let (response, events) = invitations::simulate(&self.shared.state());
+        for event in events {
+            emit(&self.shared, event);
+        }
+        response.body["invitationId"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned()
+    }
+
     /// Derruba os WebSockets abertos e recusa os novos, mas continua
     /// respondendo ao REST: o agente vê a conexão cair enquanto uma resposta
     /// segurada ainda está a caminho.
@@ -612,6 +632,43 @@ async fn handle_request(
             }
             response
         }
+        // Convites (#32).
+        (&Method::GET, invitations::RECEIVED) => invitations::received(&shared.state()),
+        (&Method::POST, invitations::SIMULATE) => {
+            let (response, events) = invitations::simulate(&shared.state());
+            println!(
+                "convite recebido: {} (de mentira)",
+                response.body["invitationId"].as_str().unwrap_or("")
+            );
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::POST, invitations::LOBBY_INVITATIONS) => {
+            let body = axum::body::to_bytes(request.into_body(), 64 * 1024)
+                .await
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .unwrap_or(Value::Null);
+            let (response, events) = invitations::invite(&shared.state(), &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::POST, p) if p.starts_with(invitations::RECEIVED) => {
+            let answered = invitations::answer(&shared.state(), &p[invitations::RECEIVED.len()..]);
+            match answered {
+                Some((response, events)) => {
+                    for event in events {
+                        emit(&shared, event);
+                    }
+                    response
+                }
+                None => Response::error(404, format!("mock-lcu: {path} não existe")),
+            }
+        }
         // Fila (#19): o relógio da fila anda enquanto procura.
         (&Method::POST, matchmaking::LOBBY_SEARCH) => {
             let (response, events) = matchmaking::start(&shared.state());
@@ -629,6 +686,65 @@ async fn handle_request(
             for event in events {
                 emit(&shared, event);
             }
+            response
+        }
+        // Chat 1:1 (#31).
+        (&Method::POST, p) if chat::messages_path(p).is_some() => {
+            let encoded_id = chat::messages_path(p).unwrap_or_default().to_owned();
+            let body = read_json(request).await;
+            let (response, events) = chat::send(&shared.state(), &encoded_id, &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::PUT, chat::ACTIVE) => {
+            let body = read_json(request).await;
+            let (response, events) = chat::set_active(&shared.state(), &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::DELETE, chat::ACTIVE) => {
+            let (response, events) = chat::clear_active();
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        // Páginas de runas (#26).
+        (&Method::GET, perks::INVENTORY) => perks::inventory(&shared.state()),
+        (&Method::GET, p) if perks::page_id(p).is_some() => {
+            perks::get_page(&shared.state(), perks::page_id(p).unwrap_or_default())
+        }
+        (&Method::GET, perks::PERK_STYLES | perks::PERKS) => {
+            let state = shared.state();
+            perks::game_data(&state, &path).unwrap_or_else(|| state.get(&path))
+        }
+        (&Method::POST, perks::PAGES) => {
+            let body = read_json(request).await;
+            let (response, events) = perks::create(&shared.state(), &body);
+            emit_all(&shared, events);
+            response
+        }
+        (&Method::PUT, perks::CURRENT_PAGE) => {
+            let body = read_json(request).await;
+            let (response, events) = perks::select(&shared.state(), &body);
+            emit_all(&shared, events);
+            response
+        }
+        (&Method::PUT, p) if perks::page_id(p).is_some() => {
+            let id = perks::page_id(p).unwrap_or_default();
+            let body = read_json(request).await;
+            let (response, events) = perks::update(&shared.state(), id, &body);
+            emit_all(&shared, events);
+            response
+        }
+        (&Method::DELETE, p) if perks::page_id(p).is_some() => {
+            let id = perks::page_id(p).unwrap_or_default();
+            let (response, events) = perks::delete(&shared.state(), id);
+            emit_all(&shared, events);
             response
         }
         // Seleção de campeões (#23): hover, ban e pick.
@@ -706,6 +822,15 @@ async fn handle_request(
     json_response(&response)
 }
 
+/// Corpo JSON do pedido, ou `null` se não der para ler.
+async fn read_json(request: Request) -> Value {
+    axum::body::to_bytes(request.into_body(), 64 * 1024)
+        .await
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .unwrap_or(Value::Null)
+}
+
 fn take_hold(shared: &Shared, method: &Method, path: &str) -> Option<PendingHold> {
     let mut holds = shared.holds.lock().unwrap_or_else(|e| e.into_inner());
     let index = holds
@@ -717,6 +842,12 @@ fn take_hold(shared: &Shared, method: &Method, path: &str) -> Option<PendingHold
 /// Aceitar e recusar a partida encontrada (#20).
 const READY_CHECK_ACCEPT: &str = "/lol-matchmaking/v1/ready-check/accept";
 const READY_CHECK_DECLINE: &str = "/lol-matchmaking/v1/ready-check/decline";
+
+fn emit_all(shared: &Shared, events: Vec<EventFixture>) {
+    for event in events {
+        emit(shared, event);
+    }
+}
 
 /// Responde o ready check em andamento como a LCU: muda o `playerResponse`
 /// e avisa pelo WAMP. A reprodução segue depois com os eventos gravados.

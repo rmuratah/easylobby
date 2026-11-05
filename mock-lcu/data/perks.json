@@ -1,0 +1,410 @@
+[
+ {
+  "id": 8005,
+  "name": "Pressione o Ataque",
+  "shortDesc": "Descrição de <b>Pressione o Ataque</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8005.png"
+ },
+ {
+  "id": 8008,
+  "name": "Ritmo Fatal",
+  "shortDesc": "Descrição de <b>Ritmo Fatal</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8008.png"
+ },
+ {
+  "id": 8021,
+  "name": "Agilidade nos Pés",
+  "shortDesc": "Descrição de <b>Agilidade nos Pés</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8021.png"
+ },
+ {
+  "id": 8010,
+  "name": "Conquistador",
+  "shortDesc": "Descrição de <b>Conquistador</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8010.png"
+ },
+ {
+  "id": 9101,
+  "name": "Absorver Vida",
+  "shortDesc": "Descrição de <b>Absorver Vida</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/9101.png"
+ },
+ {
+  "id": 9111,
+  "name": "Triunfo",
+  "shortDesc": "Descrição de <b>Triunfo</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/9111.png"
+ },
+ {
+  "id": 8009,
+  "name": "Presença de Espírito",
+  "shortDesc": "Descrição de <b>Presença de Espírito</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8009.png"
+ },
+ {
+  "id": 9104,
+  "name": "Lenda: Espontaneidade",
+  "shortDesc": "Descrição de <b>Lenda: Espontaneidade</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/9104.png"
+ },
+ {
+  "id": 9105,
+  "name": "Lenda: Pressa",
+  "shortDesc": "Descrição de <b>Lenda: Pressa</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/9105.png"
+ },
+ {
+  "id": 9103,
+  "name": "Lenda: Linhagem",
+  "shortDesc": "Descrição de <b>Lenda: Linhagem</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/9103.png"
+ },
+ {
+  "id": 8014,
+  "name": "Golpe de Misericórdia",
+  "shortDesc": "Descrição de <b>Golpe de Misericórdia</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8014.png"
+ },
+ {
+  "id": 8017,
+  "name": "Dilacerar",
+  "shortDesc": "Descrição de <b>Dilacerar</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8017.png"
+ },
+ {
+  "id": 8299,
+  "name": "Até a Morte",
+  "shortDesc": "Descrição de <b>Até a Morte</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8299.png"
+ },
+ {
+  "id": 8112,
+  "name": "Eletrocutar",
+  "shortDesc": "Descrição de <b>Eletrocutar</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8112.png"
+ },
+ {
+  "id": 8128,
+  "name": "Colheita Sombria",
+  "shortDesc": "Descrição de <b>Colheita Sombria</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8128.png"
+ },
+ {
+  "id": 9923,
+  "name": "Chuva de Lâminas",
+  "shortDesc": "Descrição de <b>Chuva de Lâminas</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/9923.png"
+ },
+ {
+  "id": 8126,
+  "name": "Golpe Desleal",
+  "shortDesc": "Descrição de <b>Golpe Desleal</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8126.png"
+ },
+ {
+  "id": 8139,
+  "name": "Gosto de Sangue",
+  "shortDesc": "Descrição de <b>Gosto de Sangue</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8139.png"
+ },
+ {
+  "id": 8143,
+  "name": "Impacto Repentino",
+  "shortDesc": "Descrição de <b>Impacto Repentino</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8143.png"
+ },
+ {
+  "id": 8137,
+  "name": "Sexto Sentido",
+  "shortDesc": "Descrição de <b>Sexto Sentido</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8137.png"
+ },
+ {
+  "id": 8140,
+  "name": "Lembranças Aterrorizantes",
+  "shortDesc": "Descrição de <b>Lembranças Aterrorizantes</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8140.png"
+ },
+ {
+  "id": 8141,
+  "name": "Sentinela Profunda",
+  "shortDesc": "Descrição de <b>Sentinela Profunda</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8141.png"
+ },
+ {
+  "id": 8135,
+  "name": "Caçador de Tesouros",
+  "shortDesc": "Descrição de <b>Caçador de Tesouros</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8135.png"
+ },
+ {
+  "id": 8105,
+  "name": "Caçador Incansável",
+  "shortDesc": "Descrição de <b>Caçador Incansável</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8105.png"
+ },
+ {
+  "id": 8106,
+  "name": "Caça Suprema",
+  "shortDesc": "Descrição de <b>Caça Suprema</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8106.png"
+ },
+ {
+  "id": 8214,
+  "name": "Invocar Aery",
+  "shortDesc": "Descrição de <b>Invocar Aery</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8214.png"
+ },
+ {
+  "id": 8229,
+  "name": "Cometa Arcano",
+  "shortDesc": "Descrição de <b>Cometa Arcano</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8229.png"
+ },
+ {
+  "id": 8230,
+  "name": "Ímpeto Gradual",
+  "shortDesc": "Descrição de <b>Ímpeto Gradual</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8230.png"
+ },
+ {
+  "id": 8224,
+  "name": "Axioma Arcano",
+  "shortDesc": "Descrição de <b>Axioma Arcano</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8224.png"
+ },
+ {
+  "id": 8226,
+  "name": "Faixa de Fluxo de Mana",
+  "shortDesc": "Descrição de <b>Faixa de Fluxo de Mana</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8226.png"
+ },
+ {
+  "id": 8275,
+  "name": "Manto de Nimbus",
+  "shortDesc": "Descrição de <b>Manto de Nimbus</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8275.png"
+ },
+ {
+  "id": 8210,
+  "name": "Transcendência",
+  "shortDesc": "Descrição de <b>Transcendência</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8210.png"
+ },
+ {
+  "id": 8234,
+  "name": "Celeridade",
+  "shortDesc": "Descrição de <b>Celeridade</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8234.png"
+ },
+ {
+  "id": 8233,
+  "name": "Foco Absoluto",
+  "shortDesc": "Descrição de <b>Foco Absoluto</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8233.png"
+ },
+ {
+  "id": 8237,
+  "name": "Chamuscar",
+  "shortDesc": "Descrição de <b>Chamuscar</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8237.png"
+ },
+ {
+  "id": 8232,
+  "name": "Caminhar Sobre as Águas",
+  "shortDesc": "Descrição de <b>Caminhar Sobre as Águas</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8232.png"
+ },
+ {
+  "id": 8236,
+  "name": "Tempestade Crescente",
+  "shortDesc": "Descrição de <b>Tempestade Crescente</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8236.png"
+ },
+ {
+  "id": 8437,
+  "name": "Aperto dos Mortos-Vivos",
+  "shortDesc": "Descrição de <b>Aperto dos Mortos-Vivos</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8437.png"
+ },
+ {
+  "id": 8439,
+  "name": "Pós-Choque",
+  "shortDesc": "Descrição de <b>Pós-Choque</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8439.png"
+ },
+ {
+  "id": 8465,
+  "name": "Guardião",
+  "shortDesc": "Descrição de <b>Guardião</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8465.png"
+ },
+ {
+  "id": 8446,
+  "name": "Demolir",
+  "shortDesc": "Descrição de <b>Demolir</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8446.png"
+ },
+ {
+  "id": 8463,
+  "name": "Fonte da Vida",
+  "shortDesc": "Descrição de <b>Fonte da Vida</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8463.png"
+ },
+ {
+  "id": 8401,
+  "name": "Golpe de Escudo",
+  "shortDesc": "Descrição de <b>Golpe de Escudo</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8401.png"
+ },
+ {
+  "id": 8429,
+  "name": "Condicionamento",
+  "shortDesc": "Descrição de <b>Condicionamento</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8429.png"
+ },
+ {
+  "id": 8444,
+  "name": "Ventos Revigorantes",
+  "shortDesc": "Descrição de <b>Ventos Revigorantes</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8444.png"
+ },
+ {
+  "id": 8473,
+  "name": "Osso Revestido",
+  "shortDesc": "Descrição de <b>Osso Revestido</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8473.png"
+ },
+ {
+  "id": 8451,
+  "name": "Crescimento Excessivo",
+  "shortDesc": "Descrição de <b>Crescimento Excessivo</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8451.png"
+ },
+ {
+  "id": 8453,
+  "name": "Revitalizar",
+  "shortDesc": "Descrição de <b>Revitalizar</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8453.png"
+ },
+ {
+  "id": 8242,
+  "name": "Inabalável",
+  "shortDesc": "Descrição de <b>Inabalável</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8242.png"
+ },
+ {
+  "id": 8351,
+  "name": "Aprimoramento Glacial",
+  "shortDesc": "Descrição de <b>Aprimoramento Glacial</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8351.png"
+ },
+ {
+  "id": 8360,
+  "name": "Livro de Feitiços Desselado",
+  "shortDesc": "Descrição de <b>Livro de Feitiços Desselado</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8360.png"
+ },
+ {
+  "id": 8369,
+  "name": "Primeiro Ataque",
+  "shortDesc": "Descrição de <b>Primeiro Ataque</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8369.png"
+ },
+ {
+  "id": 8306,
+  "name": "Flashtraption Hextec",
+  "shortDesc": "Descrição de <b>Flashtraption Hextec</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8306.png"
+ },
+ {
+  "id": 8304,
+  "name": "Calçados Mágicos",
+  "shortDesc": "Descrição de <b>Calçados Mágicos</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8304.png"
+ },
+ {
+  "id": 8321,
+  "name": "Reembolso",
+  "shortDesc": "Descrição de <b>Reembolso</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8321.png"
+ },
+ {
+  "id": 8313,
+  "name": "Tônico Triplo",
+  "shortDesc": "Descrição de <b>Tônico Triplo</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8313.png"
+ },
+ {
+  "id": 8352,
+  "name": "Tônico de Distorção Temporal",
+  "shortDesc": "Descrição de <b>Tônico de Distorção Temporal</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8352.png"
+ },
+ {
+  "id": 8345,
+  "name": "Entrega de Biscoitos",
+  "shortDesc": "Descrição de <b>Entrega de Biscoitos</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8345.png"
+ },
+ {
+  "id": 8347,
+  "name": "Perspicácia Cósmica",
+  "shortDesc": "Descrição de <b>Perspicácia Cósmica</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8347.png"
+ },
+ {
+  "id": 8410,
+  "name": "Velocidade de Aproximação",
+  "shortDesc": "Descrição de <b>Velocidade de Aproximação</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8410.png"
+ },
+ {
+  "id": 8316,
+  "name": "Faz-Tudo",
+  "shortDesc": "Descrição de <b>Faz-Tudo</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/8316.png"
+ },
+ {
+  "id": 5008,
+  "name": "Força Adaptativa",
+  "shortDesc": "Descrição de <b>Força Adaptativa</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/5008.png"
+ },
+ {
+  "id": 5005,
+  "name": "Velocidade de Ataque",
+  "shortDesc": "Descrição de <b>Velocidade de Ataque</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/5005.png"
+ },
+ {
+  "id": 5007,
+  "name": "Aceleração de Habilidade",
+  "shortDesc": "Descrição de <b>Aceleração de Habilidade</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/5007.png"
+ },
+ {
+  "id": 5010,
+  "name": "Velocidade de Movimento",
+  "shortDesc": "Descrição de <b>Velocidade de Movimento</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/5010.png"
+ },
+ {
+  "id": 5001,
+  "name": "Escalamento de Vida",
+  "shortDesc": "Descrição de <b>Escalamento de Vida</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/5001.png"
+ },
+ {
+  "id": 5011,
+  "name": "Vida",
+  "shortDesc": "Descrição de <b>Vida</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/5011.png"
+ },
+ {
+  "id": 5013,
+  "name": "Tenacidade e Resistência a Lentidão",
+  "shortDesc": "Descrição de <b>Tenacidade e Resistência a Lentidão</b> (dado sintético do mock-lcu).",
+  "iconPath": "/lol-game-data/assets/v1/perk-images/5013.png"
+ }
+]

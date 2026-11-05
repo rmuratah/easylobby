@@ -12,6 +12,10 @@
 //! {"type":"readyCheck","readyCheck":{"state":"InProgress","playerResponse":"None","timer":3.0,"duration":12.0}}
 //! {"type":"lobby","lobby":{"queueId":420,"queue":"rankedSolo",...}}
 //! {"type":"champSelect","champSelect":{"timer":{"phase":"BAN_PICK",...},"myTeam":[...],...}}
+//! {"type":"receivedInvitations","invitations":[{"invitationId":"...","fromSummonerId":1,...}]}
+//! {"type":"conversation","conversation":{"id":"...","gameName":"...","messages":[...],...}}
+//! {"type":"runePages","runePages":{"pages":[...],"currentPageId":994528921,"canCreatePage":true}}
+//! {"type":"runeCatalog","runeCatalog":{"styles":[...],"perks":[...]}}
 //! {"type":"friends","friends":[{"id":"...","gameName":"...","availability":"online",...}]}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
@@ -19,6 +23,7 @@
 //! ```json
 //! {"id":7,"command":{"type":"ping"}}
 //! {"id":8,"command":{"type":"createLobby","queue":"rankedSolo"}}
+//! {"id":9,"command":{"type":"selectRunePage","pageId":994528921}}
 //! {"id":9,"command":{"type":"confirmAction","actionId":13,"championId":121}}
 //! ```
 //!
@@ -40,11 +45,16 @@ use crate::champ_select::{
     ChampSelect, ChampSelectAction, ChampSelectActionType, ChampSelectBans, ChampSelectPhase,
     ChampSelectPlayer, ChampSelectTimer,
 };
+use crate::chat::{ChatMessage, Conversation};
 use crate::friends::{Activity, Availability, Friend, LeagueActivity, LeagueStatus};
 use crate::gameflow::GameflowPhase;
-use crate::lobby::{Lobby, LobbyMember, Position, Queue};
+use crate::invitations::{Invitee, ReceivedInvitation};
+use crate::lobby::{InvitationState, Lobby, LobbyInvitation, LobbyMember, Position, Queue};
 use crate::matchmaking::{Matchmaking, MatchmakingError, SearchState};
 use crate::ready_check::{ReadyCheck, ReadyCheckResponse, ReadyCheckState};
+use crate::runes::{
+    Perk, RuneCatalog, RunePage, RunePageInput, RunePages, RuneSlot, RuneSlotKind, RuneStyle,
+};
 use crate::summoner::Summoner;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
@@ -93,6 +103,28 @@ pub enum ServerMessage {
     /// seleção, não só o que mudou. `null` quando a seleção fecha (partida
     /// abrindo, dodge) e com o LoL fechado.
     ChampSelect { champ_select: Option<ChampSelect> },
+    /// Os convites de lobby recebidos mudaram (#32): chegou um, ou um foi
+    /// aceito, recusado ou cancelado. Sempre a lista inteira dos pendentes;
+    /// vazia quando não há nenhum e com o LoL fechado.
+    ReceivedInvitations {
+        invitations: Vec<ReceivedInvitation>,
+    },
+    /// Uma conversa 1:1 com um amigo (#31) abriu ou mudou: mensagem nova
+    /// (recebida ou mandada), não lidas, nome do amigo. Sempre a conversa
+    /// inteira, com o histórico da sessão; a UI troca a conversa de mesmo
+    /// `id` por esta, ou acrescenta se não tinha.
+    Conversation { conversation: Conversation },
+    /// A conversa `id` fechou (o amigo ou o client a fechou, ou o LoL
+    /// fechou). A UI tira ela da lista.
+    ConversationClosed { id: String },
+    /// As páginas de runas (#26) mudaram: criada, editada, apagada, outra
+    /// aplicada, ou a recomendada da seleção apareceu ou sumiu. Sempre a lista
+    /// inteira. `null` com o LoL fechado.
+    RunePages { rune_pages: Option<RunePages> },
+    /// As árvores de runas para o editor (#26). Chega uma vez por conexão
+    /// com o LoL, logo depois de conectar. `null` com o LoL fechado ou se a
+    /// LCU não mandou as árvores.
+    RuneCatalog { rune_catalog: Option<RuneCatalog> },
     /// A lista de amigos (#30) mudou: alguém ficou online ou offline, entrou
     /// numa partida, virou amigo ou deixou de ser. Sempre a lista inteira,
     /// já ordenada (disponíveis primeiro, depois por nome). Vazia com o LoL
@@ -118,6 +150,15 @@ pub struct AgentState {
     pub matchmaking: Option<Matchmaking>,
     /// Seleção de campeões em andamento (#22), ou `null`.
     pub champ_select: Option<ChampSelect>,
+    /// Convites de lobby recebidos e ainda pendentes (#32).
+    pub received_invitations: Vec<ReceivedInvitation>,
+    /// Conversas 1:1 abertas (#31), cada uma com o histórico da sessão. Sem
+    /// ordem definida; a UI ordena (pela última mensagem, por exemplo).
+    pub conversations: Vec<Conversation>,
+    /// Páginas de runas (#26), ou `null` com o LoL fechado.
+    pub rune_pages: Option<RunePages>,
+    /// Árvores de runas para o editor (#26), ou `null`.
+    pub rune_catalog: Option<RuneCatalog>,
     /// Amigos com a presença de cada um (#30), na ordem da tela.
     pub friends: Vec<Friend>,
 }
@@ -224,6 +265,77 @@ pub enum Command {
     /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
     /// recusar.
     StopQueue,
+    /// Aceita um convite de lobby recebido (#32) e entra no lobby de quem
+    /// convidou. O lobby novo e a lista de convites sem o aceito chegam nas
+    /// mensagens `lobby` e `receivedInvitations` antes da resposta (o lobby
+    /// pode chegar um pouco depois, pelo WAMP). Responde `invalidCommand`
+    /// sem falar com a LCU se o id tiver caracteres que a LCU não usa,
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (convite
+    /// expirado, jogador na fila...).
+    AcceptInvitation { invitation_id: String },
+    /// Recusa um convite de lobby recebido (#32). A lista sem ele chega numa
+    /// mensagem `receivedInvitations` antes da resposta. Mesmos erros do
+    /// `acceptInvitation`.
+    DeclineInvitation { invitation_id: String },
+    /// Convida jogadores para o lobby atual (#32), com o `summonerId` e o
+    /// `puuid` da lista de amigos. Só vale com `canInvite` no lobby. Os
+    /// convites aparecem em `invitations` do lobby, que chega numa mensagem
+    /// `lobby` antes da resposta. Responde `invalidCommand` sem falar com a
+    /// LCU com a lista vazia ou um convidado sem `summonerId` nem `puuid`,
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (fora de
+    /// lobby, sem permissão, lobby cheio...).
+    InviteToLobby { invitees: Vec<Invitee> },
+    /// Manda `body` na conversa 1:1 `conversationId` (#31): o `id` de uma
+    /// [`Conversation`], que é o `pid` do amigo no chat. Se a conversa ainda
+    /// não estava aberta, a LCU abre e ela chega numa mensagem
+    /// `conversation`. A mensagem mandada chega numa `conversation` antes da
+    /// resposta quando a LCU devolve a mensagem, e depois pelo WAMP nos
+    /// outros casos. Responde `invalidCommand` para texto vazio (só espaços)
+    /// sem falar com a LCU, `notConnected` com o LoL fechado e `lcu` se a
+    /// LCU recusar.
+    SendChatMessage {
+        conversation_id: String,
+        body: String,
+    },
+    /// Diz qual conversa 1:1 a UI está mostrando (#31), ou `null` para
+    /// nenhuma, como a UI oficial faz ao abrir e fechar a janela da conversa.
+    /// A LCU zera as não lidas da conversa ativa; a mudança chega numa
+    /// mensagem `conversation`. Responde `notConnected` com o LoL fechado e
+    /// `lcu` se a LCU recusar.
+    SetActiveConversation { conversation_id: Option<String> },
+    /// Aplica a página de runas `pageId` (#26). As páginas com o
+    /// `currentPageId` novo chegam numa mensagem `runePages` antes da
+    /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
+    /// recusar (página que não existe...).
+    SelectRunePage {
+        #[ts(type = "number")]
+        page_id: u64,
+    },
+    /// Cria uma página de runas e já a aplica (#26). A página é conferida
+    /// com as árvores do `runeCatalog` antes de ir para a LCU: nome vazio,
+    /// árvores iguais ou runa fora da linha voltam `invalidCommand` (veja
+    /// `selectedPerkIds` em `RunePage` para a ordem das runas). A lista nova
+    /// chega numa mensagem `runePages` antes da resposta. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar, como sem
+    /// espaço para página nova (`canCreatePage: false`).
+    CreateRunePage { page: RunePageInput },
+    /// Troca nome, árvores e runas da página `pageId` (#26), com a mesma
+    /// conferência do `createRunePage`. Não muda qual página está em uso.
+    /// Mesmos erros do `createRunePage`; `lcu` também quando a página não
+    /// existe ou não é editável (`isEditable: false`).
+    UpdateRunePage {
+        #[ts(type = "number")]
+        page_id: u64,
+        page: RunePageInput,
+    },
+    /// Apaga a página `pageId` (#26). A lista nova chega numa mensagem
+    /// `runePages` antes da resposta. Responde `notConnected` com o LoL
+    /// fechado e `lcu` se a LCU recusar (página que não existe ou não pode
+    /// ser apagada, `isDeletable: false`).
+    DeleteRunePage {
+        #[ts(type = "number")]
+        page_id: u64,
+    },
     /// Marca o campeão `championId` na ação `actionId` da seleção (#23), sem
     /// confirmar: o hover de um ban ou de um pick na vez do jogador, ou a
     /// intenção de pick antes da vez dele (etapa `PLANNING` ou durante os
@@ -300,6 +412,10 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<ReadyCheckState>(&cfg)?,
         file::<ReadyCheckResponse>(&cfg)?,
         file::<Lobby>(&cfg)?,
+        file::<LobbyInvitation>(&cfg)?,
+        file::<InvitationState>(&cfg)?,
+        file::<ReceivedInvitation>(&cfg)?,
+        file::<Invitee>(&cfg)?,
         file::<LobbyMember>(&cfg)?,
         file::<Position>(&cfg)?,
         file::<Queue>(&cfg)?,
@@ -313,6 +429,16 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<ChampSelectBans>(&cfg)?,
         file::<ChampSelectAction>(&cfg)?,
         file::<ChampSelectActionType>(&cfg)?,
+        file::<Conversation>(&cfg)?,
+        file::<ChatMessage>(&cfg)?,
+        file::<RunePages>(&cfg)?,
+        file::<RunePage>(&cfg)?,
+        file::<RuneCatalog>(&cfg)?,
+        file::<RuneStyle>(&cfg)?,
+        file::<RuneSlot>(&cfg)?,
+        file::<RuneSlotKind>(&cfg)?,
+        file::<Perk>(&cfg)?,
+        file::<RunePageInput>(&cfg)?,
         file::<ClientMessage>(&cfg)?,
         file::<Command>(&cfg)?,
         file::<CommandResult>(&cfg)?,
@@ -354,6 +480,10 @@ mod tests {
                     "lobby": null,
                     "matchmaking": null,
                     "champSelect": null,
+                    "receivedInvitations": [],
+                    "conversations": [],
+                    "runePages": null,
+                    "runeCatalog": null,
                     "friends": [],
                 },
             })
@@ -487,6 +617,55 @@ mod tests {
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 11, "command": {"type": "stopQueue"}})).unwrap();
         assert_eq!(msg.command, Command::StopQueue);
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 12, "command": {"type": "selectRunePage", "pageId": 994528921}}),
+        )
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::SelectRunePage {
+                page_id: 994_528_921
+            }
+        );
+        let page = json!({
+            "name": "Nova",
+            "primaryStyleId": 8000,
+            "subStyleId": 8300,
+            "selectedPerkIds": [8005, 9111, 9104, 8017, 8313, 8321, 5005, 5008, 5011],
+        });
+        let input = RunePageInput {
+            name: "Nova".into(),
+            primary_style_id: 8000,
+            sub_style_id: 8300,
+            selected_perk_ids: vec![8005, 9111, 9104, 8017, 8313, 8321, 5005, 5008, 5011],
+        };
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 13, "command": {"type": "createRunePage", "page": page}}),
+        )
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::CreateRunePage {
+                page: input.clone()
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 14,
+            "command": {"type": "updateRunePage", "pageId": 7, "page": page},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::UpdateRunePage {
+                page_id: 7,
+                page: input
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 15, "command": {"type": "deleteRunePage", "pageId": 7}}),
+        )
+        .unwrap();
+        assert_eq!(msg.command, Command::DeleteRunePage { page_id: 7 });
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 12,
             "command": {"type": "hoverChampion", "actionId": 13, "championId": 121},
@@ -509,6 +688,70 @@ mod tests {
             Command::ConfirmAction {
                 action_id: 13,
                 champion_id: 121,
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 12,
+            "command": {"type": "sendChatMessage", "conversationId": "a@br1.pvp.net", "body": "oi"},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::SendChatMessage {
+                conversation_id: "a@br1.pvp.net".into(),
+                body: "oi".into(),
+            }
+        );
+        for (value, expected) in [
+            (json!("a@br1.pvp.net"), Some("a@br1.pvp.net".to_owned())),
+            (json!(null), None),
+        ] {
+            let msg: ClientMessage = serde_json::from_value(json!({
+                "id": 13,
+                "command": {"type": "setActiveConversation", "conversationId": value},
+            }))
+            .unwrap();
+            assert_eq!(
+                msg.command,
+                Command::SetActiveConversation {
+                    conversation_id: expected
+                }
+            );
+        }
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 12,
+            "command": {"type": "acceptInvitation", "invitationId": "abc"},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::AcceptInvitation {
+                invitation_id: "abc".into()
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 13,
+            "command": {"type": "declineInvitation", "invitationId": "abc"},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::DeclineInvitation {
+                invitation_id: "abc".into()
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 14,
+            "command": {"type": "inviteToLobby", "invitees": [{"summonerId": 1003, "puuid": "p"}]},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::InviteToLobby {
+                invitees: vec![Invitee {
+                    summoner_id: 1003,
+                    puuid: "p".into()
+                }]
             }
         );
         // Só as filas que o easylobby oferece.
