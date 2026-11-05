@@ -69,3 +69,12 @@ jobs:
         run: cargo +stable clippy --locked -p easylobby-desktop --all-targets -- -D warnings
       - name: Build desktop
         run: cargo +stable build --locked -p easylobby-desktop
+
+      - name: Build mock and agent for UI integration
+        run: |
+          cargo +stable build --locked -p mock-lcu
+          cargo +stable build --locked -p easylobby-agent --example canal_ws
+      - name: Test UI with real agent and mock-lcu
+        env:
+          EASYLOBBY_INTEGRATION: '1'
+        run: pnpm --filter easylobby-ui exec vitest run src/agent/integration.test.ts

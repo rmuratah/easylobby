@@ -19,3 +19,4 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 easylobby-agent = { path = "../../agent" }
 tauri = { version = "2", features = ["tray-icon"] }
+tokio = { version = "1", features = ["net"] }
