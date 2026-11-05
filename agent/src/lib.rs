@@ -10,12 +10,15 @@
 //! - [`wamp`]: eventos da LCU em tempo real pelo WebSocket WAMP (#9)
 //! - [`connection`]: conexão REST + WAMP que reconecta quando o LoL fecha ou
 //!   reinicia (#10)
+//! - [`ux`]: fecha a UI oficial ao conectar (`kill-ux`) e reabre
+//!   (`launch-ux`) (#12)
 
 pub mod connection;
 pub mod fixtures;
 pub mod lockfile;
 pub mod rest;
 pub mod summoner;
+pub mod ux;
 pub mod wamp;
 
 /// Versão do agente, a mesma do `Cargo.toml`.

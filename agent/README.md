@@ -96,6 +96,14 @@ loop {
 
 O example `eventos` usa a reconexão: deixe-o rodando e feche e reabra o LoL (ou o `cargo run -p mock-lcu`). Os testes em `mock-lcu/tests/reconexao.rs` sobem e derrubam o mock com a gravação `16.22` e conferem a espera pelo LoL, a reconexão com porta, senha e CA novas no meio do champ select, o lockfile velho e o cancelamento do `next`.
 
+## Fechar a UI oficial (`ux`)
+
+A cada `Connected`, depois de REST e WAMP abrirem, a `LcuConnection` chama `POST /riotclient/kill-ux` (#12): fecha o `LeagueClientUx` e o client continua rodando, então a LCU segue respondendo. Isso vale também quando o LoL reabre. Se o agente não consegue conectar, a UI oficial fica aberta.
+
+O resultado vem em `session.kill_ux`: `Killed`, `Disabled` (opção desligada) ou `Failed(erro)`. Uma falha não derruba a conexão. Para desligar, use `ReconnectConfig { kill_ux: false, .. }` ou `lcu.set_kill_ux(false)`, que vale a partir da próxima conexão e não reabre a UI agora. Para fechar ou reabrir na hora (o botão de emergência), use `ux::kill_ux(&session.client)` e `ux::launch_ux(&session.client)`.
+
+O example `eventos` fecha a UI ao conectar e a reabre com `launch-ux` ao sair com Ctrl+C; `--manter-ui` não chama o `kill-ux`. Os testes em `mock-lcu/tests/kill_ux.rs` conferem o kill-ux ao conectar, o `launch-ux`, a opção desligada, o kill-ux de novo quando o LoL reabre e a troca da opção entre conexões.
+
 ## Fixtures da LCU
 
 Respostas REST e eventos WAMP gravados de sessões reais ficam em `tests/fixtures/<patch>/` e alimentam o `mock-lcu` (#6). Cada pasta tem:
