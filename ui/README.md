@@ -43,3 +43,44 @@ pnpm test
 pnpm lint
 pnpm build:ui
 ```
+
+## Cargos no lobby (#18): roteiro Windows
+
+Com Node.js 22, pnpm 10.28.0 e Rust estável instalados, rode `pnpm install
+--frozen-lockfile` na raiz. Abra três terminais PowerShell nessa mesma pasta:
+
+1. `cargo run -p mock-lcu -- --parado` (sem reprodução de eventos gravados).
+2. `cargo run -p easylobby-agent --example canal_ws -- --mock`.
+3. `pnpm dev:ui`; abra `http://localhost:5173`.
+
+Crie um lobby Normal alternada ou Ranqueada. Escolha Meio e Selva, clique em
+**Salvar cargos** e confira os cargos na lista de jogadores. Durante o envio,
+os controles ficam bloqueados; clicar duas vezes não deve repetir o comando.
+A mensagem de sucesso confirma o comando; os cargos exibidos vêm do estado do
+agente. Confira também:
+
+- Primário Preenchimento ou Não selecionado deixa o secundário Não selecionado;
+  o mesmo cargo não pode ser primário e secundário. Preenchimento secundário é
+  permitido com um primário específico.
+- ARAM e Jogo Dinâmico mostram que a fila não permite escolher cargos.
+- Pare o agente durante um envio, reinicie e confira a reconexão sem reenvio
+  automático. Repita parando somente o mock.
+- No LoL real, use o agente sem `--mock` (e sem o mock rodando): entre no lobby
+  de outra pessoa e confira que pode escolher seus cargos sem ser líder.
+  O jogador local é identificado por `puuid`, não pela posição na lista.
+
+Para executar a integração automática real no Windows:
+
+```powershell
+cargo build --locked -p mock-lcu
+cargo build --locked -p easylobby-agent --example canal_ws
+$env:EASYLOBBY_INTEGRATION = '1'
+pnpm --filter easylobby-ui exec vitest run src/agent/integration.test.ts
+Remove-Item Env:EASYLOBBY_INTEGRATION
+```
+
+Feche as instâncias manuais do agente/mock antes dessa integração. Ela valida
+`setPositions` e o estado confirmado nas filas com cargos, além do fluxo de
+lobby e reconexão. Os testes de UI com WebSocket simulado também cobrem erros,
+timeout, membro sem liderança e respostas tardias. Testes simulados não
+substituem a validação visual no Windows/LoL real.

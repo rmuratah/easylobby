@@ -51,7 +51,7 @@ describe('lobby pelo único /ws do App', () => {
     expect(request().command).toEqual({ type: 'createLobby', queue });
     expect(socket().send).toHaveBeenCalledTimes(1);
     expect(button('Sair do lobby')).toBeDisabled();
-    expect(panel().getByRole('combobox')).toBeDisabled();
+    expect(panel().getByRole('combobox', { name: 'Fila' })).toBeDisabled();
     expect(panel().getByRole('status')).toHaveTextContent('Criando');
     expect(panel().getByText('Você não está em um lobby.')).toBeInTheDocument();
     act(() => {
@@ -84,14 +84,14 @@ describe('lobby pelo único /ws do App', () => {
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
     expect(panel().getByText(/Victor#BR1.*Nível 122.*Líder/)).toBeInTheDocument();
     expect(panel().getByText(/1 \/ 2 jogadores/)).toBeInTheDocument();
-    expect(panel().getByRole('combobox')).toHaveValue('rankedSolo');
+    expect(panel().getByRole('combobox', { name: 'Fila' })).toHaveValue('rankedSolo');
     choose('aram');
     fireEvent.click(button('Trocar fila'));
     expect(request().command).toEqual({ type: 'createLobby', queue: 'aram' });
     expect(panel().getByText(queueNames.rankedSolo, { selector: 'strong' })).toBeInTheDocument();
     act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, queue: 'aram', queueId: 450, maxLobbySize: 5 } }));
     await ok();
-    expect(panel().getByRole('combobox')).toHaveValue('aram');
+    expect(panel().getByRole('combobox', { name: 'Fila' })).toHaveValue('aram');
     act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, queue: null, queueId: 999 } }));
     expect(panel().getByText('Outra fila (ID 999)')).toBeInTheDocument();
     fireEvent.click(button('Sair do lobby'));
@@ -113,7 +113,7 @@ describe('lobby pelo único /ws do App', () => {
     render(<App />);
     hello({ gameflowPhase: 'Lobby', lobby: { ...testLobby, isLeader: false } });
     expect(button('Trocar fila')).toBeDisabled();
-    expect(panel().getByRole('combobox')).toBeDisabled();
+    expect(panel().getByRole('combobox', { name: 'Fila' })).toBeDisabled();
     expect(panel().getByText(/Somente o líder/)).toBeInTheDocument();
     choose('aram');
     fireEvent.click(button('Trocar fila'));
@@ -207,6 +207,150 @@ describe('lobby pelo único /ws do App', () => {
     }
     await act(async () => old.receive({ type: 'response', id: oldId, result: { status: 'ok' } }));
     expect(panel().queryByText('Saída do lobby confirmada.')).not.toBeInTheDocument();
+    expect(socket().send).toHaveBeenCalledTimes(source === 'agente' ? 0 : 1);
+  });
+});
+
+const positionSelect = (name: string) => panel().getByRole('combobox', { name });
+function choosePositions(first: string, second = 'unselected') {
+  fireEvent.change(positionSelect('Cargo primário'), { target: { value: first } });
+  fireEvent.change(positionSelect('Cargo secundário'), { target: { value: second } });
+}
+
+describe('cargos pelo /ws', () => {
+  it.each(['antes', 'depois'])('permite membro sem liderança e confirma pelo evento %s da resposta', async order => {
+    render(<App />);
+    const lobby = { ...testLobby, isLeader: false, members: [
+      { ...testLobby.members[0], puuid: 'outro', summonerId: 2, firstPosition: 'top' as const },
+      { ...testLobby.members[0], isLeader: false },
+    ] };
+    hello({ lobby, gameflowPhase: 'Lobby' });
+    expect(button('Salvar cargos')).toBeDisabled();
+    choosePositions('middle', 'jungle');
+    act(() => { fireEvent.click(button('Salvar cargos')); fireEvent.click(button('Salvar cargos')); });
+    expect(request().command).toEqual({ type: 'setPositions', first: 'middle', second: 'jungle' });
+    expect(socket().send).toHaveBeenCalledTimes(1);
+    expect(positionSelect('Cargo primário')).toBeDisabled();
+    expect(button('Sair do lobby')).toBeDisabled();
+    expect(panel().getByRole('status')).toHaveTextContent('Enviando cargos');
+    expect(panel().getByText('Primário: Não selecionado · Secundário: Não selecionado')).toBeInTheDocument();
+    const update = () => act(() => socket().receive({ type: 'lobby', lobby: { ...lobby, members: [
+      lobby.members[0], { ...lobby.members[1], firstPosition: 'middle', secondPosition: 'jungle' },
+    ] } }));
+    if (order === 'antes') update();
+    await ok();
+    expect(button('Salvar cargos')).toBeDisabled();
+    fireEvent.click(button('Salvar cargos'));
+    expect(socket().send).toHaveBeenCalledTimes(1);
+    if (order === 'depois') update();
+    expect(panel().getByText('Primário: Meio · Secundário: Selva')).toBeInTheDocument();
+    expect(panel().getByText('Primário: Topo · Secundário: Não selecionado')).toBeInTheDocument();
+    expect(positionSelect('Cargo primário')).toHaveValue('middle');
+  });
+
+  it('normaliza preenchimento e vazio, bloqueia repetidos e permite preenchimento secundário', async () => {
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    choosePositions('middle', 'jungle');
+    expect(within(positionSelect('Cargo secundário')).getByRole('option', { name: 'Meio' })).toBeDisabled();
+    fireEvent.change(positionSelect('Cargo primário'), { target: { value: 'jungle' } });
+    expect(positionSelect('Cargo secundário')).toHaveValue('unselected');
+    choosePositions('middle', 'fill');
+    fireEvent.click(button('Salvar cargos'));
+    expect(request().command).toEqual({ type: 'setPositions', first: 'middle', second: 'fill' });
+    await ok();
+    fireEvent.change(positionSelect('Cargo primário'), { target: { value: 'fill' } });
+    expect(positionSelect('Cargo secundário')).toBeDisabled();
+    expect(positionSelect('Cargo secundário')).toHaveValue('unselected');
+    fireEvent.click(button('Salvar cargos'));
+    expect(request().command).toEqual({ type: 'setPositions', first: 'fill', second: 'unselected' });
+    await ok();
+    act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, members: [
+      { ...testLobby.members[0], firstPosition: 'fill' },
+    ] } }));
+    fireEvent.change(positionSelect('Cargo primário'), { target: { value: 'unselected' } });
+    expect(positionSelect('Cargo secundário')).toBeDisabled();
+    fireEvent.click(button('Salvar cargos'));
+    expect(request().command).toEqual({ type: 'setPositions', first: 'unselected', second: 'unselected' });
+    await ok();
+  });
+
+  it.each(['aram', 'swiftplay', null] as const)('respeita showPositionSelector na fila %s', queue => {
+    render(<App />);
+    hello({ lobby: { ...testLobby, queue, showPositionSelector: false }, gameflowPhase: 'Lobby' });
+    expect(panel().queryByRole('button', { name: 'Salvar cargos' })).not.toBeInTheDocument();
+    expect(panel().getByText('Esta fila não permite escolher cargos.')).toBeInTheDocument();
+    expect(socket().send).not.toHaveBeenCalled();
+  });
+
+  it('aguarda puuid local, bloqueia outras fases e acompanha mudanças externas', () => {
+    render(<App />);
+    hello({ lobby: { ...testLobby, members: [{ ...testLobby.members[0], puuid: 'outro' }] }, gameflowPhase: 'Lobby' });
+    expect(positionSelect('Cargo primário')).toBeDisabled();
+    hello({ lobby: testLobby, gameflowPhase: 'Matchmaking' });
+    expect(positionSelect('Cargo primário')).toBeDisabled();
+    act(() => socket().receive({ type: 'gameflowPhase', phase: 'Lobby' }));
+    choosePositions('middle', 'jungle');
+    act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, members: [
+      { ...testLobby.members[0], firstPosition: 'bottom', secondPosition: 'utility' },
+    ] } }));
+    expect(positionSelect('Cargo primário')).toHaveValue('bottom');
+    expect(positionSelect('Cargo secundário')).toHaveValue('utility');
+    expect(button('Salvar cargos')).toBeDisabled();
+    expect(socket().send).not.toHaveBeenCalled();
+  });
+
+  it.each(['lcu', 'invalidCommand', 'notConnected'] as const)('trata erro %s e permite nova tentativa explícita', async code => {
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    choosePositions('top', 'jungle');
+    fireEvent.click(button('Salvar cargos'));
+    await act(async () => socket().receive({ type: 'response', id: request().id,
+      result: { status: 'error', code, message: 'Cargos indisponíveis' } }));
+    expect(panel().getByRole('alert')).toHaveTextContent(code === 'notConnected' ? 'desconectou' : 'Cargos indisponíveis');
+    expect(panel().getByText('Primário: Não selecionado · Secundário: Não selecionado')).toBeInTheDocument();
+    expect(button('Salvar cargos')).toBeEnabled();
+    fireEvent.click(button('Salvar cargos'));
+    await ok();
+  });
+
+  it('trata falha de envio, timeout e resposta tardia sem repetir automaticamente', async () => {
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    choosePositions('top', 'jungle');
+    socket().send.mockImplementationOnce(() => { throw new Error('envio'); });
+    await act(async () => fireEvent.click(button('Salvar cargos')));
+    expect(panel().getByRole('alert')).toHaveTextContent('Não foi possível confirmar');
+    fireEvent.click(button('Salvar cargos'));
+    const id = request().id;
+    await act(async () => vi.advanceTimersByTime(10000));
+    expect(button('Salvar cargos')).toBeEnabled();
+    await act(async () => socket().receive({ type: 'response', id, result: { status: 'ok' } }));
+    expect(panel().getByRole('alert')).toBeInTheDocument();
+    expect(socket().send).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['agente', 'LoL', 'sessão', 'fila'] as const)('descarta confirmação anterior após mudança de %s', async source => {
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    choosePositions('top', 'jungle');
+    fireEvent.click(button('Salvar cargos'));
+    const old = socket();
+    const id = request().id;
+    if (source === 'agente') {
+      await act(async () => old.onclose?.());
+      expect(panel().queryByRole('button')).not.toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(1000));
+      hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    } else if (source === 'fila') {
+      act(() => old.receive({ type: 'lobby', lobby: { ...testLobby, queue: 'aram', queueId: 450, showPositionSelector: false } }));
+    } else {
+      act(() => old.receive({ type: 'lcu', status: source === 'LoL'
+        ? { state: 'disconnected', reason: 'fechado' } : { state: 'connected', session: 2 } }));
+      if (source === 'LoL') hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    }
+    await act(async () => old.receive({ type: 'response', id, result: { status: 'ok' } }));
+    expect(panel().queryByText(/Comando de cargos aceito/)).not.toBeInTheDocument();
     expect(socket().send).toHaveBeenCalledTimes(source === 'agente' ? 0 : 1);
   });
 });
