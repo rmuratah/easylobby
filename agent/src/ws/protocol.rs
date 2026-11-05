@@ -11,6 +11,7 @@
 //! {"type":"gameflowPhase","phase":"Lobby"}
 //! {"type":"readyCheck","readyCheck":{"state":"InProgress","playerResponse":"None","timer":3.0,"duration":12.0}}
 //! {"type":"lobby","lobby":{"queueId":420,"queue":"rankedSolo",...}}
+//! {"type":"champSelect","champSelect":{"timer":{"phase":"BAN_PICK",...},"myTeam":[...],...}}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
 //!
@@ -32,6 +33,10 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::champ_select::{
+    ChampSelect, ChampSelectAction, ChampSelectActionType, ChampSelectBans, ChampSelectPhase,
+    ChampSelectPlayer, ChampSelectTimer,
+};
 use crate::gameflow::GameflowPhase;
 use crate::lobby::{Lobby, LobbyMember, Position, Queue};
 use crate::matchmaking::{Matchmaking, MatchmakingError, SearchState};
@@ -56,7 +61,9 @@ pub enum ServerMessage {
         /// [`PROTOCOL_VERSION`] do agente.
         protocol: u32,
         agent_version: String,
-        state: AgentState,
+        // Em caixa porque o estado (com a seleção de campeões) é bem maior
+        // que as outras mensagens; o JSON é o mesmo.
+        state: Box<AgentState>,
     },
     /// O estado da conexão com o LoL mudou.
     Lcu { status: LcuStatus },
@@ -77,6 +84,11 @@ pub enum ServerMessage {
     /// fila (chega a cada segundo enquanto procura), partida encontrada.
     /// `null` fora da fila e com o LoL fechado.
     Matchmaking { matchmaking: Option<Matchmaking> },
+    /// A seleção de campeões (#22) abriu ou mudou: hover, ban, pick, troca
+    /// de feitiço, troca de etapa ou de vez. Sempre o estado inteiro da
+    /// seleção, não só o que mudou. `null` quando a seleção fecha (partida
+    /// abrindo, dodge) e com o LoL fechado.
+    ChampSelect { champ_select: Option<ChampSelect> },
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
     /// A UI mandou algo que não é um [`ClientMessage`] válido. Sem `id`,
@@ -95,6 +107,8 @@ pub struct AgentState {
     pub ready_check: Option<ReadyCheck>,
     pub lobby: Option<Lobby>,
     pub matchmaking: Option<Matchmaking>,
+    /// Seleção de campeões em andamento (#22), ou `null`.
+    pub champ_select: Option<ChampSelect>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -265,6 +279,13 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<Matchmaking>(&cfg)?,
         file::<MatchmakingError>(&cfg)?,
         file::<SearchState>(&cfg)?,
+        file::<ChampSelect>(&cfg)?,
+        file::<ChampSelectTimer>(&cfg)?,
+        file::<ChampSelectPhase>(&cfg)?,
+        file::<ChampSelectPlayer>(&cfg)?,
+        file::<ChampSelectBans>(&cfg)?,
+        file::<ChampSelectAction>(&cfg)?,
+        file::<ChampSelectActionType>(&cfg)?,
         file::<ClientMessage>(&cfg)?,
         file::<Command>(&cfg)?,
         file::<CommandResult>(&cfg)?,
@@ -284,7 +305,7 @@ mod tests {
         let hello = ServerMessage::Hello {
             protocol: PROTOCOL_VERSION,
             agent_version: "0.1.0".into(),
-            state: AgentState::default(),
+            state: Box::default(),
         };
         assert_eq!(
             serde_json::to_value(&hello).unwrap(),
@@ -299,6 +320,7 @@ mod tests {
                     "readyCheck": null,
                     "lobby": null,
                     "matchmaking": null,
+                    "champSelect": null,
                 },
             })
         );

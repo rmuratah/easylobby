@@ -20,7 +20,10 @@
 //! - [`gameflow`]: fase do gameflow (lobby, fila, ready check, champ
 //!   select, em jogo, pós-jogo) (#16)
 //! - [`ready_check`]: partida encontrada, com aceitar e recusar (#20)
+//! - [`champ_select`]: estado da seleção de campeões (sessão, times, timer e
+//!   ações pendentes) (#22)
 
+pub mod champ_select;
 pub mod connection;
 pub mod fixtures;
 pub mod gameflow;
