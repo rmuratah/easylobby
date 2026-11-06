@@ -3,6 +3,7 @@ import { useAgent } from './agent/useAgent';
 import type { ConnectionSnapshot } from './agent/client';
 import { LaunchUxButton } from './components/LaunchUxButton';
 import { QueuePanel } from './components/QueuePanel';
+import { FriendsList } from './components/FriendsList';
 
 function connectionLabel(connection: ConnectionSnapshot): string {
   if (connection.status === 'incompatible') return 'Versões incompatíveis';
@@ -38,6 +39,7 @@ export default function App() {
       {connection.error && <p role="alert" className="max-w-lg text-center text-amber-300">{connection.error}</p>}
       <LobbyPanel connection={connection} send={connection.send} />
       <QueuePanel connection={connection} send={connection.send} />
+      <FriendsList connection={connection} />
     </main>
   );
 }
