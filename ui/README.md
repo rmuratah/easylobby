@@ -84,3 +84,19 @@ Feche as instâncias manuais do agente/mock antes dessa integração. Ela valida
 lobby e reconexão. Os testes de UI com WebSocket simulado também cobrem erros,
 timeout, membro sem liderança e respostas tardias. Testes simulados não
 substituem a validação visual no Windows/LoL real.
+
+## Paleta dos temas
+
+`src/theme/themeColors.ts` preserva a paleta fornecida por Victor (claro e escuro),
+incluindo gradientes, dourado, status e avatares. Após editar esse arquivo, gere
+as variáveis CSS na raiz do repositório:
+
+```bash
+node ui/scripts/generate-palette.mjs
+```
+
+`tokens.css` mantém os valores originais em `--el-palette-*` e os papéis existentes
+em `--el-*`. Texto, controles e indicadores usam variantes ajustadas para os
+contrastes já exigidos pelos testes. O seletor Sistema/Claro/Escuro continua sendo
+o responsável pela troca. As classes slate das telas ainda em redesign são
+mapeadas para os tokens para acompanhar o tema.

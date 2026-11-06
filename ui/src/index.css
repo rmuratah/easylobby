@@ -2,19 +2,19 @@
 @import "@fontsource-variable/figtree";
 @import "./theme/tokens.css";
 
-:root { background: #020617; color: #f1f5f9; }
+:root { background: var(--el-bg); color: var(--el-ink); }
 body { margin: 0; }
 [hidden] { display: none !important; }
-/* Telas antigas continuam escuras até serem redesenhadas (Fase 5). */
+/* As telas funcionais compartilham os tokens durante o redesign. */
 .app-shell { color-scheme: dark; height: 100dvh; display: flex; flex-direction: column; }
 .app-body { display: flex; flex: 1; min-height: 0; }
 .app-content { container-type: inline-size; flex: 1; min-width: 0; overflow: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
 .app-content > * { flex-shrink: 0; }
-.app-sidebar { width: 20rem; flex-shrink: 0; overflow: auto; padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 1rem; border-left: 1px solid #334155; }
+.app-sidebar { width: 20rem; flex-shrink: 0; overflow: auto; padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 1rem; border-left: 1px solid var(--el-control); }
 .app-sidebar > * { flex-shrink: 0; }
-.sidebar-toggle, .nav-button, .app-content nav button { border: 1px solid #475569; border-radius: .375rem; padding: .5rem 1rem; }
-button[aria-current="page"] { background: #0c4a6e; border-color: #38bdf8; }
-:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
+.sidebar-toggle, .nav-button, .app-content nav button, .app-content > section > button { border: 1px solid var(--el-control); border-radius: .375rem; padding: .5rem 1rem; }
+button[aria-current="page"] { background: var(--el-accent-soft); border-color: var(--el-accent); }
+:focus-visible { outline: 2px solid var(--el-accent); outline-offset: 3px; }
 .play-panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
 .play-panels[data-screen="home"], .play-panels[data-screen="queue"] { grid-template-columns: minmax(0, 42rem); }
 .play-panels section { max-width: none; }
@@ -26,4 +26,23 @@ button[aria-current="page"] { background: #0c4a6e; border-color: #38bdf8; }
 @container (max-width: 56rem) {
   .champ-select-board { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .champ-select-center { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* Compatibilidade das telas funcionais com ambos os temas. */
+@theme inline {
+  --color-slate-950: var(--el-bg);
+  --color-slate-900: var(--el-surface);
+  --color-slate-800: var(--el-raised);
+  --color-slate-700: var(--el-line);
+  --color-slate-600: var(--el-control);
+  --color-slate-500: var(--el-muted);
+  --color-slate-400: var(--el-muted);
+  --color-slate-300: var(--el-ink);
+  --color-slate-200: var(--el-ink);
+  --color-slate-100: var(--el-ink);
+  --color-sky-400: var(--el-accent);
+  --color-emerald-400: var(--el-status-online);
+  --color-amber-300: var(--el-warn);
+  --color-amber-400: var(--el-warn);
+  --color-red-400: var(--el-danger);
 }
