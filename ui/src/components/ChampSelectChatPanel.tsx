@@ -17,9 +17,9 @@ function senderName(champSelect: ChampSelect, message: ChampSelectChatMessage): 
 /** Chat do time na seleção de campeões (#27). */
 export function ChampSelectChatPanel(props: Props) {
   if (!props.chat) return (
-    <section aria-label="Chat do time" className="flex min-w-0 flex-col gap-2">
-      <h3 className="text-lg font-semibold">Chat do time</h3>
-      <p className="text-slate-300">Aguardando a sala do chat abrir…</p>
+    <section aria-label="Chat do time" className="flex min-w-0 flex-col gap-2 rounded-card border border-line bg-surface p-3 text-ink">
+      <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Chat do time</h3>
+      <p className="text-muted">Aguardando a sala do chat abrir…</p>
       <input aria-label="Mensagem para o time" disabled />
       <button disabled>Enviar</button>
     </section>
@@ -73,9 +73,9 @@ function OpenChat({ champSelect, chat, send }: Props & { chat: ChampSelectChat }
   }
 
   return (
-    <section aria-label="Chat do time" className="flex min-w-0 flex-col gap-2">
-      <h3 className="text-lg font-semibold">Chat do time</h3>
-      {messages.length === 0 ? <p className="text-slate-300">Nenhuma mensagem ainda.</p>
+    <section aria-label="Chat do time" className="flex min-w-0 flex-col gap-2 rounded-card border border-line bg-surface p-3 text-ink">
+      <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Chat do time</h3>
+      {messages.length === 0 ? <p className="text-muted">Nenhuma mensagem ainda.</p>
           : (
             <ol ref={log} onScroll={() => {
               const element = log.current;
@@ -83,8 +83,8 @@ function OpenChat({ champSelect, chat, send }: Props & { chat: ChampSelectChat }
             }} role="log" aria-label="Mensagens do time" className="flex max-h-64 flex-col gap-1 overflow-y-auto pr-1">
               {messages.map(message => (
                 <li key={message.id} className="break-words text-sm">
-                  <span className="text-xs text-slate-400">{messageTime(message)} </span>
-                  <span className={`font-semibold ${message.fromMe ? 'text-sky-300' : 'text-slate-200'}`}>{senderName(champSelect, message)}: </span>
+                  <span className="text-xs text-muted">{messageTime(message)} </span>
+                  <span className={`font-semibold ${message.fromMe ? 'text-accent-ink' : 'text-ink'}`}>{senderName(champSelect, message)}: </span>
                   <span className="whitespace-pre-wrap">{message.body}</span>
                 </li>
               ))}
@@ -94,13 +94,13 @@ function OpenChat({ champSelect, chat, send }: Props & { chat: ChampSelectChat }
         <label htmlFor={inputId} className="sr-only">Mensagem para o time</label>
         <input id={inputId} type="text" value={draft} autoComplete="off" placeholder="Mensagem para o time"
           onChange={event => setDraft(event.target.value)}
-          className="min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 disabled:opacity-50" />
+          className="h-9 min-w-0 flex-1 rounded-control border border-control bg-surface px-3 text-body text-ink disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" />
         <button type="submit" disabled={!draft.trim() || sending}
-          className="rounded border border-sky-400 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50">
+          className="h-9 rounded-control bg-accent px-3 text-body font-semibold text-on-accent disabled:cursor-not-allowed disabled:bg-raised disabled:text-muted">
           {sending ? 'Enviando…' : 'Enviar'}
         </button>
       </form>
-      {error && <p role="alert" className="text-amber-300">{error}</p>}
+      {error && <p role="alert" className="text-danger">{error}</p>}
     </section>
   );
 }

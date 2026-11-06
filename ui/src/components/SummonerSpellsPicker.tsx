@@ -8,7 +8,7 @@ import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 
 export function SpellIcon({ id, size = 32 }: { id: number | null; size?: number }) {
   return (
-    <span aria-hidden="true" className="inline-block shrink-0 overflow-hidden rounded bg-slate-800" style={{ width: size, height: size }}>
+    <span aria-hidden="true" className="inline-block shrink-0 overflow-hidden rounded-control-sm bg-raised" style={{ width: size, height: size }}>
       {id ? <img src={assetUrl('summonerSpell', id)} alt="" width={size} height={size}
         onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }} /> : null}
     </span>
@@ -43,7 +43,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send
   }
   return (
     <section aria-label="Seus feitiços" className="flex flex-col gap-2">
-      <h3 className="text-lg font-semibold">Feitiços</h3>
+      <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Feitiços</h3>
       <div className="flex flex-wrap gap-2">
         {slotNames.map((label, index) => {
           const slot = index as 0 | 1;
@@ -51,14 +51,14 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send
             <button key={label} type="button" aria-label={`${label}: ${spellName(catalog, current[slot] || null)}`}
               aria-expanded={open === slot} disabled={disabled}
               onClick={() => setOpen(open === slot ? null : slot)}
-              className="flex items-center gap-2 rounded border border-slate-600 px-2 py-1 aria-expanded:border-sky-400 disabled:cursor-not-allowed disabled:opacity-50">
+              className="flex items-center gap-2 rounded-control border border-control bg-surface px-2 py-1 text-ink aria-expanded:border-accent aria-expanded:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50">
               <SpellIcon id={current[slot] || null} />
               <span className="text-sm">{spellName(catalog, current[slot] || null)}</span>
             </button>
           );
         })}
       </div>
-      {!catalog && <p className="text-slate-300">Carregando feitiços…</p>}
+      {!catalog && <p className="text-muted">Carregando feitiços…</p>}
       {open !== null && (
         <ul aria-label={`Escolher ${slotNames[open]}`} className="flex flex-wrap gap-1">
           {spells.map(spell => {
@@ -68,7 +68,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send
                 <button type="button" aria-pressed={current[open] === spell.id} disabled={disabled || !unlocked}
                   title={unlocked ? spell.name : `${spell.name} (libera no nível ${spell.summonerLevel})`}
                   onClick={() => choose(open, spell.id)}
-                  className="flex w-20 flex-col items-center gap-1 rounded border border-transparent p-1 text-xs aria-pressed:border-sky-400 aria-pressed:bg-sky-950 disabled:cursor-not-allowed disabled:opacity-40">
+                  className="flex w-20 flex-col items-center gap-1 rounded-control border-2 border-transparent p-1 text-caption text-ink hover:bg-raised aria-pressed:border-accent aria-pressed:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40">
                   <SpellIcon id={spell.id} />
                   <span className="w-full truncate text-center">{spell.name}</span>
                 </button>
@@ -79,7 +79,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send
       )}
       {command.feedback.status !== 'idle' && (
         <p role={command.feedback.status === 'error' ? 'alert' : 'status'}
-          className={command.feedback.status === 'error' ? 'text-amber-300' : 'text-slate-300'}>{command.feedback.message}</p>
+          className={command.feedback.status === 'error' ? 'text-danger' : 'text-muted'}>{command.feedback.message}</p>
       )}
     </section>
   );

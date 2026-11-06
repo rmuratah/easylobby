@@ -115,3 +115,26 @@ it('ignora a resposta atrasada de uma seleção que já acabou', async () => {
   expect(screen.queryByText(/antigo/)).not.toBeInTheDocument();
   expect(panel().getByRole('button', { name: 'Banir' })).toBeDisabled();
 });
+
+it('digitar em qualquer lugar busca, Enter marca o primeiro e Esc limpa', () => {
+  render(<App />); hello();
+  const search = panel().getByRole('searchbox', { name: 'Buscar campeão' });
+  fireEvent.keyDown(document.body, { key: 'w' });
+  expect(search).toHaveFocus();
+  expect(search).toHaveValue('w');
+  expect(grid().getAllByRole('button').map(b => b.title)).toEqual(['Nunu e Willump', 'Wukong']);
+  fireEvent.change(search, { target: { value: 'wuk' } });
+  fireEvent.keyDown(search, { key: 'Enter' });
+  expect(last().command).toEqual({ type: 'hoverChampion', actionId: banAction.id, championId: 62 });
+  fireEvent.keyDown(search, { key: 'Escape' });
+  expect(search).toHaveValue('');
+});
+
+it('não rouba o que é digitado num campo, como o chat', () => {
+  render(<App />); hello();
+  const input = document.createElement('input');
+  document.body.append(input);
+  fireEvent.keyDown(input, { key: 'a' });
+  expect(panel().getByRole('searchbox', { name: 'Buscar campeão' })).toHaveValue('');
+  input.remove();
+});

@@ -7,7 +7,7 @@ import type { Command } from '../bindings/Command';
 type Run = (command: Command, texts: CommandTexts) => Promise<boolean>;
 type SwapCommand = 'requestSwap' | 'acceptSwap' | 'declineSwap' | 'cancelSwap';
 
-const buttonClass = 'rounded border px-2 py-0.5 text-sm disabled:cursor-not-allowed disabled:opacity-50';
+const buttonClass = 'rounded-control-sm border bg-surface px-2 py-0.5 text-caption font-medium text-ink hover:bg-raised disabled:cursor-not-allowed disabled:opacity-50';
 
 function allyName(champSelect: ChampSelect, cellId: number): string {
   const index = champSelect.myTeam.findIndex(p => p.cellId === cellId);
@@ -35,7 +35,7 @@ export function SwapOffers({ champSelect, cellId, busy, run }: OffersProps) {
   return (
     <div className="flex flex-wrap gap-1">
       {available.map(entry => (
-        <button key={`${entry.kind}:${entry.swap.id}`} type="button" disabled={busy} className={`${buttonClass} border-slate-500`}
+        <button key={`${entry.kind}:${entry.swap.id}`} type="button" disabled={busy} className={`${buttonClass} border-control`}
           aria-label={`Pedir troca de ${swapKindNames[entry.kind]} com ${name}`}
           onClick={() => sendSwap(run, 'requestSwap', entry)}>
           Trocar {swapKindNames[entry.kind]}
@@ -53,14 +53,14 @@ export function ChampSelectSwaps({ champSelect, busy, run, feedback }: Props) {
   const sent = swapsIn(champSelect, 'SENT');
   if (received.length === 0 && sent.length === 0 && feedback.status === 'idle') return null;
   return (
-    <section aria-label="Trocas" className="flex flex-col gap-2 rounded border border-amber-400/60 p-3">
+    <section aria-label="Trocas" className="flex flex-col gap-2 rounded-card border-2 border-accent bg-accent-soft p-3 text-ink">
       {received.map(entry => (
         <div key={`r:${entry.kind}:${entry.swap.id}`} role="group" aria-label={`Pedido de troca de ${swapKindNames[entry.kind]}`}
           className="flex flex-wrap items-center gap-2">
           <p className="font-medium">{allyName(champSelect, entry.swap.cellId)} quer trocar de {swapKindNames[entry.kind]} com você.</p>
-          <button type="button" disabled={busy} className={`${buttonClass} border-emerald-400`}
+          <button type="button" disabled={busy} className={`${buttonClass} border-accent font-semibold`}
             onClick={() => sendSwap(run, 'acceptSwap', entry)}>Aceitar</button>
-          <button type="button" disabled={busy} className={`${buttonClass} border-slate-500`}
+          <button type="button" disabled={busy} className={`${buttonClass} border-control`}
             onClick={() => sendSwap(run, 'declineSwap', entry)}>Recusar</button>
         </div>
       ))}
@@ -68,13 +68,13 @@ export function ChampSelectSwaps({ champSelect, busy, run, feedback }: Props) {
         <div key={`s:${entry.kind}:${entry.swap.id}`} role="group" aria-label={`Seu pedido de troca de ${swapKindNames[entry.kind]}`}
           className="flex flex-wrap items-center gap-2">
           <p>Aguardando {allyName(champSelect, entry.swap.cellId)} responder a troca de {swapKindNames[entry.kind]}.</p>
-          <button type="button" disabled={busy} className={`${buttonClass} border-slate-500`}
+          <button type="button" disabled={busy} className={`${buttonClass} border-control`}
             onClick={() => sendSwap(run, 'cancelSwap', entry)}>Cancelar pedido</button>
         </div>
       ))}
       {feedback.status !== 'idle' && (
         <p role={feedback.status === 'error' ? 'alert' : 'status'}
-          className={feedback.status === 'error' ? 'text-amber-300' : 'text-slate-300'}>{feedback.message}</p>
+          className={feedback.status === 'error' ? 'text-danger' : 'text-muted'}>{feedback.message}</p>
       )}
     </section>
   );
