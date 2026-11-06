@@ -8,6 +8,7 @@ import { QueuePanel } from './components/QueuePanel';
 import { RunePagesPanel } from './components/RunePagesPanel';
 import { ReadyCheckPanel } from './components/ReadyCheckPanel';
 import { FriendsList } from './components/FriendsList';
+import { Notifications } from './components/Notifications';
 
 function connectionLabel(connection: ConnectionSnapshot): string {
   if (connection.status === 'incompatible') return 'Versões incompatíveis';
@@ -91,6 +92,7 @@ export default function App() {
         </div>
         <FriendsList connection={connection} />
       </main>
+      <Notifications connection={connection} />
     </div>
   );
 }
