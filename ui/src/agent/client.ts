@@ -38,6 +38,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'conversationClosed': return { ...state, conversations: state.conversations.filter(c => c.id !== message.id) };
     case 'runePages': return { ...state, runePages: message.runePages };
     case 'runeCatalog': return { ...state, runeCatalog: message.runeCatalog };
+    case 'summonerSpellCatalog': return { ...state, summonerSpellCatalog: message.summonerSpellCatalog };
     case 'friends': return { ...state, friends: message.friends };
     default: return message satisfies never;
   }

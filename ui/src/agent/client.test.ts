@@ -3,6 +3,7 @@ import { AgentClient } from './client';
 import { testLobby } from '../test/lobby';
 import {
   testChampSelect, testConversation, testFriend, testInvitation, testMatchmaking, testReadyCheck, testRuneCatalog, testRunePages,
+  testSummonerSpellCatalog,
 } from '../test/events';
 import type { AgentState } from '../bindings/AgentState';
 import type { ServerMessage } from '../bindings/ServerMessage';
@@ -205,6 +206,7 @@ describe('eventos de estado do agente', () => {
     [{ type: 'receivedInvitations', invitations: [testInvitation] }, { receivedInvitations: [testInvitation] }],
     [{ type: 'runePages', runePages: testRunePages }, { runePages: testRunePages }],
     [{ type: 'runeCatalog', runeCatalog: testRuneCatalog }, { runeCatalog: testRuneCatalog }],
+    [{ type: 'summonerSpellCatalog', summonerSpellCatalog: testSummonerSpellCatalog }, { summonerSpellCatalog: testSummonerSpellCatalog }],
     [{ type: 'friends', friends: [testFriend] }, { friends: [testFriend] }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
     socket().receive(hello({ lobby: testLobby }));
@@ -218,11 +220,12 @@ describe('eventos de estado do agente', () => {
     [{ type: 'receivedInvitations', invitations: [] }, { receivedInvitations: [] }],
     [{ type: 'runePages', runePages: null }, { runePages: null }],
     [{ type: 'runeCatalog', runeCatalog: null }, { runeCatalog: null }],
+    [{ type: 'summonerSpellCatalog', summonerSpellCatalog: null }, { summonerSpellCatalog: null }],
     [{ type: 'friends', friends: [] }, { friends: [] }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('limpa o campo com %j', (message, change) => {
     const full: Partial<AgentState> = {
       readyCheck: testReadyCheck, matchmaking: testMatchmaking, champSelect: testChampSelect, receivedInvitations: [testInvitation],
-      runePages: testRunePages, runeCatalog: testRuneCatalog, friends: [testFriend],
+      runePages: testRunePages, runeCatalog: testRuneCatalog, summonerSpellCatalog: testSummonerSpellCatalog, friends: [testFriend],
     };
     socket().receive(hello(full));
     socket().receive(message);
@@ -264,6 +267,7 @@ describe('eventos de estado do agente', () => {
     ['conversa fechada', { type: 'conversationClosed', id: 3 }],
     ['runas', { type: 'runePages', runePages: { ...testRunePages, pages: [null] } }],
     ['catálogo', { type: 'runeCatalog', runeCatalog: { ...testRuneCatalog, perks: null } }],
+    ['feitiços', { type: 'summonerSpellCatalog', summonerSpellCatalog: { spells: null } }],
     ['amigos', { type: 'friends', friends: [{ ...testFriend, id: undefined }] }],
   ])('rejeita evento malformado: %s', (_name, message) => {
     socket().receive(hello());
@@ -278,6 +282,7 @@ describe('eventos de estado do agente', () => {
     ['conversas', { conversations: [{ ...testConversation, messages: null }] }],
     ['runas', { runePages: { ...testRunePages, currentPageId: -1 } }],
     ['catálogo', { runeCatalog: { styles: [] } }],
+    ['feitiços', { summonerSpellCatalog: { spells: [null] } }],
     ['amigos', { friends: null }],
   ])('rejeita hello com %s malformado', (_name, change) => {
     socket().onmessage?.({ data: JSON.stringify({ ...hello(), state: { ...state, ...change } }) });

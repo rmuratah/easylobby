@@ -6,6 +6,7 @@ import type { ReadyCheck } from '../bindings/ReadyCheck';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
 import type { RunePages } from '../bindings/RunePages';
+import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 
 export const testReadyCheck: ReadyCheck = { state: 'InProgress', playerResponse: 'None', timer: 2.5, duration: 12 };
 export const testMatchmaking: Matchmaking = {
@@ -40,6 +41,9 @@ export const testRunePages: RunePages = {
 export const testRuneCatalog: RuneCatalog = {
   styles: [{ id: 8100, name: 'Dominação', allowedSubStyles: [8300], slots: [] }],
   perks: [{ id: 8112, name: 'Eletrocutar', shortDesc: 'Dano extra' }],
+};
+export const testSummonerSpellCatalog: SummonerSpellCatalog = {
+  spells: [{ id: 4, name: 'Flash', description: 'Teleporta.', summonerLevel: 7, gameModes: ['CLASSIC'], queues: ['rankedSolo'] }],
 };
 export const testFriend: Friend = {
   id: 'amigo@br1.pvp.net', puuid: 'amigo', gameName: 'Amigo', tagLine: 'BR1', name: '', profileIconId: null,

@@ -758,21 +758,15 @@ mod tests {
         );
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 14,
-            "command": {"type": "setSummonerSpells", "spell1Id": 4, "spell2Id": 14},
-        }))
-        .unwrap();
-        assert_eq!(
-            msg.command,
-            Command::SetSummonerSpells { spell1_id: 4, spell2_id: 14 }
-        );
-        let msg: ClientMessage = serde_json::from_value(json!({
-            "id": 15,
             "command": {"type": "requestSwap", "kind": "pickOrder", "swapId": 28},
         }))
         .unwrap();
         assert_eq!(
             msg.command,
-            Command::RequestSwap { kind: SwapKind::PickOrder, swap_id: 28 }
+            Command::RequestSwap {
+                kind: SwapKind::PickOrder,
+                swap_id: 28,
+            }
         );
         for (name, kind) in [
             ("acceptSwap", SwapKind::Champion),
@@ -796,6 +790,18 @@ mod tests {
             json!({"id": 1, "command": {"type": "requestSwap", "kind": "skin", "swapId": 1}})
         )
         .is_err());
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 16,
+            "command": {"type": "setSummonerSpells", "spell1Id": 4, "spell2Id": 14},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::SetSummonerSpells {
+                spell1_id: 4,
+                spell2_id: 14,
+            }
+        );
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 12,
             "command": {"type": "sendChatMessage", "conversationId": "a@br1.pvp.net", "body": "oi"},
