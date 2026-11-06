@@ -51,13 +51,23 @@ fn temp_dir(name: &str) -> PathBuf {
     dir
 }
 
+/// Sobe o mock já parado na vez do jogador escolher. Os eventos são
+/// aplicados antes de o agente conectar: com a reprodução rodando, o agente
+/// podia conectar no meio dela, ler pelo REST a sessão final e só depois
+/// aplicar os eventos mais velhos que ficaram na fila do WAMP, e os
+/// comandos do teste chegavam com a seleção ainda voltando no tempo.
 async fn start_mock(dir: &Path) -> MockLcu {
-    let mut config = Config::new(fixtures_until_local_pick());
-    config.speed = 500.0;
-    config.replay_start = ReplayStart::Immediately;
+    let fixtures = fixtures_until_local_pick();
+    let events = fixtures.events.clone();
+    let mut config = Config::new(fixtures);
+    config.replay_start = ReplayStart::Never;
     config.lockfile = Some(dir.join("lockfile"));
     config.ca_file = Some(dir.join("mock-lcu-ca.pem"));
-    MockLcu::start(config).await.unwrap()
+    let mock = MockLcu::start(config).await.unwrap();
+    for event in events {
+        mock.emit(event);
+    }
+    mock
 }
 
 async fn start_agent(dir: &Path) -> String {
