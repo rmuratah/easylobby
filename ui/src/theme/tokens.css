@@ -1,0 +1,85 @@
+/*
+ * Tokens do redesign (Fase 5), com os valores do protótipo aprovado na #122.
+ * O tema vem do atributo data-theme no <html>: "claro" ou "escuro".
+ * Telas novas usam só as classes geradas daqui (bg-surface, text-muted,
+ * border-control, rounded-card...), nunca cores fixas do Tailwind.
+ */
+
+:root,
+[data-theme="claro"] {
+  --el-bg: #f4f7f6;
+  --el-surface: #ffffff;
+  --el-raised: #ebf0ef;
+  --el-ink: #13201f;
+  --el-muted: #566866;
+  --el-line: #dce4e2;
+  --el-control: #7a8f8c;
+  --el-accent: #0e7469;
+  --el-on-accent: #ffffff;
+  --el-accent-soft: #ddf1ec;
+  --el-accent-ink: #0b5e55;
+  --el-danger: #b42318;
+  --el-warn: #9a4a06;
+  --el-overlay: rgb(19 32 31 / 0.32);
+}
+
+[data-theme="claro"] {
+  color-scheme: light;
+}
+
+[data-theme="escuro"] {
+  color-scheme: dark;
+  --el-bg: #0f1716;
+  --el-surface: #17211f;
+  --el-raised: #1f2b29;
+  --el-ink: #e6eeec;
+  --el-muted: #97aba8;
+  --el-line: #2a3735;
+  --el-control: #5e7a75;
+  --el-accent: #34d1bc;
+  --el-on-accent: #04201c;
+  --el-accent-soft: #123a35;
+  --el-accent-ink: #7fe6d6;
+  --el-danger: #ff7a6b;
+  --el-warn: #f5a65b;
+  --el-overlay: rgb(0 0 0 / 0.55);
+}
+
+@theme inline {
+  --color-bg: var(--el-bg);
+  --color-surface: var(--el-surface);
+  --color-raised: var(--el-raised);
+  --color-ink: var(--el-ink);
+  --color-muted: var(--el-muted);
+  --color-line: var(--el-line);
+  --color-control: var(--el-control);
+  --color-accent: var(--el-accent);
+  --color-on-accent: var(--el-on-accent);
+  --color-accent-soft: var(--el-accent-soft);
+  --color-accent-ink: var(--el-accent-ink);
+  --color-danger: var(--el-danger);
+  --color-warn: var(--el-warn);
+  --color-overlay: var(--el-overlay);
+}
+
+@theme {
+  --font-sans: "Figtree Variable", system-ui, sans-serif;
+
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.35;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.45;
+  --text-section: 1rem;
+  --text-section--line-height: 1.4;
+  --text-title: 1.625rem;
+  --text-title--line-height: 1.2;
+  --text-title--letter-spacing: -0.015em;
+  --text-timer: 7rem;
+  --text-timer--line-height: 1;
+  --text-timer--letter-spacing: -0.04em;
+
+  --radius-control-sm: 0.5rem;
+  --radius-control: 0.625rem;
+  --radius-control-lg: 0.75rem;
+  --radius-card: 0.875rem;
+}
