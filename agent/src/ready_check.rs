@@ -33,8 +33,9 @@ pub const ACCEPT_PATH: &str = "/lol-matchmaking/v1/ready-check/accept";
 pub const DECLINE_PATH: &str = "/lol-matchmaking/v1/ready-check/decline";
 
 /// Quanto tempo o jogador tem para responder, em segundos. A LCU não manda
-/// esse valor; é o tempo do client oficial.
-pub const READY_CHECK_DURATION_SECS: f64 = 12.0;
+/// esse valor. Medido no LoL real (patch 16.22): o `timer` chega a 13 ainda
+/// com `state: "InProgress"` e o ready check fecha logo depois.
+pub const READY_CHECK_DURATION_SECS: f64 = 13.0;
 
 /// Um ready check aberto: o que a tela de partida encontrada precisa.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]

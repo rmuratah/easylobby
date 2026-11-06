@@ -9,7 +9,7 @@
 //! {"type":"lcu","status":{"state":"connected","session":1}}
 //! {"type":"summoner","summoner":{"gameName":"...","tagLine":"...",...}}
 //! {"type":"gameflowPhase","phase":"Lobby"}
-//! {"type":"readyCheck","readyCheck":{"state":"InProgress","playerResponse":"None","timer":3.0,"duration":12.0}}
+//! {"type":"readyCheck","readyCheck":{"state":"InProgress","playerResponse":"None","timer":3.0,"duration":13.0}}
 //! {"type":"lobby","lobby":{"queueId":420,"queue":"rankedSolo",...}}
 //! {"type":"champSelect","champSelect":{"timer":{"phase":"BAN_PICK",...},"myTeam":[...],...}}
 //! {"type":"receivedInvitations","invitations":[{"invitationId":"...","fromSummonerId":1,...}]}
@@ -578,7 +578,7 @@ mod tests {
                     "state": "InProgress",
                     "playerResponse": "None",
                     "timer": 3.0,
-                    "duration": 12.0,
+                    "duration": 13.0,
                 },
             })
         );
