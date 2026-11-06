@@ -44,6 +44,11 @@ pub struct Friend {
     /// e de chat vão usar, e o que vem no URI dos eventos.
     pub id: String,
     pub puuid: String,
+    /// `summonerId` do LoL, usado para convidar para o lobby (#32): a LCU só
+    /// entrega o convite com o `toSummonerId`. `0` quando a LCU não manda
+    /// (amigo que nunca jogou LoL, por exemplo).
+    #[ts(type = "number")]
+    pub summoner_id: u64,
     /// Nome do Riot ID (antes do `#`). Vazio em contas antigas sem Riot ID;
     /// nesse caso use `name`.
     pub game_name: String,
@@ -88,6 +93,10 @@ impl Friend {
         Some(Friend {
             id,
             puuid: raw.puuid,
+            summoner_id: raw
+                .summoner_id
+                .and_then(|id| u64::try_from(id).ok())
+                .unwrap_or(0),
             game_name: raw.game_name,
             tag_line: raw.game_tag,
             name: raw.name,
@@ -316,6 +325,8 @@ struct LcuFriend {
     pid: String,
     #[serde(default)]
     puuid: String,
+    #[serde(default)]
+    summoner_id: Option<i64>,
     #[serde(default, deserialize_with = "null_as_default")]
     game_name: String,
     #[serde(default, deserialize_with = "null_as_default")]
@@ -451,6 +462,7 @@ mod tests {
         .unwrap();
         assert_eq!(friend.id, "a@br1.pvp.net");
         assert_eq!(friend.puuid, "puuid-a@br1.pvp.net");
+        assert_eq!(friend.summoner_id, 1003);
         assert_eq!(friend.display_name(), "nome-a@br1.pvp.net#BR1");
         assert_eq!(friend.profile_icon_id, Some(4977));
         assert_eq!(friend.availability, Availability::Busy);
@@ -592,6 +604,7 @@ mod tests {
             json!({
                 "id": "a",
                 "puuid": "puuid-a",
+                "summonerId": 1003,
                 "gameName": "nome-a",
                 "tagLine": "BR1",
                 "name": "",

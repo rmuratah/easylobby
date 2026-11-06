@@ -94,8 +94,8 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
   }
 
   const invite = (friend: Friend) => execute(
-    // O `Friend` não traz o `summonerId`; o agente convida só pelo `puuid` quando ele é 0.
-    { type: 'inviteToLobby', invitees: [{ summonerId: 0, puuid: friend.puuid }] },
+    // A LCU só entrega o convite com o `summonerId`; o `puuid` vai junto, como no client oficial.
+    { type: 'inviteToLobby', invitees: [{ summonerId: friend.summonerId, puuid: friend.puuid }] },
     `Convite enviado para ${friendDisplayName(friend)}.`,
   );
   const inviteRestriction = !lobby ? null
