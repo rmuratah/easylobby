@@ -11,7 +11,7 @@ import { testLobby, testState } from '../test/lobby';
 import { InvitationsPanel } from './InvitationsPanel';
 
 const friend = (overrides: Partial<Friend>): Friend => ({ ...testFriend, ...overrides });
-const ana = friend({ id: 'ana', puuid: 'ana', gameName: 'Ana', tagLine: 'BR1' });
+const ana = friend({ id: 'ana', puuid: 'ana', summonerId: 2001, gameName: 'Ana', tagLine: 'BR1' });
 const bia = friend({ id: 'bia', puuid: 'bia', gameName: 'Bia', tagLine: 'BR1' });
 const caio = friend({ id: 'caio', puuid: 'caio', gameName: 'Caio', tagLine: 'BR1', availability: 'offline' });
 const davi = friend({ id: 'davi', puuid: 'davi', gameName: 'Davi', tagLine: 'BR1', availability: 'mobile' });
@@ -41,6 +41,8 @@ describe('regras de convite', () => {
     expect(invitableFriends(lobby, [ana, bia, caio, davi]).map(f => f.puuid)).toEqual(['bia']);
     const declined: Lobby = { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 0, state: 'Declined' }] };
     expect(invitableFriends(declined, [ana, bia]).map(f => f.puuid)).toEqual(['ana', 'bia']);
+    const semLol = friend({ id: 'eva', puuid: 'eva', gameName: 'Eva', summonerId: 0 });
+    expect(invitableFriends(flexLobby, [semLol, bia]).map(f => f.puuid)).toEqual(['bia']);
   });
 });
 
@@ -97,7 +99,7 @@ describe('InvitationsPanel', () => {
     expect(candidates.getAllByRole('listitem').map(item => item.textContent)).toEqual(['Ana#BR1Convidar', 'Bia#BR1Convidar']);
     expect(screen.getByText('4 vagas livres no grupo.')).toBeInTheDocument();
     await act(async () => fireEvent.click(candidates.getByRole('button', { name: 'Convidar Ana#BR1' })));
-    expect(send).toHaveBeenCalledWith({ type: 'inviteToLobby', invitees: [{ summonerId: 0, puuid: 'ana' }] });
+    expect(send).toHaveBeenCalledWith({ type: 'inviteToLobby', invitees: [{ summonerId: 2001, puuid: 'ana' }] });
     expect(screen.getByRole('status')).toHaveTextContent('Convite enviado para Ana#BR1.');
     expect(screen.queryByRole('button', { name: 'Convidar Ana#BR1' })).not.toBeInTheDocument();
     expect(screen.getByText('3 vagas livres no grupo.')).toBeInTheDocument();
