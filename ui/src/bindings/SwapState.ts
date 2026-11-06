@@ -3,4 +3,13 @@
 /**
  * Estado de uma troca, com os nomes da LCU.
  */
-export type SwapState = "AVAILABLE" | "BUSY" | "INVALID" | "SENT" | "RECEIVED" | "ACCEPTED" | "DECLINED" | "CANCELLED" | "UNKNOWN";
+export type SwapState =
+  | "AVAILABLE"
+  | "BUSY"
+  | "INVALID"
+  | "SENT"
+  | "RECEIVED"
+  | "ACCEPTED"
+  | "DECLINED"
+  | "CANCELLED"
+  | "UNKNOWN";

@@ -4,9 +4,10 @@ import type { ChampSelectChatMessage } from "./ChampSelectChatMessage";
 /**
  * A sala de chat do time na seleção de campeões.
  */
-export type ChampSelectChat = { 
-/**
- * Mensagens da sala, da mais velha para a mais nova (até
- * [`MAX_MESSAGES`]).
- */
-messages: Array<ChampSelectChatMessage>, };
+export type ChampSelectChat = {
+  /**
+   * Mensagens da sala, da mais velha para a mais nova (até
+   * [`MAX_MESSAGES`]).
+   */
+  messages: Array<ChampSelectChatMessage>,
+};

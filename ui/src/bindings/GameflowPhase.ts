@@ -23,4 +23,19 @@
  * Uma fase que a LCU inventar num patch futuro vira [`GameflowPhase::Unknown`]
  * em vez de erro, para o agente não parar de acompanhar o gameflow.
  */
-export type GameflowPhase = "None" | "Lobby" | "Matchmaking" | "CheckedIntoTournament" | "ReadyCheck" | "ChampSelect" | "GameStart" | "FailedToLaunch" | "InProgress" | "Reconnect" | "WaitingForStats" | "PreEndOfGame" | "EndOfGame" | "TerminatedInError" | "Unknown";
+export type GameflowPhase =
+  | "None"
+  | "Lobby"
+  | "Matchmaking"
+  | "CheckedIntoTournament"
+  | "ReadyCheck"
+  | "ChampSelect"
+  | "GameStart"
+  | "FailedToLaunch"
+  | "InProgress"
+  | "Reconnect"
+  | "WaitingForStats"
+  | "PreEndOfGame"
+  | "EndOfGame"
+  | "TerminatedInError"
+  | "Unknown";

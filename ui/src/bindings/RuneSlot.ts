@@ -4,8 +4,11 @@ import type { RuneSlotKind } from "./RuneSlotKind";
 /**
  * Uma linha de uma árvore: o jogador escolhe uma runa dela.
  */
-export type RuneSlot = { kind: RuneSlotKind, 
-/**
- * Rótulo da linha (como "Ofensiva" nos fragmentos). Muitas vezes vazio.
- */
-label: string, perks: Array<number>, };
+export type RuneSlot = {
+  kind: RuneSlotKind,
+  /**
+   * Rótulo da linha (como "Ofensiva" nos fragmentos). Muitas vezes vazio.
+   */
+  label: string,
+  perks: Array<number>,
+};

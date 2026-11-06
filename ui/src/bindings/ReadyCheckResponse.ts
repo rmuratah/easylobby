@@ -3,4 +3,8 @@
 /**
  * Resposta do jogador ao ready check, com os nomes da LCU.
  */
-export type ReadyCheckResponse = "None" | "Accepted" | "Declined" | "Unknown";
+export type ReadyCheckResponse =
+  | "None"
+  | "Accepted"
+  | "Declined"
+  | "Unknown";

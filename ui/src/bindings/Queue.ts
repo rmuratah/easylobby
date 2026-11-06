@@ -14,4 +14,9 @@
  * Os ids estão na lista de filas da LCU (`/lol-game-queues/v1/queues`) da
  * gravação 16.22.
  */
-export type Queue = "normalDraft" | "swiftplay" | "rankedSolo" | "rankedFlex" | "aram";
+export type Queue =
+  | "normalDraft"
+  | "swiftplay"
+  | "rankedSolo"
+  | "rankedFlex"
+  | "aram";

@@ -4,22 +4,24 @@ import type { ChatMessage } from "./ChatMessage";
 /**
  * Uma conversa 1:1 com um amigo.
  */
-export type Conversation = { 
-/**
- * Identificador da conversa na LCU, o `pid` do amigo no chat. É o que
- * vai nos comandos `sendChatMessage` e `setActiveConversation`.
- */
-id: string, 
-/**
- * Riot ID do amigo: nome e tag (`gameName#tagLine`).
- */
-gameName: string, tagLine: string, 
-/**
- * Mensagens não lidas, como a LCU conta.
- */
-unreadCount: number, 
-/**
- * Mensagens da sessão, da mais velha para a mais nova (até
- * [`MAX_MESSAGES`]).
- */
-messages: Array<ChatMessage>, };
+export type Conversation = {
+  /**
+   * Identificador da conversa na LCU, o `pid` do amigo no chat. É o que
+   * vai nos comandos `sendChatMessage` e `setActiveConversation`.
+   */
+  id: string,
+  /**
+   * Riot ID do amigo: nome e tag (`gameName#tagLine`).
+   */
+  gameName: string,
+  tagLine: string,
+  /**
+   * Mensagens não lidas, como a LCU conta.
+   */
+  unreadCount: number,
+  /**
+   * Mensagens da sessão, da mais velha para a mais nova (até
+   * [`MAX_MESSAGES`]).
+   */
+  messages: Array<ChatMessage>,
+};

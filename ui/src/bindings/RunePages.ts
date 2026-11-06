@@ -4,20 +4,21 @@ import type { RunePage } from "./RunePage";
 /**
  * As páginas do jogador e qual está em uso.
  */
-export type RunePages = { 
-/**
- * Páginas na ordem da LCU (a mesma do client oficial), incluindo as
- * temporárias (`isTemporary`), como a recomendada para o campeão na
- * seleção.
- */
-pages: Array<RunePage>, 
-/**
- * `id` da página em uso, ou `null` se a LCU não disse.
- */
-currentPageId: number | null, 
-/**
- * Se cabe mais uma página. `false` quando todas as páginas compradas
- * estão ocupadas: a UI deve oferecer apagar uma antes de criar. `true`
- * também quando a LCU não informou; aí ela decide no `createRunePage`.
- */
-canCreatePage: boolean, };
+export type RunePages = {
+  /**
+   * Páginas na ordem da LCU (a mesma do client oficial), incluindo as
+   * temporárias (`isTemporary`), como a recomendada para o campeão na
+   * seleção.
+   */
+  pages: Array<RunePage>,
+  /**
+   * `id` da página em uso, ou `null` se a LCU não disse.
+   */
+  currentPageId: number | null,
+  /**
+   * Se cabe mais uma página. `false` quando todas as páginas compradas
+   * estão ocupadas: a UI deve oferecer apagar uma antes de criar. `true`
+   * também quando a LCU não informou; aí ela decide no `createRunePage`.
+   */
+  canCreatePage: boolean,
+};

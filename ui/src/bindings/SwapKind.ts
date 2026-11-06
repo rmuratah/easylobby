@@ -3,4 +3,7 @@
 /**
  * Tipo de troca.
  */
-export type SwapKind = "champion" | "pickOrder" | "position";
+export type SwapKind =
+  | "champion"
+  | "pickOrder"
+  | "position";

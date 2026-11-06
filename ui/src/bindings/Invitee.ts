@@ -4,4 +4,7 @@
  * Quem convidar para o lobby: o `summonerId` e o `puuid` de um amigo, como a
  * lista de amigos traz.
  */
-export type Invitee = { summonerId: number, puuid: string, };
+export type Invitee = {
+  summonerId: number,
+  puuid: string,
+};

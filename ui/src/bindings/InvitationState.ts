@@ -3,4 +3,12 @@
 /**
  * Estado de um convite enviado, como a LCU manda.
  */
-export type InvitationState = "Requested" | "Pending" | "Accepted" | "Declined" | "Kicked" | "OnHold" | "Error" | "Unknown";
+export type InvitationState =
+  | "Requested"
+  | "Pending"
+  | "Accepted"
+  | "Declined"
+  | "Kicked"
+  | "OnHold"
+  | "Error"
+  | "Unknown";

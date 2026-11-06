@@ -3,16 +3,17 @@
 /**
  * Um erro da busca, como a LCU manda em `errors`.
  */
-export type MatchmakingError = { 
-/**
- * Código da Riot, como `QUEUE_DODGER` ou `LEAVER_BUSTED`.
- */
-errorType: string, 
-/**
- * Texto da Riot; muitas vezes vazio.
- */
-message: string, 
-/**
- * Segundos de punição que faltam, ou `0`.
- */
-penaltyTimeRemaining: number, };
+export type MatchmakingError = {
+  /**
+   * Código da Riot, como `QUEUE_DODGER` ou `LEAVER_BUSTED`.
+   */
+  errorType: string,
+  /**
+   * Texto da Riot; muitas vezes vazio.
+   */
+  message: string,
+  /**
+   * Segundos de punição que faltam, ou `0`.
+   */
+  penaltyTimeRemaining: number,
+};

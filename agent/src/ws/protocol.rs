@@ -30,38 +30,34 @@
 //! {"id":11,"command":{"type":"setSummonerSpells","spell1Id":4,"spell2Id":14}}
 //! ```
 //!
-//! Os tipos TypeScript em `ui/src/bindings/` saem destes tipos com `ts-rs`.
-//! Depois de mudar qualquer tipo daqui, rode
-//! `EASYLOBBY_UPDATE_BINDINGS=1 cargo test -p easylobby-agent bindings` e
-//! comite os arquivos gerados. O teste `bindings_estao_atualizados` falha no
-//! CI se alguém esquecer.
+//! Os tipos TypeScript em `ui/src/bindings/` saem destes tipos com `ts-rs`;
+//! veja [`super::bindings`].
 //!
 //! Para mudar o formato de forma incompatível (tirar ou renomear um campo ou
 //! uma mensagem), suba [`PROTOCOL_VERSION`]. Campo ou mensagem nova não
 //! precisa: a UI ignora o que não conhece.
+//!
+//! As mensagens, os comandos e os campos do estado ficam em blocos por
+//! assunto (conexão, lobby e fila, seleção, runas, social). Algo novo entra
+//! no fim do bloco do seu assunto, e não no fim do enum, para que dois PRs de
+//! assuntos diferentes não mexam nas mesmas linhas.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::assets::AssetKind;
-use crate::champ_select::{
-    ChampSelect, ChampSelectAction, ChampSelectActionType, ChampSelectBans, ChampSelectPhase,
-    ChampSelectPlayer, ChampSelectTimer,
-};
-use crate::champ_select_chat::{ChampSelectChat, ChampSelectChatMessage};
-use crate::chat::{ChatMessage, Conversation};
-use crate::friends::{Activity, Availability, Friend, LeagueActivity, LeagueStatus};
+use crate::champ_select::ChampSelect;
+use crate::champ_select_chat::ChampSelectChat;
+use crate::chat::Conversation;
+use crate::friends::Friend;
 use crate::gameflow::GameflowPhase;
 use crate::invitations::{Invitee, ReceivedInvitation};
-use crate::lobby::{InvitationState, Lobby, LobbyInvitation, LobbyMember, Position, Queue};
-use crate::matchmaking::{Matchmaking, MatchmakingError, SearchState};
-use crate::ready_check::{ReadyCheck, ReadyCheckResponse, ReadyCheckState};
-use crate::runes::{
-    Perk, RuneCatalog, RunePage, RunePageInput, RunePages, RuneSlot, RuneSlotKind, RuneStyle,
-};
+use crate::lobby::{Lobby, Position, Queue};
+use crate::matchmaking::Matchmaking;
+use crate::ready_check::ReadyCheck;
+use crate::runes::{RuneCatalog, RunePageInput, RunePages};
 use crate::summoner::Summoner;
-use crate::summoner_spells::{SummonerSpell, SummonerSpellCatalog};
-use crate::swaps::{ChampSelectSwap, SwapKind, SwapState};
+use crate::summoner_spells::SummonerSpellCatalog;
+use crate::swaps::SwapKind;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -74,6 +70,7 @@ pub const PROTOCOL_VERSION: u32 = 1;
     rename_all_fields = "camelCase"
 )]
 pub enum ServerMessage {
+    // Conexão com o LoL e invocador
     /// Primeira mensagem de cada conexão, com o estado inteiro. Também é
     /// mandada de novo se a UI ficar para trás e perder eventos: a UI deve
     /// trocar todo o estado pelo que vier aqui.
@@ -93,10 +90,8 @@ pub enum ServerMessage {
     /// `ReadyCheck`, `ChampSelect`, `InProgress`...; veja [`GameflowPhase`]).
     /// `null` com o LoL fechado ou quando a LCU ainda não respondeu a fase.
     GameflowPhase { phase: Option<GameflowPhase> },
-    /// O ready check (partida encontrada, #20) abriu, andou ou fechou. Chega
-    /// mais ou menos a cada segundo enquanto ele está aberto, com o `timer`
-    /// novo. `null` quando não há ready check (fechou, ou o LoL fechou).
-    ReadyCheck { ready_check: Option<ReadyCheck> },
+
+    // Lobby, fila e partida encontrada
     /// O lobby mudou (criado, fila trocada, alguém entrou ou saiu). `null`
     /// fora de lobby e com o LoL fechado.
     Lobby { lobby: Option<Lobby> },
@@ -104,11 +99,47 @@ pub enum ServerMessage {
     /// fila (chega a cada segundo enquanto procura), partida encontrada.
     /// `null` fora da fila e com o LoL fechado.
     Matchmaking { matchmaking: Option<Matchmaking> },
+    /// O ready check (partida encontrada, #20) abriu, andou ou fechou. Chega
+    /// mais ou menos a cada segundo enquanto ele está aberto, com o `timer`
+    /// novo. `null` quando não há ready check (fechou, ou o LoL fechou).
+    ReadyCheck { ready_check: Option<ReadyCheck> },
+
+    // Seleção de campeões
     /// A seleção de campeões (#22) abriu ou mudou: hover, ban, pick, troca
     /// de feitiço, troca de etapa ou de vez. Sempre o estado inteiro da
     /// seleção, não só o que mudou. `null` quando a seleção fecha (partida
     /// abrindo, dodge) e com o LoL fechado.
     ChampSelect { champ_select: Option<ChampSelect> },
+    /// A sala de chat do time na seleção de campeões (#27) abriu, recebeu
+    /// mensagem (de um aliado ou do jogador) ou fechou. Sempre a sala
+    /// inteira, com as mensagens desde que ela abriu. `null` quando a sala
+    /// fecha (fim da seleção, dodge) e com o LoL fechado.
+    ChampSelectChat {
+        champ_select_chat: Option<ChampSelectChat>,
+    },
+    /// Os feitiços de invocador do jogo, para a escolha na seleção (#24).
+    /// Chega uma vez por conexão com o LoL, logo depois de conectar. `null`
+    /// com o LoL fechado ou se a LCU não mandou a lista.
+    SummonerSpellCatalog {
+        summoner_spell_catalog: Option<SummonerSpellCatalog>,
+    },
+
+    // Runas
+    /// As páginas de runas (#26) mudaram: criada, editada, apagada, outra
+    /// aplicada, ou a recomendada da seleção apareceu ou sumiu. Sempre a lista
+    /// inteira. `null` com o LoL fechado.
+    RunePages { rune_pages: Option<RunePages> },
+    /// As árvores de runas para o editor (#26). Chega uma vez por conexão
+    /// com o LoL, logo depois de conectar. `null` com o LoL fechado ou se a
+    /// LCU não mandou as árvores.
+    RuneCatalog { rune_catalog: Option<RuneCatalog> },
+
+    // Social: amigos, convites e conversas
+    /// A lista de amigos (#30) mudou: alguém ficou online ou offline, entrou
+    /// numa partida, virou amigo ou deixou de ser. Sempre a lista inteira,
+    /// já ordenada (disponíveis primeiro, depois por nome). Vazia com o LoL
+    /// fechado.
+    Friends { friends: Vec<Friend> },
     /// Os convites de lobby recebidos mudaram (#32): chegou um, ou um foi
     /// aceito, recusado ou cancelado. Sempre a lista inteira dos pendentes;
     /// vazia quando não há nenhum e com o LoL fechado.
@@ -123,32 +154,8 @@ pub enum ServerMessage {
     /// A conversa `id` fechou (o amigo ou o client a fechou, ou o LoL
     /// fechou). A UI tira ela da lista.
     ConversationClosed { id: String },
-    /// A sala de chat do time na seleção de campeões (#27) abriu, recebeu
-    /// mensagem (de um aliado ou do jogador) ou fechou. Sempre a sala
-    /// inteira, com as mensagens desde que ela abriu. `null` quando a sala
-    /// fecha (fim da seleção, dodge) e com o LoL fechado.
-    ChampSelectChat {
-        champ_select_chat: Option<ChampSelectChat>,
-    },
-    /// As páginas de runas (#26) mudaram: criada, editada, apagada, outra
-    /// aplicada, ou a recomendada da seleção apareceu ou sumiu. Sempre a lista
-    /// inteira. `null` com o LoL fechado.
-    RunePages { rune_pages: Option<RunePages> },
-    /// As árvores de runas para o editor (#26). Chega uma vez por conexão
-    /// com o LoL, logo depois de conectar. `null` com o LoL fechado ou se a
-    /// LCU não mandou as árvores.
-    RuneCatalog { rune_catalog: Option<RuneCatalog> },
-    /// Os feitiços de invocador do jogo, para a escolha na seleção (#24).
-    /// Chega uma vez por conexão com o LoL, logo depois de conectar. `null`
-    /// com o LoL fechado ou se a LCU não mandou a lista.
-    SummonerSpellCatalog {
-        summoner_spell_catalog: Option<SummonerSpellCatalog>,
-    },
-    /// A lista de amigos (#30) mudou: alguém ficou online ou offline, entrou
-    /// numa partida, virou amigo ou deixou de ser. Sempre a lista inteira,
-    /// já ordenada (disponíveis primeiro, depois por nome). Vazia com o LoL
-    /// fechado.
-    Friends { friends: Vec<Friend> },
+
+    // Respostas aos comandos
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
     /// A UI mandou algo que não é um [`ClientMessage`] válido. Sem `id`,
@@ -160,32 +167,41 @@ pub enum ServerMessage {
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentState {
+    // Conexão com o LoL e invocador
     pub lcu: LcuStatus,
     pub summoner: Option<Summoner>,
     pub gameflow_phase: Option<GameflowPhase>,
-    /// Ready check aberto (partida encontrada, #20), ou `null`.
-    pub ready_check: Option<ReadyCheck>,
+
+    // Lobby, fila e partida encontrada
     pub lobby: Option<Lobby>,
     pub matchmaking: Option<Matchmaking>,
+    /// Ready check aberto (partida encontrada, #20), ou `null`.
+    pub ready_check: Option<ReadyCheck>,
+
+    // Seleção de campeões
     /// Seleção de campeões em andamento (#22), ou `null`.
     pub champ_select: Option<ChampSelect>,
+    /// Sala de chat do time na seleção de campeões (#27), ou `null` fora da
+    /// seleção.
+    pub champ_select_chat: Option<ChampSelectChat>,
+    /// Feitiços de invocador do jogo, para a escolha na seleção (#24), ou
+    /// `null`.
+    pub summoner_spell_catalog: Option<SummonerSpellCatalog>,
+
+    // Runas
+    /// Páginas de runas (#26), ou `null` com o LoL fechado.
+    pub rune_pages: Option<RunePages>,
+    /// Árvores de runas para o editor (#26), ou `null`.
+    pub rune_catalog: Option<RuneCatalog>,
+
+    // Social: amigos, convites e conversas
+    /// Amigos com a presença de cada um (#30), na ordem da tela.
+    pub friends: Vec<Friend>,
     /// Convites de lobby recebidos e ainda pendentes (#32).
     pub received_invitations: Vec<ReceivedInvitation>,
     /// Conversas 1:1 abertas (#31), cada uma com o histórico da sessão. Sem
     /// ordem definida; a UI ordena (pela última mensagem, por exemplo).
     pub conversations: Vec<Conversation>,
-    /// Sala de chat do time na seleção de campeões (#27), ou `null` fora da
-    /// seleção.
-    pub champ_select_chat: Option<ChampSelectChat>,
-    /// Páginas de runas (#26), ou `null` com o LoL fechado.
-    pub rune_pages: Option<RunePages>,
-    /// Árvores de runas para o editor (#26), ou `null`.
-    pub rune_catalog: Option<RuneCatalog>,
-    /// Feitiços de invocador do jogo, para a escolha na seleção (#24), ou
-    /// `null`.
-    pub summoner_spell_catalog: Option<SummonerSpellCatalog>,
-    /// Amigos com a presença de cada um (#30), na ordem da tela.
-    pub friends: Vec<Friend>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -239,21 +255,12 @@ pub struct ClientMessage {
     rename_all_fields = "camelCase"
 )]
 pub enum Command {
+    // Canal e LoL
     /// Não faz nada; responde `ok`. Serve para testar o canal.
     Ping,
     /// Pede um [`ServerMessage::Hello`] novo com o estado inteiro, que chega
     /// antes da resposta.
     GetState,
-    /// Aceita a partida encontrada (`POST
-    /// /lol-matchmaking/v1/ready-check/accept`, #20). Responde
-    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (por
-    /// exemplo, sem ready check aberto). A mudança chega depois como
-    /// `readyCheck` com `playerResponse: "Accepted"`.
-    AcceptReadyCheck,
-    /// Recusa a partida encontrada (`POST
-    /// /lol-matchmaking/v1/ready-check/decline`, #20). Mesmos erros do
-    /// `acceptReadyCheck`.
-    DeclineReadyCheck,
     /// Abre o LoL pelo Riot Client ([`crate::launcher`]). Responde `ok` assim
     /// que o pedido sai, ou se o LoL já estava aberto; a subida do LoL chega
     /// pelas mensagens `lcu`. Erro `launchFailed` quando não dá para abrir
@@ -264,6 +271,8 @@ pub enum Command {
     /// a LCU recusar. O agente não fecha a UI de novo sozinho até a próxima
     /// conexão com o LoL.
     LaunchUx,
+
+    // Lobby, fila e partida encontrada
     /// Cria um lobby na fila pedida, ou troca a fila do lobby atual (só o
     /// líder pode). O lobby novo chega numa mensagem `lobby` antes da
     /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
@@ -290,85 +299,18 @@ pub enum Command {
     /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
     /// recusar.
     StopQueue,
-    /// Aceita um convite de lobby recebido (#32) e entra no lobby de quem
-    /// convidou. O lobby novo e a lista de convites sem o aceito chegam nas
-    /// mensagens `lobby` e `receivedInvitations` antes da resposta (o lobby
-    /// pode chegar um pouco depois, pelo WAMP). Responde `invalidCommand`
-    /// sem falar com a LCU se o id tiver caracteres que a LCU não usa,
-    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (convite
-    /// expirado, jogador na fila...).
-    AcceptInvitation { invitation_id: String },
-    /// Recusa um convite de lobby recebido (#32). A lista sem ele chega numa
-    /// mensagem `receivedInvitations` antes da resposta. Mesmos erros do
-    /// `acceptInvitation`.
-    DeclineInvitation { invitation_id: String },
-    /// Convida jogadores para o lobby atual (#32), com o `summonerId` e o
-    /// `puuid` da lista de amigos. Só vale com `canInvite` no lobby. Os
-    /// convites aparecem em `invitations` do lobby, que chega numa mensagem
-    /// `lobby` antes da resposta. Responde `invalidCommand` sem falar com a
-    /// LCU com a lista vazia ou um convidado sem `summonerId` nem `puuid`,
-    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (fora de
-    /// lobby, sem permissão, lobby cheio...).
-    InviteToLobby { invitees: Vec<Invitee> },
-    /// Manda `body` na conversa 1:1 `conversationId` (#31): o `id` de uma
-    /// [`Conversation`], que é o `pid` do amigo no chat. Se a conversa ainda
-    /// não estava aberta, a LCU abre e ela chega numa mensagem
-    /// `conversation`. A mensagem mandada chega numa `conversation` antes da
-    /// resposta quando a LCU devolve a mensagem, e depois pelo WAMP nos
-    /// outros casos. Responde `invalidCommand` para texto vazio (só espaços)
-    /// sem falar com a LCU, `notConnected` com o LoL fechado e `lcu` se a
-    /// LCU recusar.
-    SendChatMessage {
-        conversation_id: String,
-        body: String,
-    },
-    /// Diz qual conversa 1:1 a UI está mostrando (#31), ou `null` para
-    /// nenhuma, como a UI oficial faz ao abrir e fechar a janela da conversa.
-    /// A LCU zera as não lidas da conversa ativa; a mudança chega numa
-    /// mensagem `conversation`. Responde `notConnected` com o LoL fechado e
-    /// `lcu` se a LCU recusar.
-    SetActiveConversation { conversation_id: Option<String> },
-    /// Manda `body` na sala de chat do time na seleção de campeões (#27).
-    /// Não precisa dizer a sala: vai para a que está aberta. A mensagem
-    /// chega numa `champSelectChat` antes da resposta quando a LCU devolve a
-    /// mensagem, e depois pelo WAMP nos outros casos. Responde
-    /// `invalidCommand` para texto vazio (só espaços) ou sem sala aberta,
-    /// sem falar com a LCU, `notConnected` com o LoL fechado e `lcu` se a
-    /// LCU recusar.
-    SendChampSelectMessage { body: String },
-    /// Aplica a página de runas `pageId` (#26). As páginas com o
-    /// `currentPageId` novo chegam numa mensagem `runePages` antes da
-    /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
-    /// recusar (página que não existe...).
-    SelectRunePage {
-        #[ts(type = "number")]
-        page_id: u64,
-    },
-    /// Cria uma página de runas e já a aplica (#26). A página é conferida
-    /// com as árvores do `runeCatalog` antes de ir para a LCU: nome vazio,
-    /// árvores iguais ou runa fora da linha voltam `invalidCommand` (veja
-    /// `selectedPerkIds` em `RunePage` para a ordem das runas). A lista nova
-    /// chega numa mensagem `runePages` antes da resposta. Responde
-    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar, como sem
-    /// espaço para página nova (`canCreatePage: false`).
-    CreateRunePage { page: RunePageInput },
-    /// Troca nome, árvores e runas da página `pageId` (#26), com a mesma
-    /// conferência do `createRunePage`. Não muda qual página está em uso.
-    /// Mesmos erros do `createRunePage`; `lcu` também quando a página não
-    /// existe ou não é editável (`isEditable: false`).
-    UpdateRunePage {
-        #[ts(type = "number")]
-        page_id: u64,
-        page: RunePageInput,
-    },
-    /// Apaga a página `pageId` (#26). A lista nova chega numa mensagem
-    /// `runePages` antes da resposta. Responde `notConnected` com o LoL
-    /// fechado e `lcu` se a LCU recusar (página que não existe ou não pode
-    /// ser apagada, `isDeletable: false`).
-    DeleteRunePage {
-        #[ts(type = "number")]
-        page_id: u64,
-    },
+    /// Aceita a partida encontrada (`POST
+    /// /lol-matchmaking/v1/ready-check/accept`, #20). Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (por
+    /// exemplo, sem ready check aberto). A mudança chega depois como
+    /// `readyCheck` com `playerResponse: "Accepted"`.
+    AcceptReadyCheck,
+    /// Recusa a partida encontrada (`POST
+    /// /lol-matchmaking/v1/ready-check/decline`, #20). Mesmos erros do
+    /// `acceptReadyCheck`.
+    DeclineReadyCheck,
+
+    // Seleção de campeões
     /// Marca o campeão `championId` na ação `actionId` da seleção (#23), sem
     /// confirmar: o hover de um ban ou de um pick na vez do jogador, ou a
     /// intenção de pick antes da vez dele (etapa `PLANNING` ou durante os
@@ -432,6 +374,89 @@ pub enum Command {
         #[ts(type = "number")]
         swap_id: u64,
     },
+    /// Manda `body` na sala de chat do time na seleção de campeões (#27).
+    /// Não precisa dizer a sala: vai para a que está aberta. A mensagem
+    /// chega numa `champSelectChat` antes da resposta quando a LCU devolve a
+    /// mensagem, e depois pelo WAMP nos outros casos. Responde
+    /// `invalidCommand` para texto vazio (só espaços) ou sem sala aberta,
+    /// sem falar com a LCU, `notConnected` com o LoL fechado e `lcu` se a
+    /// LCU recusar.
+    SendChampSelectMessage { body: String },
+
+    // Runas
+    /// Aplica a página de runas `pageId` (#26). As páginas com o
+    /// `currentPageId` novo chegam numa mensagem `runePages` antes da
+    /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
+    /// recusar (página que não existe...).
+    SelectRunePage {
+        #[ts(type = "number")]
+        page_id: u64,
+    },
+    /// Cria uma página de runas e já a aplica (#26). A página é conferida
+    /// com as árvores do `runeCatalog` antes de ir para a LCU: nome vazio,
+    /// árvores iguais ou runa fora da linha voltam `invalidCommand` (veja
+    /// `selectedPerkIds` em `RunePage` para a ordem das runas). A lista nova
+    /// chega numa mensagem `runePages` antes da resposta. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar, como sem
+    /// espaço para página nova (`canCreatePage: false`).
+    CreateRunePage { page: RunePageInput },
+    /// Troca nome, árvores e runas da página `pageId` (#26), com a mesma
+    /// conferência do `createRunePage`. Não muda qual página está em uso.
+    /// Mesmos erros do `createRunePage`; `lcu` também quando a página não
+    /// existe ou não é editável (`isEditable: false`).
+    UpdateRunePage {
+        #[ts(type = "number")]
+        page_id: u64,
+        page: RunePageInput,
+    },
+    /// Apaga a página `pageId` (#26). A lista nova chega numa mensagem
+    /// `runePages` antes da resposta. Responde `notConnected` com o LoL
+    /// fechado e `lcu` se a LCU recusar (página que não existe ou não pode
+    /// ser apagada, `isDeletable: false`).
+    DeleteRunePage {
+        #[ts(type = "number")]
+        page_id: u64,
+    },
+
+    // Social: amigos, convites e conversas
+    /// Aceita um convite de lobby recebido (#32) e entra no lobby de quem
+    /// convidou. O lobby novo e a lista de convites sem o aceito chegam nas
+    /// mensagens `lobby` e `receivedInvitations` antes da resposta (o lobby
+    /// pode chegar um pouco depois, pelo WAMP). Responde `invalidCommand`
+    /// sem falar com a LCU se o id tiver caracteres que a LCU não usa,
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (convite
+    /// expirado, jogador na fila...).
+    AcceptInvitation { invitation_id: String },
+    /// Recusa um convite de lobby recebido (#32). A lista sem ele chega numa
+    /// mensagem `receivedInvitations` antes da resposta. Mesmos erros do
+    /// `acceptInvitation`.
+    DeclineInvitation { invitation_id: String },
+    /// Convida jogadores para o lobby atual (#32), com o `summonerId` e o
+    /// `puuid` da lista de amigos. Só vale com `canInvite` no lobby. Os
+    /// convites aparecem em `invitations` do lobby, que chega numa mensagem
+    /// `lobby` antes da resposta. Responde `invalidCommand` sem falar com a
+    /// LCU com a lista vazia ou um convidado sem `summonerId` nem `puuid`,
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (fora de
+    /// lobby, sem permissão, lobby cheio...).
+    InviteToLobby { invitees: Vec<Invitee> },
+    /// Manda `body` na conversa 1:1 `conversationId` (#31): o `id` de uma
+    /// [`Conversation`], que é o `pid` do amigo no chat. Se a conversa ainda
+    /// não estava aberta, a LCU abre e ela chega numa mensagem
+    /// `conversation`. A mensagem mandada chega numa `conversation` antes da
+    /// resposta quando a LCU devolve a mensagem, e depois pelo WAMP nos
+    /// outros casos. Responde `invalidCommand` para texto vazio (só espaços)
+    /// sem falar com a LCU, `notConnected` com o LoL fechado e `lcu` se a
+    /// LCU recusar.
+    SendChatMessage {
+        conversation_id: String,
+        body: String,
+    },
+    /// Diz qual conversa 1:1 a UI está mostrando (#31), ou `null` para
+    /// nenhuma, como a UI oficial faz ao abrir e fechar a janela da conversa.
+    /// A LCU zera as não lidas da conversa ativa; a mudança chega numa
+    /// mensagem `conversation`. Responde `notConnected` com o LoL fechado e
+    /// `lcu` se a LCU recusar.
+    SetActiveConversation { conversation_id: Option<String> },
 }
 
 /// Resultado de um comando.
@@ -469,76 +494,6 @@ impl CommandResult {
             message: message.into(),
         }
     }
-}
-
-/// Gera os arquivos `.ts` de todos os tipos do protocolo: `(nome do arquivo,
-/// conteúdo)`. Os tipos que entram por dependência (como [`Summoner`]) estão
-/// na lista também.
-pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError> {
-    fn file<T: TS + 'static>(cfg: &ts_rs::Config) -> Result<(String, String), ts_rs::ExportError> {
-        let path = T::output_path()
-            .ok_or_else(|| ts_rs::ExportError::CannotBeExported(std::any::type_name::<T>()))?;
-        let name = path.to_string_lossy().replace('\\', "/");
-        Ok((name, T::export_to_string(cfg)?))
-    }
-    let cfg = ts_rs::Config::default();
-    let mut files = vec![
-        file::<ServerMessage>(&cfg)?,
-        file::<AgentState>(&cfg)?,
-        file::<LcuStatus>(&cfg)?,
-        file::<Summoner>(&cfg)?,
-        file::<GameflowPhase>(&cfg)?,
-        file::<ReadyCheck>(&cfg)?,
-        file::<ReadyCheckState>(&cfg)?,
-        file::<ReadyCheckResponse>(&cfg)?,
-        file::<Lobby>(&cfg)?,
-        file::<LobbyInvitation>(&cfg)?,
-        file::<InvitationState>(&cfg)?,
-        file::<ReceivedInvitation>(&cfg)?,
-        file::<Invitee>(&cfg)?,
-        file::<LobbyMember>(&cfg)?,
-        file::<Position>(&cfg)?,
-        file::<Queue>(&cfg)?,
-        file::<Matchmaking>(&cfg)?,
-        file::<MatchmakingError>(&cfg)?,
-        file::<SearchState>(&cfg)?,
-        file::<ChampSelect>(&cfg)?,
-        file::<ChampSelectTimer>(&cfg)?,
-        file::<ChampSelectPhase>(&cfg)?,
-        file::<ChampSelectPlayer>(&cfg)?,
-        file::<ChampSelectBans>(&cfg)?,
-        file::<ChampSelectAction>(&cfg)?,
-        file::<ChampSelectActionType>(&cfg)?,
-        file::<ChampSelectSwap>(&cfg)?,
-        file::<SwapState>(&cfg)?,
-        file::<SwapKind>(&cfg)?,
-        file::<Conversation>(&cfg)?,
-        file::<ChatMessage>(&cfg)?,
-        file::<ChampSelectChat>(&cfg)?,
-        file::<ChampSelectChatMessage>(&cfg)?,
-        file::<RunePages>(&cfg)?,
-        file::<RunePage>(&cfg)?,
-        file::<RuneCatalog>(&cfg)?,
-        file::<RuneStyle>(&cfg)?,
-        file::<RuneSlot>(&cfg)?,
-        file::<RuneSlotKind>(&cfg)?,
-        file::<Perk>(&cfg)?,
-        file::<RunePageInput>(&cfg)?,
-        file::<SummonerSpellCatalog>(&cfg)?,
-        file::<SummonerSpell>(&cfg)?,
-        file::<ClientMessage>(&cfg)?,
-        file::<Command>(&cfg)?,
-        file::<CommandResult>(&cfg)?,
-        file::<ErrorCode>(&cfg)?,
-        file::<AssetKind>(&cfg)?,
-        file::<Friend>(&cfg)?,
-        file::<Availability>(&cfg)?,
-        file::<Activity>(&cfg)?,
-        file::<LeagueActivity>(&cfg)?,
-        file::<LeagueStatus>(&cfg)?,
-    ];
-    files.sort();
-    Ok(files)
 }
 
 #[cfg(test)]
@@ -910,46 +865,5 @@ mod tests {
             json!({"id": 1, "command": {"type": "comprarSkin"}})
         )
         .is_err());
-    }
-
-    /// Compara os tipos gerados com os arquivos em `ui/src/bindings/`. Com
-    /// `EASYLOBBY_UPDATE_BINDINGS=1`, regrava os arquivos em vez de comparar.
-    #[test]
-    fn bindings_estao_atualizados() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../ui/src/bindings");
-        let files = typescript_bindings().unwrap();
-        if std::env::var_os("EASYLOBBY_UPDATE_BINDINGS").is_some() {
-            for entry in std::fs::read_dir(&dir).unwrap() {
-                let path = entry.unwrap().path();
-                if path.extension().is_some_and(|e| e == "ts") {
-                    std::fs::remove_file(path).unwrap();
-                }
-            }
-            for (name, content) in &files {
-                std::fs::write(dir.join(name), content).unwrap();
-            }
-            return;
-        }
-
-        let hint = "rode `EASYLOBBY_UPDATE_BINDINGS=1 cargo test -p easylobby-agent bindings` \
-                    e comite ui/src/bindings/";
-        let mut committed: Vec<String> = std::fs::read_dir(&dir)
-            .unwrap()
-            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-            .filter(|name| name.ends_with(".ts"))
-            .collect();
-        committed.sort();
-        let expected: Vec<String> = files.iter().map(|(name, _)| name.clone()).collect();
-        assert_eq!(
-            committed, expected,
-            "arquivos diferentes em ui/src/bindings: {hint}"
-        );
-        for (name, content) in &files {
-            // O checkout no Windows pode trocar \n por \r\n.
-            let on_disk = std::fs::read_to_string(dir.join(name))
-                .unwrap()
-                .replace("\r\n", "\n");
-            assert_eq!(&on_disk, content, "{name} está desatualizado: {hint}");
-        }
     }
 }

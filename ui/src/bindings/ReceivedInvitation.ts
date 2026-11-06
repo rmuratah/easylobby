@@ -4,30 +4,31 @@ import type { Queue } from "./Queue";
 /**
  * Um convite recebido que ainda espera resposta.
  */
-export type ReceivedInvitation = { 
-/**
- * Id do convite, usado em `acceptInvitation` e `declineInvitation`.
- */
-invitationId: string, 
-/**
- * Quem convidou. A UI cruza com a lista de amigos para mostrar o nome.
- */
-fromSummonerId: number, 
-/**
- * Nome de quem convidou como a LCU manda. Com o Riot ID pode vir vazio;
- * prefira o nome da lista de amigos.
- */
-fromSummonerName: string, 
-/**
- * `queueId` da Riot do lobby para o qual o convite é.
- */
-queueId: number, 
-/**
- * A fila do convite, ou `null` quando não é uma das [`Queue`].
- */
-queue: Queue | null, 
-/**
- * Se a LCU deixa aceitar agora. É `false`, por exemplo, quando o
- * jogador está na fila ou em partida.
- */
-canAccept: boolean, };
+export type ReceivedInvitation = {
+  /**
+   * Id do convite, usado em `acceptInvitation` e `declineInvitation`.
+   */
+  invitationId: string,
+  /**
+   * Quem convidou. A UI cruza com a lista de amigos para mostrar o nome.
+   */
+  fromSummonerId: number,
+  /**
+   * Nome de quem convidou como a LCU manda. Com o Riot ID pode vir vazio;
+   * prefira o nome da lista de amigos.
+   */
+  fromSummonerName: string,
+  /**
+   * `queueId` da Riot do lobby para o qual o convite é.
+   */
+  queueId: number,
+  /**
+   * A fila do convite, ou `null` quando não é uma das [`Queue`].
+   */
+  queue: Queue | null,
+  /**
+   * Se a LCU deixa aceitar agora. É `false`, por exemplo, quando o
+   * jogador está na fila ou em partida.
+   */
+  canAccept: boolean,
+};

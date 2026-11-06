@@ -5,14 +5,20 @@ import type { Position } from "./Position";
  * Um jogador no lobby. A LCU não manda o nome aqui; a UI cruza o `puuid`
  * com o invocador logado ou com a lista de amigos.
  */
-export type LobbyMember = { puuid: string, summonerId: number, summonerIconId: number, summonerLevel: number, isLeader: boolean, 
-/**
- * Cargo primário (#18). `unselected` antes de escolher e nas filas sem
- * escolha de cargos.
- */
-firstPosition: Position, 
-/**
- * Cargo secundário (#18). `unselected` quando o primário é
- * preenchimento.
- */
-secondPosition: Position, };
+export type LobbyMember = {
+  puuid: string,
+  summonerId: number,
+  summonerIconId: number,
+  summonerLevel: number,
+  isLeader: boolean,
+  /**
+   * Cargo primário (#18). `unselected` antes de escolher e nas filas sem
+   * escolha de cargos.
+   */
+  firstPosition: Position,
+  /**
+   * Cargo secundário (#18). `unselected` quando o primário é
+   * preenchimento.
+   */
+  secondPosition: Position,
+};

@@ -3,4 +3,9 @@
 /**
  * Estado da busca, com os nomes da LCU.
  */
-export type SearchState = "Searching" | "Found" | "Error" | "AbandonedLowPriorityQueue" | "Unknown";
+export type SearchState =
+  | "Searching"
+  | "Found"
+  | "Error"
+  | "AbandonedLowPriorityQueue"
+  | "Unknown";

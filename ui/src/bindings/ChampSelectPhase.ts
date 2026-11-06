@@ -3,4 +3,9 @@
 /**
  * Etapa da seleção, com os nomes da LCU.
  */
-export type ChampSelectPhase = "PLANNING" | "BAN_PICK" | "FINALIZATION" | "GAME_STARTING" | "UNKNOWN";
+export type ChampSelectPhase =
+  | "PLANNING"
+  | "BAN_PICK"
+  | "FINALIZATION"
+  | "GAME_STARTING"
+  | "UNKNOWN";

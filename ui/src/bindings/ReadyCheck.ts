@@ -5,22 +5,23 @@ import type { ReadyCheckState } from "./ReadyCheckState";
 /**
  * Um ready check aberto: o que a tela de partida encontrada precisa.
  */
-export type ReadyCheck = { 
-/**
- * Em andamento ou o resultado final.
- */
-state: ReadyCheckState, 
-/**
- * O que o jogador respondeu até agora.
- */
-playerResponse: ReadyCheckResponse, 
-/**
- * Segundos desde que a partida foi encontrada, como a LCU conta. Chega
- * de segundo em segundo; a UI pode animar entre um valor e outro.
- */
-timer: number, 
-/**
- * Tempo total para responder, em segundos. Contagem regressiva:
- * `duration - timer`.
- */
-duration: number, };
+export type ReadyCheck = {
+  /**
+   * Em andamento ou o resultado final.
+   */
+  state: ReadyCheckState,
+  /**
+   * O que o jogador respondeu até agora.
+   */
+  playerResponse: ReadyCheckResponse,
+  /**
+   * Segundos desde que a partida foi encontrada, como a LCU conta. Chega
+   * de segundo em segundo; a UI pode animar entre um valor e outro.
+   */
+  timer: number,
+  /**
+   * Tempo total para responder, em segundos. Contagem regressiva:
+   * `duration - timer`.
+   */
+  duration: number,
+};

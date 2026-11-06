@@ -5,4 +5,7 @@ import type { Command } from "./Command";
  * Mensagem da UI para o agente: um comando com um `id` escolhido pela UI.
  * O agente responde com um [`ServerMessage::Response`] com o mesmo `id`.
  */
-export type ClientMessage = { id: number, command: Command, };
+export type ClientMessage = {
+  id: number,
+  command: Command,
+};

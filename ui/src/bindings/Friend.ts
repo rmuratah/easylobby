@@ -5,36 +5,39 @@ import type { Availability } from "./Availability";
 /**
  * Um amigo e o que ele está fazendo agora.
  */
-export type Friend = { 
-/**
- * Identificador do amigo no chat (`pid`). É o que os comandos de amigos
- * e de chat vão usar, e o que vem no URI dos eventos.
- */
-id: string, puuid: string, 
-/**
- * Nome do Riot ID (antes do `#`). Vazio em contas antigas sem Riot ID;
- * nesse caso use `name`.
- */
-gameName: string, 
-/**
- * Tag do Riot ID (depois do `#`).
- */
-tagLine: string, 
-/**
- * Nome antigo de invocador, quando a LCU manda.
- */
-name: string, 
-/**
- * Ícone de invocador, para `/assets/profileIcon/<id>`. `null` quando a
- * LCU não manda um ícone válido.
- */
-profileIconId: number | null, availability: Availability, 
-/**
- * Mensagem de status que o amigo escreveu. Vazia quando não tem.
- */
-statusMessage: string, 
-/**
- * O que o amigo está fazendo: no LoL (e em que parte), em outro jogo da
- * Riot ou `null` (offline, no celular ou sem informação).
- */
-activity: Activity | null, };
+export type Friend = {
+  /**
+   * Identificador do amigo no chat (`pid`). É o que os comandos de amigos
+   * e de chat vão usar, e o que vem no URI dos eventos.
+   */
+  id: string,
+  puuid: string,
+  /**
+   * Nome do Riot ID (antes do `#`). Vazio em contas antigas sem Riot ID;
+   * nesse caso use `name`.
+   */
+  gameName: string,
+  /**
+   * Tag do Riot ID (depois do `#`).
+   */
+  tagLine: string,
+  /**
+   * Nome antigo de invocador, quando a LCU manda.
+   */
+  name: string,
+  /**
+   * Ícone de invocador, para `/assets/profileIcon/<id>`. `null` quando a
+   * LCU não manda um ícone válido.
+   */
+  profileIconId: number | null,
+  availability: Availability,
+  /**
+   * Mensagem de status que o amigo escreveu. Vazia quando não tem.
+   */
+  statusMessage: string,
+  /**
+   * O que o amigo está fazendo: no LoL (e em que parte), em outro jogo da
+   * Riot ou `null` (offline, no celular ou sem informação).
+   */
+  activity: Activity | null,
+};

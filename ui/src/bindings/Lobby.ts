@@ -6,46 +6,47 @@ import type { Queue } from "./Queue";
 /**
  * O lobby do jogador, como a tela de lobby precisa.
  */
-export type Lobby = { 
-/**
- * `queueId` da Riot, mesmo de uma fila que o easylobby não oferece
- * (personalizada, TFT, evento...).
- */
-queueId: number, 
-/**
- * A fila do lobby, ou `null` quando não é uma das [`Queue`].
- */
-queue: Queue | null, 
-/**
- * Quantos jogadores cabem no grupo nesta fila (2 na Solo/Duo, 5 nas
- * outras).
- */
-maxLobbySize: number, 
-/**
- * Se o jogador logado é o líder: só o líder troca a fila.
- */
-isLeader: boolean, 
-/**
- * Se a LCU deixa entrar na fila agora.
- */
-canStartActivity: boolean, 
-/**
- * Se a fila tem escolha de cargos (#18): `true` na normal alternada e
- * nas ranqueadas, `false` no ARAM e no Jogo Dinâmico.
- */
-showPositionSelector: boolean, 
-/**
- * Quem está no lobby, o jogador logado incluído.
- */
-members: Array<LobbyMember>, 
-/**
- * Se o jogador logado pode convidar (#32): o líder sempre pode, e os
- * outros quando o líder libera.
- */
-canInvite: boolean, 
-/**
- * Convites que o grupo mandou e que não foram aceitos (#32): pendentes,
- * recusados, expulsos ou que deram erro. Quem aceitou aparece em
- * `members`.
- */
-invitations: Array<LobbyInvitation>, };
+export type Lobby = {
+  /**
+   * `queueId` da Riot, mesmo de uma fila que o easylobby não oferece
+   * (personalizada, TFT, evento...).
+   */
+  queueId: number,
+  /**
+   * A fila do lobby, ou `null` quando não é uma das [`Queue`].
+   */
+  queue: Queue | null,
+  /**
+   * Quantos jogadores cabem no grupo nesta fila (2 na Solo/Duo, 5 nas
+   * outras).
+   */
+  maxLobbySize: number,
+  /**
+   * Se o jogador logado é o líder: só o líder troca a fila.
+   */
+  isLeader: boolean,
+  /**
+   * Se a LCU deixa entrar na fila agora.
+   */
+  canStartActivity: boolean,
+  /**
+   * Se a fila tem escolha de cargos (#18): `true` na normal alternada e
+   * nas ranqueadas, `false` no ARAM e no Jogo Dinâmico.
+   */
+  showPositionSelector: boolean,
+  /**
+   * Quem está no lobby, o jogador logado incluído.
+   */
+  members: Array<LobbyMember>,
+  /**
+   * Se o jogador logado pode convidar (#32): o líder sempre pode, e os
+   * outros quando o líder libera.
+   */
+  canInvite: boolean,
+  /**
+   * Convites que o grupo mandou e que não foram aceitos (#32): pendentes,
+   * recusados, expulsos ou que deram erro. Quem aceitou aparece em
+   * `members`.
+   */
+  invitations: Array<LobbyInvitation>,
+};

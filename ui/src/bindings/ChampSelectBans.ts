@@ -3,4 +3,7 @@
 /**
  * Campeões banidos de cada time.
  */
-export type ChampSelectBans = { myTeam: Array<number>, theirTeam: Array<number>, };
+export type ChampSelectBans = {
+  myTeam: Array<number>,
+  theirTeam: Array<number>,
+};

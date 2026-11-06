@@ -5,8 +5,9 @@ import type { SummonerSpell } from "./SummonerSpell";
  * Os feitiços de invocador do jogo, para a tela de escolha. Lidos uma vez
  * por conexão.
  */
-export type SummonerSpellCatalog = { 
-/**
- * Feitiços na ordem da LCU. Só os que valem em algum modo de jogo.
- */
-spells: Array<SummonerSpell>, };
+export type SummonerSpellCatalog = {
+  /**
+   * Feitiços na ordem da LCU. Só os que valem em algum modo de jogo.
+   */
+  spells: Array<SummonerSpell>,
+};

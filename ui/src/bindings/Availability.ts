@@ -4,4 +4,10 @@
  * Disponibilidade no chat. Os nomes da LCU são outros (veja
  * [`Availability::lcu_name`]); para a UI vão em camelCase.
  */
-export type Availability = "online" | "busy" | "away" | "mobile" | "offline" | "unknown";
+export type Availability =
+  | "online"
+  | "busy"
+  | "away"
+  | "mobile"
+  | "offline"
+  | "unknown";

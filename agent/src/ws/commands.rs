@@ -1,0 +1,91 @@
+//! Os comandos da UI, cada um levado ao [`Hub`] (ou ao launcher).
+//!
+//! Os comandos estão nos mesmos blocos por assunto do [`Command`]: um
+//! comando novo entra no bloco do assunto dele, não no fim.
+
+use crate::launcher::{self, LaunchOptions};
+use crate::swaps::SwapIntent;
+
+use super::protocol::{Command, CommandResult, ErrorCode};
+use super::Hub;
+
+/// Executa `command` e devolve a resposta para a UI. O `getState` mexe na
+/// assinatura da sessão e é tratado por ela.
+pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> CommandResult {
+    match command {
+        // Canal e LoL
+        Command::Ping | Command::GetState => CommandResult::Ok,
+        Command::LaunchLeague => launch_league(launch).await,
+        Command::LaunchUx => hub.launch_ux().await,
+
+        // Lobby, fila e partida encontrada
+        Command::CreateLobby { queue } => hub.create_lobby(queue).await,
+        Command::LeaveLobby => hub.leave_lobby().await,
+        Command::SetPositions { first, second } => hub.set_positions(first, second).await,
+        Command::StartQueue => hub.start_queue().await,
+        Command::StopQueue => hub.stop_queue().await,
+        Command::AcceptReadyCheck => hub.accept_ready_check().await,
+        Command::DeclineReadyCheck => hub.decline_ready_check().await,
+
+        // Seleção de campeões
+        Command::HoverChampion {
+            action_id,
+            champion_id,
+        } => hub.hover_champion(action_id, champion_id).await,
+        Command::ConfirmAction {
+            action_id,
+            champion_id,
+        } => hub.confirm_action(action_id, champion_id).await,
+        Command::SetSummonerSpells {
+            spell1_id,
+            spell2_id,
+        } => hub.set_summoner_spells(spell1_id, spell2_id).await,
+        Command::RequestSwap { kind, swap_id } => {
+            hub.champ_select_swap(kind, swap_id, SwapIntent::Request)
+                .await
+        }
+        Command::AcceptSwap { kind, swap_id } => {
+            hub.champ_select_swap(kind, swap_id, SwapIntent::Accept)
+                .await
+        }
+        Command::DeclineSwap { kind, swap_id } => {
+            hub.champ_select_swap(kind, swap_id, SwapIntent::Decline)
+                .await
+        }
+        Command::CancelSwap { kind, swap_id } => {
+            hub.champ_select_swap(kind, swap_id, SwapIntent::Cancel)
+                .await
+        }
+        Command::SendChampSelectMessage { body } => hub.send_champ_select_message(&body).await,
+
+        // Runas
+        Command::SelectRunePage { page_id } => hub.select_rune_page(page_id).await,
+        Command::CreateRunePage { page } => hub.create_rune_page(page).await,
+        Command::UpdateRunePage { page_id, page } => hub.update_rune_page(page_id, page).await,
+        Command::DeleteRunePage { page_id } => hub.delete_rune_page(page_id).await,
+
+        // Social: amigos, convites e conversas
+        Command::AcceptInvitation { invitation_id } => hub.accept_invitation(&invitation_id).await,
+        Command::DeclineInvitation { invitation_id } => {
+            hub.decline_invitation(&invitation_id).await
+        }
+        Command::InviteToLobby { invitees } => hub.invite_to_lobby(&invitees).await,
+        Command::SendChatMessage {
+            conversation_id,
+            body,
+        } => hub.send_chat_message(&conversation_id, &body).await,
+        Command::SetActiveConversation { conversation_id } => {
+            hub.set_active_conversation(conversation_id.as_deref())
+                .await
+        }
+    }
+}
+
+/// Abre o LoL e traduz o resultado para a UI. Não espera o LoL subir: isso
+/// chega pelas mensagens `lcu`.
+async fn launch_league(options: &LaunchOptions) -> CommandResult {
+    match launcher::launch_league(options).await {
+        Ok(_) => CommandResult::Ok,
+        Err(e) => CommandResult::error(ErrorCode::LaunchFailed, e.to_string()),
+    }
+}

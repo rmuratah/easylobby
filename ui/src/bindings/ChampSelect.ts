@@ -9,76 +9,77 @@ import type { Queue } from "./Queue";
 /**
  * A seleção de campeões em andamento, como a tela precisa.
  */
-export type ChampSelect = { 
-/**
- * Id da sessão na LCU. Muda a cada seleção (por exemplo, depois de um
- * dodge e de uma partida nova).
- */
-id: string, 
-/**
- * `queueId` da Riot, `0` quando a LCU não manda.
- */
-queueId: number, 
-/**
- * A fila, ou `null` quando não é uma das [`Queue`] do easylobby.
- */
-queue: Queue | null, 
-/**
- * Partida personalizada.
- */
-isCustomGame: boolean, 
-/**
- * `cellId` do jogador logado, para achar ele em `myTeam` e nas ações.
- */
-localPlayerCellId: number, 
-/**
- * Bans ao mesmo tempo (ranqueada): todos os bans do time ficam em
- * andamento juntos, e os do outro time só aparecem no fim (ação
- * `ten_bans_reveal`).
- */
-hasSimultaneousBans: boolean, 
-/**
- * Picks ao mesmo tempo (escolha às cegas).
- */
-hasSimultaneousPicks: boolean, 
-/**
- * Etapa atual e quanto falta para ela acabar.
- */
-timer: ChampSelectTimer, 
-/**
- * O time do jogador, na ordem das células (o jogador logado incluído).
- */
-myTeam: Array<ChampSelectPlayer>, 
-/**
- * O time adversário. Nome, cargo e feitiços vêm vazios, como no client
- * oficial; o campeão só aparece depois do pick.
- */
-theirTeam: Array<ChampSelectPlayer>, 
-/**
- * Campeões banidos até agora.
- */
-bans: ChampSelectBans, 
-/**
- * Todas as ações do draft na ordem em que acontecem, as já feitas
- * incluídas. Ações do mesmo `turn` rodam ao mesmo tempo.
- */
-actions: Array<ChampSelectAction>, 
-/**
- * A ação que é a vez do jogador logado agora (ban ou pick em andamento
- * e ainda não confirmado), ou `null` se não é a vez dele. O `id` dela
- * é o que os comandos `hoverChampion` e `confirmAction` (#23) usam.
- */
-pendingAction: ChampSelectAction | null, 
-/**
- * Trocas de campeão com cada aliado (#25). Vazia quando a fila não
- * deixa trocar ou antes de os dois terem campeão.
- */
-trades: Array<ChampSelectSwap>, 
-/**
- * Trocas de vez no draft com cada aliado (#25).
- */
-pickOrderSwaps: Array<ChampSelectSwap>, 
-/**
- * Trocas de cargo com cada aliado (#25).
- */
-positionSwaps: Array<ChampSelectSwap>, };
+export type ChampSelect = {
+  /**
+   * Id da sessão na LCU. Muda a cada seleção (por exemplo, depois de um
+   * dodge e de uma partida nova).
+   */
+  id: string,
+  /**
+   * `queueId` da Riot, `0` quando a LCU não manda.
+   */
+  queueId: number,
+  /**
+   * A fila, ou `null` quando não é uma das [`Queue`] do easylobby.
+   */
+  queue: Queue | null,
+  /**
+   * Partida personalizada.
+   */
+  isCustomGame: boolean,
+  /**
+   * `cellId` do jogador logado, para achar ele em `myTeam` e nas ações.
+   */
+  localPlayerCellId: number,
+  /**
+   * Bans ao mesmo tempo (ranqueada): todos os bans do time ficam em
+   * andamento juntos, e os do outro time só aparecem no fim (ação
+   * `ten_bans_reveal`).
+   */
+  hasSimultaneousBans: boolean,
+  /**
+   * Picks ao mesmo tempo (escolha às cegas).
+   */
+  hasSimultaneousPicks: boolean,
+  /**
+   * Etapa atual e quanto falta para ela acabar.
+   */
+  timer: ChampSelectTimer,
+  /**
+   * O time do jogador, na ordem das células (o jogador logado incluído).
+   */
+  myTeam: Array<ChampSelectPlayer>,
+  /**
+   * O time adversário. Nome, cargo e feitiços vêm vazios, como no client
+   * oficial; o campeão só aparece depois do pick.
+   */
+  theirTeam: Array<ChampSelectPlayer>,
+  /**
+   * Campeões banidos até agora.
+   */
+  bans: ChampSelectBans,
+  /**
+   * Todas as ações do draft na ordem em que acontecem, as já feitas
+   * incluídas. Ações do mesmo `turn` rodam ao mesmo tempo.
+   */
+  actions: Array<ChampSelectAction>,
+  /**
+   * A ação que é a vez do jogador logado agora (ban ou pick em andamento
+   * e ainda não confirmado), ou `null` se não é a vez dele. O `id` dela
+   * é o que os comandos `hoverChampion` e `confirmAction` (#23) usam.
+   */
+  pendingAction: ChampSelectAction | null,
+  /**
+   * Trocas de campeão com cada aliado (#25). Vazia quando a fila não
+   * deixa trocar ou antes de os dois terem campeão.
+   */
+  trades: Array<ChampSelectSwap>,
+  /**
+   * Trocas de vez no draft com cada aliado (#25).
+   */
+  pickOrderSwaps: Array<ChampSelectSwap>,
+  /**
+   * Trocas de cargo com cada aliado (#25).
+   */
+  positionSwaps: Array<ChampSelectSwap>,
+};

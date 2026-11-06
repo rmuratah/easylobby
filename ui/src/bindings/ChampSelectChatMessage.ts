@@ -3,24 +3,26 @@
 /**
  * Uma mensagem da sala da seleção.
  */
-export type ChampSelectChatMessage = { 
-/**
- * Identificador da mensagem na LCU, único dentro da sala.
- */
-id: string, body: string, 
-/**
- * `true` quando foi o jogador logado que mandou.
- */
-fromMe: boolean, 
-/**
- * `cellId` de quem mandou, para achar o jogador em `myTeam` do
- * `champSelect`. É a célula onde o jogador está agora: se ele trocar de
- * lugar na ordem de escolha, a sala chega de novo com a célula nova.
- * `null` quando o agente não conseguiu ligar a mensagem a um jogador do
- * time.
- */
-fromCellId: number | null, 
-/**
- * Quando foi mandada, em ISO 8601 UTC (`2026-11-05T01:13:41.755Z`).
- */
-timestamp: string, };
+export type ChampSelectChatMessage = {
+  /**
+   * Identificador da mensagem na LCU, único dentro da sala.
+   */
+  id: string,
+  body: string,
+  /**
+   * `true` quando foi o jogador logado que mandou.
+   */
+  fromMe: boolean,
+  /**
+   * `cellId` de quem mandou, para achar o jogador em `myTeam` do
+   * `champSelect`. É a célula onde o jogador está agora: se ele trocar de
+   * lugar na ordem de escolha, a sala chega de novo com a célula nova.
+   * `null` quando o agente não conseguiu ligar a mensagem a um jogador do
+   * time.
+   */
+  fromCellId: number | null,
+  /**
+   * Quando foi mandada, em ISO 8601 UTC (`2026-11-05T01:13:41.755Z`).
+   */
+  timestamp: string,
+};
