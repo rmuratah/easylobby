@@ -10,10 +10,16 @@
 //!
 //! 1. Acha os processos `LeagueClientUx` e `LeagueClient`.
 //! 2. Procura o `lockfile` na pasta do `--install-directory=` dos argumentos e
-//!    na pasta do executável de cada processo.
+//!    na pasta do executável de cada processo (ou, se nenhuma for conhecida,
+//!    em [`DEFAULT_LEAGUE_DIR`]).
 //! 3. Se nenhum lockfile servir, usa `--app-port=` e `--remoting-auth-token=`
 //!    dos argumentos do `LeagueClientUx`. Esse fallback some depois do
 //!    `kill-ux`, por isso o lockfile vem primeiro.
+//!
+//! No Windows os argumentos nunca são lidos: lê-los exige abrir o processo
+//! com `PROCESS_VM_READ` e ler a memória dele, o que o Vanguard pune com o
+//! erro VAN7003 (veja [`list_processes`]). Lá valem só o lockfile na pasta do
+//! executável e a pasta padrão.
 
 use std::fmt;
 use std::io;
@@ -26,6 +32,9 @@ pub const LCU_USERNAME: &str = "riot";
 
 /// Nome do arquivo de credenciais na pasta de instalação do LoL.
 pub const LOCKFILE_NAME: &str = "lockfile";
+
+/// Onde o instalador da Riot põe o LoL por padrão.
+pub const DEFAULT_LEAGUE_DIR: &str = r"C:\Riot Games\League of Legends";
 
 /// Processos do LoL que podem apontar para o lockfile.
 const CLIENT_PROCESSES: [&str; 2] = ["LeagueClientUx", "LeagueClient"];
@@ -187,11 +196,7 @@ pub struct ProcessInfo {
 impl ProcessInfo {
     /// Nome sem `.exe`, para comparar igual no Windows e fora dele.
     pub(crate) fn base_name(&self) -> &str {
-        let name = self.name.as_str();
-        name.len()
-            .checked_sub(4)
-            .filter(|&i| name.is_char_boundary(i) && name[i..].eq_ignore_ascii_case(".exe"))
-            .map_or(name, |i| &name[..i])
+        base_name(&self.name)
     }
 
     /// Se é um processo do client do LoL (`LeagueClient` ou `LeagueClientUx`).
@@ -262,6 +267,11 @@ fn lockfile_candidates(clients: &[&ProcessInfo]) -> Vec<PathBuf> {
             candidates.push(path);
         }
     }
+    // O Vanguard pode negar até o acesso mínimo ao LeagueClient; aí não sei a
+    // pasta e tento a de instalação padrão.
+    if candidates.is_empty() {
+        candidates.push(PathBuf::from(DEFAULT_LEAGUE_DIR).join(LOCKFILE_NAME));
+    }
     candidates
 }
 
@@ -278,10 +288,54 @@ fn parse_port(s: &str) -> Option<u16> {
     s.trim().parse::<u16>().ok().filter(|&p| p != 0)
 }
 
-/// Lista os processos do sistema com nome, executável e argumentos.
+/// Processos cujo executável o agente precisa saber. Só esses são abertos, e
+/// só com `PROCESS_QUERY_LIMITED_INFORMATION` (o mesmo acesso do Gerenciador
+/// de Tarefas).
+const PROCESSES_WITH_EXE: [&str; 3] = ["LeagueClientUx", "LeagueClient", "RiotClientServices"];
+
+/// Nome do processo sem `.exe`.
+fn base_name(name: &str) -> &str {
+    name.len()
+        .checked_sub(4)
+        .filter(|&i| name.is_char_boundary(i) && name[i..].eq_ignore_ascii_case(".exe"))
+        .map_or(name, |i| &name[..i])
+}
+
+/// Se o agente precisa do executável deste processo.
+fn wants_exe(name: &str) -> bool {
+    PROCESSES_WITH_EXE
+        .iter()
+        .any(|p| base_name(name).eq_ignore_ascii_case(p))
+}
+
+/// Lista os processos do sistema com nome e, para os do LoL e do Riot Client,
+/// o executável.
+///
+/// No Windows, a lista vem da Toolhelp, que não abre processo nenhum. Só os
+/// processos de [`PROCESSES_WITH_EXE`] são abertos, com
+/// `PROCESS_QUERY_LIMITED_INFORMATION`, para ler o caminho do executável. O
+/// agente **nunca** abre processo com `PROCESS_VM_READ` nem lê a memória de
+/// outro processo (os argumentos de linha de comando ficam vazios): o Vanguard
+/// trata isso como ameaça e fecha o LoL com o erro VAN7003. O `sysinfo`, usado
+/// antes, abria todos os processos do sistema assim a cada tentativa de
+/// conexão, inclusive o jogo e os do Vanguard.
 ///
 /// É bloqueante: em código async, chame dentro de `spawn_blocking`.
 pub(crate) fn list_processes() -> Vec<ProcessInfo> {
+    #[cfg(windows)]
+    {
+        windows::list_processes()
+    }
+    #[cfg(not(windows))]
+    {
+        list_processes_sysinfo()
+    }
+}
+
+/// Fora do Windows (o mock-lcu no Linux ou no macOS) não há Vanguard; o
+/// `sysinfo` lê o `/proc` e serve.
+#[cfg(not(windows))]
+fn list_processes_sysinfo() -> Vec<ProcessInfo> {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
     let mut system = System::new();
@@ -296,17 +350,122 @@ pub(crate) fn list_processes() -> Vec<ProcessInfo> {
     system
         .processes()
         .values()
-        .map(|p| ProcessInfo {
-            pid: p.pid().as_u32(),
-            name: p.name().to_string_lossy().into_owned(),
-            exe: p.exe().map(Path::to_path_buf),
-            args: p
-                .cmd()
-                .iter()
-                .map(|a| a.to_string_lossy().into_owned())
-                .collect(),
+        .map(|p| {
+            let name = p.name().to_string_lossy().into_owned();
+            let exe = if wants_exe(&name) {
+                p.exe().map(Path::to_path_buf)
+            } else {
+                None
+            };
+            ProcessInfo {
+                pid: p.pid().as_u32(),
+                name,
+                exe,
+                args: p
+                    .cmd()
+                    .iter()
+                    .map(|a| a.to_string_lossy().into_owned())
+                    .collect(),
+            }
         })
         .collect()
+}
+
+/// Lista de processos no Windows sem tocar na memória de ninguém.
+///
+/// É o único `unsafe` do agente: as chamadas da API do Windows. Cada handle é
+/// fechado no mesmo bloco em que foi aberto.
+#[cfg(windows)]
+#[allow(unsafe_code)]
+mod windows {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+    use std::path::PathBuf;
+
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+        TH32CS_SNAPPROCESS,
+    };
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+        PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+
+    use super::{wants_exe, ProcessInfo};
+
+    pub(super) fn list_processes() -> Vec<ProcessInfo> {
+        snapshot()
+            .into_iter()
+            .map(|(pid, name)| {
+                let exe = if wants_exe(&name) {
+                    exe_path(pid)
+                } else {
+                    None
+                };
+                ProcessInfo {
+                    pid,
+                    name,
+                    exe,
+                    args: Vec::new(),
+                }
+            })
+            .collect()
+    }
+
+    /// Pid e nome de cada processo, pela Toolhelp. Não abre os processos.
+    fn snapshot() -> Vec<(u32, String)> {
+        let mut processes = Vec::new();
+        // SAFETY: a Toolhelp devolve um handle próprio ou INVALID_HANDLE_VALUE;
+        // `entry` tem o `dwSize` que a API exige e vive até o fim do bloco; o
+        // handle é fechado antes de sair.
+        unsafe {
+            let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+            if snapshot == INVALID_HANDLE_VALUE || snapshot.is_null() {
+                return processes;
+            }
+            let mut entry = PROCESSENTRY32W {
+                dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+                ..Default::default()
+            };
+            let mut ok = Process32FirstW(snapshot, &mut entry) != 0;
+            while ok {
+                let len = entry
+                    .szExeFile
+                    .iter()
+                    .position(|&c| c == 0)
+                    .unwrap_or(entry.szExeFile.len());
+                let name = String::from_utf16_lossy(&entry.szExeFile[..len]);
+                processes.push((entry.th32ProcessID, name));
+                ok = Process32NextW(snapshot, &mut entry) != 0;
+            }
+            CloseHandle(snapshot);
+        }
+        processes
+    }
+
+    /// Caminho do executável, com o acesso mínimo
+    /// (`PROCESS_QUERY_LIMITED_INFORMATION`, sem `PROCESS_VM_READ`).
+    fn exe_path(pid: u32) -> Option<PathBuf> {
+        let mut buf = [0u16; 1024];
+        let mut len = buf.len() as u32;
+        // SAFETY: `buf` e `len` vivem até o fim do bloco e `len` diz o tamanho
+        // de `buf` em u16; o handle é fechado antes de sair.
+        let ok = unsafe {
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if handle.is_null() {
+                return None;
+            }
+            let ok =
+                QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32, buf.as_mut_ptr(), &mut len);
+            CloseHandle(handle);
+            ok != 0
+        };
+        let len = usize::try_from(len)
+            .ok()
+            .filter(|&l| ok && l <= buf.len())?;
+        Some(PathBuf::from(OsString::from_wide(&buf[..len])))
+    }
 }
 
 #[cfg(test)]
@@ -495,6 +654,38 @@ mod tests {
         assert!(p.is_client());
         p.name = "LeagueClientUxRender.exe".into();
         assert!(!p.is_client());
+    }
+
+    #[test]
+    fn sem_pasta_conhecida_tenta_a_pasta_padrao() {
+        // O Vanguard negou o acesso ao LeagueClient: sem exe nem argumentos.
+        let mut p = client();
+        p.exe = None;
+        let padrao = PathBuf::from(DEFAULT_LEAGUE_DIR).join(LOCKFILE_NAME);
+        let c = discover_from(&[p], fs(&[(padrao.to_str().unwrap(), LOCKFILE)])).unwrap();
+        assert_eq!(c.source, Source::Lockfile(padrao));
+    }
+
+    #[test]
+    fn so_abre_os_processos_do_lol_e_do_riot_client() {
+        for nome in [
+            "LeagueClient.exe",
+            "leagueclientux.exe",
+            "RiotClientServices.exe",
+        ] {
+            assert!(wants_exe(nome), "{nome}");
+        }
+        // O jogo, o Vanguard e o resto do sistema nunca são abertos.
+        for nome in [
+            "League of Legends.exe",
+            "vgc.exe",
+            "vgtray.exe",
+            "LeagueClientUxRender.exe",
+            "Riot Client.exe",
+            "explorer.exe",
+        ] {
+            assert!(!wants_exe(nome), "{nome}");
+        }
     }
 
     #[test]
