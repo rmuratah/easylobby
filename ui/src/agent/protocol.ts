@@ -6,6 +6,8 @@ import type { LcuStatus } from '../bindings/LcuStatus';
 import type { Summoner } from '../bindings/Summoner';
 import type { Lobby } from '../bindings/Lobby';
 import type { LobbyMember } from '../bindings/LobbyMember';
+import type { LobbyInvitation } from '../bindings/LobbyInvitation';
+import type { InvitationState } from '../bindings/InvitationState';
 import type { Position } from '../bindings/Position';
 import { isQueue } from './queues';
 import type { ErrorCode } from '../bindings/ErrorCode';
@@ -50,10 +52,18 @@ function lobbyMember(v: unknown): v is LobbyMember {
     ['summonerId', 'summonerIconId', 'summonerLevel'].every(k => uint(v[k])) &&
     typeof v.isLeader === 'boolean' && position(v.firstPosition) && position(v.secondPosition);
 }
+const invitationStates = {
+  Requested: true, Pending: true, Accepted: true, Declined: true, Kicked: true, OnHold: true, Error: true, Unknown: true,
+} satisfies Record<InvitationState, true>;
+function lobbyInvitation(v: unknown): v is LobbyInvitation {
+  return object(v) && typeof v.puuid === 'string' && uint(v.summonerId) &&
+    typeof v.state === 'string' && Object.hasOwn(invitationStates, v.state);
+}
 function lobby(v: unknown): v is Lobby | null {
   return v === null || (object(v) && uint(v.queueId) && (v.queue === null || isQueue(v.queue)) &&
     uint(v.maxLobbySize) && typeof v.isLeader === 'boolean' && typeof v.canStartActivity === 'boolean' &&
-    typeof v.showPositionSelector === 'boolean' && Array.isArray(v.members) && v.members.every(lobbyMember));
+    typeof v.showPositionSelector === 'boolean' && Array.isArray(v.members) && v.members.every(lobbyMember) &&
+    typeof v.canInvite === 'boolean' && Array.isArray(v.invitations) && v.invitations.every(lobbyInvitation));
 }
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const nums = (v: Record<string, unknown>, keys: string[]) => keys.every(k => num(v[k]));

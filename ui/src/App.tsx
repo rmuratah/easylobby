@@ -6,6 +6,7 @@ import { LaunchUxButton } from './components/LaunchUxButton';
 import { QueuePanel } from './components/QueuePanel';
 import { RunePagesPanel } from './components/RunePagesPanel';
 import { FriendsList } from './components/FriendsList';
+import { InvitationsPanel } from './components/InvitationsPanel';
 
 function connectionLabel(connection: ConnectionSnapshot): string {
   if (connection.status === 'incompatible') return 'Versões incompatíveis';
@@ -43,6 +44,7 @@ export default function App() {
       <ReadyCheckPanel connection={connection} send={connection.send} />
       <QueuePanel connection={connection} send={connection.send} />
       <RunePagesPanel connection={connection} send={connection.send} />
+      <InvitationsPanel connection={connection} send={connection.send} />
       <FriendsList connection={connection} />
     </main>
   );
