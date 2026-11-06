@@ -2,6 +2,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { AgentClient, ConnectionSnapshot } from "../../agent/client";
 import { Segmented } from "../base";
 import { LaunchUxButton } from "../LaunchUxButton";
+import { ConnectionIndicator } from "../connection/ConnectionIndicator";
+import { connectionView } from "../../screens/connection";
 import type { ThemePreference } from "../../theme/theme";
 import { tauriWindowControls, type WindowControls } from "./windowControls";
 
@@ -34,6 +36,7 @@ export function TitleBar({ connection, send, themePreference, onThemeChange, con
       className="flex h-12 shrink-0 select-none items-center gap-3 border-b border-line bg-surface pl-4 text-ink"
     >
       <h1 data-tauri-drag-region className="text-section font-semibold tracking-[-0.01em]">easylobby</h1>
+      <ConnectionIndicator view={connectionView(connection)} />
       <div data-tauri-drag-region className="h-full min-w-4 flex-1" />
       <LaunchUxButton connection={connection} send={send} />
       <Segmented label="Tema" value={themePreference} onChange={onThemeChange} options={THEME_OPTIONS} />

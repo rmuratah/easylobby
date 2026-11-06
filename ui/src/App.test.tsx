@@ -78,7 +78,7 @@ describe('telas confirmadas pelo agente', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Criar lobby' }));
     fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
     expect(screen.queryByRole('button', { name: 'Criar lobby' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Início' }));
     expect(screen.getByRole('button', { name: 'Criar lobby' })).toBeDisabled();
     snapshot({ lobby: testLobby, gameflowPhase: 'Lobby' });
     rerender(<App />);
