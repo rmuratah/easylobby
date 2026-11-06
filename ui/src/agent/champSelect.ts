@@ -1,5 +1,6 @@
 import type { AgentState } from '../bindings/AgentState';
 import type { ChampSelect } from '../bindings/ChampSelect';
+import type { ChampSelectAction } from '../bindings/ChampSelectAction';
 import type { ChampSelectPhase } from '../bindings/ChampSelectPhase';
 import type { ChampSelectPlayer } from '../bindings/ChampSelectPlayer';
 import type { Champion } from '../bindings/Champion';
@@ -72,4 +73,24 @@ export function gridChampions(state: Pick<AgentState, 'championCatalog' | 'champ
 /** `cellId`s de quem está na vez agora (ban ou pick em andamento). */
 export function actingCells(champSelect: ChampSelect): Set<number> {
   return new Set(champSelect.actions.filter(a => a.isInProgress && !a.completed).map(a => a.actorCellId));
+}
+
+/** A ação do jogador logado que a grade usa agora. */
+export type MyAction = {
+  action: ChampSelectAction;
+  /** É a vez dela: dá para marcar e confirmar. Fora da vez, só marcar o pick (intenção). */
+  turn: boolean;
+};
+
+export function myAction(champSelect: ChampSelect): MyAction | null {
+  if (champSelect.pendingAction) return { action: champSelect.pendingAction, turn: true };
+  const pick = champSelect.actions.find(a => a.type === 'pick' && !a.completed && a.actorCellId === champSelect.localPlayerCellId);
+  return pick ? { action: pick, turn: false } : null;
+}
+
+/** Campeão que a LCU já tem marcado para a ação do jogador (hover ou intenção). */
+export function markedChampion(champSelect: ChampSelect, mine: MyAction): number | null {
+  if (mine.turn) return mine.action.championId || null;
+  const me = champSelect.myTeam.find(p => p.cellId === champSelect.localPlayerCellId);
+  return me?.championPickIntent || null;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  actingCells, championName, gridChampions, gridPurpose, playerName, remainingMs, searchChampions, searchKey,
+  actingCells, championName, gridChampions, gridPurpose, markedChampion, myAction, playerName, remainingMs, searchChampions,
+  searchKey,
 } from './champSelect';
 import { testChampionCatalog } from '../test/events';
 import { champSelectState, draftChampSelect } from '../test/champSelect';
@@ -60,5 +61,23 @@ describe('textos da seleção', () => {
     expect(remainingMs(draftChampSelect, end - 1500)).toBe(1500);
     expect(remainingMs(draftChampSelect, end + 1)).toBe(0);
     expect([...actingCells(draftChampSelect)]).toEqual([0, 1]);
+  });
+});
+
+describe('ação do jogador', () => {
+  it('usa a ação da vez e, fora dela, o próximo pick', () => {
+    const turn = myAction(draftChampSelect)!;
+    expect(turn).toEqual({ action: draftChampSelect.pendingAction, turn: true });
+    expect(markedChampion(draftChampSelect, turn)).toBeNull();
+    expect(markedChampion({ ...draftChampSelect, pendingAction: { ...turn.action, championId: 62 } }, { ...turn, action: { ...turn.action, championId: 62 } })).toBe(62);
+    const planning = { ...draftChampSelect, pendingAction: null, myTeam: [{ ...draftChampSelect.myTeam[0], championPickIntent: 20 }] };
+    const intent = myAction(planning)!;
+    expect(intent.turn).toBe(false);
+    expect(intent.action.id).toBe(4);
+    expect(markedChampion(planning, intent)).toBe(20);
+  });
+  it('sem pick pendente não há ação', () => {
+    const done = { ...draftChampSelect, pendingAction: null, actions: draftChampSelect.actions.map(a => ({ ...a, completed: true })) };
+    expect(myAction(done)).toBeNull();
   });
 });
