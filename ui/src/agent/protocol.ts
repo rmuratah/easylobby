@@ -12,11 +12,14 @@ import type { Matchmaking } from '../bindings/Matchmaking';
 import type { MatchmakingError } from '../bindings/MatchmakingError';
 import type { SearchState } from '../bindings/SearchState';
 import type { ChampSelect } from '../bindings/ChampSelect';
+import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
 import type { Conversation } from '../bindings/Conversation';
+import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { RunePages } from '../bindings/RunePages';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
 import type { Friend } from '../bindings/Friend';
+import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
 const errorCodes = {
@@ -83,6 +86,9 @@ function champSelect(v: unknown): v is ChampSelect | null {
     object(v.timer) && typeof v.timer.phase === 'string' && object(v.bans) && arrays(v.bans, ['myTeam', 'theirTeam']) &&
     arrays(v, ['myTeam', 'theirTeam', 'actions']) && (v.pendingAction === null || object(v.pendingAction)));
 }
+function champSelectChat(v: unknown): v is ChampSelectChat | null {
+  return v === null || (object(v) && list(v.messages, object));
+}
 function receivedInvitation(v: unknown): v is ReceivedInvitation {
   return object(v) && strings(v, ['invitationId', 'fromSummonerName']) && uints(v, ['fromSummonerId', 'queueId']) &&
     (v.queue === null || isQueue(v.queue)) && typeof v.canAccept === 'boolean';
@@ -90,12 +96,18 @@ function receivedInvitation(v: unknown): v is ReceivedInvitation {
 function conversation(v: unknown): v is Conversation {
   return object(v) && strings(v, ['id', 'gameName', 'tagLine']) && uint(v.unreadCount) && list(v.messages, object);
 }
+function champSelectChat(v: unknown): v is ChampSelectChat | null {
+  return v === null || (object(v) && list(v.messages, object));
+}
 function runePages(v: unknown): v is RunePages | null {
   return v === null || (object(v) && list(v.pages, object) && (v.currentPageId === null || uint(v.currentPageId)) &&
     typeof v.canCreatePage === 'boolean');
 }
 function runeCatalog(v: unknown): v is RuneCatalog | null {
   return v === null || (object(v) && list(v.styles, object) && list(v.perks, object));
+}
+function summonerSpellCatalog(v: unknown): v is SummonerSpellCatalog | null {
+  return v === null || (object(v) && list(v.spells, object));
 }
 function friend(v: unknown): v is Friend {
   return object(v) && strings(v, ['id', 'puuid', 'gameName', 'tagLine', 'name', 'availability', 'statusMessage']) &&
@@ -115,7 +127,8 @@ function state(v: unknown): v is AgentState {
   return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) &&
     readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
-    runePages(v.runePages) && runeCatalog(v.runeCatalog) && list(v.friends, friend);
+    champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
+    summonerSpellCatalog(v.summonerSpellCatalog) && list(v.friends, friend);
 }
 
 // Os tipos vêm do Rust; esta validação protege a fronteira JSON em runtime.
@@ -133,11 +146,14 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'readyCheck': valid = readyCheck(v.readyCheck); break;
     case 'matchmaking': valid = matchmaking(v.matchmaking); break;
     case 'champSelect': valid = champSelect(v.champSelect); break;
+    case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
     case 'receivedInvitations': valid = list(v.invitations, receivedInvitation); break;
     case 'conversation': valid = conversation(v.conversation); break;
     case 'conversationClosed': valid = typeof v.id === 'string'; break;
+    case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
     case 'runePages': valid = runePages(v.runePages); break;
     case 'runeCatalog': valid = runeCatalog(v.runeCatalog); break;
+    case 'summonerSpellCatalog': valid = summonerSpellCatalog(v.summonerSpellCatalog); break;
     case 'friends': valid = list(v.friends, friend); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
       (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;

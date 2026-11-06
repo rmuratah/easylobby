@@ -26,6 +26,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'lobby': return { ...state, lobby: message.lobby };
     case 'matchmaking': return { ...state, matchmaking: message.matchmaking };
     case 'champSelect': return { ...state, champSelect: message.champSelect };
+    case 'champSelectChat': return { ...state, champSelectChat: message.champSelectChat };
     case 'receivedInvitations': return { ...state, receivedInvitations: message.invitations };
     case 'conversation': {
       const { conversation } = message;
@@ -36,8 +37,10 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
       return { ...state, conversations };
     }
     case 'conversationClosed': return { ...state, conversations: state.conversations.filter(c => c.id !== message.id) };
+    case 'champSelectChat': return { ...state, champSelectChat: message.champSelectChat };
     case 'runePages': return { ...state, runePages: message.runePages };
     case 'runeCatalog': return { ...state, runeCatalog: message.runeCatalog };
+    case 'summonerSpellCatalog': return { ...state, summonerSpellCatalog: message.summonerSpellCatalog };
     case 'friends': return { ...state, friends: message.friends };
     default: return message satisfies never;
   }
