@@ -45,6 +45,9 @@ const pairs: [string, string, number][] = [
   ["control", "surface", 3],
   ["control", "bg", 3],
   ["accent", "surface", 3],
+  ["status-online", "surface", 3],
+  ["status-game", "surface", 3],
+  ["status-away", "surface", 3],
 ];
 
 describe.each([

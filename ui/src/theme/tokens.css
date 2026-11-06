@@ -20,6 +20,9 @@
   --el-accent-ink: #0b5e55;
   --el-danger: #b42318;
   --el-warn: #9a4a06;
+  --el-status-online: #1e8a4c;
+  --el-status-game: #2b63d1;
+  --el-status-away: #a86608;
   --el-overlay: rgb(19 32 31 / 0.32);
 }
 
@@ -42,6 +45,9 @@
   --el-accent-ink: #7fe6d6;
   --el-danger: #ff7a6b;
   --el-warn: #f5a65b;
+  --el-status-online: #3ccb7f;
+  --el-status-game: #6a9cff;
+  --el-status-away: #e6a23c;
   --el-overlay: rgb(0 0 0 / 0.55);
 }
 
@@ -59,6 +65,9 @@
   --color-accent-ink: var(--el-accent-ink);
   --color-danger: var(--el-danger);
   --color-warn: var(--el-warn);
+  --color-status-online: var(--el-status-online);
+  --color-status-game: var(--el-status-game);
+  --color-status-away: var(--el-status-away);
   --color-overlay: var(--el-overlay);
 }
 
