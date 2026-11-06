@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { configure, act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
 import type { AgentState } from '../bindings/AgentState';
@@ -31,8 +31,9 @@ async function respond(result: Extract<ServerMessage, { type: 'response' }>['res
   await act(async () => socket().receive({ type: 'response', id: request().id, result }));
 }
 
-beforeEach(() => { vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal('WebSocket', Socket); });
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+// Estes testes verificam também as guardas dos painéis montados fora da tela ativa.
+beforeEach(() => { configure({ defaultHidden: true }); vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal('WebSocket', Socket); });
+afterEach(() => { configure({ defaultHidden: false }); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('matchmaking pelo /ws', () => {
   it('inicia uma vez e mantém o agente como fonte de verdade', async () => {

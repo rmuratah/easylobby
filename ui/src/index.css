@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+:root { color-scheme: dark; background: #020617; color: #f1f5f9; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+.app-shell { height: 100dvh; display: flex; flex-direction: column; }
+.app-header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.5rem; border-bottom: 1px solid #334155; }
+.app-content { overflow: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
+.app-content > * { flex-shrink: 0; }
+.app-content nav button, .app-content > section > button { border: 1px solid #475569; border-radius: .375rem; padding: .5rem 1rem; }
+button[aria-current="page"] { background: #0c4a6e; border-color: #38bdf8; }
+:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
+.play-panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.play-panels[data-screen="home"], .play-panels[data-screen="queue"] { grid-template-columns: minmax(0, 42rem); }
+.play-panels section { max-width: none; }
+@media (max-width: 850px) { .play-panels { grid-template-columns: minmax(0, 1fr); } }
