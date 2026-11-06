@@ -3,7 +3,6 @@ import { mainScreen, phaseLabel } from './screens/mainScreen';
 import { LobbyPanel } from './components/LobbyPanel';
 import { useAgent } from './agent/useAgent';
 import type { ConnectionSnapshot } from './agent/client';
-import { LaunchUxButton } from './components/LaunchUxButton';
 import { QueuePanel } from './components/QueuePanel';
 import { RunePagesPanel } from './components/RunePagesPanel';
 import { ReadyCheckPanel } from './components/ReadyCheckPanel';
@@ -12,7 +11,7 @@ import { InvitationsPanel } from './components/InvitationsPanel';
 import { ChatButton, ChatPanel } from './components/ChatPanel';
 import { Notifications } from './components/Notifications';
 import { ChampSelectPanel } from './components/ChampSelectPanel';
-import { ThemeSwitcher } from './components/ThemeSwitcher';
+import { TitleBar } from './components/titlebar/TitleBar';
 import { useTheme } from './theme/theme';
 
 function connectionLabel(connection: ConnectionSnapshot): string {
@@ -55,13 +54,7 @@ export default function App() {
     : summoner.displayName || 'Invocador');
   return (
     <div className="app-shell">
-      <header className="app-header">
-        <h1 className="text-2xl font-semibold">easylobby</h1>
-        <div className="flex items-center gap-4">
-          <ThemeSwitcher preference={preference} onChange={setPreference} />
-          <LaunchUxButton connection={connection} send={connection.send} />
-        </div>
-      </header>
+      <TitleBar connection={connection} send={connection.send} themePreference={preference} onThemeChange={setPreference} />
       <main ref={contentRef} className="app-content">
         <p role="status" className="text-slate-300">{connectionLabel(connection)}</p>
         {connection.error && <p role="alert" className="text-amber-300">{connection.error}</p>}

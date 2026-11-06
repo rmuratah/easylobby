@@ -30,7 +30,7 @@ os testes automatizados da UI simulam o WebSocket do agente.
    voltar: conferir rascunho/operação preservados e ausência de comandos duplicados.
 8. Usar emergência em Home, Lobby, Fila, Runas e fase sem tela, inclusive durante
    outra operação. Conferir retorno de sucesso/erro e proteção contra clique duplo.
-9. Reduzir janela a 800×560: rolar os painéis/editor, conferir que emergência fica
+9. Reduzir janela a 960×640 (o mínimo desde a #126): rolar os painéis/editor, conferir que emergência fica
    visível, textos não escapam horizontalmente e todos os controles são alcançáveis
    por Tab/Shift+Tab, acionáveis pelo teclado e têm foco visível. Durante uma mudança
    automática de tela, conferir retorno da rolagem ao topo e foco fora de conteúdo oculto.
