@@ -33,7 +33,7 @@ export function Notifications({ connection }: Props) {
   if (!matchFound && invitations.length === 0 && messages.length === 0) return null;
   return (
     <section aria-label="Notificações"
-      className="fixed right-4 top-4 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2">
+      className="fixed right-4 top-16 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2">
       {matchFound && (
         <div role="alert" className="rounded border border-sky-400 bg-slate-900 p-3 shadow-lg">
           <p className="font-semibold">Partida encontrada!</p>

@@ -15,10 +15,6 @@ body { margin: 0; }
 .sidebar-toggle, .nav-button, .app-content nav button, .app-content > section > button { border: 1px solid var(--el-control); border-radius: .375rem; padding: .5rem 1rem; }
 button[aria-current="page"] { background: var(--el-accent-soft); border-color: var(--el-accent); }
 :focus-visible { outline: 2px solid var(--el-accent); outline-offset: 3px; }
-.play-panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-.play-panels[data-screen="home"], .play-panels[data-screen="queue"] { grid-template-columns: minmax(0, 42rem); }
-.play-panels section { max-width: none; }
-@container (max-width: 44rem) { .play-panels { grid-template-columns: minmax(0, 1fr); } }
 .champ-select { display: flex; flex-direction: column; gap: 1rem; }
 .champ-select-board { display: grid; grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr) minmax(12rem, 16rem); gap: 1rem; align-items: start; }
 .champ-select-center { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }

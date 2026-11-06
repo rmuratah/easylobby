@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
+import { Button } from './base';
+import { cx } from './base/cx';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type QueueCommand = Extract<Command, { type: 'startQueue' | 'stopQueue' }>;
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
-const buttonClass = 'rounded border border-sky-400 px-4 py-2 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-4';
 
 function duration(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
@@ -95,36 +96,47 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
     }
   }
 
+  const searching = matchmaking?.searchState === 'Searching';
   return (
-    <section aria-label="Busca de partida" className="flex w-full max-w-lg flex-col gap-3 rounded border border-slate-700 p-4">
-      <h2 className="text-xl font-semibold">Busca de partida</h2>
-      <p>Estado: <strong>{stateLabel(matchmaking)}</strong></p>
-      {matchmaking && (
-        <>
-          <p>Tempo na fila: <QueueTime key={`${matchmaking.searchState}:${matchmaking.timeInQueue}`}
-            confirmed={matchmaking.timeInQueue} running={matchmaking.searchState === 'Searching'} /></p>
-          <p>Estimativa: <strong>{matchmaking.estimatedQueueTime > 0 ? duration(matchmaking.estimatedQueueTime) : 'indisponível'}</strong></p>
-          {matchmaking.lowPriorityTimeRemaining > 0 && (
-            <p role="alert" className="text-amber-300">Baixa prioridade: {duration(matchmaking.lowPriorityTimeRemaining)} restantes.</p>
+    <section aria-label="Busca de partida"
+      className={cx('sticky bottom-0 z-10 flex w-full flex-col gap-3 rounded-card border p-4 text-ink shadow-[0_-8px_24px_-12px_var(--el-overlay)]',
+        searching ? 'border-accent bg-accent-soft' : 'border-line bg-surface')}>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <h2 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Busca de partida</h2>
+          <p className="text-section">Estado: <strong className="font-semibold">{stateLabel(matchmaking)}</strong></p>
+          {matchmaking && (
+            <p className="flex flex-wrap gap-x-4 text-body text-muted">
+              <span>Tempo na fila: <span className="text-section font-semibold tabular-nums text-ink">
+                <QueueTime key={`${matchmaking.searchState}:${matchmaking.timeInQueue}`}
+                  confirmed={matchmaking.timeInQueue} running={matchmaking.searchState === 'Searching'} /></span></span>
+              <span>Estimativa: <strong className="font-semibold tabular-nums text-ink">{matchmaking.estimatedQueueTime > 0 ? duration(matchmaking.estimatedQueueTime) : 'indisponível'}</strong></span>
+            </p>
           )}
-          {matchmaking.errors.length > 0 && (
-            <ul aria-label="Erros da busca" className="text-amber-300">
-              {matchmaking.errors.map((error, index) => (
-                <li key={`${error.errorType}:${index}`}>
-                  {error.message || error.errorType || 'Erro de matchmaking'}
-                  {error.penaltyTimeRemaining > 0 ? ` · ${duration(error.penaltyTimeRemaining)} restantes` : ''}
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant={canStop ? 'secondary' : 'primary'} size="lg" aria-busy={pending}
+            disabled={!canStart || pending} onClick={() => { void execute({ type: 'startQueue' }); }}>Iniciar busca</Button>
+          <Button variant={canStop ? 'primary' : 'secondary'} size="lg" aria-busy={pending}
+            disabled={!canStop || pending} onClick={() => { void execute({ type: 'stopQueue' }); }}>Cancelar busca</Button>
+        </div>
+      </div>
+      {matchmaking && matchmaking.lowPriorityTimeRemaining > 0 && (
+        <p role="alert" className="text-body text-warn">Baixa prioridade: {duration(matchmaking.lowPriorityTimeRemaining)} restantes.</p>
       )}
-      <p className="text-sm text-slate-300">{restriction}</p>
-      <button type="button" className={buttonClass} aria-busy={pending}
-        disabled={!canStart || pending} onClick={() => { void execute({ type: 'startQueue' }); }}>Iniciar busca</button>
-      <button type="button" className={buttonClass} aria-busy={pending}
-        disabled={!canStop || pending} onClick={() => { void execute({ type: 'stopQueue' }); }}>Cancelar busca</button>
-      {feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}>{feedback.message}</p>}
+      {matchmaking && matchmaking.errors.length > 0 && (
+        <ul aria-label="Erros da busca" className="text-body text-warn">
+          {matchmaking.errors.map((error, index) => (
+            <li key={`${error.errorType}:${index}`}>
+              {error.message || error.errorType || 'Erro de matchmaking'}
+              {error.penaltyTimeRemaining > 0 ? ` · ${duration(error.penaltyTimeRemaining)} restantes` : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-caption text-muted">{restriction}</p>
+      {feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}
+        className={feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{feedback.message}</p>}
     </section>
   );
 }
