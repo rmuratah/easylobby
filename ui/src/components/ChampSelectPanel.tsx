@@ -8,6 +8,7 @@ import {
 import { useCommand, type CommandFeedback } from '../agent/useCommand';
 import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
+import { ChampSelectChatPanel } from './ChampSelectChatPanel';
 import { positionNames } from '../agent/positions';
 import type { AgentState } from '../bindings/AgentState';
 import type { ChampSelect } from '../bindings/ChampSelect';
@@ -93,7 +94,10 @@ function ChampSelectContent({ state, champSelect, send }: ContentProps) {
           <ChampionGrid state={state} champSelect={champSelect} grid={grid} selected={chosen || null}
             onSelect={mine && !confirm.pending ? select : null} />
         </div>
-        <TeamList label="Time adversário" players={champSelect.theirTeam} ally={false} acting={acting} catalog={catalog} />
+        <div className="flex min-w-0 flex-col gap-4">
+          <TeamList label="Time adversário" players={champSelect.theirTeam} ally={false} acting={acting} catalog={catalog} />
+          <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />
+        </div>
       </div>
     </section>
   );
