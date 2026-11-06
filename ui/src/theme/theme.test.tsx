@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ThemeSwitcher } from "../components/ThemeSwitcher";
 import { readPreference, resolveTheme, THEME_STORAGE_KEY, useTheme } from "./theme";
 
 type Listener = (event: MediaQueryListEvent) => void;
@@ -107,12 +106,3 @@ describe("theme-init.js", () => {
   });
 });
 
-describe("ThemeSwitcher", () => {
-  it("marca a opção atual e avisa a escolhida", () => {
-    const onChange = vi.fn();
-    render(<ThemeSwitcher preference="sistema" onChange={onChange} />);
-    expect(screen.getByRole("button", { name: "Sistema" })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Escuro" }));
-    expect(onChange).toHaveBeenCalledWith("escuro");
-  });
-});

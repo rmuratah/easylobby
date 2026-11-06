@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
+import { Button } from './base';
+import { cx } from './base/cx';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
@@ -44,23 +46,24 @@ function LaunchUxAction({ available, send }: { available: boolean; send: AgentCl
     }
   }
 
+  const busy = feedback.status === 'pending';
+  // Fica na barra de título (#126): a explicação vai para leitores de tela e
+  // para a dica do mouse; o resultado aparece em uma linha ao lado do botão.
+  const description = available ? 'Use esta opção para voltar à interface oficial do League of Legends.'
+    : 'Aguarde a conexão com o agente e o League of Legends. Se havia uma abertura em andamento, confira o client oficial antes de tentar novamente.';
   return (
-    <div className="flex max-w-lg flex-col items-center gap-2 text-center">
-      <button
-        type="button"
-        onClick={() => { void launch(); }}
-        disabled={!available || feedback.status === 'pending'}
-        aria-busy={feedback.status === 'pending'}
-        aria-describedby={descriptionId}
-        className="rounded border border-amber-400 px-4 py-2 font-medium text-amber-200 hover:bg-amber-400/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {feedback.status === 'pending' ? 'Abrindo client oficial…' : 'Abrir client oficial'}
-      </button>
-      <p id={descriptionId} className="text-sm text-slate-300">
-        {available ? 'Use esta opção para voltar à interface oficial do League of Legends.'
-          : 'Aguarde a conexão com o agente e o League of Legends. Se havia uma abertura em andamento, confira o client oficial antes de tentar novamente.'}
-      </p>
-      {feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}>{feedback.message}</p>}
+    <div className="flex min-w-0 items-center gap-2">
+      {feedback.message && (
+        <p role={feedback.status === 'error' ? 'alert' : 'status'} title={feedback.message}
+          className={cx('min-w-0 max-w-[16rem] truncate text-caption', feedback.status === 'error' ? 'text-danger' : 'text-muted')}>
+          {feedback.message}
+        </p>
+      )}
+      <Button size="sm" variant="secondary" onClick={() => { void launch(); }} disabled={!available}
+        loading={busy} aria-describedby={descriptionId} title={description}>
+        {busy ? 'Abrindo client oficial…' : 'Abrir client oficial'}
+      </Button>
+      <span id={descriptionId} className="sr-only">{description}</span>
     </div>
   );
 }

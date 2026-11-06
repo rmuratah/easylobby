@@ -16,8 +16,9 @@
         "title": "easylobby",
         "width": 1100,
         "height": 700,
-        "minWidth": 800,
-        "minHeight": 560,
+        "minWidth": 960,
+        "minHeight": 640,
+        "decorations": false,
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required"
       }
     ],
