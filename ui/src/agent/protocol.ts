@@ -1,3 +1,5 @@
+import type { ReadyCheckState } from '../bindings/ReadyCheckState';
+import type { ReadyCheckResponse } from '../bindings/ReadyCheckResponse';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import type { AgentState } from '../bindings/AgentState';
 import type { LcuStatus } from '../bindings/LcuStatus';
@@ -64,8 +66,14 @@ const list = <T>(v: unknown, item: (x: unknown) => x is T): v is T[] => Array.is
 // Os eventos abaixo são conferidos no primeiro nível: tipos dos campos
 // simples, listas e ids usados para juntar o evento ao estado. O conteúdo
 // das listas internas (ações do draft, runas...) fica para as telas.
+const readyCheckStates = {
+  InProgress: true, EveryoneReady: true, StrangerNotReady: true, PartyNotReady: true,
+  Error: true, Invalid: true, Unknown: true,
+} satisfies Record<ReadyCheckState, true>;
+const readyCheckResponses = { None: true, Accepted: true, Declined: true, Unknown: true } satisfies Record<ReadyCheckResponse, true>;
 function readyCheck(v: unknown): v is ReadyCheck | null {
-  return v === null || (object(v) && strings(v, ['state', 'playerResponse']) && nums(v, ['timer', 'duration']));
+  return v === null || (object(v) && typeof v.state === 'string' && Object.hasOwn(readyCheckStates, v.state) &&
+    typeof v.playerResponse === 'string' && Object.hasOwn(readyCheckResponses, v.playerResponse) && nums(v, ['timer', 'duration']));
 }
 const searchStates = {
   Searching: true, Found: true, Error: true, AbandonedLowPriorityQueue: true, Unknown: true,
