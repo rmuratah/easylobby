@@ -61,6 +61,10 @@ export default function App() {
           <button type="button" aria-current={page === 'runes' ? 'page' : undefined}
             onClick={() => setNavigation({ screen, page: 'runes' })}>Runas</button>
         </nav>
+        {found && !connection.state?.readyCheck && <section role="alert" className="rounded border-2 border-amber-400 p-4">
+          <h2 className="text-xl font-semibold">Partida encontrada</h2>
+          <p>Aguardando os dados de confirmação do agente. Use o botão acima para abrir o client oficial.</p>
+        </section>}
         {found && <ReadyCheckPanel connection={connection} send={connection.send} />}
         <section hidden={page !== 'home' && !(page === 'main' && screen === 'home')} aria-label="Home" className="space-y-4">
           <h2 className="text-2xl font-semibold">Home</h2>

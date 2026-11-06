@@ -21,8 +21,9 @@ os testes automatizados da UI simulam o WebSocket do agente.
    conferir um comando e retorno ao estado confirmado. Simular queda durante busca
    e reconectar; não exibir tempo ou comandos baseados na sessão antiga.
 5. Encontrar partida enquanto Runas estiver aberta: conferir destaque imediato e
-   acesso ao botão oficial. Enquanto #106 não for integrado, aceitar/recusar pelo
-   client oficial. Após integrar #106, repetir usando suas ações no destaque.
+   acesso ao botão oficial. Aceitar/recusar pelo painel integrado da #106, inclusive
+   navegando durante envio. Se os dados de aceite ainda não chegaram, conferir a
+   indicação de espera com acesso ao client oficial.
 6. Entrar em seleção de campeões/partida e terminar: conferir indicação da fase,
    ausência de comandos visíveis de lobby/fila e acesso ao client oficial.
 7. Nas runas, aplicar, criar, editar e excluir página. Navegar durante um envio e
@@ -34,24 +35,19 @@ os testes automatizados da UI simulam o WebSocket do agente.
    por Tab/Shift+Tab, acionáveis pelo teclado e têm foco visível. Durante uma mudança
    automática de tela, conferir retorno da rolagem ao topo e foco fora de conteúdo oculto.
 
-## Integrações pendentes
+## Integrações
 
-Base: main em `579e94c` (inclui runas, PR #104). PRs #106 e #103 estavam abertos na
-inspeção inicial e não foram copiados, mesclados nem reimplementados nesta entrega.
+Os PRs #106 (#20) e #103 (#30), pendentes na inspeção inicial, foram integrados
+à main e à branch em `14a2e87`. Aceitar/recusar aparece no destaque global, fora
+dos painéis ocultos; FriendsList recebe a mesma conexão compartilhada.
 
-- **#106 / #20:** integrar o painel de aceitar/recusar no destaque global de partida
-  encontrada em App.tsx, fora dos painéis ocultos de Lobby/Fila e recebendo a mesma
-  conexão. Preservar suas guardas de comandos, timers e tratamento de respostas.
-  Possíveis conflitos em App.tsx e testes de integração de Lobby/Queue; os testes
-  antigos agora também inspecionam controles ocultos para manter cobertura das guardas.
-- **#103 / #30:** integrar FriendsList como acesso social recebendo a conexão já
-  compartilhada. Possíveis conflitos em App.tsx e agent/assets.ts (runas já trouxe
-  esse helper à main). #103 já apresentava conflito antes desta entrega. Não há
-  botão de amigos que leve a uma funcionalidade ainda indisponível.
+A correção posterior mantém a indicação de partida encontrada enquanto os dados
+de ready check não chegaram. Os testes agora consideram os controles ocultos,
+a remoção do painel em ChampSelect e o relógio independente da lista de amigos.
 
 ## Validação desta entrega
 
-- Vitest: 185 testes passaram; 1 integração real ignorada por depender de configuração externa.
+- Vitest: 256 testes passaram; 1 integração real ignorada por depender de configuração externa.
 - ESLint, TypeScript + Vite e `git diff --check`: passaram.
 - Chromium headless, estado simulado, viewport 800×560: Home/Lobby/Fila/partida
   encontrada/Runas, sem transbordamento horizontal, cabeçalho de emergência fora da
