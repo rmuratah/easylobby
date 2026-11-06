@@ -62,10 +62,10 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     return () => { mounted.current = false; };
   }, []);
 
-  const phaseAllowsChange = !matchmaking && (phase === 'None' || phase === 'Lobby');
+  const phaseAllowsChange = !state.readyCheck && !matchmaking && (phase === 'None' || phase === 'Lobby');
   const canCreate = !!summoner && phaseAllowsChange && (!lobby || lobby.isLeader);
-  const canLeave = !!summoner && !!lobby && !matchmaking && phase === 'Lobby';
-  const canSetPositions = !!localMember && !!lobby?.showPositionSelector && !matchmaking && phase === 'Lobby';
+  const canLeave = !state.readyCheck && !!summoner && !!lobby && !matchmaking && phase === 'Lobby';
+  const canSetPositions = !state.readyCheck && !!localMember && !!lobby?.showPositionSelector && !matchmaking && phase === 'Lobby';
   const positionsChanged = (positions.first !== first || positions.second !== second) &&
     !(acceptedPositions?.confirmedKey === confirmedKey && acceptedPositions.first === positions.first && acceptedPositions.second === positions.second);
   const pending = feedback.status === 'pending';

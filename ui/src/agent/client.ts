@@ -19,7 +19,9 @@ type StateEvent = Exclude<ServerMessage, { type: 'hello' | 'response' | 'invalid
 // agente ganhar um evento novo, o TypeScript acusa aqui até ele ser tratado.
 export function applyEvent(state: AgentState, message: StateEvent): AgentState {
   switch (message.type) {
-    case 'lcu': return { ...state, lcu: message.status };
+    case 'lcu': return { ...state, lcu: message.status,
+      readyCheck: message.status.state === 'connected' && state.lcu.state === 'connected' &&
+        message.status.session === state.lcu.session ? state.readyCheck : null };
     case 'summoner': return { ...state, summoner: message.summoner };
     case 'gameflowPhase': return { ...state, gameflowPhase: message.phase };
     case 'readyCheck': return { ...state, readyCheck: message.readyCheck };

@@ -6,6 +6,8 @@ import type { ConnectionSnapshot } from './agent/client';
 import { LaunchUxButton } from './components/LaunchUxButton';
 import { QueuePanel } from './components/QueuePanel';
 import { RunePagesPanel } from './components/RunePagesPanel';
+import { ReadyCheckPanel } from './components/ReadyCheckPanel';
+import { FriendsList } from './components/FriendsList';
 
 function connectionLabel(connection: ConnectionSnapshot): string {
   if (connection.status === 'incompatible') return 'Versões incompatíveis';
@@ -59,10 +61,7 @@ export default function App() {
           <button type="button" aria-current={page === 'runes' ? 'page' : undefined}
             onClick={() => setNavigation({ screen, page: 'runes' })}>Runas</button>
         </nav>
-        {found && <section role="alert" className="rounded border-2 border-amber-400 p-4">
-          <h2 className="text-xl font-semibold">Partida encontrada</h2>
-          <p>Abra o client oficial pelo botão acima para aceitar ou recusar a partida.</p>
-        </section>}
+        {found && <ReadyCheckPanel connection={connection} send={connection.send} />}
         <section hidden={page !== 'home' && !(page === 'main' && screen === 'home')} aria-label="Home" className="space-y-4">
           <h2 className="text-2xl font-semibold">Home</h2>
           {summoner && <section aria-label="Invocador logado">
@@ -86,6 +85,7 @@ export default function App() {
         <div hidden={page !== 'runes'}>
           <RunePagesPanel connection={connection} send={connection.send} />
         </div>
+        <FriendsList connection={connection} />
       </main>
     </div>
   );

@@ -61,8 +61,8 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
     return () => { mounted.current = false; };
   }, []);
   const pending = feedback.status === 'pending';
-  const canStart = !!summoner && !!lobby && lobby.isLeader && lobby.canStartActivity && phase === 'Lobby' && !matchmaking;
-  const canStop = !!matchmaking && phase === 'Matchmaking';
+  const canStart = !state.readyCheck && !!summoner && !!lobby && lobby.isLeader && lobby.canStartActivity && phase === 'Lobby' && !matchmaking;
+  const canStop = !state.readyCheck && !!matchmaking && phase === 'Matchmaking';
   const restriction = !summoner ? 'Aguarde o login no League of Legends.'
     : matchmaking ? (canStop ? 'A busca confirmada pelo agente está em andamento.' : 'Aguarde a próxima fase confirmada pelo agente.')
     : !lobby ? 'Crie ou entre em um lobby antes de buscar uma partida.'
