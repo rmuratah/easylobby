@@ -14,3 +14,9 @@ gravar os arquivos de verdade, eles passam na frente.
 feitiços de invocador, #24), também **sintético**: os `id`s e os modos de jogo
 seguem o client, mas nomes, descrições e níveis mínimos podem não bater. O
 `gravar_fixtures` já grava o arquivo de verdade, que passa na frente.
+
+`champion-summary.json` imita `/lol-game-data/assets/v1/champion-summary.json` (os
+campeões da grade da seleção, #28), também **sintético**: os `id`s cobrem os
+campeões da gravação do patch 16.22 com os nomes em inglês, e `roles` vem vazio.
+Os `id`s que não reconhecemos aparecem como "Campeão N". O `gravar_fixtures` já
+grava o arquivo de verdade, que passa na frente.

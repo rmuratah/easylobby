@@ -154,7 +154,7 @@ Do agente para a UI (`ServerMessage`, campo `type`):
 
 | Mensagem | Quando |
 | --- | --- |
-| `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`, `lobby`, `readyCheck`, `matchmaking`, `champSelect`, `receivedInvitations`, `conversations`, `runePages`, `runeCatalog`, `summonerSpellCatalog`, `friends`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
+| `hello` | Ao conectar, com `protocol`, `agentVersion` e o estado inteiro (`state`: `lcu`, `summoner`, `gameflowPhase`, `lobby`, `readyCheck`, `matchmaking`, `champSelect`, `receivedInvitations`, `conversations`, `runePages`, `runeCatalog`, `summonerSpellCatalog`, `championCatalog`, `champSelectChampions`, `friends`). Volta a vir se a UI ficar para trás ou pedir `getState`: troque todo o estado pelo dele. |
 | `lcu` | A conexão com o LoL mudou: `starting`, `connected` (com `session`), `disconnected` (com `reason`) ou `retrying` (com `attempt`, `retryInMs`, `clientNotRunning` e `error`). |
 | `summoner` | O invocador logado mudou; `null` com o LoL fechado ou antes do login. |
 | `gameflowPhase` | A fase mudou (`None`, `Lobby`, `Matchmaking`, `ReadyCheck`, `ChampSelect`, `InProgress`, `EndOfGame`...; o tipo `GameflowPhase` lista todas, com `Unknown` para uma fase nova); `null` com o LoL fechado. |
@@ -166,6 +166,8 @@ Do agente para a UI (`ServerMessage`, campo `type`):
 | `runePages` | As páginas de runas mudaram (criada, editada, apagada, outra aplicada, a recomendada da seleção apareceu): `pages` (cada uma com `id`, `name`, `primaryStyleId`, `subStyleId`, `selectedPerkIds`, `isEditable`, `isDeletable`, `isTemporary`, `isValid`), `currentPageId` e `canCreatePage`. Sempre a lista inteira; `null` com o LoL fechado (#26). |
 | `runeCatalog` | As árvores de runas para o editor, uma vez por conexão: `styles` (cada uma com `id`, `name`, `allowedSubStyles` e `slots`, as linhas com `kind` `keystone`/`regular`/`statMod` e os `perks` de cada linha) e `perks` (`id`, `name`, `shortDesc`), no idioma do client. Vem de `/lol-game-data/assets/v1/perkstyles.json` e `perks.json` da LCU. `null` com o LoL fechado (#26). |
 | `summonerSpellCatalog` | Os feitiços de invocador do jogo, uma vez por conexão: `spells`, cada um com `id` (o mesmo de `spell1Id`/`spell2Id` e do ícone em `/assets/summonerSpell/<id>`), `name`, `description`, `summonerLevel` (nível mínimo), `gameModes` da LCU e `queues` (as filas do easylobby em que vale), no idioma do client. Vem de `/lol-game-data/assets/v1/summoner-spells.json` da LCU. `null` com o LoL fechado (#24). |
+| `championCatalog` | Os campeões do jogo, uma vez por conexão: `champions` em ordem alfabética, cada um com `id` (o mesmo `championId` da seleção e do ícone em `/assets/champion/<id>`), `name` no idioma do client, `alias` (nome interno em inglês, para a busca) e `roles`. Vem de `/lol-game-data/assets/v1/champion-summary.json` da LCU. `null` com o LoL fechado (#28). |
+| `champSelectChampions` | Mudou a lista de campeões que o jogador pode escolher ou banir na seleção: `pickable` e `bannable`, listas de ids, cada uma `null` fora da seleção ou enquanto a LCU não mandou. Vem de `/lol-champ-select/v1/pickable-champion-ids` e `bannable-champion-ids` (#28). |
 | `response` | Resposta a um comando, com o mesmo `id` e `result` `ok` ou `error` (`code` e `message`). |
 | `invalidMessage` | A UI mandou algo que não é um `ClientMessage` válido. |
 

@@ -5,6 +5,7 @@ export function mainScreen(connection: ConnectionSnapshot) {
   const state = connection.state;
   if (connection.status !== 'connected' || state?.lcu.state !== 'connected' || !state.summoner) return 'home';
   const phase = state.gameflowPhase;
+  if (phase === 'ChampSelect') return 'champSelect';
   // Fases posteriores têm prioridade sobre snapshots atrasados de fila/lobby.
   if (phase && !['None', 'Lobby', 'Matchmaking', 'ReadyCheck'].includes(phase)) return 'other';
   if (phase === 'ReadyCheck' || state.readyCheck || state.matchmaking?.searchState === 'Found') return 'found';

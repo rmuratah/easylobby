@@ -2,8 +2,10 @@
 
 use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
 use crate::champ_select::{self, ActionIntent, ChampSelect};
+use crate::champions::{self, ChampSelectChampions, ChampionCatalog, PICKABLE_CHAMPIONS_PATH};
 use crate::summoner_spells::{self, SummonerSpellCatalog};
 use crate::swaps::{self, SwapIntent, SwapKind};
+use crate::wamp::{EventType, LcuEvent};
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 
 impl Hub {
@@ -36,6 +38,61 @@ impl Hub {
             Some(ServerMessage::SummonerSpellCatalog {
                 summoner_spell_catalog: catalog,
             })
+        });
+    }
+
+    /// Publica os campeões do jogo (#28).
+    pub fn set_champion_catalog(&self, catalog: Option<ChampionCatalog>) {
+        self.update(|shared| {
+            if shared.state.champion_catalog == catalog {
+                return None;
+            }
+            shared.state.champion_catalog = catalog.clone();
+            Some(ServerMessage::ChampionCatalog {
+                champion_catalog: catalog,
+            })
+        });
+    }
+
+    /// Publica os campeões que dá para escolher e banir na seleção (#28).
+    pub fn set_champ_select_champions(&self, champions: ChampSelectChampions) {
+        self.update(|shared| write_champ_select_champions(shared, champions));
+    }
+
+    /// Como [`Hub::set_champ_select_champions`], mas só se a conexão ainda é
+    /// a `session` da releitura.
+    pub(super) fn restore_champ_select_champions(
+        &self,
+        session: u64,
+        champions: ChampSelectChampions,
+    ) {
+        self.update(|shared| {
+            if shared.session != session {
+                return None;
+            }
+            write_champ_select_champions(shared, champions)
+        });
+    }
+
+    /// Evento do WAMP numa das listas de campeões da seleção. O `Delete`
+    /// (a seleção fechou) esvazia a lista.
+    pub(super) fn apply_champ_select_champions_event(&self, event: &LcuEvent) {
+        let ids = match event.event_type {
+            EventType::Delete => None,
+            _ => match champions::ids_from_json(&event.data) {
+                Some(ids) => Some(ids),
+                // JSON que não é lista: ignorado.
+                None => return,
+            },
+        };
+        self.update(|shared| {
+            let mut champions = shared.state.champ_select_champions.clone();
+            if event.uri == PICKABLE_CHAMPIONS_PATH {
+                champions.pickable = ids;
+            } else {
+                champions.bannable = ids;
+            }
+            write_champ_select_champions(shared, champions)
         });
     }
 
@@ -158,6 +215,19 @@ impl Hub {
     }
 }
 
+fn write_champ_select_champions(
+    shared: &mut Shared,
+    champions: ChampSelectChampions,
+) -> Option<ServerMessage> {
+    if shared.state.champ_select_champions == champions {
+        return None;
+    }
+    shared.state.champ_select_champions = champions.clone();
+    Some(ServerMessage::ChampSelectChampions {
+        champ_select_champions: champions,
+    })
+}
+
 /// Troca a seleção de campeões, contando a escrita mesmo quando nada muda
 /// (#87).
 pub(super) fn write_champ_select(
@@ -246,5 +316,68 @@ mod tests {
         ))
         .await;
         assert_eq!(hub.state().champ_select, None);
+    }
+
+    #[tokio::test]
+    async fn segue_os_campeoes_que_da_para_escolher_e_banir() {
+        use crate::champions::BANNABLE_CHAMPIONS_PATH;
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        hub.apply(event(
+            PICKABLE_CHAMPIONS_PATH,
+            EventType::Create,
+            json!([266, 1]),
+        ))
+        .await;
+        hub.apply(event(
+            BANNABLE_CHAMPIONS_PATH,
+            EventType::Create,
+            json!([1, 2, 266]),
+        ))
+        .await;
+        // Repetido não publica; JSON que não é lista é ignorado.
+        hub.apply(event(
+            PICKABLE_CHAMPIONS_PATH,
+            EventType::Update,
+            json!([1, 266]),
+        ))
+        .await;
+        hub.apply(event(PICKABLE_CHAMPIONS_PATH, EventType::Update, json!({})))
+            .await;
+        hub.apply(event(PICKABLE_CHAMPIONS_PATH, EventType::Delete, json!([])))
+            .await;
+        let seen: Vec<ChampSelectChampions> = std::iter::from_fn(|| rx.try_recv().ok())
+            .map(|m| match m {
+                ServerMessage::ChampSelectChampions {
+                    champ_select_champions,
+                } => champ_select_champions,
+                other => panic!("esperava champSelectChampions: {other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            seen,
+            [
+                ChampSelectChampions {
+                    pickable: Some(vec![1, 266]),
+                    bannable: None,
+                },
+                ChampSelectChampions {
+                    pickable: Some(vec![1, 266]),
+                    bannable: Some(vec![1, 2, 266]),
+                },
+                ChampSelectChampions {
+                    pickable: None,
+                    bannable: Some(vec![1, 2, 266]),
+                },
+            ]
+        );
+        hub.apply(ConnectionEvent::Disconnected(
+            crate::connection::DisconnectReason::Closed,
+        ))
+        .await;
+        assert_eq!(
+            hub.state().champ_select_champions,
+            ChampSelectChampions::default()
+        );
     }
 }

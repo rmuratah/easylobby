@@ -20,7 +20,10 @@ describe('prioridade das telas', () => {
     expect(select({ gameflowPhase: 'ReadyCheck' })).toBe('found');
     expect(select({ readyCheck: { state: 'InProgress', playerResponse: 'None', timer: 0, duration: 10 } })).toBe('found');
   });
-  it.each<GameflowPhase>(['ChampSelect', 'GameStart', 'InProgress', 'Reconnect', 'FailedToLaunch', 'TerminatedInError', 'CheckedIntoTournament', 'WaitingForStats', 'PreEndOfGame', 'EndOfGame', 'Unknown'])('prioriza %s sobre lobby/fila antigos', phase => {
+  it('mostra a seleção de campeões na fase dela, acima de lobby/fila antigos', () => {
+    expect(select({ gameflowPhase: 'ChampSelect', lobby: testLobby, matchmaking: testMatchmaking })).toBe('champSelect');
+  });
+  it.each<GameflowPhase>(['GameStart', 'InProgress', 'Reconnect', 'FailedToLaunch', 'TerminatedInError', 'CheckedIntoTournament', 'WaitingForStats', 'PreEndOfGame', 'EndOfGame', 'Unknown'])('prioriza %s sobre lobby/fila antigos', phase => {
     expect(select({ gameflowPhase: phase, lobby: testLobby, matchmaking: testMatchmaking })).toBe('other');
     expect(phaseLabel(phase)).toBeTruthy();
   });
