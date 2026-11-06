@@ -49,6 +49,9 @@ export default function App() {
     (page === 'runes' ? runesBackRef.current ?? flowButtonRef.current : flowButtonRef.current)?.focus();
   }, [page]);
   const found = screen === 'found';
+  // Início (#128) e lobby (#129) no layout de referência: cartões lado a lado quando há largura.
+  const homeMain = page === 'main' && screen === 'home';
+  const lobbyMain = screen === 'lobby' || screen === 'queue';
   const playable = screen === 'home' || screen === 'lobby' || screen === 'queue' || found;
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
     : found ? 'Partida encontrada' : screen === 'champSelect' ? 'Seleção de campeões'
@@ -62,9 +65,11 @@ export default function App() {
         <main ref={contentRef} className="app-content">
           {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error} />}
           {/* Escondido, e não desmontado, enquanto reconecta: comandos em andamento sobrevivem à queda. */}
-          <div hidden={!ready} className="flex flex-col gap-5">
-            {ready && connection.error && <p role="alert" className="text-warn">{connection.error}</p>}
-            <div className="flex flex-wrap items-start justify-between gap-2">
+          <div hidden={!ready} className={homeMain
+            ? 'grid max-w-[72rem] grid-flow-row-dense grid-cols-1 gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(15rem,1fr)]'
+            : 'flex flex-col gap-5'}>
+            {ready && connection.error && <p role="alert" className="col-span-full text-warn">{connection.error}</p>}
+            <div className="col-span-full flex flex-wrap items-start justify-between gap-2">
               <nav aria-label="Funcionalidades" className="flex flex-wrap gap-2">
                 <button ref={flowButtonRef} type="button" aria-current={page === 'main' ? 'page' : undefined}
                   onClick={() => setNavigation({ screen, page: 'main' })}>{title}</button>
@@ -75,7 +80,8 @@ export default function App() {
               </nav>
               <SidebarToggle open={sidebar.open} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />
             </div>
-            <section hidden={page !== 'home' && !(page === 'main' && screen === 'home')} aria-label="Início" className="flex flex-col gap-4">
+            <section hidden={page !== 'home' && !(page === 'main' && screen === 'home')} aria-label="Início"
+              className={homeMain ? '@min-[44rem]:col-start-2' : 'flex max-w-[22rem] flex-col gap-4'}>
               {summoner && <SummonerHeader summoner={summoner} />}
               {screen !== 'home' && <button type="button" className="nav-button self-start" onClick={() => setNavigation({ screen, page: 'main' })}>Voltar para {title}</button>}
             </section>
@@ -84,9 +90,12 @@ export default function App() {
               description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />}
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
             {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}
-            <div hidden={page !== 'main' || !playable} className="flex max-w-[56rem] flex-col gap-4">
+            <div hidden={page !== 'main' || !playable} className={homeMain ? '@min-[44rem]:col-start-1'
+              : lobbyMain ? 'grid max-w-[72rem] items-start gap-5 @min-[44rem]:grid-cols-[minmax(0,1fr)_18rem]'
+              : 'flex max-w-[56rem] flex-col gap-4'}>
               <LobbyPanel connection={connection} send={connection.send} />
-              <div hidden={screen === 'home' || found}>
+              {/* Coluna da direita com largura; embaixo, presa à borda, quando a janela é estreita. */}
+              <div hidden={screen === 'home' || found} className="sticky bottom-0 z-10 @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
                 <QueuePanel connection={connection} send={connection.send} />
               </div>
             </div>

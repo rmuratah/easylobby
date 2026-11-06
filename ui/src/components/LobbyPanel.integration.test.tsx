@@ -83,7 +83,9 @@ describe('lobby pelo único /ws do App', () => {
   it('recebe lobby no hello, troca fila, segue eventos externos e sai sem estado otimista', async () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
-    expect(panel().getByText(/Victor#BR1.*Nível 122.*Líder/)).toBeInTheDocument();
+    expect(panel().getByRole('heading', { name: 'Victor#BR1' })).toBeInTheDocument();
+    expect(panel().getByText('Nível 122')).toBeInTheDocument();
+    expect(panel().getByRole('img', { name: 'Líder do grupo' })).toBeInTheDocument();
     expect(panel().getByText(/1 \/ 2 jogadores/)).toBeInTheDocument();
     expect(panel().getByRole('combobox', { name: 'Fila' })).toHaveValue('rankedSolo');
     choose('aram');
@@ -213,6 +215,8 @@ describe('lobby pelo único /ws do App', () => {
 });
 
 const positionSelect = (name: string) => panel().getByRole('combobox', { name });
+// Cargos confirmados de um jogador, como aparecem nas etiquetas da linha dele.
+const roles = (name: string) => panel().getByRole('list', { name: `Cargos de ${name}` });
 function choosePositions(first: string, second = 'unselected') {
   fireEvent.change(positionSelect('Cargo primário'), { target: { value: first } });
   fireEvent.change(positionSelect('Cargo secundário'), { target: { value: second } });
@@ -234,7 +238,7 @@ describe('cargos pelo /ws', () => {
     expect(positionSelect('Cargo primário')).toBeDisabled();
     expect(button('Sair do lobby')).toBeDisabled();
     expect(panel().getByRole('status')).toHaveTextContent('Enviando cargos');
-    expect(panel().getByText('Primário: Não selecionado · Secundário: Não selecionado')).toBeInTheDocument();
+    expect(roles('Victor#BR1')).toHaveTextContent(/Não selecionado Primário.*Não selecionado Secundário/);
     const update = () => act(() => socket().receive({ type: 'lobby', lobby: { ...lobby, members: [
       lobby.members[0], { ...lobby.members[1], firstPosition: 'middle', secondPosition: 'jungle' },
     ] } }));
@@ -244,8 +248,8 @@ describe('cargos pelo /ws', () => {
     fireEvent.click(button('Salvar cargos'));
     expect(socket().send).toHaveBeenCalledTimes(1);
     if (order === 'depois') update();
-    expect(panel().getByText('Primário: Meio · Secundário: Selva')).toBeInTheDocument();
-    expect(panel().getByText('Primário: Topo · Secundário: Não selecionado')).toBeInTheDocument();
+    expect(roles('Victor#BR1')).toHaveTextContent(/Meio Primário.*Selva Secundário/);
+    expect(roles('Invocador 2')).toHaveTextContent(/Topo Primário.*Não selecionado Secundário/);
     expect(positionSelect('Cargo primário')).toHaveValue('middle');
   });
 
@@ -309,7 +313,7 @@ describe('cargos pelo /ws', () => {
     await act(async () => socket().receive({ type: 'response', id: request().id,
       result: { status: 'error', code, message: 'Cargos indisponíveis' } }));
     expect(panel().getByRole('alert')).toHaveTextContent(code === 'notConnected' ? 'desconectou' : 'Cargos indisponíveis');
-    expect(panel().getByText('Primário: Não selecionado · Secundário: Não selecionado')).toBeInTheDocument();
+    expect(roles('Victor#BR1')).toHaveTextContent(/Não selecionado Primário.*Não selecionado Secundário/);
     expect(button('Salvar cargos')).toBeEnabled();
     fireEvent.click(button('Salvar cargos'));
     await ok();

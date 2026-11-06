@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@fontsource-variable/figtree";
 @import "./theme/tokens.css";
+@import "./theme/surfaces.css";
 
 :root { background: var(--el-bg); color: var(--el-ink); }
 body { margin: 0; }

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
-import { Button } from './base';
 import { cx } from './base/cx';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
@@ -56,11 +55,20 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
   const [feedback, setFeedback] = useState<Feedback>({ status: 'idle', message: '' });
   const inFlight = useRef(false);
   const mounted = useRef(false);
+  const startRef = useRef<HTMLButtonElement>(null);
+  const stopRef = useRef<HTMLButtonElement>(null);
+  // Com a busca confirmada, o botão principal vira "Cancelar busca" (e volta ao terminar).
+  const active = !!matchmaking;
 
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
+  // Quem estava no botão que sumiu continua no botão que tomou o lugar dele.
+  useEffect(() => {
+    const hidden = active ? startRef.current : stopRef.current;
+    if (hidden && document.activeElement === hidden) (active ? stopRef.current : startRef.current)?.focus();
+  }, [active]);
   const pending = feedback.status === 'pending';
   const canStart = !state.readyCheck && !!summoner && !!lobby && lobby.isLeader && lobby.canStartActivity && phase === 'Lobby' && !matchmaking;
   const canStop = !state.readyCheck && !!matchmaking && phase === 'Matchmaking';
@@ -97,35 +105,35 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
   }
 
   const searching = matchmaking?.searchState === 'Searching';
+  const big = 'h-14 min-w-0 flex-1 rounded-full px-6 text-section font-semibold tracking-wide transition-all disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
   return (
     <section aria-label="Busca de partida"
-      className={cx('sticky bottom-0 z-10 flex w-full flex-col gap-3 rounded-card border p-4 text-ink shadow-[0_-8px_24px_-12px_var(--el-overlay)]',
-        searching ? 'border-accent bg-accent-soft' : 'border-line bg-surface')}>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h2 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Busca de partida</h2>
-          <p className="text-section">Estado: <strong className="font-semibold">{stateLabel(matchmaking)}</strong></p>
-          {matchmaking && (
-            <p className="flex flex-wrap gap-x-4 text-body text-muted">
-              <span>Tempo na fila: <span className="text-section font-semibold tabular-nums text-ink">
-                <QueueTime key={`${matchmaking.searchState}:${matchmaking.timeInQueue}`}
-                  confirmed={matchmaking.timeInQueue} running={matchmaking.searchState === 'Searching'} /></span></span>
-              <span>Estimativa: <strong className="font-semibold tabular-nums text-ink">{matchmaking.estimatedQueueTime > 0 ? duration(matchmaking.estimatedQueueTime) : 'indisponível'}</strong></span>
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant={canStop ? 'secondary' : 'primary'} size="lg" aria-busy={pending}
-            disabled={!canStart || pending} onClick={() => { void execute({ type: 'startQueue' }); }}>Iniciar busca</Button>
-          <Button variant={canStop ? 'primary' : 'secondary'} size="lg" aria-busy={pending}
-            disabled={!canStop || pending} onClick={() => { void execute({ type: 'stopQueue' }); }}>Cancelar busca</Button>
-        </div>
+      className={cx('flex w-full flex-col gap-3 rounded-panel surface p-4 text-ink shadow-lift animate-fade-up @min-[44rem]:shadow-soft',
+        searching && 'ring-2 ring-accent/30')}>
+      <div className="flex flex-col gap-1 px-1">
+        <h2 className="text-section font-semibold">Busca de partida</h2>
+        <p className="text-body text-muted">Estado: <strong className="font-semibold text-ink">{stateLabel(matchmaking)}</strong></p>
       </div>
+      {matchmaking && (
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 rounded-tile bg-raised px-4 py-3">
+          <div className="flex flex-col">
+            <span className="text-caption text-muted">Tempo na fila</span>
+            <span className="text-title font-semibold tabular-nums text-ink">
+              <QueueTime key={`${matchmaking.searchState}:${matchmaking.timeInQueue}`}
+                confirmed={matchmaking.timeInQueue} running={matchmaking.searchState === 'Searching'} />
+            </span>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-caption text-muted">Estimativa</span>
+            <strong className="text-section font-semibold tabular-nums text-ink">{matchmaking.estimatedQueueTime > 0 ? duration(matchmaking.estimatedQueueTime) : 'indisponível'}</strong>
+          </div>
+        </div>
+      )}
       {matchmaking && matchmaking.lowPriorityTimeRemaining > 0 && (
-        <p role="alert" className="text-body text-warn">Baixa prioridade: {duration(matchmaking.lowPriorityTimeRemaining)} restantes.</p>
+        <p role="alert" className="px-1 text-body text-warn">Baixa prioridade: {duration(matchmaking.lowPriorityTimeRemaining)} restantes.</p>
       )}
       {matchmaking && matchmaking.errors.length > 0 && (
-        <ul aria-label="Erros da busca" className="text-body text-warn">
+        <ul aria-label="Erros da busca" className="px-1 text-body text-warn">
           {matchmaking.errors.map((error, index) => (
             <li key={`${error.errorType}:${index}`}>
               {error.message || error.errorType || 'Erro de matchmaking'}
@@ -134,9 +142,22 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
           ))}
         </ul>
       )}
-      <p className="text-caption text-muted">{restriction}</p>
+      <p className="rounded-tile bg-gold-soft px-4 py-2 text-center text-caption font-medium text-warn">{restriction}</p>
       {feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}
-        className={feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{feedback.message}</p>}
+        className={cx('px-1', feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted')}>{feedback.message}</p>}
+      <div className="flex items-center gap-2">
+        <button ref={startRef} type="button" hidden={active} aria-busy={pending}
+          disabled={!canStart || pending} onClick={() => { void execute({ type: 'startQueue' }); }}
+          className={cx(big, 'bg-accent text-on-accent shadow-glow enabled:hover:-translate-y-0.5 disabled:bg-raised disabled:text-muted disabled:shadow-none')}>
+          Iniciar busca
+        </button>
+        <button ref={stopRef} type="button" hidden={!active} aria-busy={pending}
+          disabled={!canStop || pending} onClick={() => { void execute({ type: 'stopQueue' }); }}
+          className={cx(big, 'bg-surface text-accent-ink ring-2 ring-accent disabled:text-muted disabled:ring-control',
+            searching && canStop && !pending && 'animate-search-ring')}>
+          Cancelar busca
+        </button>
+      </div>
     </section>
   );
 }
