@@ -30,7 +30,8 @@ const ROOM_URI: &str =
 
 /// Na gravação 16.22 o jogador logado é a célula 2. O aliado com o nome
 /// escondido `fake-puuid-0023` começa na célula 0 e troca de lugar com o da
-/// célula 4 no meio da seleção; no fim da gravação ele está na 4.
+/// célula 4 no meio da seleção (87 s da gravação); depois disso, e até o fim
+/// do trecho reproduzido, ele está na 4.
 const LOCAL_CELL: i32 = 2;
 const HIDDEN_ALLY: &str = "fake-puuid-0023";
 const HIDDEN_ALLY_CELL: i32 = 4;
@@ -163,15 +164,17 @@ async fn conversa_na_sala_da_selecao() {
             "timestamp": "2026-11-05T01:15:00.000Z", "type": "chat",
         }),
     ));
+    // A mensagem pode chegar antes ou depois da troca de células da
+    // gravação, conforme a velocidade da reprodução: primeiro com a célula
+    // em que o aliado estava, e de novo com a 4 quando a troca passa.
     let sala = loop {
         let sala = next_room(&mut ui).await.expect("a sala fechou");
-        if !sala.messages.is_empty() {
+        if sala.messages.first().and_then(|m| m.from_cell_id) == Some(HIDDEN_ALLY_CELL) {
             break sala;
         }
     };
     assert_eq!(sala.messages.len(), 1);
     assert_eq!(sala.messages[0].body, "vou top");
-    assert_eq!(sala.messages[0].from_cell_id, Some(HIDDEN_ALLY_CELL));
     assert!(!sala.messages[0].from_me);
 
     // Texto vazio nem chega na LCU.
