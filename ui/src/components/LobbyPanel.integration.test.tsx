@@ -51,7 +51,7 @@ describe('lobby pelo único /ws do App', () => {
     act(() => { fireEvent.click(button('Criar lobby')); fireEvent.click(button('Criar lobby')); });
     expect(request().command).toEqual({ type: 'createLobby', queue });
     expect(socket().send).toHaveBeenCalledTimes(1);
-    expect(button('Sair do lobby')).toBeDisabled();
+    expect(panel().queryByRole('button', { name: 'Sair do lobby' })).not.toBeInTheDocument();
     expect(panel().getByRole('combobox', { name: 'Fila' })).toBeDisabled();
     expect(panel().getByRole('status')).toHaveTextContent('Criando');
     expect(panel().getByText('Você não está em um lobby.')).toBeInTheDocument();

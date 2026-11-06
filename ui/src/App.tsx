@@ -40,7 +40,7 @@ export default function App() {
   if (navigation.screen !== screen) setNavigation({ screen, page: 'main' });
   const page = navigation.screen === screen ? navigation.page : 'main';
   const found = screen === 'found';
-  const playable = screen === 'home' || screen === 'lobby' || screen === 'queue';
+  const playable = screen === 'home' || screen === 'lobby' || screen === 'queue' || found;
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
     : found ? 'Partida encontrada' : screen === 'champSelect' ? 'Seleção de campeões'
       : screen === 'other' ? 'Partida' : 'Início';
@@ -66,27 +66,28 @@ export default function App() {
               </nav>
               <SidebarToggle open={sidebar.open} onToggle={sidebar.toggle} invitations={invitations} />
             </div>
-            {found && !connection.state?.readyCheck && <section role="alert" className="rounded border-2 border-amber-400 p-4">
-              <h2 className="text-xl font-semibold">Partida encontrada</h2>
-              <p>Aguardando os dados de confirmação do agente. Use o botão acima para abrir o client oficial.</p>
-            </section>}
-            {found && <ReadyCheckPanel connection={connection} send={connection.send} />}
             <section hidden={page !== 'home' && !(page === 'main' && screen === 'home')} aria-label="Início" className="flex flex-col gap-4">
               {summoner && <SummonerHeader summoner={summoner} />}
               {screen !== 'home' && <button type="button" className="nav-button self-start" onClick={() => setNavigation({ screen, page: 'main' })}>Voltar para {title}</button>}
             </section>
-            {page === 'main' && screen !== 'home' && screen !== 'other' && !found && <h2 className="text-2xl font-semibold">{title}</h2>}
+            {page === 'main' && screen === 'champSelect' && <h2 className="text-2xl font-semibold">{title}</h2>}
             {page === 'main' && screen === 'other' && <EmptyState title={phaseLabel(connection.state?.gameflowPhase)}
               description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />}
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
-            <div hidden={page !== 'main' || !playable} className="play-panels" data-screen={screen}>
-              <div hidden={screen === 'queue'}>
-                <LobbyPanel connection={connection} send={connection.send} />
-              </div>
-              <div hidden={screen === 'home'}>
+            {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}
+            <div hidden={page !== 'main' || !playable} className="flex max-w-[56rem] flex-col gap-4">
+              <LobbyPanel connection={connection} send={connection.send} />
+              <div hidden={screen === 'home' || found}>
                 <QueuePanel connection={connection} send={connection.send} />
               </div>
             </div>
+            {/* A partida encontrada fica no lugar da faixa de busca, logo abaixo do lobby, e continua visível nas outras páginas. */}
+            {found && !connection.state?.readyCheck && <section role="alert"
+              className="sticky bottom-0 z-10 flex max-w-[56rem] flex-col gap-1 rounded-card border-2 border-accent bg-accent-soft p-5 text-ink">
+              <h2 className="text-title font-semibold tracking-[-0.015em] text-accent-ink">Partida encontrada</h2>
+              <p className="text-body">Aguardando os dados de confirmação do agente. Use “Abrir client oficial”, no alto da janela, se precisar.</p>
+            </section>}
+            {found && <ReadyCheckPanel connection={connection} send={connection.send} />}
             {/* Montada fora da tela também, para a busca e as ações em andamento sobreviverem à navegação. */}
             <div hidden={page !== 'main' || screen !== 'champSelect'}>
               <ChampSelectPanel connection={connection} send={connection.send} />

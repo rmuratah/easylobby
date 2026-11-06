@@ -51,10 +51,10 @@ describe('matchmaking pelo /ws', () => {
     expect(panel().getByText('Buscando partida', { selector: 'strong' })).toBeInTheDocument();
     await respond();
     expect(button('Cancelar busca')).toBeEnabled();
-    expect(lobbyPanel().getByRole('combobox', { name: 'Fila' })).toBeDisabled();
+    expect(lobbyPanel().queryByRole('combobox', { name: 'Fila' })).not.toBeInTheDocument();
     expect(lobbyPanel().getByRole('combobox', { name: 'Cargo primário' })).toBeDisabled();
     act(() => socket().receive({ type: 'gameflowPhase', phase: 'Lobby' }));
-    expect(lobbyPanel().getByRole('button', { name: 'Sair do lobby' })).toBeDisabled();
+    expect(lobbyPanel().queryByRole('button', { name: 'Sair do lobby' })).not.toBeInTheDocument();
     expect(lobbyPanel().getByRole('combobox', { name: 'Cargo primário' })).toBeDisabled();
   });
 
@@ -139,5 +139,17 @@ describe('matchmaking pelo /ws', () => {
     expect(panel().queryByLabelText('Tempo na fila')).not.toBeInTheDocument();
     await act(async () => old.receive({ type: 'response', id, result: { status: 'ok' } }));
     expect(panel().queryByText('Cancelamento confirmado')).not.toBeInTheDocument();
+  });
+});
+
+describe('tela unificada', () => {
+  it('mantém o lobby à vista durante a busca, com os cargos travados', () => {
+    configure({ defaultHidden: false });
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
+    expect(screen.getByRole('region', { name: 'Lobby' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Busca de partida' })).toBeVisible();
+    expect(screen.getByRole('combobox', { name: 'Cargo primário' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
   });
 });

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import type { ReadyCheck } from '../bindings/ReadyCheck';
 import { readyCheckLabels, responseLabels } from '../agent/readyCheck';
+import { Button } from './base';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 export function ReadyCheckPanel({ connection, send }: Props) {
@@ -58,17 +59,40 @@ function ReadyCheckActions({ check, active, send }: { check: ReadyCheck; active:
       setFeedback('Não foi possível confirmar o envio. Aguarde o agente ou confira no client oficial.');
     }
   }
-  return <section aria-label="Partida encontrada" className="flex w-full max-w-lg flex-col gap-3 rounded border border-sky-400 p-4">
-    <h2 className="text-xl font-semibold">Partida encontrada</h2>
-    <p role={check.state === 'Error' ? 'alert' : 'status'}>Estado: {readyCheckLabels[check.state]}</p>
-    <p>Resposta confirmada: <strong>{responseLabels[check.playerResponse]}</strong></p>
-    {active && check.state === 'InProgress' && <p>Tempo para responder: <Countdown key={`${check.timer}:${check.duration}`} check={check} /></p>}
-    <div className="flex gap-3">
-      <button type="button" className="rounded border px-4 py-2 disabled:opacity-50" disabled={!canAnswer || pending}
-        onClick={() => { void answer('acceptReadyCheck'); }}>Aceitar</button>
-      <button type="button" className="rounded border px-4 py-2 disabled:opacity-50" disabled={!canAnswer || pending}
-        onClick={() => { void answer('declineReadyCheck'); }}>Recusar</button>
+  // Enter aceita (#129), a não ser que o foco esteja num campo ou botão, que já tratam o Enter.
+  const acceptRef = useRef(answer);
+  useEffect(() => { acceptRef.current = answer; });
+  useEffect(() => {
+    if (!canAnswer) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== 'Enter' || event.repeat || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, button, a, [contenteditable="true"]')) return;
+      event.preventDefault();
+      void acceptRef.current('acceptReadyCheck');
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [canAnswer]);
+  const answering = active && check.state === 'InProgress';
+  return <section aria-label="Partida encontrada"
+    className="sticky bottom-0 z-10 flex w-full max-w-[56rem] flex-col gap-4 rounded-card border-2 border-accent bg-accent-soft p-5 text-ink shadow-[0_-8px_24px_-12px_var(--el-overlay)]">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <h2 className="text-title font-semibold tracking-[-0.015em] text-accent-ink">Partida encontrada</h2>
+        <p role={check.state === 'Error' ? 'alert' : 'status'} className="text-body">Estado: {readyCheckLabels[check.state]}</p>
+        <p className="text-body text-muted">Resposta confirmada: <strong className="font-semibold text-ink">{responseLabels[check.playerResponse]}</strong></p>
+      </div>
+      {answering && <p className="flex flex-col items-center text-caption text-muted">Tempo para responder
+        <span className="text-[2.5rem] font-semibold leading-none tabular-nums text-ink"><Countdown key={`${check.timer}:${check.duration}`} check={check} /></span></p>}
     </div>
-    {feedback && <p role={error ? 'alert' : 'status'}>{feedback}</p>}
+    <div className="flex flex-wrap items-center gap-3">
+      <Button variant="primary" size="lg" className="min-w-[10rem]" disabled={!canAnswer || pending}
+        aria-keyshortcuts="Enter" onClick={() => { void answer('acceptReadyCheck'); }}>Aceitar</Button>
+      <Button variant="secondary" size="lg" disabled={!canAnswer || pending}
+        onClick={() => { void answer('declineReadyCheck'); }}>Recusar</Button>
+      {canAnswer && <span className="text-caption text-muted">Enter aceita</span>}
+    </div>
+    {feedback && <p role={error ? 'alert' : 'status'} className={error ? 'text-body text-danger' : 'text-body text-muted'}>{feedback}</p>}
   </section>;
 }

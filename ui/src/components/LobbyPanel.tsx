@@ -6,11 +6,14 @@ import type { Command } from '../bindings/Command';
 import { isPosition, positionNames, validPositions } from '../agent/positions';
 import type { Position } from '../bindings/Position';
 import type { Queue } from '../bindings/Queue';
+import { assetUrl } from '../agent/assets';
+import { Avatar, Button } from './base';
+import { cx } from './base/cx';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type LobbyCommand = Extract<Command, { type: 'createLobby' | 'leaveLobby' | 'setPositions' }>;
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
-const buttonClass = 'rounded border border-sky-400 px-4 py-2 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-4';
+const selectClass = 'h-10 rounded-control border border-control bg-surface px-3 text-body text-ink disabled:cursor-not-allowed disabled:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent';
 
 export function LobbyPanel({ connection, send }: Props) {
   const state = connection.state;
@@ -115,90 +118,116 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     }
   }
 
+  const searching = !!matchmaking || !!state.readyCheck;
+  const queueLabel = lobby ? (lobby.queue ? queueNames[lobby.queue] : `Outra fila (ID ${lobby.queueId})`) : null;
   return (
-    <section aria-label="Lobby" className="flex w-full max-w-lg flex-col gap-3 rounded border border-slate-700 p-4">
-      <h2 className="text-xl font-semibold">Lobby</h2>
-      {lobby ? (
-        <>
-          <p>Fila atual: <strong>{lobby.queue ? queueNames[lobby.queue] : `Outra fila (ID ${lobby.queueId})`}</strong></p>
-          <p>{lobby.members.length} / {lobby.maxLobbySize} jogadores · {lobby.isLeader ? 'Você é o líder' : 'Você é membro'}</p>
-          <ul aria-label="Jogadores no lobby">
-            {lobby.members.map(member => (
-              <li key={member.puuid} className="break-words">
-                {member.puuid === summoner?.puuid
-                  ? localName
-                  : `Invocador ${member.summonerId}`}
-                {' · Nível '}{member.summonerLevel}{member.isLeader ? ' · Líder' : ''}
+    <section aria-label="Lobby" className="flex w-full flex-col gap-5 rounded-card border border-line bg-surface p-5 text-ink">
+      <header className="flex flex-col gap-1">
+        <h2 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Lobby</h2>
+        {lobby ? (
+          <>
+            <p className="text-title font-semibold tracking-[-0.015em]"><span className="sr-only">Fila atual: </span><strong className="font-semibold">{queueLabel}</strong></p>
+            <p className="text-body text-muted">{lobby.members.length} / {lobby.maxLobbySize} jogadores · {lobby.isLeader ? 'Você é o líder' : 'Você é membro'}</p>
+          </>
+        ) : <p className="text-title font-semibold tracking-[-0.015em]">Você não está em um lobby.</p>}
+      </header>
+      {lobby && (
+        <ul aria-label="Jogadores no lobby" className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2.5">
+          {lobby.members.map(member => {
+            const me = member.puuid === summoner?.puuid;
+            const name = me ? localName : `Invocador ${member.summonerId}`;
+            return (
+              <li key={member.puuid} className={cx('flex flex-col items-center gap-2 rounded-card border p-3 text-center',
+                me ? 'border-accent bg-accent-soft' : 'border-line bg-surface')}>
+                <Avatar name={me && summoner?.gameName ? summoner.gameName : name} src={assetUrl('profileIcon', member.summonerIconId)} size={48} />
+                <div className="break-words text-body font-semibold">{name}{' · Nível '}{member.summonerLevel}{member.isLeader ? ' · Líder' : ''}</div>
                 {lobby.showPositionSelector && (
-                  <span className="block text-sm text-slate-300">
+                  <span className="text-caption text-muted">
                     Primário: {positionNames[member.firstPosition]} · Secundário: {positionNames[member.secondPosition]}
                   </span>
                 )}
               </li>
-            ))}
-          </ul>
-        </>
-      ) : <p>Você não está em um lobby.</p>}
+            );
+          })}
+          {Array.from({ length: Math.max(0, lobby.maxLobbySize - lobby.members.length) }, (_, index) => (
+            <li key={`vaga-${index}`} aria-label="Vaga livre"
+              className="flex min-h-[7rem] items-center justify-center rounded-card border border-dashed border-line text-caption text-muted">
+              Vaga livre
+            </li>
+          ))}
+        </ul>
+      )}
       {lobby && (lobby.showPositionSelector ? (
-        <fieldset className="flex flex-col gap-2" disabled={!canSetPositions || pending}>
-          <legend className="font-semibold">Seus cargos</legend>
-          <p className="text-sm text-slate-300">As posições na lista de jogadores são confirmadas pelo agente.</p>
-          {!localMember && <p>Aguarde a identificação do seu membro no lobby.</p>}
-          {phase !== 'Lobby' && <p>A escolha de cargos está disponível na fase de lobby.</p>}
-          <label htmlFor={firstId}>Cargo primário</label>
-          <select id={firstId} value={positions.first} className="rounded bg-slate-900 p-2"
-            onChange={event => {
-              if (!isPosition(event.target.value)) return;
-              const next = event.target.value;
-              setPositions({ ...positions, first: next,
-                second: validPositions(next, positions.second) ? positions.second : 'unselected' });
-            }}>
-            {(Object.keys(positionNames) as Position[]).map(position =>
-              <option key={position} value={position}>{positionNames[position]}</option>)}
-          </select>
-          <label htmlFor={secondId}>Cargo secundário</label>
-          <select id={secondId} value={positions.second} className="rounded bg-slate-900 p-2"
-            disabled={!canSetPositions || pending || positions.first === 'fill' || positions.first === 'unselected'}
-            onChange={event => {
-              if (isPosition(event.target.value)) setPositions({ ...positions, second: event.target.value });
-            }}>
-            {(Object.keys(positionNames) as Position[]).map(position =>
-              <option key={position} value={position} disabled={!validPositions(positions.first, position)}>{positionNames[position]}</option>)}
-          </select>
-          <button type="button" className={buttonClass} aria-busy={pending}
-            disabled={!canSetPositions || pending || !positionsChanged || !validPositions(positions.first, positions.second)}
-            onClick={() => { void execute({ type: 'setPositions', first: positions.first, second: positions.second }); }}>
-            Salvar cargos
-          </button>
+        <fieldset className="flex flex-col gap-3" disabled={!canSetPositions || pending}>
+          <legend className="mb-1 text-section font-semibold">Seus cargos</legend>
+          <p className="text-caption text-muted">As posições na lista de jogadores são confirmadas pelo agente.</p>
+          {!localMember && <p className="text-body text-muted">Aguarde a identificação do seu membro no lobby.</p>}
+          {phase !== 'Lobby' && <p className="text-body text-muted">A escolha de cargos está disponível na fase de lobby.</p>}
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex min-w-[10rem] flex-1 flex-col gap-1.5 text-caption font-medium text-muted" htmlFor={firstId}>Cargo primário
+              <select id={firstId} value={positions.first} className={selectClass}
+                onChange={event => {
+                  if (!isPosition(event.target.value)) return;
+                  const next = event.target.value;
+                  setPositions({ ...positions, first: next,
+                    second: validPositions(next, positions.second) ? positions.second : 'unselected' });
+                }}>
+                {(Object.keys(positionNames) as Position[]).map(position =>
+                  <option key={position} value={position}>{positionNames[position]}</option>)}
+              </select>
+            </label>
+            <label className="flex min-w-[10rem] flex-1 flex-col gap-1.5 text-caption font-medium text-muted" htmlFor={secondId}>Cargo secundário
+              <select id={secondId} value={positions.second} className={selectClass}
+                disabled={!canSetPositions || pending || positions.first === 'fill' || positions.first === 'unselected'}
+                onChange={event => {
+                  if (isPosition(event.target.value)) setPositions({ ...positions, second: event.target.value });
+                }}>
+                {(Object.keys(positionNames) as Position[]).map(position =>
+                  <option key={position} value={position} disabled={!validPositions(positions.first, position)}>{positionNames[position]}</option>)}
+              </select>
+            </label>
+            <Button aria-busy={pending}
+              disabled={!canSetPositions || pending || !positionsChanged || !validPositions(positions.first, positions.second)}
+              onClick={() => { void execute({ type: 'setPositions', first: positions.first, second: positions.second }); }}>
+              Salvar cargos
+            </Button>
+          </div>
         </fieldset>
-      ) : <p>Esta fila não permite escolher cargos.</p>)}
-      <p id={descriptionId} className="text-sm text-slate-300">{restriction}</p>
-      <label htmlFor={selectId}>Fila</label>
-      <select
-        id={selectId}
-        value={selection.queue}
-        disabled={!canCreate || pending}
-        aria-describedby={descriptionId}
-        onChange={event => {
-          if (isQueue(event.target.value)) setSelection({ queueId, queue: event.target.value });
-        }}
-        className="rounded border border-slate-600 bg-slate-900 p-2 disabled:opacity-50"
-      >
-        {(Object.keys(queueNames) as Queue[]).map(queue => <option key={queue} value={queue}>{queueNames[queue]}</option>)}
-      </select>
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="button" className={buttonClass} aria-describedby={descriptionId} aria-busy={pending}
-          disabled={!canCreate || pending || selection.queue === lobby?.queue}
-          onClick={() => { void execute({ type: 'createLobby', queue: selection.queue }); }}
-        >{lobby ? 'Trocar fila' : 'Criar lobby'}</button>
-        <button
-          type="button" className={buttonClass} aria-describedby={descriptionId} aria-busy={pending}
-          disabled={!canLeave || pending}
-          onClick={() => { void execute({ type: 'leaveLobby' }); }}
-        >Sair do lobby</button>
-      </div>
-      {feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}>{feedback.message}</p>}
+      ) : <p className="text-body text-muted">Esta fila não permite escolher cargos.</p>)}
+      {/* Na fila e na partida encontrada, a faixa de ação fica com a busca; trocar fila e sair voltam depois. */}
+      {!searching && (
+        <div className="flex flex-col gap-3 border-t border-line pt-4">
+          <p id={descriptionId} className="text-caption text-muted">{restriction}</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex min-w-[14rem] flex-1 flex-col gap-1.5 text-caption font-medium text-muted" htmlFor={selectId}>Fila
+              <select
+                id={selectId}
+                value={selection.queue}
+                disabled={!canCreate || pending}
+                aria-describedby={descriptionId}
+                onChange={event => {
+                  if (isQueue(event.target.value)) setSelection({ queueId, queue: event.target.value });
+                }}
+                className={selectClass}
+              >
+                {(Object.keys(queueNames) as Queue[]).map(queue => <option key={queue} value={queue}>{queueNames[queue]}</option>)}
+              </select>
+            </label>
+            <Button
+              variant={lobby ? 'secondary' : 'primary'} aria-describedby={descriptionId} aria-busy={pending}
+              disabled={!canCreate || pending || selection.queue === lobby?.queue}
+              onClick={() => { void execute({ type: 'createLobby', queue: selection.queue }); }}
+            >{lobby ? 'Trocar fila' : 'Criar lobby'}</Button>
+            {lobby && <Button
+              variant="ghost" aria-describedby={descriptionId} aria-busy={pending}
+              disabled={!canLeave || pending}
+              onClick={() => { void execute({ type: 'leaveLobby' }); }}
+            >Sair do lobby</Button>}
+          </div>
+        </div>
+      )}
+      {feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}
+        className={feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{feedback.message}</p>}
     </section>
   );
 }

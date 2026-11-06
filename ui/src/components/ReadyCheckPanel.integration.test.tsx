@@ -77,7 +77,7 @@ it('bloqueia resposta desconhecida e ações incompatíveis mesmo antes da fase'
   expect(screen.queryByRole('button', { name: 'Iniciar busca' })).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Iniciar busca', hidden: true })).toBeDisabled();
   expect(screen.queryByRole('button', { name: 'Sair do lobby' })).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Sair do lobby', hidden: true })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Sair do lobby', hidden: true })).not.toBeInTheDocument();
   hello({ gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking, readyCheck: testReadyCheck });
   expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Cancelar busca', hidden: true })).toBeDisabled();
@@ -158,4 +158,25 @@ it('substitui a espera pelas ações e preserva resposta pendente durante navega
   await respond();
   event({ playerResponse: 'Accepted' });
   expect(panel().getByText('Aceitou')).toBeVisible();
+});
+
+it('Enter aceita a partida uma vez, mas não quando o foco está num campo', () => {
+  render(<App />); open();
+  const input = document.createElement('input');
+  document.body.append(input);
+  fireEvent.keyDown(input, { key: 'Enter' });
+  expect(socket().send).not.toHaveBeenCalled();
+  input.remove();
+  act(() => { fireEvent.keyDown(document.body, { key: 'Enter' }); fireEvent.keyDown(document.body, { key: 'Enter' }); });
+  expect(socket().send).toHaveBeenCalledTimes(1);
+  expect(request().command.type).toBe('acceptReadyCheck');
+});
+
+it('mostra a partida encontrada embaixo do lobby, na mesma tela', () => {
+  render(<App />); open();
+  const lobby = screen.getByRole('region', { name: 'Lobby' });
+  const found = screen.getByRole('region', { name: 'Partida encontrada' });
+  expect(lobby).toBeVisible();
+  expect(lobby.compareDocumentPosition(found) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.queryByRole('region', { name: 'Busca de partida' })).not.toBeInTheDocument();
 });
