@@ -22,7 +22,7 @@ import { totalUnread } from './agent/chat';
 
 export default function App() {
   const connection = useAgent();
-  const { preference, setPreference } = useTheme();
+  const { theme, setPreference } = useTheme();
   const [chatWith, setChatWith] = useState<string | null>(null);
   const screen = mainScreen(connection);
   const view = connectionView(connection);
@@ -60,7 +60,7 @@ export default function App() {
     ? connection.state.summoner : null;
   return (
     <div className="app-shell">
-      <TitleBar connection={connection} send={connection.send} themePreference={preference} onThemeChange={setPreference} />
+      <TitleBar connection={connection} send={connection.send} theme={theme} onThemeChange={setPreference} />
       <div className="app-body">
         <main ref={contentRef} className="app-content">
           {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error} />}
@@ -81,8 +81,18 @@ export default function App() {
               <SidebarToggle open={sidebar.open} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />
             </div>
             <section hidden={page !== 'home' && !(page === 'main' && screen === 'home')} aria-label="Início"
-              className={homeMain ? '@min-[44rem]:col-start-2' : 'flex max-w-[22rem] flex-col gap-4'}>
+              className={homeMain ? 'order-2 grid min-w-0 gap-4 @min-[44rem]:order-none @min-[44rem]:col-start-2' : 'flex max-w-[22rem] flex-col gap-4'}>
               {summoner && <SummonerHeader summoner={summoner} />}
+              {homeMain && <div className="grid grid-cols-1 gap-4 @min-[22rem]:grid-cols-2">
+                <article aria-label="Área reservada" className="flex min-h-32 flex-col justify-end rounded-panel surface p-5 shadow-soft animate-fade-up" style={{ animationDelay: '140ms' }}>
+                  <h2 className="text-section font-semibold text-ink">Área reservada</h2>
+                  <p className="mt-1 text-body text-muted">Espaço para uma futura funcionalidade.</p>
+                </article>
+                <article aria-label="Sem conteúdo" className="flex min-h-32 flex-col justify-end rounded-panel surface p-5 shadow-soft animate-fade-up" style={{ animationDelay: '200ms' }}>
+                  <h2 className="text-section font-semibold text-ink">Sem conteúdo</h2>
+                  <p className="mt-1 text-body text-muted">Espaço reservado no momento.</p>
+                </article>
+              </div>}
               {screen !== 'home' && <button type="button" className="nav-button self-start" onClick={() => setNavigation({ screen, page: 'main' })}>Voltar para {title}</button>}
             </section>
             {page === 'main' && screen === 'champSelect' && <h2 className="text-title font-semibold tracking-[-0.015em]">{title}</h2>}
@@ -90,7 +100,7 @@ export default function App() {
               description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />}
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
             {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}
-            <div hidden={page !== 'main' || !playable} className={homeMain ? '@min-[44rem]:col-start-1'
+            <div hidden={page !== 'main' || !playable} className={homeMain ? 'order-1 @min-[44rem]:order-none @min-[44rem]:col-start-1'
               : lobbyMain ? 'grid max-w-[72rem] items-start gap-5 @min-[44rem]:grid-cols-[minmax(0,1fr)_18rem]'
               : 'flex max-w-[56rem] flex-col gap-4'}>
               <LobbyPanel connection={connection} send={connection.send} />

@@ -14,7 +14,11 @@ export function isThemePreference(value: unknown): value is ThemePreference {
 export function readPreference(): ThemePreference {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    return isThemePreference(stored) ? stored : "sistema";
+    if (stored === "sistema") {
+      localStorage.removeItem(THEME_STORAGE_KEY);
+      return "sistema";
+    }
+    return stored === "claro" || stored === "escuro" ? stored : "sistema";
   } catch {
     return "sistema";
   }

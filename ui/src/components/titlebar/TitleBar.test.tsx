@@ -26,7 +26,7 @@ function fakeWindow(maximized = false) {
 
 function renderBar(controls: WindowControls | null, onThemeChange = vi.fn()) {
   return render(
-    <TitleBar connection={connected} send={vi.fn()} themePreference="sistema" onThemeChange={onThemeChange} controls={controls} />,
+    <TitleBar connection={connected} send={vi.fn()} theme="claro" onThemeChange={onThemeChange} controls={controls} />,
   );
 }
 
@@ -71,8 +71,10 @@ describe("TitleBar", () => {
     const onThemeChange = vi.fn();
     renderBar(null, onThemeChange);
     expect(screen.getByRole("group", { name: "Tema" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sistema" })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Escuro" }));
+    expect(screen.queryByRole("button", { name: "Sistema" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tema claro" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Tema claro" })).toHaveTextContent("");
+    fireEvent.click(screen.getByRole("button", { name: "Tema escuro" }));
     expect(onThemeChange).toHaveBeenCalledWith("escuro");
   });
 });
