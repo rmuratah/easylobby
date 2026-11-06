@@ -4,6 +4,8 @@ import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import { friendDisplayName } from '../agent/friends';
 import type { Conversation } from '../bindings/Conversation';
 import type { Friend } from '../bindings/Friend';
+import { Avatar, Button, Card } from './base';
+import { cx } from './base/cx';
 
 type Props = {
   connection: ConnectionSnapshot;
@@ -17,7 +19,6 @@ type Props = {
   onActiveChange: (id: string | null) => void;
 };
 
-const buttonClass = 'rounded border border-sky-400 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-4';
 const noop = () => {};
 
 /**
@@ -48,10 +49,10 @@ export function ChatPanel({ connection, send, activeId, onActiveChange }: Props)
 
   if (!connected) {
     return (
-      <section aria-label="Conversas" className="w-full max-w-lg rounded border border-slate-700 p-4">
-        <h2 className="text-xl font-semibold">Conversas</h2>
-        <p className="text-slate-300">Aguarde a conexão com o agente e o League of Legends para conversar com os amigos.</p>
-      </section>
+      <Card as="section" aria-label="Conversas" className="flex w-full flex-col gap-2 p-4 text-ink">
+        <h2 className="text-section font-semibold">Conversas</h2>
+        <p className="text-body text-muted">Aguarde a conexão com o agente e o League of Legends para conversar com os amigos.</p>
+      </Card>
     );
   }
 
@@ -66,14 +67,14 @@ export function ChatPanel({ connection, send, activeId, onActiveChange }: Props)
 
   const unread = totalUnread(conversations);
   return (
-    <section aria-label="Conversas" className="flex w-full max-w-lg flex-col gap-3 rounded border border-slate-700 p-4">
-      <h2 className="text-xl font-semibold">
-        Conversas{unread > 0 && <span className="text-base font-normal text-slate-300"> ({unread} não {unread === 1 ? 'lida' : 'lidas'})</span>}
+    <Card as="section" aria-label="Conversas" className="flex w-full flex-col gap-3 p-4 text-ink">
+      <h2 className="text-section font-semibold">
+        Conversas{unread > 0 && <span className="text-caption font-normal text-muted"> ({unread} não {unread === 1 ? 'lida' : 'lidas'})</span>}
       </h2>
       {conversations.length === 0
-        ? <p className="text-slate-300">Nenhuma conversa aberta. Use “Conversar” na lista de amigos para começar uma.</p>
+        ? <p className="text-body text-muted">Nenhuma conversa aberta. Use “Conversar” na lista de amigos para começar uma.</p>
         : (
-          <ul aria-label="Conversas abertas" className="flex flex-col gap-1">
+          <ul aria-label="Conversas abertas" className="-mx-2 flex flex-col">
             {sortConversations(conversations, friends).map(conversation => {
               const name = conversationName(conversation, friends);
               const last = conversation.messages.at(-1);
@@ -82,17 +83,18 @@ export function ChatPanel({ connection, send, activeId, onActiveChange }: Props)
                   <button
                     type="button" onClick={() => onActiveChange(conversation.id)}
                     aria-label={`Abrir conversa com ${name}${conversation.unreadCount > 0 ? `, ${conversation.unreadCount} não ${conversation.unreadCount === 1 ? 'lida' : 'lidas'}` : ''}`}
-                    className="flex w-full items-center gap-3 rounded px-2 py-1 text-left hover:bg-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="flex w-full items-center gap-3 rounded-control px-2 py-1.5 text-left text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
+                    <Avatar name={name} size={32} />
                     <span className="flex min-w-0 flex-1 flex-col">
-                      <span className={`truncate ${conversation.unreadCount > 0 ? 'font-semibold' : 'font-medium'}`} title={name}>{name}</span>
+                      <span className={cx('truncate text-body', conversation.unreadCount > 0 ? 'font-semibold' : 'font-medium')} title={name}>{name}</span>
                       {last && (
-                        <span className="truncate text-sm text-slate-300">{last.fromMe ? 'Você: ' : ''}{last.body}</span>
+                        <span className="truncate text-caption text-muted">{last.fromMe ? 'Você: ' : ''}{last.body}</span>
                       )}
                     </span>
-                    {last && <span className="shrink-0 text-xs text-slate-400">{messageTime(last)}</span>}
+                    {last && <span className="shrink-0 text-caption text-muted">{messageTime(last)}</span>}
                     {conversation.unreadCount > 0 && (
-                      <span aria-hidden="true" className="shrink-0 rounded-full bg-sky-500 px-2 text-xs font-semibold text-slate-950">
+                      <span aria-hidden="true" className="shrink-0 rounded-full bg-accent px-2 text-caption font-semibold text-on-accent">
                         {conversation.unreadCount}
                       </span>
                     )}
@@ -102,7 +104,7 @@ export function ChatPanel({ connection, send, activeId, onActiveChange }: Props)
             })}
           </ul>
         )}
-    </section>
+    </Card>
   );
 }
 
@@ -153,22 +155,24 @@ function ConversationView({ conversation, name, send, onBack }: {
   }
 
   return (
-    <section aria-label={`Conversa com ${name}`} className="flex w-full max-w-lg flex-col gap-3 rounded border border-slate-700 p-4">
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={onBack} className={buttonClass} aria-label="Voltar às conversas">←</button>
-        <h2 className="min-w-0 truncate text-xl font-semibold" title={name}>{name}</h2>
+    <Card as="section" aria-label={`Conversa com ${name}`} className="flex w-full flex-col gap-3 p-4 text-ink">
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={onBack} aria-label="Voltar às conversas" className="px-2">←</Button>
+        <Avatar name={name} size={28} />
+        <h2 className="min-w-0 truncate text-section font-semibold" title={name}>{name}</h2>
       </div>
       {messages.length === 0
-        ? <p className="text-slate-300">Nenhuma mensagem nesta sessão. Mande a primeira.</p>
+        ? <p className="text-body text-muted">Nenhuma mensagem nesta sessão. Mande a primeira.</p>
         : (
           <ol ref={log} role="log" aria-label="Mensagens" className="flex max-h-80 flex-col gap-2 overflow-y-auto pr-1">
             {messages.map(message => (
-              <li key={message.id} className={`flex flex-col ${message.fromMe ? 'items-end' : 'items-start'}`}>
+              <li key={message.id} className={cx('flex flex-col gap-0.5', message.fromMe ? 'items-end' : 'items-start')}>
                 <span className="sr-only">{message.fromMe ? 'Você' : name}: </span>
-                <span className={`max-w-[85%] rounded px-3 py-1 break-words whitespace-pre-wrap ${message.fromMe ? 'bg-sky-900' : 'bg-slate-800'}`}>
+                <span className={cx('max-w-[85%] rounded-card px-3 py-1.5 text-body break-words whitespace-pre-wrap',
+                  message.fromMe ? 'rounded-br-control-sm bg-accent text-on-accent' : 'rounded-bl-control-sm bg-raised text-ink')}>
                   {message.body}
                 </span>
-                <span className="text-xs text-slate-400">{messageTime(message)}</span>
+                <span className="text-caption text-muted">{messageTime(message)}</span>
               </li>
             ))}
           </ol>
@@ -178,25 +182,25 @@ function ConversationView({ conversation, name, send, onBack }: {
         <input
           id={inputId} type="text" value={draft} autoComplete="off" placeholder="Escreva uma mensagem"
           onChange={event => setDraft(event.target.value)}
-          className="min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 p-2"
+          className="h-9 min-w-0 flex-1 rounded-control border border-control bg-surface px-3 text-body text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
         />
-        <button type="submit" disabled={!draft.trim() || sending} className={buttonClass}>
+        <Button type="submit" variant="primary" size="sm" className="h-9" disabled={!draft.trim() || sending}>
           {sending ? 'Enviando…' : 'Enviar'}
-        </button>
+        </Button>
       </form>
-      {error && <p role="alert" className="text-amber-300">{error}</p>}
-    </section>
+      {error && <p role="alert" className="text-body text-danger">{error}</p>}
+    </Card>
   );
 }
 
-/** Botão "Conversar" de cada amigo da lista de amigos. */
+/** Botão "Conversar" de cada amigo da lista de amigos: só o ícone, para a coluna estreita caber o status. */
 export function ChatButton({ friend, onOpen }: { friend: Friend; onOpen: (id: string) => void }) {
+  const label = `Conversar com ${friendDisplayName(friend)}`;
   return (
-    <button
-      type="button" onClick={() => onOpen(friend.id)} aria-label={`Conversar com ${friendDisplayName(friend)}`}
-      className="rounded border border-sky-400 px-2 py-0.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-    >
-      Conversar
-    </button>
+    <Button size="sm" variant="ghost" onClick={() => onOpen(friend.id)} aria-label={label} title={label}>
+      <svg aria-hidden="true" className="shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
+      </svg>
+    </Button>
   );
 }

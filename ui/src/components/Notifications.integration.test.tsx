@@ -6,7 +6,9 @@ import type { Conversation } from '../bindings/Conversation';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { testConversation, testInvitation, testReadyCheck } from '../test/events';
 import { testState } from '../test/lobby';
+import { draftChampSelect } from '../test/champSelect';
 import { MESSAGE_NOTICE_MS } from './Notifications';
+import { SIDEBAR_STORAGE_KEY } from '../layout/sidebar';
 import { sound } from '../agent/sound';
 
 vi.mock('../agent/sound', () => ({ sound: { unlock: vi.fn(), playMatchFound: vi.fn() } }));
@@ -32,7 +34,7 @@ const notices = () => within(region()!);
 const chat = (change: Partial<Conversation>) => receive({ type: 'conversation', conversation: { ...testConversation, ...change } });
 const newMessage = { id: 'm2', body: 'joga uma?', fromMe: false, timestamp: '2026-11-05T01:14:00.000Z' };
 
-beforeEach(() => { vi.clearAllMocks(); vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal('WebSocket', Socket); });
+beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal('WebSocket', Socket); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 it('não avisa o histórico que já existia ao conectar', () => {
@@ -64,7 +66,16 @@ it('tira o aviso de mensagem quando a conversa é lida', () => {
   expect(region()).not.toBeInTheDocument();
 });
 
+it('com a coluna aberta, o convite fica só nela', () => {
+  render(<App />);
+  hello({ receivedInvitations: [testInvitation] });
+  expect(region()).not.toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'Convites' })).getByText(/chamou você/)).toBeInTheDocument();
+});
+
 it('avisa convite enquanto ele está pendente e deixa fechar', () => {
+  // Com a coluna recolhida, o aviso flutuante é o que mostra o convite.
+  localStorage.setItem(SIDEBAR_STORAGE_KEY, 'recolhida');
   render(<App />);
   hello();
   receive({ type: 'receivedInvitations', invitations: [testInvitation, { ...testInvitation, invitationId: 'convite-2', fromSummonerName: 'Victor', queue: 'aram' }] });
@@ -74,6 +85,16 @@ it('avisa convite enquanto ele está pendente e deixa fechar', () => {
   expect(notices().getByText('Victor convidou você para ARAM')).toBeInTheDocument();
   receive({ type: 'receivedInvitations', invitations: [] });
   expect(region()).not.toBeInTheDocument();
+});
+
+it('na seleção de campeões, só avisa mensagens e deixa os convites na coluna', () => {
+  render(<App />);
+  hello({ gameflowPhase: 'ChampSelect', champSelect: draftChampSelect, conversations: [testConversation] });
+  receive({ type: 'receivedInvitations', invitations: [testInvitation] });
+  expect(region()).not.toBeInTheDocument();
+  chat({ unreadCount: 2, messages: [...testConversation.messages, newMessage] });
+  expect(notices().getByText('Mensagem de Amigo#BR1')).toBeInTheDocument();
+  expect(notices().queryByText(/convidou você/)).not.toBeInTheDocument();
 });
 
 it('avisa partida encontrada até o jogador responder', () => {

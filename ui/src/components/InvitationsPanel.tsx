@@ -8,11 +8,12 @@ import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
 import type { Friend } from '../bindings/Friend';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
+import { Avatar, Button, Card } from './base';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type InvitationCommand = Extract<Command, { type: 'acceptInvitation' | 'declineInvitation' | 'inviteToLobby' }>;
 type Feedback = { status: 'idle' | 'success' | 'error'; message: string };
-const buttonClass = 'rounded border border-sky-400 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-4';
+const subheading = 'text-caption font-semibold uppercase tracking-[0.06em] text-muted';
 
 /**
  * Convites de lobby (#32): os convites recebidos, com aceitar e recusar, e,
@@ -23,10 +24,10 @@ export function InvitationsPanel({ connection, send }: Props) {
   const lcu = state?.lcu;
   if (connection.status !== 'connected' || !state || lcu?.state !== 'connected') {
     return (
-      <section aria-label="Convites" className="w-full max-w-lg rounded border border-slate-700 p-4">
-        <h2 className="text-xl font-semibold">Convites</h2>
-        <p className="text-slate-300">Aguarde a conexão com o agente e o League of Legends para ver os convites.</p>
-      </section>
+      <Card as="section" aria-label="Convites" className="flex w-full flex-col gap-2 p-4 text-ink">
+        <h2 className="text-section font-semibold">Convites</h2>
+        <p className="text-body text-muted">Aguarde a conexão com o agente e o League of Legends para ver os convites.</p>
+      </Card>
     );
   }
   // Trocar a sessão ou o jogador descarta feedback e respostas da sessão anterior.
@@ -105,11 +106,11 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
     : null;
 
   return (
-    <section aria-label="Convites" className="flex w-full max-w-lg flex-col gap-3 rounded border border-slate-700 p-4">
-      <h2 className="text-xl font-semibold">Convites</h2>
+    <Card as="section" aria-label="Convites" className="flex w-full flex-col gap-3 p-4 text-ink">
+      <h2 className="text-section font-semibold">Convites</h2>
 
-      <h3 className="font-semibold">Recebidos</h3>
-      {received.length === 0 ? <p className="text-slate-300">Nenhum convite recebido.</p> : (
+      <h3 className={subheading}>Recebidos</h3>
+      {received.length === 0 ? <p className="text-body text-muted">Nenhum convite recebido.</p> : (
         <ul aria-label="Convites recebidos" className="flex flex-col gap-2">
           {received.map(invitation => (
             <ReceivedItem
@@ -123,26 +124,26 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
         </ul>
       )}
 
-      <h3 className="font-semibold">Convidar amigos</h3>
-      {!lobby ? <p className="text-slate-300">Entre em um lobby para convidar amigos.</p> : (
+      <h3 className={subheading}>Convidar amigos</h3>
+      {!lobby ? <p className="text-body text-muted">Entre em um lobby para convidar amigos.</p> : (
         <>
-          <p className="text-sm text-slate-300">
+          <p className="text-caption text-muted">
             {slots > 0 ? `${slots} ${slots === 1 ? 'vaga livre' : 'vagas livres'} no grupo.` : 'Nenhuma vaga livre no grupo.'}
           </p>
-          {inviteRestriction && <p className="text-sm text-amber-300">{inviteRestriction}</p>}
-          {candidates.length === 0 ? <p className="text-slate-300">Nenhum amigo disponível para convidar.</p> : (
-            <ul aria-label="Amigos para convidar" className="flex flex-col gap-1">
+          {inviteRestriction && <p className="text-caption text-warn">{inviteRestriction}</p>}
+          {candidates.length === 0 ? <p className="text-body text-muted">Nenhum amigo disponível para convidar.</p> : (
+            <ul aria-label="Amigos para convidar" className="-mx-2 flex flex-col">
               {candidates.map(friend => {
                 const name = friendDisplayName(friend);
                 const key = `invite:${friend.puuid}`;
                 return (
-                  <li key={friend.id} className="flex items-center justify-between gap-3">
-                    <span className="truncate" title={name}>{name}</span>
-                    <button
-                      type="button" className={buttonClass} aria-label={`Convidar ${name}`} aria-busy={pending.has(key)}
+                  <li key={friend.id} className="flex items-center justify-between gap-3 rounded-control px-2 py-1 hover:bg-raised">
+                    <span className="truncate text-body" title={name}>{name}</span>
+                    <Button
+                      size="sm" aria-label={`Convidar ${name}`} loading={pending.has(key)}
                       disabled={!canInvite || slots <= 0 || busy(key)}
                       onClick={() => { void invite(friend); }}
-                    >Convidar</button>
+                    >Convidar</Button>
                   </li>
                 );
               })}
@@ -150,12 +151,12 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
           )}
           {lobby.invitations.length > 0 && (
             <>
-              <h3 className="font-semibold">Enviados pelo grupo</h3>
+              <h3 className={subheading}>Enviados pelo grupo</h3>
               <ul aria-label="Convites enviados" className="flex flex-col gap-1">
                 {lobby.invitations.map((invitation, index) => (
-                  <li key={`${invitation.puuid}:${index}`} className="flex justify-between gap-3">
+                  <li key={`${invitation.puuid}:${index}`} className="flex justify-between gap-3 text-body">
                     <span className="truncate">{inviteeName(invitation.puuid, friends)}</span>
-                    <span className="shrink-0 text-sm text-slate-300">{invitationStateNames[invitation.state]}</span>
+                    <span className="shrink-0 text-caption text-muted">{invitationStateNames[invitation.state]}</span>
                   </li>
                 ))}
               </ul>
@@ -163,8 +164,11 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
           )}
         </>
       )}
-      {feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}>{feedback.message}</p>}
-    </section>
+      {feedback.message && (
+        <p role={feedback.status === 'error' ? 'alert' : 'status'}
+          className={feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{feedback.message}</p>
+      )}
+    </Card>
   );
 }
 
@@ -173,14 +177,17 @@ function ReceivedItem({ invitation, busy, onAccept, onDecline }: {
 }) {
   const name = inviterName(invitation);
   return (
-    <li className="flex flex-col gap-1 rounded bg-slate-900 p-2">
-      <span className="break-words"><strong>{name}</strong> chamou você para {invitationQueueName(invitation)}.</span>
-      {!invitation.canAccept && <span className="text-sm text-amber-300">Não dá para aceitar agora (na fila ou em partida).</span>}
+    <li className="flex flex-col gap-2 rounded-card border border-accent bg-accent-soft p-3">
+      <span className="flex items-start gap-2">
+        <Avatar name={name} size={32} />
+        <span className="min-w-0 break-words text-body"><strong>{name}</strong> chamou você para {invitationQueueName(invitation)}.</span>
+      </span>
+      {!invitation.canAccept && <span className="text-caption text-warn">Não dá para aceitar agora (na fila ou em partida).</span>}
       <span className="flex gap-2">
-        <button type="button" className={buttonClass} aria-label={`Aceitar convite de ${name}`} aria-busy={busy}
-          disabled={busy || !invitation.canAccept} onClick={onAccept}>Aceitar</button>
-        <button type="button" className={buttonClass} aria-label={`Recusar convite de ${name}`} aria-busy={busy}
-          disabled={busy} onClick={onDecline}>Recusar</button>
+        <Button variant="primary" size="sm" aria-label={`Aceitar convite de ${name}`} aria-busy={busy}
+          disabled={busy || !invitation.canAccept} onClick={onAccept}>Aceitar</Button>
+        <Button size="sm" aria-label={`Recusar convite de ${name}`} aria-busy={busy}
+          disabled={busy} onClick={onDecline}>Recusar</Button>
       </span>
     </li>
   );

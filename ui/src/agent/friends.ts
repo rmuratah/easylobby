@@ -14,12 +14,12 @@ export const availabilityNames = {
 
 /** Cor da bolinha de status, no padrão do client oficial. */
 export const availabilityColors = {
-  online: 'bg-emerald-400',
-  busy: 'bg-rose-400',
-  away: 'bg-amber-400',
-  mobile: 'bg-slate-400',
-  offline: 'bg-slate-600',
-  unknown: 'bg-slate-600',
+  online: 'bg-status-online',
+  busy: 'bg-status-game',
+  away: 'bg-status-away',
+  mobile: 'bg-status-offline',
+  offline: 'bg-control',
+  unknown: 'bg-control',
 } satisfies Record<Availability, string>;
 
 export const leagueStatusNames = {
