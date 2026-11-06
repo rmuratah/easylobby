@@ -270,6 +270,8 @@ describe('eventos de estado do agente', () => {
     ['champSelect sem bans', { type: 'champSelect', champSelect: { ...testChampSelect, bans: null } }],
     ['convites', { type: 'receivedInvitations', invitations: [{ ...testInvitation, canAccept: 'sim' }] }],
     ['convites nulos', { type: 'receivedInvitations', invitations: null }],
+    ['convites do lobby', { type: 'lobby', lobby: { ...testLobby, invitations: [{ puuid: 'a', summonerId: 1, state: 'Talvez' }] } }],
+    ['lobby sem canInvite', { type: 'lobby', lobby: { ...testLobby, canInvite: undefined } }],
     ['conversa', { type: 'conversation', conversation: { ...testConversation, id: null } }],
     ['conversa nula', { type: 'conversation', conversation: null }],
     ['conversa fechada', { type: 'conversationClosed', id: 3 }],

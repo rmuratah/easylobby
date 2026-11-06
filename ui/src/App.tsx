@@ -8,6 +8,7 @@ import { QueuePanel } from './components/QueuePanel';
 import { RunePagesPanel } from './components/RunePagesPanel';
 import { ReadyCheckPanel } from './components/ReadyCheckPanel';
 import { FriendsList } from './components/FriendsList';
+import { InvitationsPanel } from './components/InvitationsPanel';
 import { ChatButton, ChatPanel } from './components/ChatPanel';
 import { Notifications } from './components/Notifications';
 
@@ -92,6 +93,7 @@ export default function App() {
         <div hidden={page !== 'runes'}>
           <RunePagesPanel connection={connection} send={connection.send} />
         </div>
+        <InvitationsPanel connection={connection} send={connection.send} />
         <FriendsList connection={connection} renderActions={friend => <ChatButton friend={friend} onOpen={setChatWith} />} />
         <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
       </main>
