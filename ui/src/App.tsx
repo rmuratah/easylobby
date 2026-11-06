@@ -9,6 +9,7 @@ import { RunePagesPanel } from './components/RunePagesPanel';
 import { ReadyCheckPanel } from './components/ReadyCheckPanel';
 import { FriendsList } from './components/FriendsList';
 import { ChatButton, ChatPanel } from './components/ChatPanel';
+import { Notifications } from './components/Notifications';
 
 function connectionLabel(connection: ConnectionSnapshot): string {
   if (connection.status === 'incompatible') return 'Versões incompatíveis';
@@ -94,6 +95,7 @@ export default function App() {
         <FriendsList connection={connection} renderActions={friend => <ChatButton friend={friend} onOpen={setChatWith} />} />
         <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
       </main>
+      <Notifications connection={connection} />
     </div>
   );
 }
