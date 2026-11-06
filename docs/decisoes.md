@@ -28,6 +28,23 @@ A LCU é um servidor local autenticado: porta e senha são obtidas do lockfile. 
 - O aceite automático de partida é opcional e está **fora do MVP**, no [backlog #39](https://github.com/rmuratah/easylobby/issues/39). Isso não exclui o aceite ou a recusa manual da [issue #20](https://github.com/rmuratah/easylobby/issues/20).
 - Antes da beta, é necessário registrar o app no **Riot Developer Portal** e revisar a política da Riot, conforme a [issue #37](https://github.com/rmuratah/easylobby/issues/37). Este documento não representa aprovação da Riot.
 
+## Redesign (Fase 5)
+
+O redesign dá ao app um visual próprio em todas as telas, sem mudar o agente. A referência visual é o protótipo aprovado na [issue #122](https://github.com/rmuratah/easylobby/issues/122).
+
+- **Estilo:** claro e minimalista, com identidade própria. O app não imita o client oficial: nada de molduras douradas, da fonte Beaufort ou de assets da interface da Riot. Dados e imagens do jogo (ícones de campeão, runa e feitiço vindos do client) podem ser usados.
+- **Temas:** claro e escuro, feitos com tokens de cor (variáveis CSS). Por padrão o app segue o tema do Windows; o usuário escolhe Sistema, Claro ou Escuro, e a escolha fica salva no app.
+- **Cor de destaque:** teal (`#0E7469` no claro, `#34D1BC` no escuro).
+- **Fonte:** Figtree, embutida no build. Nada é carregado da internet.
+- **Estrutura da janela:** barra de título própria, sem a moldura do Windows, com minimizar, fechar, "Abrir client oficial" e o seletor de tema. A área principal muda sozinha conforme o estado do jogo; amigos, convites e chat ficam numa coluna lateral recolhível.
+- **Lobby unificado:** fila e partida encontrada aparecem dentro da tela do lobby. Ao aceitar a partida, a seleção de campeões ocupa a tela.
+- **Escopo:** visual e melhorias de UX só na UI (atalhos, busca de campeão, estados vazios, de carregamento e de erro). O agente e o contrato do `/ws` não mudam nesta fase; o que precisar do agente vai para a Fase 6.
+- **Limites:** a janela abre em 1100×700 e o mínimo é 960×640; contraste WCAG AA nos dois temas; a RAM no início, no lobby e na seleção pode subir no máximo 10% sobre a referência medida na [issue #121](https://github.com/rmuratah/easylobby/issues/121).
+
+### Como o redesign convive com o trabalho em andamento
+
+O redesign é feito por rmuratah, em `ui/` e `desktop/`, que são pastas do Victor-Ricco. Combinado entre os dois: o Victor termina e mergeia a parte funcional de cada tela, e o redesign daquela tela só começa depois disso. O Victor revisa todos os PRs da fase. As mudanças entram aos poucos na `main`, um PR por issue: base visual, moldura e depois uma tela por vez.
+
 ## Responsabilidades e contribuição
 
 Rafa Murata (`rmuratah`) cuida do agente e do mock-lcu. Victor Ricco (`Victor-Ricco`) cuida da UI e do desktop. Documentação e CI são compartilhados; os responsáveis de cada tarefa estão em **Assignees** no GitHub.
