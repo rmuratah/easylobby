@@ -1,0 +1,49 @@
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import App from '../App';
+import type { ClientMessage } from '../bindings/ClientMessage';
+import type { RunePages } from '../bindings/RunePages';
+import type { ServerMessage } from '../bindings/ServerMessage';
+import { testState } from '../test/lobby';
+import { testFullRuneCatalog, testRunePage } from '../test/runes';
+
+class Socket {
+  static OPEN = 1;
+  static instances: Socket[] = [];
+  readyState = 1;
+  onmessage: ((event: { data: string }) => void) | null = null;
+  onclose: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  send = vi.fn();
+  close = vi.fn();
+  constructor(readonly url: string) { Socket.instances.push(this); }
+  receive(message: ServerMessage) { this.onmessage?.({ data: JSON.stringify(message) }); }
+}
+const socket = () => Socket.instances.at(-1)!;
+const panel = () => within(screen.getByRole('region', { name: 'Páginas de runas' }));
+const request = (): ClientMessage => JSON.parse(socket().send.mock.lastCall![0]);
+const pages: RunePages = {
+  pages: [testRunePage, { ...testRunePage, id: 11, name: 'Top' }], currentPageId: 10, canCreatePage: true,
+};
+
+beforeEach(() => { vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal('WebSocket', Socket); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+describe('páginas de runas pelo /ws', () => {
+  it('aplica uma página e mostra a página em uso confirmada pelo agente', async () => {
+    render(<App />);
+    act(() => socket().receive({
+      type: 'hello', protocol: 1, agentVersion: '0.1.0',
+      state: { ...testState, runePages: pages, runeCatalog: testFullRuneCatalog },
+    }));
+    expect(panel().getByRole('listitem', { name: 'Mid' })).toHaveAttribute('aria-current', 'true');
+    act(() => { fireEvent.click(panel().getByRole('button', { name: 'Usar Top' })); });
+    expect(request().command).toEqual({ type: 'selectRunePage', pageId: 11 });
+    // Só muda quando o agente publica as páginas de novo.
+    expect(panel().getByRole('listitem', { name: 'Mid' })).toHaveAttribute('aria-current', 'true');
+    act(() => socket().receive({ type: 'runePages', runePages: { ...pages, currentPageId: 11 } }));
+    await act(async () => socket().receive({ type: 'response', id: request().id, result: { status: 'ok' } }));
+    expect(panel().getByRole('listitem', { name: 'Top' })).toHaveAttribute('aria-current', 'true');
+    expect(panel().getByRole('status')).toHaveTextContent('Página aplicada.');
+  });
+});
