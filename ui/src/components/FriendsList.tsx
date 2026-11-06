@@ -3,6 +3,8 @@ import type { ConnectionSnapshot } from '../agent/client';
 import { assetUrl } from '../agent/assets';
 import { availabilityColors, availabilityNames, describeActivity, friendDisplayName, isOnline } from '../agent/friends';
 import type { Friend } from '../bindings/Friend';
+import { Avatar, Card, SearchField } from './base';
+import { cx } from './base/cx';
 
 type Props = {
   connection: ConnectionSnapshot;
@@ -39,10 +41,10 @@ export function FriendsList({ connection, renderActions }: Props) {
 
   if (!connected) {
     return (
-      <section aria-label="Amigos" className="w-full max-w-lg rounded border border-slate-700 p-4">
-        <h2 className="text-xl font-semibold">Amigos</h2>
-        <p className="text-slate-300">Aguarde a conexão com o agente e o League of Legends para ver os amigos.</p>
-      </section>
+      <Card as="section" aria-label="Amigos" className="flex w-full flex-col gap-2 p-4 text-ink">
+        <h2 className="text-section font-semibold">Amigos</h2>
+        <p className="text-body text-muted">Aguarde a conexão com o agente e o League of Legends para ver os amigos.</p>
+      </Card>
     );
   }
 
@@ -56,31 +58,33 @@ export function FriendsList({ connection, renderActions }: Props) {
   const item = (friend: Friend) => <FriendItem key={friend.id} friend={friend} now={now} actions={renderActions?.(friend)} />;
 
   return (
-    <section aria-label="Amigos" className="flex w-full max-w-lg flex-col gap-3 rounded border border-slate-700 p-4">
-      <h2 className="text-xl font-semibold">
-        Amigos <span className="text-base font-normal text-slate-300">({onlineTotal} de {friends.length} online)</span>
+    <Card as="section" aria-label="Amigos" className="flex w-full flex-col gap-3 p-4 text-ink">
+      <h2 className="text-section font-semibold">
+        Amigos <span className="text-caption font-normal text-muted">({onlineTotal} de {friends.length} online)</span>
       </h2>
-      {friends.length === 0 ? <p className="text-slate-300">Você ainda não tem amigos na lista.</p> : (
+      {friends.length === 0 ? <p className="text-body text-muted">Você ainda não tem amigos na lista.</p> : (
         <>
-          <label htmlFor={filterId} className="sr-only">Buscar amigo</label>
-          <input
-            id={filterId} type="search" value={filter} placeholder="Buscar amigo"
-            onChange={event => setFilter(event.target.value)}
-            className="rounded border border-slate-600 bg-slate-900 p-2"
-          />
-          {visible.length === 0 && <p className="text-slate-300">Nenhum amigo encontrado.</p>}
+          <SearchField id={filterId} label="Buscar amigo" value={filter} placeholder="Buscar amigo"
+            onChange={event => setFilter(event.target.value)} />
+          {visible.length === 0 && <p className="text-body text-muted">Nenhum amigo encontrado.</p>}
+          {!query && onlineTotal === 0 && <p className="text-body text-muted">Nenhum amigo online agora.</p>}
           {online.length > 0 && (
-            <ul aria-label="Amigos online" className="flex flex-col gap-1">{online.map(item)}</ul>
+            <div className="flex flex-col gap-1">
+              <p aria-hidden="true" className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Online ({online.length})</p>
+              <ul aria-label="Amigos online" className="-mx-2 flex flex-col">{online.map(item)}</ul>
+            </div>
           )}
           {offline.length > 0 && (
-            <details open={!!query}>
-              <summary className="cursor-pointer text-slate-300">Offline ({offline.length})</summary>
-              <ul aria-label="Amigos offline" className="mt-1 flex flex-col gap-1">{offline.map(item)}</ul>
+            <details open={!!query} className="group">
+              <summary className="cursor-pointer rounded-control-sm text-caption font-semibold uppercase tracking-[0.06em] text-muted hover:text-ink">
+                Offline ({offline.length})
+              </summary>
+              <ul aria-label="Amigos offline" className="-mx-2 mt-1 flex flex-col">{offline.map(item)}</ul>
             </details>
           )}
         </>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -90,21 +94,21 @@ function FriendItem({ friend, now, actions }: { friend: Friend; now: number; act
   const league = friend.activity?.type === 'league' ? friend.activity : null;
   const offline = !isOnline(friend);
   return (
-    <li className={`flex items-center gap-3 rounded px-2 py-1 ${offline ? 'opacity-60' : ''}`}>
+    <li className={cx('flex items-center gap-3 rounded-control px-2 py-1.5 hover:bg-raised', offline && 'opacity-60')}>
       <span className="relative shrink-0">
-        <Icon src={friend.profileIconId !== null ? assetUrl('profileIcon', friend.profileIconId) : null} className="h-9 w-9 rounded-full" />
+        <Avatar name={name} size={36} src={friend.profileIconId !== null ? assetUrl('profileIcon', friend.profileIconId) : undefined} />
         <span
           role="img" aria-label={availabilityNames[friend.availability]} title={availabilityNames[friend.availability]}
-          className={`absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-slate-950 ${availabilityColors[friend.availability]}`}
+          className={cx('absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full ring-2 ring-surface', availabilityColors[friend.availability])}
         />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate font-medium" title={name}>{name}</span>
-        <span className="truncate text-sm text-slate-300">{activity}</span>
-        {friend.statusMessage && <span className="truncate text-xs text-slate-400 italic" title={friend.statusMessage}>{friend.statusMessage}</span>}
+        <span className="truncate text-body font-semibold" title={name}>{name}</span>
+        <span className="truncate text-caption text-muted">{activity}</span>
+        {friend.statusMessage && <span className="truncate text-caption text-muted italic" title={friend.statusMessage}>{friend.statusMessage}</span>}
       </span>
       {league?.championId != null && league.status === 'inGame' && (
-        <Icon src={assetUrl('champion', league.championId)} className="h-7 w-7 shrink-0 rounded" label="Campeão da partida" />
+        <Icon src={assetUrl('champion', league.championId)} className="h-7 w-7 shrink-0 rounded-control-sm" label="Campeão da partida" />
       )}
       {actions && <span className="flex shrink-0 gap-1">{actions}</span>}
     </li>
@@ -114,6 +118,6 @@ function FriendItem({ friend, now, actions }: { friend: Friend; now: number; act
 /** Imagem do agente que vira um quadrado vazio quando não carrega. */
 function Icon({ src, className, label }: { src: string | null; className: string; label?: string }) {
   const [failed, setFailed] = useState<string | null>(null);
-  if (!src || failed === src) return <span aria-hidden="true" className={`block bg-slate-800 ${className}`} />;
+  if (!src || failed === src) return <span aria-hidden="true" className={`block bg-raised ${className}`} />;
   return <img src={src} alt={label ?? ''} className={className} onError={() => setFailed(src)} />;
 }

@@ -18,6 +18,7 @@ import { connectionView } from './screens/connection';
 import { ConnectionScreen } from './components/connection/ConnectionScreen';
 import { SummonerHeader } from './components/home/SummonerHeader';
 import { EmptyState } from './components/base';
+import { totalUnread } from './agent/chat';
 
 export default function App() {
   const connection = useAgent();
@@ -29,6 +30,8 @@ export default function App() {
   const sidebar = useSidebar(screen === 'champSelect');
   const invitations = connection.status === 'connected' && connection.state?.lcu.state === 'connected'
     ? connection.state.receivedInvitations.length : 0;
+  const unread = connection.status === 'connected' && connection.state?.lcu.state === 'connected'
+    ? totalUnread(connection.state.conversations) : 0;
   const contentRef = useRef<HTMLElement>(null);
   const flowButtonRef = useRef<HTMLButtonElement>(null);
   const runesBackRef = useRef<HTMLButtonElement>(null);
@@ -70,7 +73,7 @@ export default function App() {
                 <button type="button" aria-current={page === 'runes' ? 'page' : undefined}
                   onClick={() => setNavigation({ screen, page: 'runes' })}>Runas</button>
               </nav>
-              <SidebarToggle open={sidebar.open} onToggle={sidebar.toggle} invitations={invitations} />
+              <SidebarToggle open={sidebar.open} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />
             </div>
             <section hidden={page !== 'home' && !(page === 'main' && screen === 'home')} aria-label="Início" className="flex flex-col gap-4">
               {summoner && <SummonerHeader summoner={summoner} />}
@@ -114,7 +117,7 @@ export default function App() {
           <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
         </aside>
       </div>
-      <Notifications connection={connection} />
+      <Notifications connection={connection} quiet={screen === 'champSelect'} sidebarOpen={sidebar.open} />
     </div>
   );
 }

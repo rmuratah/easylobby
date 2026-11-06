@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { useAgent } from "../agent/useAgent";
 import { draftChampSelect } from "../test/champSelect";
-import { testInvitation } from "../test/events";
+import { testConversation, testInvitation } from "../test/events";
 import { testState } from "../test/lobby";
 import { makeState } from "../test/state";
 import { SIDEBAR_STORAGE_KEY } from "./sidebar";
@@ -53,6 +53,14 @@ describe("coluna de amigos", () => {
     snapshot({ receivedInvitations: [testInvitation] });
     render(<App />);
     expect(screen.getByRole("button", { name: "Mostrar amigos (1 convite)" })).toBeInTheDocument();
+  });
+
+  it("soma as mensagens não lidas ao aviso da coluna recolhida", () => {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, "recolhida");
+    snapshot({ receivedInvitations: [testInvitation], conversations: [{ ...testConversation, unreadCount: 2 }] });
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar amigos (1 convite, 2 mensagens)" }));
+    expect(screen.getByRole("button", { name: "Recolher amigos" })).toBeInTheDocument();
   });
 
   it("na seleção de campeões com a janela estreita, recolhe sem mudar a escolha salva", () => {

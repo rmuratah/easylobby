@@ -24,6 +24,12 @@ describe('FriendsList', () => {
     expect(screen.getByRole('region', { name: 'Amigos' })).toHaveTextContent('Aguarde a conexão');
   });
 
+  it('avisa quando nenhum amigo está online', () => {
+    render(<FriendsList connection={connectedWith([caio])} />);
+    expect(screen.getByText('Nenhum amigo online agora.')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Amigos online' })).toBeNull();
+  });
+
   it('avisa quando a lista está vazia', () => {
     render(<FriendsList connection={connectedWith([])} />);
     expect(screen.getByText('Você ainda não tem amigos na lista.')).toBeInTheDocument();
