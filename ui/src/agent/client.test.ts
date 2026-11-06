@@ -5,6 +5,7 @@ import {
   testChampSelect, testConversation, testFriend, testInvitation, testMatchmaking, testReadyCheck, testRuneCatalog, testRunePages,
 } from '../test/events';
 import type { AgentState } from '../bindings/AgentState';
+import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import type { Command } from '../bindings/Command';
 import type { CommandResult } from '../bindings/CommandResult';
@@ -21,6 +22,9 @@ class Socket {
   constructor() { Socket.instances.push(this); }
   receive(message: ServerMessage) { this.onmessage?.({ data: JSON.stringify(message) }); }
 }
+const testChampSelectChat: ChampSelectChat = {
+  messages: [{ id: 'm1', body: 'vou top', fromMe: false, fromCellId: 0, timestamp: '2026-11-05T01:15:00.000Z' }],
+};
 const state: AgentState = { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: 'Lobby', readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], champSelectChat: null, friends: [], runeCatalog: null, summonerSpellCatalog: null, runePages: null, receivedInvitations: [] };
 const hello = (overrides: Partial<AgentState> = {}): ServerMessage => ({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: { ...state, ...overrides } });
 let client: AgentClient;
@@ -206,6 +210,7 @@ describe('eventos de estado do agente', () => {
     [{ type: 'runePages', runePages: testRunePages }, { runePages: testRunePages }],
     [{ type: 'runeCatalog', runeCatalog: testRuneCatalog }, { runeCatalog: testRuneCatalog }],
     [{ type: 'friends', friends: [testFriend] }, { friends: [testFriend] }],
+    [{ type: 'champSelectChat', champSelectChat: testChampSelectChat }, { champSelectChat: testChampSelectChat }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
     socket().receive(hello({ lobby: testLobby }));
     socket().receive(message);
@@ -219,10 +224,11 @@ describe('eventos de estado do agente', () => {
     [{ type: 'runePages', runePages: null }, { runePages: null }],
     [{ type: 'runeCatalog', runeCatalog: null }, { runeCatalog: null }],
     [{ type: 'friends', friends: [] }, { friends: [] }],
+    [{ type: 'champSelectChat', champSelectChat: null }, { champSelectChat: null }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('limpa o campo com %j', (message, change) => {
     const full: Partial<AgentState> = {
       readyCheck: testReadyCheck, matchmaking: testMatchmaking, champSelect: testChampSelect, receivedInvitations: [testInvitation],
-      runePages: testRunePages, runeCatalog: testRuneCatalog, friends: [testFriend],
+      runePages: testRunePages, runeCatalog: testRuneCatalog, friends: [testFriend], champSelectChat: testChampSelectChat,
     };
     socket().receive(hello(full));
     socket().receive(message);
