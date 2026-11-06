@@ -17,6 +17,7 @@ import type { MatchmakingError } from '../bindings/MatchmakingError';
 import type { SearchState } from '../bindings/SearchState';
 import type { ChampSelect } from '../bindings/ChampSelect';
 import type { ChampSelectChat } from '../bindings/ChampSelectChat';
+import type { ChampSelectChatMessage } from '../bindings/ChampSelectChatMessage';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
 import type { Conversation } from '../bindings/Conversation';
 import type { RunePages } from '../bindings/RunePages';
@@ -106,7 +107,9 @@ function champSelect(v: unknown): v is ChampSelect | null {
     arrays(v, ['myTeam', 'theirTeam', 'actions']) && (v.pendingAction === null || object(v.pendingAction)));
 }
 function champSelectChat(v: unknown): v is ChampSelectChat | null {
-  return v === null || (object(v) && list(v.messages, object));
+  return v === null || (object(v) && list(v.messages, (m): m is ChampSelectChatMessage => object(m) &&
+    strings(m, ['id', 'body', 'timestamp']) && typeof m.fromMe === 'boolean' &&
+    (m.fromCellId === null || (typeof m.fromCellId === 'number' && Number.isSafeInteger(m.fromCellId)))));
 }
 function receivedInvitation(v: unknown): v is ReceivedInvitation {
   return object(v) && strings(v, ['invitationId', 'fromSummonerName']) && uints(v, ['fromSummonerId', 'queueId']) &&

@@ -96,7 +96,7 @@ function ChampSelectContent({ state, champSelect, send }: ContentProps) {
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           <TeamList label="Time adversário" players={champSelect.theirTeam} ally={false} acting={acting} catalog={catalog} />
-          <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />
+          {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}
         </div>
       </div>
     </section>

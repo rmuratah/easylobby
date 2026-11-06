@@ -75,3 +75,139 @@ it('espera a sala abrir', () => {
   expect(chat().getByText('Nenhuma mensagem ainda.')).toBeVisible();
   expect(input()).toBeEnabled();
 });
+
+it('não envia espaços nem duplica submissões e só mostra mensagens confirmadas', async () => {
+  render(<App />); hello();
+  fireEvent.change(input(), { target: { value: '   ' } });
+  fireEvent.submit(input());
+  expect(socket().send).not.toHaveBeenCalled();
+  fireEvent.change(input(), { target: { value: 'bora' } });
+  act(() => { fireEvent.submit(input()); fireEvent.submit(input()); });
+  expect(socket().send).toHaveBeenCalledOnce();
+  expect(chat().queryByText('bora')).not.toBeInTheDocument();
+  const confirmed: ChampSelectChat = { messages: [...room.messages,
+    { id: 'm3', body: 'bora', fromMe: true, fromCellId: 0, timestamp: room.messages[0].timestamp }] };
+  act(() => socket().receive({ type: 'champSelectChat', champSelectChat: confirmed }));
+  await respond();
+  act(() => socket().receive({ type: 'champSelectChat', champSelectChat: confirmed }));
+  expect(chat().getAllByText('bora')).toHaveLength(1);
+  expect(chat().getAllByRole('listitem').map(li => li.textContent)).toEqual([
+    expect.stringContaining('vou de jungle'), expect.stringContaining('quem é?'), expect.stringContaining('bora'),
+  ]);
+});
+
+it('mantém um novo rascunho digitado durante o envio', async () => {
+  render(<App />); hello();
+  fireEvent.change(input(), { target: { value: 'primeiro' } });
+  fireEvent.submit(input());
+  fireEvent.change(input(), { target: { value: 'segundo' } });
+  await respond();
+  expect(input()).toHaveValue('segundo');
+});
+
+it('trata timeout como resultado incerto, sem reenvio automático, e aceita confirmação tardia', async () => {
+  render(<App />); hello();
+  fireEvent.change(input(), { target: { value: 'atrasada' } });
+  fireEvent.submit(input());
+  await act(async () => vi.advanceTimersByTime(10000));
+  expect(chat().getByRole('alert')).toHaveTextContent('Confira o histórico antes de tentar novamente');
+  expect(input()).toHaveValue('atrasada');
+  expect(socket().send).toHaveBeenCalledOnce();
+  await respond();
+  expect(input()).toHaveValue('atrasada');
+  act(() => socket().receive({ type: 'champSelectChat', champSelectChat: { messages: [
+    { ...room.messages[0], id: 'late', body: 'atrasada', fromMe: true },
+  ] } }));
+  expect(chat().getByText('atrasada')).toBeVisible();
+});
+
+it('fecha a sala, descarta o rascunho e ignora resposta do envio antigo ao reabrir', async () => {
+  render(<App />); hello();
+  fireEvent.change(input(), { target: { value: 'antiga' } });
+  fireEvent.submit(input());
+  act(() => socket().receive({ type: 'champSelectChat', champSelectChat: null }));
+  expect(input()).toBeDisabled();
+  act(() => socket().receive({ type: 'champSelectChat', champSelectChat: { messages: [] } }));
+  fireEvent.change(input(), { target: { value: 'nova' } });
+  await respond({ status: 'error', code: 'lcu', message: 'erro antigo' });
+  expect(input()).toHaveValue('nova');
+  expect(chat().queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it.each(['seleção', 'conexão LCU', 'fase', 'sessão encerrada', 'socket'] as const)(
+  'invalida o envio ao mudar %s e não carrega mensagens antigas', async kind => {
+    render(<App />); hello();
+    fireEvent.change(input(), { target: { value: 'antiga' } });
+    fireEvent.submit(input());
+    const old = last();
+    const oldSocket = socket();
+    await act(async () => {
+      if (kind === 'seleção') socket().receive({ type: 'champSelect', champSelect: { ...champSelectState.champSelect!, id: 'nova' } });
+      if (kind === 'conexão LCU') socket().receive({ type: 'lcu', status: { state: 'connected', session: 2 } });
+      if (kind === 'fase') socket().receive({ type: 'gameflowPhase', phase: 'GameStart' });
+      if (kind === 'sessão encerrada') socket().receive({ type: 'champSelect', champSelect: null });
+      if (kind === 'socket') oldSocket.onclose?.();
+    });
+    expect(screen.queryByText('vou de jungle')).not.toBeInTheDocument();
+    if (kind === 'socket') act(() => vi.advanceTimersByTime(1000));
+    hello({ champSelectChat: { messages: [] }, champSelect: { ...champSelectState.champSelect!, id: 'nova' } });
+    fireEvent.change(input(), { target: { value: 'nova' } });
+    await act(async () => oldSocket.receive({ type: 'response', id: old.id, result: { status: 'error', code: 'lcu', message: 'erro antigo' } }));
+    expect(input()).toHaveValue('nova');
+    expect(chat().queryByRole('alert')).not.toBeInTheDocument();
+  },
+);
+
+it('ignora chat atrasado depois da fase terminar ou da LCU desconectar', () => {
+  render(<App />); hello();
+  act(() => socket().receive({ type: 'gameflowPhase', phase: 'GameStart' }));
+  act(() => socket().receive({ type: 'champSelectChat', champSelectChat: room }));
+  act(() => socket().receive({ type: 'gameflowPhase', phase: 'ChampSelect' }));
+  expect(input()).toBeDisabled();
+  act(() => socket().receive({ type: 'lcu', status: { state: 'disconnected', reason: 'LoL fechado' } }));
+  act(() => socket().receive({ type: 'champSelectChat', champSelectChat: room }));
+  act(() => socket().receive({ type: 'lcu', status: { state: 'connected', session: 3 } }));
+  expect(input()).toBeDisabled();
+});
+
+it('acompanha o fim, preserva a leitura anterior e volta a acompanhar ao descer', () => {
+  render(<App />); hello();
+  const log = chat().getByRole('log');
+  let height = 1000;
+  Object.defineProperties(log, { scrollHeight: { get: () => height }, clientHeight: { value: 200 } });
+  const update = (id: string) => act(() => socket().receive({ type: 'champSelectChat', champSelectChat: {
+    messages: [...room.messages, { ...room.messages[0], id, body: id }],
+  } }));
+  update('m3');
+  expect(log.scrollTop).toBe(1000);
+  log.scrollTop = 100; fireEvent.scroll(log);
+  height = 1100; update('m4');
+  expect(log.scrollTop).toBe(100);
+  log.scrollTop = 900; fireEvent.scroll(log);
+  height = 1200; update('m5');
+  expect(log.scrollTop).toBe(1200);
+});
+
+it('não revive mensagens depois de a sessão ser apagada', () => {
+  render(<App />); hello();
+  act(() => socket().receive({ type: 'champSelect', champSelect: null }));
+  act(() => socket().receive({ type: 'champSelectChat', champSelectChat: room }));
+  act(() => socket().receive({ type: 'champSelect', champSelect: { ...champSelectState.champSelect!, id: 'nova' } }));
+  expect(input()).toBeDisabled();
+  expect(chat().queryByText('vou de jungle')).not.toBeInTheDocument();
+});
+
+it('identifica aliados anônimos e acompanha a célula resolvida pelo agente', () => {
+  render(<App />);
+  const selection = champSelectState.champSelect!;
+  const anonymous = { ...selection.myTeam[1], gameName: null, tagLine: null };
+  hello({ champSelect: { ...selection, myTeam: [selection.myTeam[0], anonymous] } });
+  expect(chat().getByText('vou de jungle').closest('li')).toHaveTextContent('Aliado 2');
+  act(() => socket().receive({ type: 'champSelect', champSelect: {
+    ...selection, myTeam: [{ ...selection.myTeam[1], cellId: 3 }, selection.myTeam[0]],
+  } }));
+  act(() => socket().receive({ type: 'champSelectChat', champSelectChat: {
+    messages: [{ ...room.messages[0], fromCellId: 3 }],
+  } }));
+  expect(chat().getByText('vou de jungle').closest('li')).toHaveTextContent('Amigo#BR1');
+});
