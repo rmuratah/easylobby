@@ -142,21 +142,28 @@ async fn troca_os_feiticos_pelo_ws() {
     let url = start_agent(&dir).await;
     let mut ui = connect(&url).await;
 
-    // Espera a seleção com o jogador e a lista de feitiços.
+    // Espera a lista de feitiços e o fim da reprodução (o último evento é a
+    // vez do jogador escolher). Antes disso, um evento gravado com os
+    // feitiços da gravação pode chegar depois da troca e desfazê-la.
+    let at_local_pick = |cs: &ChampSelect| {
+        cs.pending_action
+            .as_ref()
+            .is_some_and(|a| a.action_type == ChampSelectActionType::Pick)
+    };
     let mut catalog: Option<SummonerSpellCatalog> = None;
     let mut champ_select: Option<ChampSelect> = None;
     while catalog.is_none() || champ_select.is_none() {
         match recv(&mut ui).await {
             ServerMessage::Hello { state, .. } => {
                 catalog = state.summoner_spell_catalog;
-                champ_select = state.champ_select;
+                champ_select = state.champ_select.filter(at_local_pick);
             }
             ServerMessage::SummonerSpellCatalog {
                 summoner_spell_catalog,
             } => catalog = summoner_spell_catalog,
             ServerMessage::ChampSelect {
                 champ_select: Some(cs),
-            } => champ_select = Some(cs),
+            } if at_local_pick(&cs) => champ_select = Some(cs),
             _ => {}
         }
     }

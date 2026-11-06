@@ -554,10 +554,7 @@ impl Hub {
         if let Err(error) = summoner_spells::set_spells(&client, spell1_id, spell2_id).await {
             return CommandResult::error(ErrorCode::Lcu, error.to_string());
         }
-        // Se a releitura falhar, o evento do WAMP traz a sessão logo depois.
-        if let Ok(Some(session)) = champ_select::current_session(&client).await {
-            self.set_champ_select(Some(session));
-        }
+        self.refresh_champ_select().await;
         CommandResult::Ok
     }
 
