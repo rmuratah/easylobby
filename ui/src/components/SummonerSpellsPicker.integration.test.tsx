@@ -79,3 +79,77 @@ it('espera o catálogo de feitiços', () => {
   expect(spells().getByText('Carregando feitiços…')).toBeVisible();
   expect(spells().getByRole('button', { name: 'Feitiço 1 (D): Feitiço 4' })).toBeDisabled();
 });
+
+
+it('bloqueia também a lista já aberta quando a partida começa', () => {
+  render(<App />); hello();
+  fireEvent.click(spells().getByRole('button', { name: /Feitiço 2/ }));
+  act(() => socket().receive({
+    type: 'champSelect', champSelect: { ...draftChampSelect, timer: { ...draftChampSelect.timer, phase: 'GAME_STARTING' } },
+  }));
+  const option = spells().getByRole('button', { name: 'Barreira' });
+  expect(option).toBeDisabled();
+  fireEvent.click(option);
+  expect(socket().send).not.toHaveBeenCalled();
+});
+
+it('exibe apenas os feitiços confirmados, inclusive após timeout', async () => {
+  render(<App />); hello();
+  fireEvent.click(spells().getByRole('button', { name: /Feitiço 2/ }));
+  fireEvent.click(spells().getByRole('button', { name: 'Barreira' }));
+  expect(spells().getByRole('button', { name: 'Feitiço 2 (F): Incendiar' })).toBeDisabled();
+  await act(async () => vi.advanceTimersByTime(10000));
+  expect(spells().getByRole('alert')).toHaveTextContent('Não foi possível confirmar');
+  expect(spells().getByRole('button', { name: 'Feitiço 2 (F): Incendiar' })).toBeEnabled();
+  await respond();
+  expect(spells().getByRole('alert')).toBeVisible();
+  act(() => socket().receive({ type: 'champSelect', champSelect: {
+    ...draftChampSelect,
+    myTeam: draftChampSelect.myTeam.map(p => p.cellId === 0 ? { ...p, spell2Id: 21 } : p),
+  } }));
+  expect(spells().getByRole('button', { name: 'Feitiço 2 (F): Barreira' })).toBeVisible();
+  expect(socket().send).toHaveBeenCalledTimes(1);
+});
+
+it('permite Marcar no ARAM durante a finalização', () => {
+  render(<App />); hello({ champSelect: {
+    ...draftChampSelect, queue: 'aram', queueId: 450,
+    timer: { ...draftChampSelect.timer, phase: 'FINALIZATION' },
+  } });
+  fireEvent.click(spells().getByRole('button', { name: /Feitiço 2/ }));
+  expect(spells().queryByRole('button', { name: 'Golpear' })).not.toBeInTheDocument();
+  fireEvent.click(spells().getByRole('button', { name: 'Marcar' }));
+  expect(last().command).toEqual({ type: 'setSummonerSpells', spell1Id: 4, spell2Id: 32 });
+});
+
+it.each(['seleção', 'conexão LCU'] as const)('descarta o envio anterior na nova %s', async change => {
+  render(<App />); hello();
+  fireEvent.click(spells().getByRole('button', { name: /Feitiço 2/ }));
+  fireEvent.click(spells().getByRole('button', { name: 'Barreira' }));
+  act(() => socket().receive(change === 'seleção'
+    ? { type: 'champSelect', champSelect: { ...draftChampSelect, id: 'nova-selecao' } }
+    : { type: 'lcu', status: { state: 'connected', session: 2 } }));
+  await respond({ status: 'error', code: 'lcu', message: 'resposta antiga' });
+  expect(spells().queryByRole('alert')).not.toBeInTheDocument();
+  expect(spells().getByRole('button', { name: /Feitiço 2/ })).toBeEnabled();
+  expect(socket().send).toHaveBeenCalledTimes(1);
+});
+
+it.each(['agente', 'LCU'] as const)('remove o seletor ao desconectar %s e não reenvia', async source => {
+  render(<App />); hello();
+  fireEvent.click(spells().getByRole('button', { name: /Feitiço 2/ }));
+  fireEvent.click(spells().getByRole('button', { name: 'Barreira' }));
+  const oldSocket = socket();
+  await act(async () => {
+    if (source === 'agente') oldSocket.onclose?.();
+    else oldSocket.receive({ type: 'lcu', status: { state: 'disconnected', reason: 'teste' } });
+  });
+  expect(screen.queryByRole('region', { name: 'Seus feitiços' })).not.toBeInTheDocument();
+  if (source === 'agente') act(() => vi.advanceTimersByTime(1000));
+  hello({ lcu: { state: 'connected', session: 2 } });
+  if (source === 'LCU') await respond({ status: 'error', code: 'lcu', message: 'resposta antiga' });
+  expect(spells().queryByRole('alert')).not.toBeInTheDocument();
+  expect(spells().getByRole('button', { name: /Feitiço 2/ })).toBeEnabled();
+  expect(oldSocket.send).toHaveBeenCalledTimes(1);
+  if (source === 'agente') expect(socket().send).not.toHaveBeenCalled();
+});
