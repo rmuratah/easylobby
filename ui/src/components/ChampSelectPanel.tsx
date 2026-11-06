@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { assetUrl } from '../agent/assets';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import {
@@ -7,6 +7,7 @@ import {
 } from '../agent/champSelect';
 import { useCommand, type CommandFeedback } from '../agent/useCommand';
 import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
+import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
 import { positionNames } from '../agent/positions';
 import type { AgentState } from '../bindings/AgentState';
 import type { ChampSelect } from '../bindings/ChampSelect';
@@ -58,6 +59,7 @@ function ChampSelectContent({ state, champSelect, send }: ContentProps) {
   const chosen = mine && choice?.actionId === mine.action.id ? choice.championId : mine && markedChampion(champSelect, mine);
   const hover = useCommand(send);
   const confirm = useCommand(send);
+  const swap = useCommand(send);
   function select(championId: number) {
     if (!mine || confirm.pending) return;
     setChoice({ actionId: mine.action.id, championId });
@@ -77,12 +79,15 @@ function ChampSelectContent({ state, champSelect, send }: ContentProps) {
       <ChampSelectStatus champSelect={champSelect} />
       <div className="champ-select-board">
         <div className="flex min-w-0 flex-col gap-4">
-          <TeamList label="Seu time" players={champSelect.myTeam} ally acting={acting} catalog={catalog} />
+          <TeamList label="Seu time" players={champSelect.myTeam} ally acting={acting} catalog={catalog}
+            renderActions={player => player.isLocalPlayer ? null
+              : <SwapOffers champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
           <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
             summonerLevel={state.summoner?.summonerLevel ?? null} send={send} />
         </div>
         <div className="champ-select-center">
           <Bans champSelect={champSelect} catalog={catalog} />
+          <ChampSelectSwaps champSelect={champSelect} busy={swap.pending} run={swap.run} feedback={swap.feedback} />
           <ActionBar mine={mine} chosen={chosen || null} chosenAvailable={chosenAvailable} catalog={catalog}
             busy={confirm.pending} onConfirm={lockIn} feedback={[confirm.feedback, hover.feedback]} />
           <ChampionGrid state={state} champSelect={champSelect} grid={grid} selected={chosen || null}
@@ -130,9 +135,11 @@ type TeamProps = {
   ally: boolean;
   acting: Set<number>;
   catalog: ChampionCatalog | null;
+  /** Botões extras de cada jogador (as trocas com um aliado, por exemplo). */
+  renderActions?: (player: ChampSelectPlayer) => ReactNode;
 };
 
-function TeamList({ label, players, ally, acting, catalog }: TeamProps) {
+function TeamList({ label, players, ally, acting, catalog, renderActions }: TeamProps) {
   return (
     <section aria-label={label} className="flex min-w-0 flex-col gap-2">
       <h3 className="text-lg font-semibold">{label}</h3>
@@ -160,6 +167,7 @@ function TeamList({ label, players, ally, acting, catalog }: TeamProps) {
                     {ally && player.assignedPosition !== 'unselected' && ` · ${positionNames[player.assignedPosition]}`}
                     {acting.has(player.cellId) && ' · na vez'}
                   </p>
+                  {renderActions?.(player)}
                 </div>
               </li>
             );
