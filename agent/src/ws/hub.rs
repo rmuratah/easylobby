@@ -23,6 +23,7 @@ use crate::runes::{
     PAGES_PATH,
 };
 use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
+use crate::summoner_spells::{self, SummonerSpellCatalog};
 use crate::swaps::{self, SwapIntent, SwapKind};
 use crate::ux;
 use crate::wamp::{EventType, LcuEvent};
@@ -514,6 +515,51 @@ impl Hub {
         });
     }
 
+    /// Publica os feitiços de invocador do jogo (#24).
+    pub fn set_summoner_spell_catalog(&self, catalog: Option<SummonerSpellCatalog>) {
+        self.update(|shared| {
+            if shared.state.summoner_spell_catalog == catalog {
+                return None;
+            }
+            shared.state.summoner_spell_catalog = catalog.clone();
+            Some(ServerMessage::SummonerSpellCatalog {
+                summoner_spell_catalog: catalog,
+            })
+        });
+    }
+
+    /// Troca os feitiços de invocador do jogador logado (comando
+    /// `setSummonerSpells`, #24). Confere o pedido contra a seleção atual, e
+    /// relê a sessão pelo REST e a publica antes de devolver.
+    pub async fn set_summoner_spells(&self, spell1_id: u32, spell2_id: u32) -> CommandResult {
+        let (client, checked) = {
+            let shared = self.lock();
+            let state = &shared.state;
+            let checked = summoner_spells::check_spells(
+                state.champ_select.as_ref(),
+                state.summoner_spell_catalog.as_ref(),
+                state.summoner.as_ref().map(|s| s.summoner_level),
+                spell1_id,
+                spell2_id,
+            );
+            (shared.client.clone(), checked)
+        };
+        let Some(client) = client else {
+            return not_connected();
+        };
+        if let Err(invalid) = checked {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        if let Err(error) = summoner_spells::set_spells(&client, spell1_id, spell2_id).await {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        // Se a releitura falhar, o evento do WAMP traz a sessão logo depois.
+        if let Ok(Some(session)) = champ_select::current_session(&client).await {
+            self.set_champ_select(Some(session));
+        }
+        CommandResult::Ok
+    }
+
     /// Aplica a página de runas `id` (comando `selectRunePage`, #26).
     pub async fn select_rune_page(&self, id: u64) -> CommandResult {
         let Some(client) = self.client() else {
@@ -790,6 +836,7 @@ impl Hub {
                     conversations,
                     rune_pages,
                     rune_catalog,
+                    spell_catalog,
                     friend_list,
                 ) = tokio::join!(
                     summoner::current_summoner(&client),
@@ -800,6 +847,7 @@ impl Hub {
                     load_conversations(&client),
                     runes::current_pages(&client),
                     runes::catalog(&client),
+                    summoner_spells::catalog(&client),
                     friends::friends(&client),
                 );
                 // 404 antes do login; qualquer outro erro também deixa vazio,
@@ -815,6 +863,8 @@ impl Hub {
                 // O catálogo antes das páginas, para a UI já poder desenhá-las.
                 self.set_rune_catalog(rune_catalog.ok().flatten());
                 self.set_rune_pages_if(rune_pages_stamp, rune_pages.ok());
+                // Antes da seleção, para a UI já poder desenhar os feitiços.
+                self.set_summoner_spell_catalog(spell_catalog.ok().flatten());
                 // Com o chat ainda conectando a LCU pode responder erro ou
                 // lista vazia; os eventos de cada amigo completam a lista.
                 // Nenhum comando mexe nos amigos e os eventos só são
@@ -861,6 +911,7 @@ impl Hub {
                 self.close_champ_select_chat(None);
                 self.set_rune_pages(None);
                 self.set_rune_catalog(None);
+                self.set_summoner_spell_catalog(None);
                 self.set_friends(Vec::new());
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),

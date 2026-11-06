@@ -14,6 +14,8 @@
 //!
 //! - [`state`]: que resposta cada `GET` recebe em cada momento.
 //! - [`champ_select`]: hover, ban e pick na seleção de campeões (#23).
+//! - [`summoner_spells`]: troca de feitiços na seleção e a lista de
+//!   feitiços do jogo (#24).
 //! - [`lobby`]: criar lobby, trocar a fila e sair (#17); escolher os cargos
 //!   (#18).
 //! - [`invitations`]: convites de lobby recebidos e enviados (#32).
@@ -34,6 +36,7 @@ pub mod lobby;
 pub mod matchmaking;
 pub mod perks;
 pub mod state;
+pub mod summoner_spells;
 pub mod swaps;
 pub mod tls;
 pub mod wamp;
@@ -757,6 +760,16 @@ async fn handle_request(
         (&Method::DELETE, p) if perks::page_id(p).is_some() => {
             let id = perks::page_id(p).unwrap_or_default();
             let (response, events) = perks::delete(&shared.state(), id);
+            emit_all(&shared, events);
+            response
+        }
+        // Feitiços de invocador (#24).
+        (&Method::GET, summoner_spells::SUMMONER_SPELLS) => {
+            summoner_spells::game_data(&shared.state())
+        }
+        (&Method::PATCH, summoner_spells::MY_SELECTION) => {
+            let body = read_json(request).await;
+            let (response, events) = summoner_spells::select(&shared.state(), &body);
             emit_all(&shared, events);
             response
         }

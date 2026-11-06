@@ -17,6 +17,7 @@ import type { Conversation } from '../bindings/Conversation';
 import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { RunePages } from '../bindings/RunePages';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
+import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 import type { Friend } from '../bindings/Friend';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
@@ -101,6 +102,9 @@ function runePages(v: unknown): v is RunePages | null {
 function runeCatalog(v: unknown): v is RuneCatalog | null {
   return v === null || (object(v) && list(v.styles, object) && list(v.perks, object));
 }
+function summonerSpellCatalog(v: unknown): v is SummonerSpellCatalog | null {
+  return v === null || (object(v) && list(v.spells, object));
+}
 function friend(v: unknown): v is Friend {
   return object(v) && strings(v, ['id', 'puuid', 'gameName', 'tagLine', 'name', 'availability', 'statusMessage']) &&
     (v.profileIconId === null || uint(v.profileIconId)) && (v.activity === null || object(v.activity));
@@ -143,6 +147,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
     case 'runePages': valid = runePages(v.runePages); break;
     case 'runeCatalog': valid = runeCatalog(v.runeCatalog); break;
+    case 'summonerSpellCatalog': valid = summonerSpellCatalog(v.summonerSpellCatalog); break;
     case 'friends': valid = list(v.friends, friend); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
       (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;

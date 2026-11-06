@@ -17,6 +17,7 @@
 //! {"type":"champSelectChat","champSelectChat":{"messages":[{"id":"...","body":"...","fromCellId":0,...}]}}
 //! {"type":"runePages","runePages":{"pages":[...],"currentPageId":994528921,"canCreatePage":true}}
 //! {"type":"runeCatalog","runeCatalog":{"styles":[...],"perks":[...]}}
+//! {"type":"summonerSpellCatalog","summonerSpellCatalog":{"spells":[{"id":4,"name":"Flash",...}]}}
 //! {"type":"friends","friends":[{"id":"...","gameName":"...","availability":"online",...}]}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
@@ -25,7 +26,8 @@
 //! {"id":7,"command":{"type":"ping"}}
 //! {"id":8,"command":{"type":"createLobby","queue":"rankedSolo"}}
 //! {"id":9,"command":{"type":"selectRunePage","pageId":994528921}}
-//! {"id":9,"command":{"type":"confirmAction","actionId":13,"championId":121}}
+//! {"id":10,"command":{"type":"confirmAction","actionId":13,"championId":121}}
+//! {"id":11,"command":{"type":"setSummonerSpells","spell1Id":4,"spell2Id":14}}
 //! ```
 //!
 //! Os tipos TypeScript em `ui/src/bindings/` saem destes tipos com `ts-rs`.
@@ -58,6 +60,7 @@ use crate::runes::{
     Perk, RuneCatalog, RunePage, RunePageInput, RunePages, RuneSlot, RuneSlotKind, RuneStyle,
 };
 use crate::summoner::Summoner;
+use crate::summoner_spells::{SummonerSpell, SummonerSpellCatalog};
 use crate::swaps::{ChampSelectSwap, SwapKind, SwapState};
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
@@ -135,6 +138,12 @@ pub enum ServerMessage {
     /// com o LoL, logo depois de conectar. `null` com o LoL fechado ou se a
     /// LCU não mandou as árvores.
     RuneCatalog { rune_catalog: Option<RuneCatalog> },
+    /// Os feitiços de invocador do jogo, para a escolha na seleção (#24).
+    /// Chega uma vez por conexão com o LoL, logo depois de conectar. `null`
+    /// com o LoL fechado ou se a LCU não mandou a lista.
+    SummonerSpellCatalog {
+        summoner_spell_catalog: Option<SummonerSpellCatalog>,
+    },
     /// A lista de amigos (#30) mudou: alguém ficou online ou offline, entrou
     /// numa partida, virou amigo ou deixou de ser. Sempre a lista inteira,
     /// já ordenada (disponíveis primeiro, depois por nome). Vazia com o LoL
@@ -172,6 +181,9 @@ pub struct AgentState {
     pub rune_pages: Option<RunePages>,
     /// Árvores de runas para o editor (#26), ou `null`.
     pub rune_catalog: Option<RuneCatalog>,
+    /// Feitiços de invocador do jogo, para a escolha na seleção (#24), ou
+    /// `null`.
+    pub summoner_spell_catalog: Option<SummonerSpellCatalog>,
     /// Amigos com a presença de cada um (#30), na ordem da tela.
     pub friends: Vec<Friend>,
 }
@@ -373,6 +385,18 @@ pub enum Command {
     /// (#23): marca o campeão e confirma, como o botão do client oficial.
     /// Só na vez da ação (`isInProgress`). Mesmos erros do `hoverChampion`.
     ConfirmAction { action_id: u32, champion_id: u32 },
+    /// Troca os feitiços de invocador do jogador logado na seleção (#24):
+    /// `spell1Id` é o da tecla D e `spell2Id` o da tecla F, como em
+    /// `champSelect.myTeam`. Para inverter os dois, mande os mesmos ids
+    /// trocados. Vale da etapa `PLANNING` até a `FINALIZATION`. Os ids vêm de
+    /// `summonerSpellCatalog`. Responde `invalidCommand` sem falar com a LCU
+    /// fora da seleção (ou com a partida abrindo), com um feitiço `0`, com os
+    /// dois iguais, com feitiço que não existe, que não vale na fila
+    /// (`queues` do feitiço) ou acima do nível do invocador
+    /// (`summonerLevel`). A seleção nova chega numa mensagem `champSelect`
+    /// antes da resposta. Responde `notConnected` com o LoL fechado e `lcu`
+    /// se a LCU recusar.
+    SetSummonerSpells { spell1_id: u32, spell2_id: u32 },
     /// Pede uma troca a um aliado na seleção (#25): de campeão
     /// (`kind: "champion"`), de vez no draft (`"pickOrder"`) ou de cargo
     /// (`"position"`). `swapId` é o `id` de uma entrada `AVAILABLE` em
@@ -500,6 +524,8 @@ pub fn typescript_bindings() -> Result<Vec<(String, String)>, ts_rs::ExportError
         file::<RuneSlotKind>(&cfg)?,
         file::<Perk>(&cfg)?,
         file::<RunePageInput>(&cfg)?,
+        file::<SummonerSpellCatalog>(&cfg)?,
+        file::<SummonerSpell>(&cfg)?,
         file::<ClientMessage>(&cfg)?,
         file::<Command>(&cfg)?,
         file::<CommandResult>(&cfg)?,
@@ -546,6 +572,7 @@ mod tests {
                     "champSelectChat": null,
                     "runePages": null,
                     "runeCatalog": null,
+                    "summonerSpellCatalog": null,
                     "friends": [],
                 },
             })
@@ -754,6 +781,18 @@ mod tests {
         );
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 14,
+            "command": {"type": "setSummonerSpells", "spell1Id": 4, "spell2Id": 14},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::SetSummonerSpells {
+                spell1_id: 4,
+                spell2_id: 14
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 15,
             "command": {"type": "requestSwap", "kind": "pickOrder", "swapId": 28},
         }))
         .unwrap();
@@ -761,7 +800,7 @@ mod tests {
             msg.command,
             Command::RequestSwap {
                 kind: SwapKind::PickOrder,
-                swap_id: 28,
+                swap_id: 28
             }
         );
         for (name, kind) in [
