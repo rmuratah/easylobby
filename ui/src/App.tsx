@@ -12,6 +12,8 @@ import { InvitationsPanel } from './components/InvitationsPanel';
 import { ChatButton, ChatPanel } from './components/ChatPanel';
 import { Notifications } from './components/Notifications';
 import { ChampSelectPanel } from './components/ChampSelectPanel';
+import { ThemeSwitcher } from './components/ThemeSwitcher';
+import { useTheme } from './theme/theme';
 
 function connectionLabel(connection: ConnectionSnapshot): string {
   if (connection.status === 'incompatible') return 'Versões incompatíveis';
@@ -28,6 +30,7 @@ function connectionLabel(connection: ConnectionSnapshot): string {
 
 export default function App() {
   const connection = useAgent();
+  const { preference, setPreference } = useTheme();
   const [chatWith, setChatWith] = useState<string | null>(null);
   const screen = mainScreen(connection);
   const contentRef = useRef<HTMLElement>(null);
@@ -54,7 +57,10 @@ export default function App() {
     <div className="app-shell">
       <header className="app-header">
         <h1 className="text-2xl font-semibold">easylobby</h1>
-        <LaunchUxButton connection={connection} send={connection.send} />
+        <div className="flex items-center gap-4">
+          <ThemeSwitcher preference={preference} onChange={setPreference} />
+          <LaunchUxButton connection={connection} send={connection.send} />
+        </div>
       </header>
       <main ref={contentRef} className="app-content">
         <p role="status" className="text-slate-300">{connectionLabel(connection)}</p>

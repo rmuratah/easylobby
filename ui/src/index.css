@@ -5,7 +5,8 @@
 :root { background: #020617; color: #f1f5f9; }
 body { margin: 0; }
 [hidden] { display: none !important; }
-.app-shell { height: 100dvh; display: flex; flex-direction: column; }
+/* Telas antigas continuam escuras até serem redesenhadas (Fase 5). */
+.app-shell { color-scheme: dark; height: 100dvh; display: flex; flex-direction: column; }
 .app-header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.5rem; border-bottom: 1px solid #334155; }
 .app-content { overflow: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
 .app-content > * { flex-shrink: 0; }
