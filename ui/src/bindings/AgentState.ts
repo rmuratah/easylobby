@@ -5,6 +5,7 @@ import type { ChampSelectChat } from "./ChampSelectChat";
 import type { ChampionCatalog } from "./ChampionCatalog";
 import type { Conversation } from "./Conversation";
 import type { Friend } from "./Friend";
+import type { GameQueue } from "./GameQueue";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
 import type { Lobby } from "./Lobby";
@@ -29,6 +30,11 @@ export type AgentState = {
    * Ready check aberto (partida encontrada, #20), ou `null`.
    */
   readyCheck: ReadyCheck | null,
+  /**
+   * Filas em que dá para criar lobby agora (#146), lidas da LCU. Vazia
+   * com o LoL fechado.
+   */
+  queues: Array<GameQueue>,
   /**
    * Seleção de campeões em andamento (#22), ou `null`.
    */

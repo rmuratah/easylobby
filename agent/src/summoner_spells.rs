@@ -24,6 +24,7 @@ use ts_rs::TS;
 
 use crate::champ_select::{ChampSelect, ChampSelectPhase};
 use crate::lobby::Queue;
+use crate::queues::GameQueue;
 use crate::rest::{LcuClient, LcuError};
 
 /// Escolhas do jogador logado na seleção (feitiços, skin...).
@@ -78,6 +79,29 @@ impl SummonerSpellCatalog {
 
     pub fn get(&self, id: u32) -> Option<&SummonerSpell> {
         self.spells.iter().find(|s| s.id == id)
+    }
+
+    /// O modo de jogo de `gameModes` que vale na fila `queue` (#146).
+    ///
+    /// Normalmente é o próprio modo da fila. Mas um modo novo pode chegar
+    /// antes de o arquivo de feitiços listá-lo (a ARAM: Desordem é `KIWI`):
+    /// se nenhum feitiço tem o modo da fila, uma fila do Abismo Uivante usa
+    /// as regras do `ARAM`, e as outras ficam sem filtro (`None`, a LCU
+    /// decide).
+    pub fn spell_game_mode<'a>(&self, queue: &'a GameQueue) -> Option<&'a str> {
+        let mode = queue.game_mode.as_str();
+        let listed = |mode: &str| {
+            self.spells
+                .iter()
+                .any(|s| s.game_modes.iter().any(|m| m == mode))
+        };
+        if listed(mode) {
+            Some(mode)
+        } else if queue.is_aram_like() {
+            Some(game_mode(Queue::Aram))
+        } else {
+            None
+        }
     }
 }
 
@@ -187,6 +211,28 @@ pub fn check_spells(
     spell1_id: u32,
     spell2_id: u32,
 ) -> Result<(), InvalidSpells> {
+    check_spells_in(
+        champ_select,
+        None,
+        catalog,
+        summoner_level,
+        spell1_id,
+        spell2_id,
+    )
+}
+
+/// Como [`check_spells`], com a fila da seleção na lista de filas
+/// disponíveis (#146). Numa fila que não é uma das [`Queue`] fixas (ARAM:
+/// Desordem, Jade...), confere o feitiço pelo modo de jogo dela; veja
+/// [`SummonerSpellCatalog::spell_game_mode`].
+pub fn check_spells_in(
+    champ_select: Option<&ChampSelect>,
+    game_queue: Option<&GameQueue>,
+    catalog: Option<&SummonerSpellCatalog>,
+    summoner_level: Option<u32>,
+    spell1_id: u32,
+    spell2_id: u32,
+) -> Result<(), InvalidSpells> {
     let cs = champ_select.ok_or(InvalidSpells::NoChampSelect)?;
     if cs.local_player().is_none() {
         return Err(InvalidSpells::NoChampSelect);
@@ -205,10 +251,16 @@ pub fn check_spells(
     };
     for id in [spell1_id, spell2_id] {
         let spell = catalog.get(id).ok_or(InvalidSpells::UnknownSpell(id))?;
-        if let Some(queue) = cs.queue {
-            if !spell.allowed_in(queue) {
-                return Err(InvalidSpells::NotInQueue(id));
-            }
+        let allowed = match (cs.queue, game_queue) {
+            (Some(queue), _) => spell.allowed_in(queue),
+            (None, Some(game_queue)) => catalog
+                .spell_game_mode(game_queue)
+                .is_none_or(|mode| spell.game_modes.iter().any(|m| m == mode)),
+            // Fila desconhecida (personalizada...): a LCU decide.
+            (None, None) => true,
+        };
+        if !allowed {
+            return Err(InvalidSpells::NotInQueue(id));
         }
         if summoner_level.is_some_and(|level| level < spell.summoner_level) {
             return Err(InvalidSpells::LevelTooLow(id));
@@ -355,6 +407,72 @@ mod tests {
         assert_eq!(
             check_spells(Some(&ranked), None, Some(1), 4, 4),
             Err(InvalidSpells::SameSpell)
+        );
+    }
+
+    /// Uma fila da lista de filas disponíveis (#146).
+    fn game_queue(queue_id: u32, game_mode: &str, mode_group: &str) -> GameQueue {
+        let raw = json!([{
+            "id": queue_id, "name": "Fila", "gameMode": game_mode,
+            "gameSelectCategory": "kPvP", "gameSelectModeGroup": mode_group,
+            "queueAvailability": "Available", "isEnabled": true, "isVisible": true,
+        }]);
+        crate::queues::from_json(&raw).unwrap().remove(0)
+    }
+
+    #[test]
+    fn desordem_usa_as_regras_do_aram_sem_modo_proprio_no_catalogo() {
+        let catalog = SummonerSpellCatalog::from_json(&raw_catalog()).unwrap();
+        let mayhem = game_queue(2400, "KIWI", "kARAM");
+        assert_eq!(catalog.spell_game_mode(&mayhem), Some("ARAM"));
+        let cs = session(2400, "BAN_PICK");
+        assert_eq!(cs.queue, None);
+        let check =
+            |s1, s2| check_spells_in(Some(&cs), Some(&mayhem), Some(&catalog), Some(30), s1, s2);
+        // Marcar vale, Golpear não.
+        assert_eq!(check(4, 32), Ok(()));
+        assert_eq!(check(4, 11), Err(InvalidSpells::NotInQueue(11)));
+    }
+
+    #[test]
+    fn modo_listado_no_catalogo_vale_por_si() {
+        let mut raw = raw_catalog();
+        // Um patch em que o arquivo de feitiços já conhece o `KIWI`, só com
+        // o Flash e o Incendiar.
+        for spell in raw.as_array_mut().unwrap() {
+            if spell["id"] == 4 || spell["id"] == 14 {
+                spell["gameModes"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!("KIWI"));
+            }
+        }
+        let catalog = SummonerSpellCatalog::from_json(&raw).unwrap();
+        let mayhem = game_queue(2400, "KIWI", "kARAM");
+        assert_eq!(catalog.spell_game_mode(&mayhem), Some("KIWI"));
+        let cs = session(2400, "BAN_PICK");
+        let check =
+            |s1, s2| check_spells_in(Some(&cs), Some(&mayhem), Some(&catalog), Some(30), s1, s2);
+        assert_eq!(check(4, 14), Ok(()));
+        assert_eq!(check(4, 32), Err(InvalidSpells::NotInQueue(32)));
+    }
+
+    #[test]
+    fn modo_desconhecido_fora_do_aram_fica_sem_filtro() {
+        let catalog = SummonerSpellCatalog::from_json(&raw_catalog()).unwrap();
+        let jade = game_queue(4310, "JADE", "kJade");
+        assert_eq!(catalog.spell_game_mode(&jade), None);
+        let cs = session(4310, "BAN_PICK");
+        assert_eq!(
+            check_spells_in(Some(&cs), Some(&jade), Some(&catalog), Some(30), 4, 32),
+            Ok(())
+        );
+        // Contra IA no Rift usa o modo `SWIFTPLAY`, que o catálogo conhece.
+        let bots = game_queue(880, "SWIFTPLAY", "kSummonersRift");
+        let cs = session(880, "BAN_PICK");
+        assert_eq!(
+            check_spells_in(Some(&cs), Some(&bots), Some(&catalog), Some(30), 4, 32),
+            Err(InvalidSpells::NotInQueue(32))
         );
     }
 

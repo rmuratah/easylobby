@@ -7,6 +7,7 @@ import type { ChampionCatalog } from "./ChampionCatalog";
 import type { CommandResult } from "./CommandResult";
 import type { Conversation } from "./Conversation";
 import type { Friend } from "./Friend";
+import type { GameQueue } from "./GameQueue";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
 import type { Lobby } from "./Lobby";
@@ -37,6 +38,7 @@ export type ServerMessage =
   | { "type": "lobby", lobby: Lobby | null, }
   | { "type": "matchmaking", matchmaking: Matchmaking | null, }
   | { "type": "readyCheck", readyCheck: ReadyCheck | null, }
+  | { "type": "queues", queues: Array<GameQueue>, }
   | { "type": "champSelect", champSelect: ChampSelect | null, }
   | { "type": "champSelectChat", champSelectChat: ChampSelectChat | null, }
   | { "type": "summonerSpellCatalog", summonerSpellCatalog: SummonerSpellCatalog | null, }

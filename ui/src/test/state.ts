@@ -11,6 +11,7 @@ export const emptyState: AgentState = {
   lobby: null,
   matchmaking: null,
   readyCheck: null,
+  queues: [],
   champSelect: null,
   champSelectChat: null,
   summonerSpellCatalog: null,

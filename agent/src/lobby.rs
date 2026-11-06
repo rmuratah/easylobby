@@ -427,8 +427,14 @@ pub async fn current_lobby(lcu: &LcuClient) -> Result<Option<Lobby>, LcuError> {
 /// Cria um lobby na fila `queue`, ou troca a fila do lobby atual
 /// (`POST /lol-lobby/v2/lobby`). Devolve o lobby que a LCU respondeu.
 pub async fn create_lobby(lcu: &LcuClient, queue: Queue) -> Result<Option<Lobby>, LcuError> {
+    create_lobby_by_id(lcu, queue.id()).await
+}
+
+/// Como [`create_lobby`], com o `queueId` da Riot de qualquer fila
+/// disponível ([`crate::queues`], #146).
+pub async fn create_lobby_by_id(lcu: &LcuClient, queue_id: u32) -> Result<Option<Lobby>, LcuError> {
     let body: Value = lcu
-        .post(LOBBY_PATH, &json!({ "queueId": queue.id() }))
+        .post(LOBBY_PATH, &json!({ "queueId": queue_id }))
         .await?;
     Ok(Lobby::from_json(&body))
 }

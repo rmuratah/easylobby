@@ -7,6 +7,7 @@ import {
 } from '../test/events';
 import type { AgentState } from '../bindings/AgentState';
 import type { ChampSelectChat } from '../bindings/ChampSelectChat';
+import type { GameQueue } from '../bindings/GameQueue';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import type { Command } from '../bindings/Command';
 import type { CommandResult } from '../bindings/CommandResult';
@@ -26,6 +27,10 @@ class Socket {
 }
 const testChampSelectChat: ChampSelectChat = {
   messages: [{ id: 'm1', body: 'vou top', fromMe: false, fromCellId: 0, timestamp: '2026-11-05T01:15:00.000Z' }],
+};
+const testQueue: GameQueue = {
+  queueId: 2400, queue: null, name: 'ARAM: Desordem', description: 'ARAM: Desordem', gameMode: 'KIWI', modeGroup: 'kARAM',
+  mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: false,
 };
 const state: AgentState = makeState({ gameflowPhase: 'Lobby' });
 const hello = (overrides: Partial<AgentState> = {}): ServerMessage => ({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: { ...state, ...overrides } });
@@ -216,6 +221,7 @@ describe('eventos de estado do agente', () => {
     [{ type: 'champSelectChampions', champSelectChampions: { pickable: [1, 266], bannable: null } },
       { champSelectChampions: { pickable: [1, 266], bannable: null } }],
     [{ type: 'friends', friends: [testFriend] }, { friends: [testFriend] }],
+    [{ type: 'queues', queues: [testQueue] }, { queues: [testQueue] }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
     socket().receive(hello({ lobby: testLobby }));
     socket().receive(message);

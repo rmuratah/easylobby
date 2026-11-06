@@ -16,6 +16,7 @@
 //! - [`ux`]: fecha a UI oficial ao conectar (`kill-ux`) e reabre
 //!   (`launch-ux`) (#12)
 //! - [`lobby`]: lobby e escolha de fila (#17)
+//! - [`queues`]: filas disponíveis para criar lobby, lidas da LCU (#146)
 //! - [`invitations`]: convites de lobby recebidos e enviados (#32)
 //! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19)
 //! - [`ws`]: canal `/ws` com eventos e comandos tipados para a UI (#15)
@@ -49,6 +50,7 @@ pub mod launcher;
 pub mod lobby;
 pub mod lockfile;
 pub mod matchmaking;
+pub mod queues;
 pub mod ready_check;
 pub mod rest;
 pub mod runes;
