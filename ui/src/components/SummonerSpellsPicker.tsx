@@ -31,9 +31,10 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send
   const me = champSelect.myTeam.find(p => p.cellId === champSelect.localPlayerCellId);
   if (!me) return null;
   const current: [number, number] = [me.spell1Id ?? 0, me.spell2Id ?? 0];
-  const over = champSelect.timer.phase === 'GAME_STARTING';
+  const disabled = champSelect.timer.phase === 'GAME_STARTING' || command.pending || !catalog;
   const spells = spellsForQueue(catalog, champSelect.queue);
   function choose(slot: 0 | 1, spellId: number) {
+    if (disabled) return;
     setOpen(null);
     const [spell1Id, spell2Id] = withSpell(current, slot, spellId);
     if (spell1Id === current[0] && spell2Id === current[1]) return;
@@ -48,7 +49,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send
           const slot = index as 0 | 1;
           return (
             <button key={label} type="button" aria-label={`${label}: ${spellName(catalog, current[slot] || null)}`}
-              aria-expanded={open === slot} disabled={over || command.pending || !catalog}
+              aria-expanded={open === slot} disabled={disabled}
               onClick={() => setOpen(open === slot ? null : slot)}
               className="flex items-center gap-2 rounded border border-slate-600 px-2 py-1 aria-expanded:border-sky-400 disabled:cursor-not-allowed disabled:opacity-50">
               <SpellIcon id={current[slot] || null} />
@@ -64,7 +65,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send
             const unlocked = spellUnlocked(spell, summonerLevel);
             return (
               <li key={spell.id}>
-                <button type="button" aria-pressed={current[open] === spell.id} disabled={!unlocked}
+                <button type="button" aria-pressed={current[open] === spell.id} disabled={disabled || !unlocked}
                   title={unlocked ? spell.name : `${spell.name} (libera no nível ${spell.summonerLevel})`}
                   onClick={() => choose(open, spell.id)}
                   className="flex w-20 flex-col items-center gap-1 rounded border border-transparent p-1 text-xs aria-pressed:border-sky-400 aria-pressed:bg-sky-950 disabled:cursor-not-allowed disabled:opacity-40">
