@@ -12,7 +12,7 @@ body { margin: 0; }
 .app-content > * { flex-shrink: 0; }
 .app-sidebar { width: 20rem; flex-shrink: 0; overflow: auto; padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 1rem; border-left: 1px solid #334155; }
 .app-sidebar > * { flex-shrink: 0; }
-.sidebar-toggle, .app-content nav button, .app-content > section > button { border: 1px solid #475569; border-radius: .375rem; padding: .5rem 1rem; }
+.sidebar-toggle, .nav-button, .app-content nav button { border: 1px solid #475569; border-radius: .375rem; padding: .5rem 1rem; }
 button[aria-current="page"] { background: #0c4a6e; border-color: #38bdf8; }
 :focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
 .play-panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }

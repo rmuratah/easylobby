@@ -32,15 +32,15 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe('páginas de runas pelo /ws', () => {
   it('aplica uma página e mostra a página em uso confirmada pelo agente', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
     act(() => socket().receive({
       type: 'hello', protocol: 1, agentVersion: '0.1.0',
       state: { ...testState, runePages: pages, runeCatalog: testFullRuneCatalog },
     }));
+    fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
     expect(panel().getByRole('listitem', { name: 'Mid' })).toHaveAttribute('aria-current', 'true');
     act(() => { fireEvent.click(panel().getByRole('button', { name: 'Usar Top' })); });
     expect(request().command).toEqual({ type: 'selectRunePage', pageId: 11 });
-    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Início' }));
     fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
     expect(panel().getByRole('button', { name: 'Usar Top' })).toBeDisabled();
     fireEvent.click(panel().getByRole('button', { name: 'Usar Top' }));
