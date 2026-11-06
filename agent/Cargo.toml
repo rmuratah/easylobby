@@ -9,7 +9,6 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-sysinfo = { version = "0.37", default-features = false, features = ["system"] }
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }
@@ -24,6 +23,20 @@ tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
 # Canal /ws para a UI (#15) e os tipos TypeScript gerados do Rust.
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws"] }
 ts-rs = "12"
+
+# Fora do Windows (o mock-lcu no Linux/macOS), a lista de processos vem do
+# sysinfo. No Windows ele abre todos os processos com PROCESS_VM_READ e lê a
+# memória deles, o que o Vanguard pode punir (VAN7003); lá a lista vem da
+# Toolhelp (`lockfile::windows`).
+[target.'cfg(not(windows))'.dependencies]
+sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Threading",
+] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
