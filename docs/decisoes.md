@@ -34,7 +34,7 @@ O redesign dá ao app um visual próprio em todas as telas, sem mudar o agente. 
 
 - **Estilo:** claro e minimalista, com identidade própria. O app não imita o client oficial: nada de molduras douradas, da fonte Beaufort ou de assets da interface da Riot. Dados e imagens do jogo (ícones de campeão, runa e feitiço vindos do client) podem ser usados.
 - **Temas:** claro e escuro, feitos com tokens de cor (variáveis CSS). Por padrão o app segue o tema do Windows; o usuário escolhe Sistema, Claro ou Escuro, e a escolha fica salva no app.
-- **Cor de destaque:** teal (`#0E7469` no claro, `#34D1BC` no escuro).
+- **Cor de destaque:** teal da paleta fornecida por Victor (`#008498` no claro, `#21ABB8` no escuro). Os valores originais ficam em `ui/src/theme/themeColors.ts`; papéis semânticos ajustam contraste quando necessário.
 - **Fonte:** Figtree, embutida no build. Nada é carregado da internet.
 - **Estrutura da janela:** barra de título própria, sem a moldura do Windows, com minimizar, fechar, "Abrir client oficial" e o seletor de tema. A área principal muda sozinha conforme o estado do jogo; amigos, convites e chat ficam numa coluna lateral recolhível.
 - **Lobby unificado:** fila e partida encontrada aparecem dentro da tela do lobby. Ao aceitar a partida, a seleção de campeões ocupa a tela.

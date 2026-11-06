@@ -1,53 +1,104 @@
-/*
- * Tokens do redesign (Fase 5), com os valores do protótipo aprovado na #122.
- * O tema vem do atributo data-theme no <html>: "claro" ou "escuro".
- * Telas novas usam só as classes geradas daqui (bg-surface, text-muted,
- * border-control, rounded-card...), nunca cores fixas do Tailwind.
- */
-
+/* Gerado por node ui/scripts/generate-palette.mjs. Fonte: themeColors.ts. */
 :root,
 [data-theme="claro"] {
-  --el-bg: #f4f7f6;
-  --el-surface: #ffffff;
-  --el-raised: #ebf0ef;
-  --el-ink: #13201f;
-  --el-muted: #566866;
-  --el-line: #dce4e2;
-  --el-control: #7a8f8c;
-  --el-accent: #0e7469;
-  --el-on-accent: #ffffff;
-  --el-accent-soft: #ddf1ec;
-  --el-accent-ink: #0b5e55;
-  --el-danger: #b42318;
-  --el-warn: #9a4a06;
-  --el-status-online: #1e8a4c;
-  --el-status-game: #2b63d1;
-  --el-status-away: #a86608;
-  --el-overlay: rgb(19 32 31 / 0.32);
-}
-
-[data-theme="claro"] {
   color-scheme: light;
+  --el-palette-background: #F7F6F1;
+  --el-palette-foreground: #17202B;
+  --el-palette-card: #FFFFFF;
+  --el-palette-card-foreground: #17202B;
+  --el-palette-secondary: #F2F0EB;
+  --el-palette-secondary-foreground: #252F3A;
+  --el-palette-muted: #F3F1ED;
+  --el-palette-muted-foreground: #6A727D;
+  --el-palette-border: #E5E3DD;
+  --el-palette-primary-default: #008498;
+  --el-palette-primary-foreground: #F8FDFE;
+  --el-palette-primary-soft: #D7F3F9;
+  --el-palette-primary-gradient: linear-gradient(135deg, #0084A5 0%, #00A6AC 100%);
+  --el-palette-gold-default: #CCA051;
+  --el-palette-gold-soft: #FBEFD6;
+  --el-palette-gold-gradient: linear-gradient(135deg, #E3BC6B 0%, #C28E3B 100%);
+  --el-palette-accent-bg: #F9EFDA;
+  --el-palette-accent-text: #755421;
+  --el-palette-destructive: #E24947;
+  --el-palette-status-online: #3EB268;
+  --el-palette-status-ingame: #348DCF;
+  --el-palette-status-away: #E1A447;
+  --el-palette-status-offline: #B3B8BE;
+  --el-palette-avatars-0: #F2A7A1;
+  --el-palette-avatars-1: #73CDDF;
+  --el-palette-avatars-2: #E2BF76;
+  --el-palette-avatars-3: #90CEAC;
+  --el-palette-avatars-4: #BFACE4;
+  --el-palette-avatars-5: #9CC2EA;
+  --el-bg: #F7F6F1;
+  --el-surface: #FFFFFF;
+  --el-raised: #F2F0EB;
+  --el-ink: #17202B;
+  --el-muted: #666e79;
+  --el-line: #E5E3DD;
+  --el-control: #888b8d;
+  --el-accent: #03788b;
+  --el-on-accent: #F8FDFE;
+  --el-accent-soft: #D7F3F9;
+  --el-accent-ink: #03778a;
+  --el-danger: #bf4242;
+  --el-warn: #755421;
+  --el-status-online: #389c5f;
+  --el-status-game: #348dcf;
+  --el-status-away: #af8340;
+  --el-status-offline: #848a92;
+  --el-overlay: rgb(23 32 43 / 0.32);
 }
 
 [data-theme="escuro"] {
   color-scheme: dark;
-  --el-bg: #0f1716;
-  --el-surface: #17211f;
-  --el-raised: #1f2b29;
-  --el-ink: #e6eeec;
-  --el-muted: #97aba8;
-  --el-line: #2a3735;
-  --el-control: #5e7a75;
-  --el-accent: #34d1bc;
-  --el-on-accent: #04201c;
-  --el-accent-soft: #123a35;
-  --el-accent-ink: #7fe6d6;
-  --el-danger: #ff7a6b;
-  --el-warn: #f5a65b;
-  --el-status-online: #3ccb7f;
-  --el-status-game: #6a9cff;
-  --el-status-away: #e6a23c;
+  --el-palette-background: #0A1017;
+  --el-palette-foreground: #F0EEE9;
+  --el-palette-card: #131A23;
+  --el-palette-card-foreground: #F0EEE9;
+  --el-palette-secondary: #1E252E;
+  --el-palette-secondary-foreground: #E6E4DF;
+  --el-palette-muted: #1C232C;
+  --el-palette-muted-foreground: #9099A5;
+  --el-palette-border: #252C35;
+  --el-palette-primary-default: #21ABB8;
+  --el-palette-primary-foreground: #F8FDFD;
+  --el-palette-primary-soft: #05343D;
+  --el-palette-primary-gradient: linear-gradient(135deg, #0089AA 0%, #2DB6BC 100%);
+  --el-palette-gold-default: #DAB060;
+  --el-palette-gold-soft: #362913;
+  --el-palette-gold-gradient: linear-gradient(135deg, #E9C171 0%, #C7913D 100%);
+  --el-palette-accent-bg: #382C15;
+  --el-palette-accent-text: #EBC989;
+  --el-palette-destructive: #F3625D;
+  --el-palette-status-online: #54C57A;
+  --el-palette-status-ingame: #55AEE8;
+  --el-palette-status-away: #EEB154;
+  --el-palette-status-offline: #5F6469;
+  --el-palette-avatars-0: #BB6D67;
+  --el-palette-avatars-1: #3694A6;
+  --el-palette-avatars-2: #AE8D44;
+  --el-palette-avatars-3: #599576;
+  --el-palette-avatars-4: #8874AE;
+  --el-palette-avatars-5: #608AB5;
+  --el-bg: #0A1017;
+  --el-surface: #131A23;
+  --el-raised: #1E252E;
+  --el-ink: #F0EEE9;
+  --el-muted: #9099a5;
+  --el-line: #252C35;
+  --el-control: #6a6e72;
+  --el-accent: #21abb8;
+  --el-on-accent: #2e343a;
+  --el-accent-soft: #05343D;
+  --el-accent-ink: #21abb8;
+  --el-danger: #f3625d;
+  --el-warn: #ebc989;
+  --el-status-online: #54c57a;
+  --el-status-game: #55aee8;
+  --el-status-away: #eeb154;
+  --el-status-offline: #6b6f73;
   --el-overlay: rgb(0 0 0 / 0.55);
 }
 
@@ -92,3 +143,21 @@
   --radius-control-lg: 0.75rem;
   --radius-card: 0.875rem;
 }
+
+@theme inline {
+  --color-secondary: var(--el-palette-secondary);
+  --color-secondary-foreground: var(--el-palette-secondary-foreground);
+  --color-muted-surface: var(--el-palette-muted);
+  --color-gold: var(--el-palette-gold-default);
+  --color-gold-soft: var(--el-palette-gold-soft);
+  --color-status-offline: var(--el-status-offline);
+  --color-avatar-1: var(--el-palette-avatars-0);
+  --color-avatar-2: var(--el-palette-avatars-1);
+  --color-avatar-3: var(--el-palette-avatars-2);
+  --color-avatar-4: var(--el-palette-avatars-3);
+  --color-avatar-5: var(--el-palette-avatars-4);
+  --color-avatar-6: var(--el-palette-avatars-5);
+}
+
+@utility bg-primary-gradient { background-image: var(--el-palette-primary-gradient); }
+@utility bg-gold-gradient { background-image: var(--el-palette-gold-gradient); }
