@@ -136,7 +136,7 @@ function champSelectChampions(v: unknown): v is ChampSelectChampions {
   return object(v) && nullableIds(v.pickable) && nullableIds(v.bannable);
 }
 function friend(v: unknown): v is Friend {
-  return object(v) && strings(v, ['id', 'puuid', 'gameName', 'tagLine', 'name', 'availability', 'statusMessage']) &&
+  return object(v) && uint(v.summonerId) && strings(v, ['id', 'puuid', 'gameName', 'tagLine', 'name', 'availability', 'statusMessage']) &&
     (v.profileIconId === null || uint(v.profileIconId)) && (v.activity === null || object(v.activity));
 }
 function status(v: unknown): v is LcuStatus {

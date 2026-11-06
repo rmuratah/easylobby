@@ -47,7 +47,7 @@ export const testSummonerSpellCatalog: SummonerSpellCatalog = {
   spells: [{ id: 4, name: 'Flash', description: 'Teleporta.', summonerLevel: 7, gameModes: ['CLASSIC'], queues: ['rankedSolo'] }],
 };
 export const testFriend: Friend = {
-  id: 'amigo@br1.pvp.net', puuid: 'amigo', gameName: 'Amigo', tagLine: 'BR1', name: '', profileIconId: null,
+  id: 'amigo@br1.pvp.net', puuid: 'amigo', summonerId: 1003, gameName: 'Amigo', tagLine: 'BR1', name: '', profileIconId: null,
   availability: 'online', statusMessage: '', activity: null,
 };
 export const testChampionCatalog: ChampionCatalog = {

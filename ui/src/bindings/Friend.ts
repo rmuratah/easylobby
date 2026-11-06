@@ -13,6 +13,12 @@ export type Friend = {
   id: string,
   puuid: string,
   /**
+   * `summonerId` do LoL, usado para convidar para o lobby (#32): a LCU só
+   * entrega o convite com o `toSummonerId`. `0` quando a LCU não manda
+   * (amigo que nunca jogou LoL, por exemplo).
+   */
+  summonerId: number,
+  /**
    * Nome do Riot ID (antes do `#`). Vazio em contas antigas sem Riot ID;
    * nesse caso use `name`.
    */

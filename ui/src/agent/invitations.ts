@@ -44,12 +44,13 @@ export function freeSlots(lobby: Lobby): number {
 
 /**
  * Amigos que dá para convidar agora: online no PC (no celular não entram no
- * lobby), fora do grupo e sem convite em aberto.
+ * lobby), com `summonerId` (sem ele a LCU não entrega o convite), fora do
+ * grupo e sem convite em aberto.
  */
 export function invitableFriends(lobby: Lobby, friends: Friend[]): Friend[] {
   const taken = new Set([
     ...lobby.members.map(m => m.puuid),
     ...lobby.invitations.filter(i => isOpenInvitation(i.state)).map(i => i.puuid),
   ]);
-  return friends.filter(f => isOnline(f) && f.availability !== 'mobile' && !!f.puuid && !taken.has(f.puuid));
+  return friends.filter(f => isOnline(f) && f.availability !== 'mobile' && f.summonerId > 0 && !!f.puuid && !taken.has(f.puuid));
 }
