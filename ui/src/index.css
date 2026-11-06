@@ -7,20 +7,23 @@ body { margin: 0; }
 [hidden] { display: none !important; }
 /* Telas antigas continuam escuras até serem redesenhadas (Fase 5). */
 .app-shell { color-scheme: dark; height: 100dvh; display: flex; flex-direction: column; }
-.app-content { overflow: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
+.app-body { display: flex; flex: 1; min-height: 0; }
+.app-content { container-type: inline-size; flex: 1; min-width: 0; overflow: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
 .app-content > * { flex-shrink: 0; }
-.app-content nav button, .app-content > section > button { border: 1px solid #475569; border-radius: .375rem; padding: .5rem 1rem; }
+.app-sidebar { width: 20rem; flex-shrink: 0; overflow: auto; padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 1rem; border-left: 1px solid #334155; }
+.app-sidebar > * { flex-shrink: 0; }
+.sidebar-toggle, .app-content nav button, .app-content > section > button { border: 1px solid #475569; border-radius: .375rem; padding: .5rem 1rem; }
 button[aria-current="page"] { background: #0c4a6e; border-color: #38bdf8; }
 :focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
 .play-panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
 .play-panels[data-screen="home"], .play-panels[data-screen="queue"] { grid-template-columns: minmax(0, 42rem); }
 .play-panels section { max-width: none; }
-@media (max-width: 850px) { .play-panels { grid-template-columns: minmax(0, 1fr); } }
+@container (max-width: 44rem) { .play-panels { grid-template-columns: minmax(0, 1fr); } }
 .champ-select { display: flex; flex-direction: column; gap: 1rem; }
 .champ-select-board { display: grid; grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr) minmax(12rem, 16rem); gap: 1rem; align-items: start; }
 .champ-select-center { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 .champion-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr)); gap: .25rem; max-height: 28rem; overflow: auto; }
-@media (max-width: 56rem) {
+@container (max-width: 56rem) {
   .champ-select-board { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .champ-select-center { grid-column: 1 / -1; grid-row: 2; }
 }
