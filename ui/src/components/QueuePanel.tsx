@@ -42,9 +42,9 @@ export function QueuePanel({ connection, send }: Props) {
   const lcu = state?.lcu;
   if (connection.status !== 'connected' || !state || lcu?.state !== 'connected') {
     return (
-      <section aria-label="Busca de partida" className="w-full max-w-lg rounded border border-slate-700 p-4">
-        <h2 className="text-xl font-semibold">Busca de partida</h2>
-        <p>Aguarde a reconexão. O estado da fila será confirmado novamente pelo agente.</p>
+      <section aria-label="Busca de partida" className="flex w-full flex-col gap-2 rounded-card border border-line bg-surface p-5 text-ink">
+        <h2 className="text-section font-semibold">Busca de partida</h2>
+        <p className="text-body text-muted">Aguarde a reconexão. O estado da fila será confirmado novamente pelo agente.</p>
       </section>
     );
   }
