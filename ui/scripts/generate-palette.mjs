@@ -27,8 +27,9 @@ for(const [name,p] of Object.entries(colors)) {
     }
   }
   flatten(p);
+  // O texto secundário também aparece sobre o destaque suave (jogador da vez, página em uso, partida encontrada).
   const fg=(color,min=4.5)=>readable(color,backgrounds,p.foreground,min);
-  const tokens={...raw,bg:p.background,surface:p.card,raised:p.secondary,ink:p.foreground,muted:fg(p.mutedForeground),line:p.border,control:fg(p.border,3),accent:fg(p.primary.default,4.5),'on-accent':p.primary.foreground,'accent-soft':p.primary.soft,'accent-ink':readable(p.primary.default,[p.primary.soft],p.foreground,4.5),danger:fg(p.destructive),warn:fg(p.accent.text),'status-online':fg(p.status.online,3),'status-game':fg(p.status.ingame,3),'status-away':fg(p.status.away,3),'status-offline':fg(p.status.offline,3),overlay:name==='light'?'rgb(23 32 43 / 0.32)':'rgb(0 0 0 / 0.55)'};
+  const tokens={...raw,bg:p.background,surface:p.card,raised:p.secondary,ink:p.foreground,muted:readable(p.mutedForeground,[...backgrounds,p.primary.soft],p.foreground,4.5),line:p.border,control:fg(p.border,3),accent:fg(p.primary.default,4.5),'on-accent':p.primary.foreground,'accent-soft':p.primary.soft,'accent-ink':readable(p.primary.default,[p.primary.soft],p.foreground,4.5),danger:fg(p.destructive),warn:fg(p.accent.text),'status-online':fg(p.status.online,3),'status-game':fg(p.status.ingame,3),'status-away':fg(p.status.away,3),'status-offline':fg(p.status.offline,3),overlay:name==='light'?'rgb(23 32 43 / 0.32)':'rgb(0 0 0 / 0.55)'};
   if(ratio(tokens['on-accent'],tokens.accent)<4.5) tokens['on-accent']=readable(p.primary.foreground,[tokens.accent],name==='dark'?p.background:p.foreground,4.5);
   const theme=name==='light'?'claro':'escuro';
   output+=(name==='light'?':root,\n':'')+`[data-theme="${theme}"] {\n  color-scheme: ${name};\n`+Object.entries(tokens).map(([k,v])=>`  --el-${k}: ${v};`).join('\n')+'\n}\n\n';

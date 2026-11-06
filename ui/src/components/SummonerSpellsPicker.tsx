@@ -64,7 +64,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send
               onClick={() => setOpen(open === slot ? null : slot)}
               className="flex items-center gap-2 rounded-control border border-control bg-surface px-2 py-1 text-ink aria-expanded:border-accent aria-expanded:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50">
               <SpellIcon id={current[slot] || null} />
-              <span className="text-sm">{spellName(catalog, current[slot] || null)}</span>
+              <span className="text-body">{spellName(catalog, current[slot] || null)}</span>
             </button>
           );
         })}

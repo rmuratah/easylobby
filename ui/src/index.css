@@ -5,8 +5,8 @@
 :root { background: var(--el-bg); color: var(--el-ink); }
 body { margin: 0; }
 [hidden] { display: none !important; }
-/* As telas funcionais compartilham os tokens durante o redesign. */
-.app-shell { color-scheme: dark; height: 100dvh; display: flex; flex-direction: column; }
+/* O color-scheme vem do tema ([data-theme]), para campos e barras de rolagem nativos seguirem claro ou escuro. */
+.app-shell { height: 100dvh; display: flex; flex-direction: column; }
 .app-body { display: flex; flex: 1; min-height: 0; }
 .app-content { container-type: inline-size; flex: 1; min-width: 0; overflow: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
 .app-content > * { flex-shrink: 0; }
@@ -28,23 +28,4 @@ button[aria-current="page"] { background: var(--el-accent-soft); border-color: v
 .rune-editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; }
 @container (max-width: 44rem) {
   .rune-editor { grid-template-columns: minmax(0, 1fr); }
-}
-
-/* Compatibilidade das telas funcionais com ambos os temas. */
-@theme inline {
-  --color-slate-950: var(--el-bg);
-  --color-slate-900: var(--el-surface);
-  --color-slate-800: var(--el-raised);
-  --color-slate-700: var(--el-line);
-  --color-slate-600: var(--el-control);
-  --color-slate-500: var(--el-muted);
-  --color-slate-400: var(--el-muted);
-  --color-slate-300: var(--el-ink);
-  --color-slate-200: var(--el-ink);
-  --color-slate-100: var(--el-ink);
-  --color-sky-400: var(--el-accent);
-  --color-emerald-400: var(--el-status-online);
-  --color-amber-300: var(--el-warn);
-  --color-amber-400: var(--el-warn);
-  --color-red-400: var(--el-danger);
 }
