@@ -21,6 +21,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::sync::broadcast;
 
 use crate::champ_select::{ChampSelect, CHAMP_SELECT_SESSION_PATH};
+use crate::champions::{ChampSelectChampions, BANNABLE_CHAMPIONS_PATH, PICKABLE_CHAMPIONS_PATH};
 use crate::chat::ChatUri;
 use crate::connection::{ConnectionEvent, LcuConnection};
 use crate::friends::Friend;
@@ -267,6 +268,7 @@ impl Hub {
                     rune_pages,
                     rune_catalog,
                     spell_catalog,
+                    champion_catalog,
                     friend_list,
                 ) = tokio::join!(
                     summoner::current_summoner(&client),
@@ -278,6 +280,7 @@ impl Hub {
                     crate::runes::current_pages(&client),
                     crate::runes::catalog(&client),
                     summoner_spells::catalog(&client),
+                    crate::champions::catalog(&client),
                     crate::friends::friends(&client),
                 );
                 // 404 antes do login; qualquer outro erro também deixa vazio,
@@ -295,6 +298,7 @@ impl Hub {
                 self.set_rune_pages_if(rune_pages_stamp, rune_pages.ok());
                 // Antes da seleção, para a UI já poder desenhar os feitiços.
                 self.set_summoner_spell_catalog(spell_catalog.ok().flatten());
+                self.set_champion_catalog(champion_catalog.ok().flatten());
                 // Com o chat ainda conectando a LCU pode responder erro ou
                 // lista vazia; os eventos de cada amigo completam a lista.
                 // Nenhum comando mexe nos amigos e os eventos só são
@@ -310,6 +314,10 @@ impl Hub {
                 // 404). Ela pode abrir um pouco antes da fase mudar, e o
                 // evento `Create` cobre esse caso.
                 if phase == Some(GameflowPhase::ChampSelect) {
+                    // Os campeões que dá para escolher e banir também só
+                    // existem na seleção (#28).
+                    let champions = crate::champions::current(&client).await;
+                    self.restore_champ_select_champions(chat_session, champions);
                     if let Some((client, stamp)) = self.begin(Resource::ChampSelect) {
                         let session = crate::champ_select::current_session(&client).await;
                         self.set_champ_select_if(stamp, session.ok().flatten());
@@ -342,6 +350,8 @@ impl Hub {
                 self.set_rune_pages(None);
                 self.set_rune_catalog(None);
                 self.set_summoner_spell_catalog(None);
+                self.set_champion_catalog(None);
+                self.set_champ_select_champions(ChampSelectChampions::default());
                 self.set_friends(Vec::new());
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
@@ -393,6 +403,9 @@ impl Hub {
                 if let Some(session) = ChampSelect::from_json(&event.data) {
                     self.set_champ_select(Some(session));
                 }
+            }
+            PICKABLE_CHAMPIONS_PATH | BANNABLE_CHAMPIONS_PATH => {
+                self.apply_champ_select_champions_event(event)
             }
             RECEIVED_INVITATIONS_PATH if deleted => self.set_received_invitations(Vec::new()),
             RECEIVED_INVITATIONS_PATH => {

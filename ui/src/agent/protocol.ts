@@ -23,6 +23,8 @@ import type { RunePages } from '../bindings/RunePages';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
 import type { Friend } from '../bindings/Friend';
 import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
+import type { ChampionCatalog } from '../bindings/ChampionCatalog';
+import type { ChampSelectChampions } from '../bindings/ChampSelectChampions';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
 const errorCodes = {
@@ -123,6 +125,13 @@ function runeCatalog(v: unknown): v is RuneCatalog | null {
 function summonerSpellCatalog(v: unknown): v is SummonerSpellCatalog | null {
   return v === null || (object(v) && list(v.spells, object));
 }
+function championCatalog(v: unknown): v is ChampionCatalog | null {
+  return v === null || (object(v) && list(v.champions, object));
+}
+const nullableIds = (v: unknown) => v === null || list(v, uint);
+function champSelectChampions(v: unknown): v is ChampSelectChampions {
+  return object(v) && nullableIds(v.pickable) && nullableIds(v.bannable);
+}
 function friend(v: unknown): v is Friend {
   return object(v) && strings(v, ['id', 'puuid', 'gameName', 'tagLine', 'name', 'availability', 'statusMessage']) &&
     (v.profileIconId === null || uint(v.profileIconId)) && (v.activity === null || object(v.activity));
@@ -142,7 +151,8 @@ function state(v: unknown): v is AgentState {
     readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
-    summonerSpellCatalog(v.summonerSpellCatalog) && list(v.friends, friend);
+    summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
+    champSelectChampions(v.champSelectChampions) && list(v.friends, friend);
 }
 
 // Os tipos vêm do Rust; esta validação protege a fronteira JSON em runtime.
@@ -167,6 +177,8 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'runePages': valid = runePages(v.runePages); break;
     case 'runeCatalog': valid = runeCatalog(v.runeCatalog); break;
     case 'summonerSpellCatalog': valid = summonerSpellCatalog(v.summonerSpellCatalog); break;
+    case 'championCatalog': valid = championCatalog(v.championCatalog); break;
+    case 'champSelectChampions': valid = champSelectChampions(v.champSelectChampions); break;
     case 'friends': valid = list(v.friends, friend); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
       (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;

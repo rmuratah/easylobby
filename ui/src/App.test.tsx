@@ -119,7 +119,7 @@ describe('telas confirmadas pelo agente', () => {
     expect(screen.getByRole('button', { name: 'Abrir client oficial' })).toBeEnabled();
     snapshot({ gameflowPhase: 'ChampSelect', matchmaking: testMatchmaking });
     rerender(<App />);
-    expect(screen.getByText(/Seleção de campeões em andamento/)).toBeVisible();
+    expect(screen.getByText('Carregando a seleção de campeões…')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
   });
 });

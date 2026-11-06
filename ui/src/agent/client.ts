@@ -42,6 +42,8 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'runePages': return { ...state, runePages: message.runePages };
     case 'runeCatalog': return { ...state, runeCatalog: message.runeCatalog };
     case 'summonerSpellCatalog': return { ...state, summonerSpellCatalog: message.summonerSpellCatalog };
+    case 'championCatalog': return { ...state, championCatalog: message.championCatalog };
+    case 'champSelectChampions': return { ...state, champSelectChampions: message.champSelectChampions };
     case 'friends': return { ...state, friends: message.friends };
     default: return message satisfies never;
   }

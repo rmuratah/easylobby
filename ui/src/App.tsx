@@ -11,6 +11,7 @@ import { FriendsList } from './components/FriendsList';
 import { InvitationsPanel } from './components/InvitationsPanel';
 import { ChatButton, ChatPanel } from './components/ChatPanel';
 import { Notifications } from './components/Notifications';
+import { ChampSelectPanel } from './components/ChampSelectPanel';
 
 function connectionLabel(connection: ConnectionSnapshot): string {
   if (connection.status === 'incompatible') return 'Versões incompatíveis';
@@ -42,7 +43,8 @@ export default function App() {
   const found = screen === 'found';
   const playable = screen === 'home' || screen === 'lobby' || screen === 'queue';
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
-    : found ? 'Partida encontrada' : screen === 'other' ? 'Partida' : 'Home';
+    : found ? 'Partida encontrada' : screen === 'champSelect' ? 'Seleção de campeões'
+      : screen === 'other' ? 'Partida' : 'Home';
   const summoner = connection.status === 'connected' && connection.state?.lcu.state === 'connected'
     ? connection.state.summoner : null;
   const name = summoner && (summoner.gameName
@@ -89,6 +91,10 @@ export default function App() {
           <div hidden={screen === 'home'}>
             <QueuePanel connection={connection} send={connection.send} />
           </div>
+        </div>
+        {/* Montada fora da tela também, para a busca e as ações em andamento sobreviverem à navegação. */}
+        <div hidden={page !== 'main' || screen !== 'champSelect'}>
+          <ChampSelectPanel connection={connection} send={connection.send} />
         </div>
         <div hidden={page !== 'runes'}>
           <RunePagesPanel connection={connection} send={connection.send} />

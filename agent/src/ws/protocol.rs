@@ -47,6 +47,7 @@ use ts_rs::TS;
 
 use crate::champ_select::ChampSelect;
 use crate::champ_select_chat::ChampSelectChat;
+use crate::champions::{ChampSelectChampions, ChampionCatalog};
 use crate::chat::Conversation;
 use crate::friends::Friend;
 use crate::gameflow::GameflowPhase;
@@ -123,6 +124,18 @@ pub enum ServerMessage {
     SummonerSpellCatalog {
         summoner_spell_catalog: Option<SummonerSpellCatalog>,
     },
+    /// Os campeões do jogo, para a grade da seleção (#28). Chega uma vez por
+    /// conexão com o LoL, logo depois de conectar. `null` com o LoL fechado
+    /// ou se a LCU não mandou a lista.
+    ChampionCatalog {
+        champion_catalog: Option<ChampionCatalog>,
+    },
+    /// Mudou a lista de campeões que o jogador pode escolher ou banir na
+    /// seleção (#28). Sempre as duas listas; cada uma é `null` fora da
+    /// seleção ou enquanto a LCU não mandou.
+    ChampSelectChampions {
+        champ_select_champions: ChampSelectChampions,
+    },
 
     // Runas
     /// As páginas de runas (#26) mudaram: criada, editada, apagada, outra
@@ -187,6 +200,10 @@ pub struct AgentState {
     /// Feitiços de invocador do jogo, para a escolha na seleção (#24), ou
     /// `null`.
     pub summoner_spell_catalog: Option<SummonerSpellCatalog>,
+    /// Campeões do jogo, para a grade da seleção (#28), ou `null`.
+    pub champion_catalog: Option<ChampionCatalog>,
+    /// Campeões que o jogador pode escolher e banir na seleção atual (#28).
+    pub champ_select_champions: ChampSelectChampions,
 
     // Runas
     /// Páginas de runas (#26), ou `null` com o LoL fechado.
@@ -528,6 +545,8 @@ mod tests {
                     "runePages": null,
                     "runeCatalog": null,
                     "summonerSpellCatalog": null,
+                    "championCatalog": null,
+                    "champSelectChampions": {"pickable": null, "bannable": null},
                     "friends": [],
                 },
             })

@@ -95,7 +95,7 @@ it.each(['Lobby', 'ChampSelect'] as const)('limpa timer e descarta resposta ao m
   if (phase === 'Lobby') expect(button('Aceitar')).toBeDisabled();
   else {
     expect(screen.queryByRole('region', { name: 'Partida encontrada' })).not.toBeInTheDocument();
-    expect(screen.getByText(/Seleção de campeões em andamento/)).toBeVisible();
+    expect(screen.getByText('Carregando a seleção de campeões…')).toBeVisible();
   }
   expect(vi.getTimerCount()).toBe(backgroundTimers);
   view.unmount();

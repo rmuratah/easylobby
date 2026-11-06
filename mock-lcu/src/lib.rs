@@ -14,6 +14,7 @@
 //!
 //! - [`state`]: que resposta cada `GET` recebe em cada momento.
 //! - [`champ_select`]: hover, ban e pick na seleção de campeões (#23).
+//! - [`champions`]: a lista de campeões do jogo (#28).
 //! - [`summoner_spells`]: troca de feitiços na seleção e a lista de
 //!   feitiços do jogo (#24).
 //! - [`lobby`]: criar lobby, trocar a fila e sair (#17); escolher os cargos
@@ -30,6 +31,7 @@
 //! [`Credentials::from_lockfile_path`]: easylobby_agent::lockfile::Credentials::from_lockfile_path
 
 pub mod champ_select;
+pub mod champions;
 pub mod chat;
 pub mod invitations;
 pub mod lobby;
@@ -763,6 +765,8 @@ async fn handle_request(
             emit_all(&shared, events);
             response
         }
+        // Campeões para a grade da seleção (#28).
+        (&Method::GET, champions::CHAMPION_SUMMARY) => champions::game_data(&shared.state()),
         // Feitiços de invocador (#24).
         (&Method::GET, summoner_spells::SUMMONER_SPELLS) => {
             summoner_spells::game_data(&shared.state())

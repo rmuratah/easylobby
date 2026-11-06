@@ -7,6 +7,7 @@ import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
 import type { RunePages } from '../bindings/RunePages';
 import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
+import type { ChampionCatalog } from '../bindings/ChampionCatalog';
 
 export const testReadyCheck: ReadyCheck = { state: 'InProgress', playerResponse: 'None', timer: 2.5, duration: 12 };
 export const testMatchmaking: Matchmaking = {
@@ -48,4 +49,13 @@ export const testSummonerSpellCatalog: SummonerSpellCatalog = {
 export const testFriend: Friend = {
   id: 'amigo@br1.pvp.net', puuid: 'amigo', gameName: 'Amigo', tagLine: 'BR1', name: '', profileIconId: null,
   availability: 'online', statusMessage: '', activity: null,
+};
+export const testChampionCatalog: ChampionCatalog = {
+  champions: [
+    { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: ['fighter'] },
+    { id: 103, name: 'Ahri', alias: 'Ahri', roles: ['mage'] },
+    { id: 145, name: "Kai'Sa", alias: 'Kaisa', roles: ['marksman'] },
+    { id: 20, name: 'Nunu e Willump', alias: 'Nunu', roles: ['tank'] },
+    { id: 62, name: 'Wukong', alias: 'MonkeyKing', roles: ['fighter'] },
+  ],
 };

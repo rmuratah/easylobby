@@ -26,6 +26,8 @@
 //!   ações pendentes) (#22)
 //! - [`chat`]: conversas 1:1 com amigos e o histórico da sessão (#31)
 //! - [`champ_select_chat`]: chat do time na seleção de campeões (#27)
+//! - [`champions`]: campeões do jogo e os que dá para escolher e banir na
+//!   seleção (#28)
 //! - [`runes`]: páginas de runas: listar, editar, criar, apagar e aplicar,
 //!   com as árvores para o editor (#26)
 //! - [`friends`]: lista de amigos com presença (#30)
@@ -36,6 +38,7 @@
 pub mod assets;
 pub mod champ_select;
 pub mod champ_select_chat;
+pub mod champions;
 pub mod chat;
 pub mod connection;
 pub mod fixtures;

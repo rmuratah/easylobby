@@ -14,3 +14,11 @@ button[aria-current="page"] { background: #0c4a6e; border-color: #38bdf8; }
 .play-panels[data-screen="home"], .play-panels[data-screen="queue"] { grid-template-columns: minmax(0, 42rem); }
 .play-panels section { max-width: none; }
 @media (max-width: 850px) { .play-panels { grid-template-columns: minmax(0, 1fr); } }
+.champ-select { display: flex; flex-direction: column; gap: 1rem; }
+.champ-select-board { display: grid; grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr) minmax(12rem, 16rem); gap: 1rem; align-items: start; }
+.champ-select-center { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.champion-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr)); gap: .25rem; max-height: 28rem; overflow: auto; }
+@media (max-width: 56rem) {
+  .champ-select-board { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .champ-select-center { grid-column: 1 / -1; grid-row: 2; }
+}
