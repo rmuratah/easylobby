@@ -26,6 +26,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'lobby': return { ...state, lobby: message.lobby };
     case 'matchmaking': return { ...state, matchmaking: message.matchmaking };
     case 'champSelect': return { ...state, champSelect: message.champSelect };
+    case 'champSelectChat': return { ...state, champSelectChat: message.champSelectChat };
     case 'receivedInvitations': return { ...state, receivedInvitations: message.invitations };
     case 'conversation': {
       const { conversation } = message;

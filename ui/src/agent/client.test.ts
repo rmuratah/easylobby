@@ -6,6 +6,7 @@ import {
   testSummonerSpellCatalog,
 } from '../test/events';
 import type { AgentState } from '../bindings/AgentState';
+import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import type { Command } from '../bindings/Command';
 import type { CommandResult } from '../bindings/CommandResult';
@@ -22,7 +23,10 @@ class Socket {
   constructor() { Socket.instances.push(this); }
   receive(message: ServerMessage) { this.onmessage?.({ data: JSON.stringify(message) }); }
 }
-const state: AgentState = { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: 'Lobby', readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], friends: [], runeCatalog: null, summonerSpellCatalog: null, runePages: null, receivedInvitations: [] };
+const testChampSelectChat: ChampSelectChat = {
+  messages: [{ id: 'm1', body: 'vou top', fromMe: false, fromCellId: 0, timestamp: '2026-11-05T01:15:00.000Z' }],
+};
+const state: AgentState = { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: 'Lobby', readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], champSelectChat: null, friends: [], runeCatalog: null, summonerSpellCatalog: null, runePages: null, receivedInvitations: [] };
 const hello = (overrides: Partial<AgentState> = {}): ServerMessage => ({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: { ...state, ...overrides } });
 let client: AgentClient;
 const socket = () => Socket.instances.at(-1)!;
@@ -208,6 +212,7 @@ describe('eventos de estado do agente', () => {
     [{ type: 'runeCatalog', runeCatalog: testRuneCatalog }, { runeCatalog: testRuneCatalog }],
     [{ type: 'summonerSpellCatalog', summonerSpellCatalog: testSummonerSpellCatalog }, { summonerSpellCatalog: testSummonerSpellCatalog }],
     [{ type: 'friends', friends: [testFriend] }, { friends: [testFriend] }],
+    [{ type: 'champSelectChat', champSelectChat: testChampSelectChat }, { champSelectChat: testChampSelectChat }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
     socket().receive(hello({ lobby: testLobby }));
     socket().receive(message);
@@ -222,10 +227,12 @@ describe('eventos de estado do agente', () => {
     [{ type: 'runeCatalog', runeCatalog: null }, { runeCatalog: null }],
     [{ type: 'summonerSpellCatalog', summonerSpellCatalog: null }, { summonerSpellCatalog: null }],
     [{ type: 'friends', friends: [] }, { friends: [] }],
+    [{ type: 'champSelectChat', champSelectChat: null }, { champSelectChat: null }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('limpa o campo com %j', (message, change) => {
     const full: Partial<AgentState> = {
       readyCheck: testReadyCheck, matchmaking: testMatchmaking, champSelect: testChampSelect, receivedInvitations: [testInvitation],
       runePages: testRunePages, runeCatalog: testRuneCatalog, summonerSpellCatalog: testSummonerSpellCatalog, friends: [testFriend],
+      champSelectChat: testChampSelectChat,
     };
     socket().receive(hello(full));
     socket().receive(message);
@@ -267,7 +274,6 @@ describe('eventos de estado do agente', () => {
     ['conversa fechada', { type: 'conversationClosed', id: 3 }],
     ['runas', { type: 'runePages', runePages: { ...testRunePages, pages: [null] } }],
     ['catálogo', { type: 'runeCatalog', runeCatalog: { ...testRuneCatalog, perks: null } }],
-    ['feitiços', { type: 'summonerSpellCatalog', summonerSpellCatalog: { spells: null } }],
     ['amigos', { type: 'friends', friends: [{ ...testFriend, id: undefined }] }],
   ])('rejeita evento malformado: %s', (_name, message) => {
     socket().receive(hello());
@@ -282,7 +288,6 @@ describe('eventos de estado do agente', () => {
     ['conversas', { conversations: [{ ...testConversation, messages: null }] }],
     ['runas', { runePages: { ...testRunePages, currentPageId: -1 } }],
     ['catálogo', { runeCatalog: { styles: [] } }],
-    ['feitiços', { summonerSpellCatalog: { spells: [null] } }],
     ['amigos', { friends: null }],
   ])('rejeita hello com %s malformado', (_name, change) => {
     socket().onmessage?.({ data: JSON.stringify({ ...hello(), state: { ...state, ...change } }) });

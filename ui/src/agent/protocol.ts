@@ -12,12 +12,13 @@ import type { Matchmaking } from '../bindings/Matchmaking';
 import type { MatchmakingError } from '../bindings/MatchmakingError';
 import type { SearchState } from '../bindings/SearchState';
 import type { ChampSelect } from '../bindings/ChampSelect';
+import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
 import type { Conversation } from '../bindings/Conversation';
 import type { RunePages } from '../bindings/RunePages';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
-import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 import type { Friend } from '../bindings/Friend';
+import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
 const errorCodes = {
@@ -84,6 +85,9 @@ function champSelect(v: unknown): v is ChampSelect | null {
     object(v.timer) && typeof v.timer.phase === 'string' && object(v.bans) && arrays(v.bans, ['myTeam', 'theirTeam']) &&
     arrays(v, ['myTeam', 'theirTeam', 'actions']) && (v.pendingAction === null || object(v.pendingAction)));
 }
+function champSelectChat(v: unknown): v is ChampSelectChat | null {
+  return v === null || (object(v) && list(v.messages, object));
+}
 function receivedInvitation(v: unknown): v is ReceivedInvitation {
   return object(v) && strings(v, ['invitationId', 'fromSummonerName']) && uints(v, ['fromSummonerId', 'queueId']) &&
     (v.queue === null || isQueue(v.queue)) && typeof v.canAccept === 'boolean';
@@ -119,7 +123,7 @@ function state(v: unknown): v is AgentState {
   return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) &&
     readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
-    runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
+    champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && list(v.friends, friend);
 }
 
@@ -138,6 +142,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'readyCheck': valid = readyCheck(v.readyCheck); break;
     case 'matchmaking': valid = matchmaking(v.matchmaking); break;
     case 'champSelect': valid = champSelect(v.champSelect); break;
+    case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
     case 'receivedInvitations': valid = list(v.invitations, receivedInvitation); break;
     case 'conversation': valid = conversation(v.conversation); break;
     case 'conversationClosed': valid = typeof v.id === 'string'; break;

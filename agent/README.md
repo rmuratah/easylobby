@@ -62,6 +62,12 @@ As conversas com amigos (#31) ficam em `/lol-chat/v1/conversations`. `chat::conv
 
 `chat::send_message(&lcu, id, texto)` faz `POST .../{id}/messages` (a LCU abre a conversa se ela ainda não existe) e `chat::set_active(&lcu, Some(id))` faz `PUT /lol-chat/v1/conversations/active`, que zera as não lidas, como a UI oficial ao abrir a janela da conversa (`None` faz `DELETE`). Pelo `/ws` são os comandos `sendChatMessage` e `setActiveConversation`, e as mensagens `conversation` e `conversationClosed`.
 
+## Chat da seleção de campeões (`champ_select_chat`)
+
+A sala do time na seleção (#27) é uma conversa `type: "championSelect"` em `/lol-chat/v1/conversations`, que abre logo depois da sessão da seleção e fecha quando ela acaba. O `Hub` guarda a sala aberta em `champSelectChat` do estado, com as mensagens desde que ela abriu (sem os avisos `system` de entrada e saída). Cada `ChampSelectChatMessage` tem `id`, `body`, `fromMe`, `fromCellId` e `timestamp`. Na ranqueada a LCU esconde os nomes até do próprio time: a mensagem traz `fromObfuscatedPuuid`, o mesmo `obfuscatedPuuid` do jogador na sessão (ou `fromPuuid`/`puuid` quando o nome está visível), e o agente cruza os dois para mandar a `cellId` de quem escreveu. Quando a seleção muda (troca na ordem de escolha), o cruzamento é refeito e a sala vai de novo para a UI. Ao conectar na fase `ChampSelect`, `champ_select_chat::current_room(&lcu)` relê a sala pelo REST.
+
+Pelo `/ws` são o comando `sendChampSelectMessage {"body"}`, que vai sempre para a sala aberta (`invalidCommand` sem sala ou com texto vazio), e a mensagem `champSelectChat` (`null` quando a sala fecha).
+
 ## Eventos em tempo real (`wamp`)
 
 `wamp::LcuEvents` abre o WebSocket WAMP da LCU (`wss://127.0.0.1:<porta>/`), com o mesmo Basic Auth e o mesmo `riotgames.pem` fixado do cliente REST, e se inscreve em `OnJsonApiEvent`. Cada `next().await` devolve o próximo `LcuEvent` (`uri`, `event_type` `Create`/`Update`/`Delete` e `data`) que passa no `EventFilter`, na ordem em que a LCU mandou.
