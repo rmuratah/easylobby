@@ -31,6 +31,7 @@ export default function App() {
     ? connection.state.receivedInvitations.length : 0;
   const contentRef = useRef<HTMLElement>(null);
   const flowButtonRef = useRef<HTMLButtonElement>(null);
+  const runesBackRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (contentRef.current) contentRef.current.scrollTop = 0;
     if (document.activeElement?.closest('[hidden]')) flowButtonRef.current?.focus();
@@ -39,6 +40,11 @@ export default function App() {
   // Uma nova fase confirmada traz o fluxo principal de volta ao primeiro plano.
   if (navigation.screen !== screen) setNavigation({ screen, page: 'main' });
   const page = navigation.screen === screen ? navigation.page : 'main';
+  // Quem trocou de página por um botão que agora ficou escondido não perde o foco.
+  useEffect(() => {
+    if (!document.activeElement?.closest('[hidden]')) return;
+    (page === 'runes' ? runesBackRef.current ?? flowButtonRef.current : flowButtonRef.current)?.focus();
+  }, [page]);
   const found = screen === 'found';
   const playable = screen === 'home' || screen === 'lobby' || screen === 'queue' || found;
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
@@ -90,9 +96,13 @@ export default function App() {
             {found && <ReadyCheckPanel connection={connection} send={connection.send} />}
             {/* Montada fora da tela também, para a busca e as ações em andamento sobreviverem à navegação. */}
             <div hidden={page !== 'main' || screen !== 'champSelect'}>
-              <ChampSelectPanel connection={connection} send={connection.send} />
+              <ChampSelectPanel connection={connection} send={connection.send}
+                onOpenRunes={() => setNavigation({ screen, page: 'runes' })} />
             </div>
-            <div hidden={page !== 'runes'}>
+            <div hidden={page !== 'runes'} className="flex flex-col gap-4">
+              {/* Na seleção, a volta fica à mão: a seleção continua montada e o timer segue correndo (#131). */}
+              {screen !== 'home' && <button ref={runesBackRef} type="button" className="nav-button self-start"
+                onClick={() => setNavigation({ screen, page: 'main' })}>Voltar para {title}</button>}
               <RunePagesPanel connection={connection} send={connection.send} />
             </div>
           </div>

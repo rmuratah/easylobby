@@ -1,4 +1,4 @@
-import { useId, type InputHTMLAttributes, type ReactNode } from "react";
+import { useId, type InputHTMLAttributes, type ReactNode, type Ref } from "react";
 import { cx } from "./cx";
 
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & {
@@ -8,6 +8,7 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & {
   /** Mensagem de erro: diz o que aconteceu e como resolver. */
   error?: string;
   icon?: ReactNode;
+  ref?: Ref<HTMLInputElement>;
 };
 
 export function TextField({ label, hideLabel = false, error, icon, id, className, ...rest }: Props) {

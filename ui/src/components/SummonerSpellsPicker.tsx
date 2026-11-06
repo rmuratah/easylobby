@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { assetUrl } from '../agent/assets';
 import type { AgentClient } from '../agent/client';
 import { spellName, spellsForQueue, spellUnlocked, withSpell } from '../agent/summonerSpells';
@@ -28,6 +28,17 @@ const slotNames = ['Feitiço 1 (D)', 'Feitiço 2 (F)'] as const;
 export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send }: Props) {
   const [open, setOpen] = useState<0 | 1 | null>(null);
   const command = useCommand(send);
+  const slotButtons = useRef<(HTMLButtonElement | null)[]>([]);
+  const list = useRef<HTMLUListElement>(null);
+  // Ao abrir, o foco vai para o feitiço atual; Esc fecha e devolve o foco ao botão do espaço.
+  useEffect(() => {
+    if (open === null) return;
+    list.current?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]:not(:disabled), button:not(:disabled)')?.focus();
+  }, [open]);
+  function close(slot: 0 | 1) {
+    setOpen(null);
+    slotButtons.current[slot]?.focus();
+  }
   const me = champSelect.myTeam.find(p => p.cellId === champSelect.localPlayerCellId);
   if (!me) return null;
   const current: [number, number] = [me.spell1Id ?? 0, me.spell2Id ?? 0];
@@ -35,7 +46,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send
   const spells = spellsForQueue(catalog, champSelect.queue);
   function choose(slot: 0 | 1, spellId: number) {
     if (disabled) return;
-    setOpen(null);
+    close(slot);
     const [spell1Id, spell2Id] = withSpell(current, slot, spellId);
     if (spell1Id === current[0] && spell2Id === current[1]) return;
     void command.run({ type: 'setSummonerSpells', spell1Id, spell2Id },
@@ -48,7 +59,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send
         {slotNames.map((label, index) => {
           const slot = index as 0 | 1;
           return (
-            <button key={label} type="button" aria-label={`${label}: ${spellName(catalog, current[slot] || null)}`}
+            <button key={label} ref={element => { slotButtons.current[slot] = element; }} type="button" aria-label={`${label}: ${spellName(catalog, current[slot] || null)}`}
               aria-expanded={open === slot} disabled={disabled}
               onClick={() => setOpen(open === slot ? null : slot)}
               className="flex items-center gap-2 rounded-control border border-control bg-surface px-2 py-1 text-ink aria-expanded:border-accent aria-expanded:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50">
@@ -60,7 +71,8 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send
       </div>
       {!catalog && <p className="text-muted">Carregando feitiços…</p>}
       {open !== null && (
-        <ul aria-label={`Escolher ${slotNames[open]}`} className="flex flex-wrap gap-1">
+        <ul ref={list} aria-label={`Escolher ${slotNames[open]}`} className="flex flex-wrap gap-1 rounded-card border border-line bg-surface p-1"
+          onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); close(open); } }}>
           {spells.map(spell => {
             const unlocked = spellUnlocked(spell, summonerLevel);
             return (
