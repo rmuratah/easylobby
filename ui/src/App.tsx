@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ReadyCheckPanel } from './components/ReadyCheckPanel';
 import { LobbyPanel } from './components/LobbyPanel';
 import { useAgent } from './agent/useAgent';
@@ -6,6 +7,7 @@ import { LaunchUxButton } from './components/LaunchUxButton';
 import { QueuePanel } from './components/QueuePanel';
 import { RunePagesPanel } from './components/RunePagesPanel';
 import { FriendsList } from './components/FriendsList';
+import { ChatButton, ChatPanel } from './components/ChatPanel';
 
 function connectionLabel(connection: ConnectionSnapshot): string {
   if (connection.status === 'incompatible') return 'Versões incompatíveis';
@@ -22,6 +24,7 @@ function connectionLabel(connection: ConnectionSnapshot): string {
 
 export default function App() {
   const connection = useAgent();
+  const [chatWith, setChatWith] = useState<string | null>(null);
   const summoner = connection.status === 'connected' && connection.state?.lcu.state === 'connected'
     ? connection.state.summoner : null;
   const name = summoner && (summoner.gameName
@@ -43,7 +46,8 @@ export default function App() {
       <ReadyCheckPanel connection={connection} send={connection.send} />
       <QueuePanel connection={connection} send={connection.send} />
       <RunePagesPanel connection={connection} send={connection.send} />
-      <FriendsList connection={connection} />
+      <FriendsList connection={connection} renderActions={friend => <ChatButton friend={friend} onOpen={setChatWith} />} />
+      <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
     </main>
   );
 }
