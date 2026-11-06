@@ -33,6 +33,8 @@
 //! # }
 //! ```
 
+pub mod bindings;
+mod commands;
 pub mod hub;
 pub mod protocol;
 
@@ -53,11 +55,10 @@ use tokio::task::JoinHandle;
 
 use crate::assets::{AssetCache, AssetConfig, AssetError, AssetKind, ASSETS_PATH};
 use crate::connection::LcuConnection;
-use crate::launcher::{self, LaunchOptions};
-use crate::swaps::SwapIntent;
+use crate::launcher::LaunchOptions;
 
 pub use hub::{drive, Hub};
-use protocol::{ClientMessage, Command, CommandResult, ErrorCode, ServerMessage, PROTOCOL_VERSION};
+use protocol::{ClientMessage, Command, CommandResult, ServerMessage, PROTOCOL_VERSION};
 
 /// Caminho do WebSocket.
 pub const WS_PATH: &str = "/ws";
@@ -261,7 +262,6 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                     Ok(ClientMessage { id, command }) => {
                         let mut replies = Vec::new();
                         let result = match command {
-                            Command::Ping => CommandResult::Ok,
                             Command::GetState => {
                                 // Assina de novo para não entregar, depois do
                                 // estado novo, mudanças mais velhas que ele.
@@ -270,75 +270,7 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                                 replies.push(hello(state));
                                 CommandResult::Ok
                             }
-                            Command::AcceptReadyCheck => hub.accept_ready_check().await,
-                            Command::DeclineReadyCheck => hub.decline_ready_check().await,
-                            Command::LaunchLeague => launch_league(&config.launch).await,
-                            Command::LaunchUx => hub.launch_ux().await,
-                            Command::CreateLobby { queue } => hub.create_lobby(queue).await,
-                            Command::LeaveLobby => hub.leave_lobby().await,
-                            Command::StartQueue => hub.start_queue().await,
-                            Command::StopQueue => hub.stop_queue().await,
-                            Command::SetPositions { first, second } => {
-                                hub.set_positions(first, second).await
-                            }
-                            Command::AcceptInvitation { invitation_id } => {
-                                hub.accept_invitation(&invitation_id).await
-                            }
-                            Command::DeclineInvitation { invitation_id } => {
-                                hub.decline_invitation(&invitation_id).await
-                            }
-                            Command::InviteToLobby { invitees } => {
-                                hub.invite_to_lobby(&invitees).await
-                            }
-                            Command::SendChatMessage {
-                                conversation_id,
-                                body,
-                            } => hub.send_chat_message(&conversation_id, &body).await,
-                            Command::SetActiveConversation { conversation_id } => {
-                                hub.set_active_conversation(conversation_id.as_deref())
-                                    .await
-                            }
-                            Command::SendChampSelectMessage { body } => {
-                                hub.send_champ_select_message(&body).await
-                            }
-                            Command::SelectRunePage { page_id } => {
-                                hub.select_rune_page(page_id).await
-                            }
-                            Command::CreateRunePage { page } => hub.create_rune_page(page).await,
-                            Command::UpdateRunePage { page_id, page } => {
-                                hub.update_rune_page(page_id, page).await
-                            }
-                            Command::DeleteRunePage { page_id } => {
-                                hub.delete_rune_page(page_id).await
-                            }
-                            Command::HoverChampion {
-                                action_id,
-                                champion_id,
-                            } => hub.hover_champion(action_id, champion_id).await,
-                            Command::ConfirmAction {
-                                action_id,
-                                champion_id,
-                            } => hub.confirm_action(action_id, champion_id).await,
-                            Command::SetSummonerSpells {
-                                spell1_id,
-                                spell2_id,
-                            } => hub.set_summoner_spells(spell1_id, spell2_id).await,
-                            Command::RequestSwap { kind, swap_id } => {
-                                hub.champ_select_swap(kind, swap_id, SwapIntent::Request)
-                                    .await
-                            }
-                            Command::AcceptSwap { kind, swap_id } => {
-                                hub.champ_select_swap(kind, swap_id, SwapIntent::Accept)
-                                    .await
-                            }
-                            Command::DeclineSwap { kind, swap_id } => {
-                                hub.champ_select_swap(kind, swap_id, SwapIntent::Decline)
-                                    .await
-                            }
-                            Command::CancelSwap { kind, swap_id } => {
-                                hub.champ_select_swap(kind, swap_id, SwapIntent::Cancel)
-                                    .await
-                            }
+                            command => commands::run(&hub, &config.launch, command).await,
                         };
                         // As mudanças que o comando publicou (como o lobby
                         // novo) chegam antes da resposta.
@@ -367,15 +299,6 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                 }
             }
         }
-    }
-}
-
-/// Abre o LoL e traduz o resultado para a UI. Não espera o LoL subir: isso
-/// chega pelas mensagens `lcu`.
-async fn launch_league(options: &LaunchOptions) -> CommandResult {
-    match launcher::launch_league(options).await {
-        Ok(_) => CommandResult::Ok,
-        Err(e) => CommandResult::error(ErrorCode::LaunchFailed, e.to_string()),
     }
 }
 

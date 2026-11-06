@@ -4,6 +4,7 @@ import App from '../App';
 import { AGENT_URL } from '../agent/client';
 import type { ClientMessage } from '../bindings/ClientMessage';
 import type { ServerMessage } from '../bindings/ServerMessage';
+import { makeState } from '../test/state';
 
 class Socket {
   static OPEN = 1;
@@ -19,7 +20,7 @@ class Socket {
 }
 const hello: ServerMessage = {
   type: 'hello', protocol: 1, agentVersion: '0.1.0',
-  state: { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: null, readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], champSelectChat: null, friends: [], runeCatalog: null, summonerSpellCatalog: null, runePages: null, receivedInvitations: [] },
+  state: makeState(),
 };
 beforeEach(() => {
   vi.useFakeTimers();

@@ -3,16 +3,18 @@
 /**
  * Uma mensagem de uma conversa 1:1.
  */
-export type ChatMessage = { 
-/**
- * Identificador da mensagem na LCU, único dentro da conversa.
- */
-id: string, body: string, 
-/**
- * `true` quando foi o jogador logado que mandou.
- */
-fromMe: boolean, 
-/**
- * Quando foi mandada, em ISO 8601 UTC (`2026-11-05T01:13:41.755Z`).
- */
-timestamp: string, };
+export type ChatMessage = {
+  /**
+   * Identificador da mensagem na LCU, único dentro da conversa.
+   */
+  id: string,
+  body: string,
+  /**
+   * `true` quando foi o jogador logado que mandou.
+   */
+  fromMe: boolean,
+  /**
+   * Quando foi mandada, em ISO 8601 UTC (`2026-11-05T01:13:41.755Z`).
+   */
+  timestamp: string,
+};

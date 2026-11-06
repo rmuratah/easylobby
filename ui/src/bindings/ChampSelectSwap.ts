@@ -4,18 +4,19 @@ import type { SwapState } from "./SwapState";
 /**
  * Uma troca possível entre o jogador logado e um aliado.
  */
-export type ChampSelectSwap = { 
-/**
- * Id da troca na LCU, o `swapId` dos comandos `requestSwap`,
- * `acceptSwap`, `declineSwap` e `cancelSwap`. Muda quando a LCU refaz
- * a lista (por exemplo depois de uma troca feita).
- */
-id: number, 
-/**
- * `cellId` do aliado, para achar ele em `myTeam`.
- */
-cellId: number, 
-/**
- * Estado da troca do ponto de vista do jogador logado.
- */
-state: SwapState, };
+export type ChampSelectSwap = {
+  /**
+   * Id da troca na LCU, o `swapId` dos comandos `requestSwap`,
+   * `acceptSwap`, `declineSwap` e `cancelSwap`. Muda quando a LCU refaz
+   * a lista (por exemplo depois de uma troca feita).
+   */
+  id: number,
+  /**
+   * `cellId` do aliado, para achar ele em `myTeam`.
+   */
+  cellId: number,
+  /**
+   * Estado da troca do ponto de vista do jogador logado.
+   */
+  state: SwapState,
+};

@@ -188,13 +188,13 @@ pnpm --filter easylobby-ui dev                           # terminal 3
 
 O example mostra no terminal cada mensagem que as UIs recebem. Sem `--mock`, ele acha o LoL real.
 
-Depois de mudar um tipo de `ws::protocol` (ou o `Summoner`), regenere os tipos TypeScript e comite `ui/src/bindings/`:
+Depois de mudar um tipo usado no protocolo (`ws::protocol` ou os tipos que ele usa), regenere os tipos TypeScript e comite `ui/src/bindings/`:
 
 ```bash
 EASYLOBBY_UPDATE_BINDINGS=1 cargo test -p easylobby-agent bindings
 ```
 
-O teste `bindings_estao_atualizados` falha no CI se os arquivos estiverem desatualizados. Os testes em `mock-lcu/tests/ready_check.rs` acompanham o ready check da gravação e aceitam e recusam a partida pelo `/ws`. Os testes em `mock-lcu/tests/canal_ws.rs` sobem o mock com a gravação `16.22` e o agente, e conferem o `hello`, a partida inteira pelas mudanças de fase, o invocador, os comandos, o LoL fechando e reabrindo e o 403 para outras origens.
+O teste `bindings_estao_atualizados` falha no CI se os arquivos estiverem desatualizados. Os arquivos saem de `ServerMessage` e `ClientMessage` seguindo as dependências (`ws::bindings`), com uma variante ou um campo por linha para PRs diferentes não conflitarem. Os testes em `mock-lcu/tests/ready_check.rs` acompanham o ready check da gravação e aceitam e recusam a partida pelo `/ws`. Os testes em `mock-lcu/tests/canal_ws.rs` sobem o mock com a gravação `16.22` e o agente, e conferem o `hello`, a partida inteira pelas mudanças de fase, o invocador, os comandos, o LoL fechando e reabrindo e o 403 para outras origens.
 
 ## Fixtures da LCU
 

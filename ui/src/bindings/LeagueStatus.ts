@@ -3,4 +3,11 @@
 /**
  * Parte do LoL em que o amigo está, pelo `lol.gameStatus` da LCU.
  */
-export type LeagueStatus = "outOfGame" | "inLobby" | "inQueue" | "championSelect" | "inGame" | "spectating" | "unknown";
+export type LeagueStatus =
+  | "outOfGame"
+  | "inLobby"
+  | "inQueue"
+  | "championSelect"
+  | "inGame"
+  | "spectating"
+  | "unknown";

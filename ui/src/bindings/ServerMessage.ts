@@ -19,8 +19,30 @@ import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
 /**
  * Mensagem do agente para a UI.
  */
-export type ServerMessage = { "type": "hello", 
-/**
- * [`PROTOCOL_VERSION`] do agente.
- */
-protocol: number, agentVersion: string, state: AgentState, } | { "type": "lcu", status: LcuStatus, } | { "type": "summoner", summoner: Summoner | null, } | { "type": "gameflowPhase", phase: GameflowPhase | null, } | { "type": "readyCheck", readyCheck: ReadyCheck | null, } | { "type": "lobby", lobby: Lobby | null, } | { "type": "matchmaking", matchmaking: Matchmaking | null, } | { "type": "champSelect", champSelect: ChampSelect | null, } | { "type": "receivedInvitations", invitations: Array<ReceivedInvitation>, } | { "type": "conversation", conversation: Conversation, } | { "type": "conversationClosed", id: string, } | { "type": "champSelectChat", champSelectChat: ChampSelectChat | null, } | { "type": "runePages", runePages: RunePages | null, } | { "type": "runeCatalog", runeCatalog: RuneCatalog | null, } | { "type": "summonerSpellCatalog", summonerSpellCatalog: SummonerSpellCatalog | null, } | { "type": "friends", friends: Array<Friend>, } | { "type": "response", id: number, result: CommandResult, } | { "type": "invalidMessage", message: string, };
+export type ServerMessage =
+  | {
+    "type": "hello",
+    /**
+     * [`PROTOCOL_VERSION`] do agente.
+     */
+    protocol: number,
+    agentVersion: string,
+    state: AgentState,
+  }
+  | { "type": "lcu", status: LcuStatus, }
+  | { "type": "summoner", summoner: Summoner | null, }
+  | { "type": "gameflowPhase", phase: GameflowPhase | null, }
+  | { "type": "lobby", lobby: Lobby | null, }
+  | { "type": "matchmaking", matchmaking: Matchmaking | null, }
+  | { "type": "readyCheck", readyCheck: ReadyCheck | null, }
+  | { "type": "champSelect", champSelect: ChampSelect | null, }
+  | { "type": "champSelectChat", champSelectChat: ChampSelectChat | null, }
+  | { "type": "summonerSpellCatalog", summonerSpellCatalog: SummonerSpellCatalog | null, }
+  | { "type": "runePages", runePages: RunePages | null, }
+  | { "type": "runeCatalog", runeCatalog: RuneCatalog | null, }
+  | { "type": "friends", friends: Array<Friend>, }
+  | { "type": "receivedInvitations", invitations: Array<ReceivedInvitation>, }
+  | { "type": "conversation", conversation: Conversation, }
+  | { "type": "conversationClosed", id: string, }
+  | { "type": "response", id: number, result: CommandResult, }
+  | { "type": "invalidMessage", message: string, };

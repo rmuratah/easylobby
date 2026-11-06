@@ -3,8 +3,12 @@
 /**
  * Página que a UI manda para criar ou editar.
  */
-export type RunePageInput = { name: string, primaryStyleId: number, subStyleId: number, 
-/**
- * Na ordem de [`RunePage::selected_perk_ids`].
- */
-selectedPerkIds: Array<number>, };
+export type RunePageInput = {
+  name: string,
+  primaryStyleId: number,
+  subStyleId: number,
+  /**
+   * Na ordem de [`RunePage::selected_perk_ids`].
+   */
+  selectedPerkIds: Array<number>,
+};

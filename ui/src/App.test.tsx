@@ -3,10 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { useAgent } from './agent/useAgent';
 import type { LcuStatus } from './bindings/LcuStatus';
+import { makeState } from './test/state';
 
 vi.mock('./agent/useAgent');
 function connected(lcu: LcuStatus) {
-  vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: { lcu, summoner: null, gameflowPhase: null, readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], champSelectChat: null, friends: [], runeCatalog: null, summonerSpellCatalog: null, runePages: null, receivedInvitations: [] }, send: vi.fn() });
+  vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: makeState({ lcu }), send: vi.fn() });
 }
 describe('App', () => {
   it('mostra o título e a espera pelo agente', () => {
@@ -36,7 +37,7 @@ describe('App', () => {
 describe('invocador logado', () => {
   const summoner = { gameName: 'Victor', tagLine: 'BR1', displayName: 'Antigo', summonerLevel: 122, profileIconId: 1, puuid: 'fake', summonerId: 1 };
   function loggedIn() {
-    vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: { lcu: { state: 'connected', session: 1 }, summoner, gameflowPhase: null, readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], champSelectChat: null, friends: [], runeCatalog: null, summonerSpellCatalog: null, runePages: null, receivedInvitations: [] }, send: vi.fn() });
+    vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: makeState({ summoner }), send: vi.fn() });
   }
   it('mostra Riot ID e nível e remove os dados ao perder a conexão', () => {
     loggedIn();
@@ -56,7 +57,7 @@ describe('invocador logado', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Aguardando login');
   });
   it('oculta dados antigos quando o LoL desconecta', () => {
-    vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: { lcu: { state: 'starting' }, summoner, gameflowPhase: null, readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], champSelectChat: null, friends: [], runeCatalog: null, summonerSpellCatalog: null, runePages: null, receivedInvitations: [] }, send: vi.fn() });
+    vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: makeState({ lcu: { state: 'starting' }, summoner }), send: vi.fn() });
     render(<App />);
     expect(screen.queryByText('Nível 122')).not.toBeInTheDocument();
   });

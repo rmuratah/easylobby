@@ -3,10 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ConnectionSnapshot } from '../agent/client';
 import type { CommandResult } from '../bindings/CommandResult';
 import { LaunchUxButton } from './LaunchUxButton';
+import { makeState } from '../test/state';
 
 const connected: ConnectionSnapshot = {
   status: 'connected', error: null,
-  state: { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: null, readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], champSelectChat: null, friends: [], runeCatalog: null, summonerSpellCatalog: null, runePages: null, receivedInvitations: [] },
+  state: makeState(),
 };
 function deferred() {
   let resolve!: (result: CommandResult) => void;

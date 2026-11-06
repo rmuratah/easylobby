@@ -4,13 +4,16 @@ import type { RuneSlot } from "./RuneSlot";
 /**
  * Uma árvore de runas.
  */
-export type RuneStyle = { id: number, name: string, 
-/**
- * Árvores que podem ser a secundária quando esta é a primária.
- */
-allowedSubStyles: Array<number>, 
-/**
- * Linhas da árvore, de cima para baixo: a das runas principais, as 3
- * linhas comuns e as 3 de fragmentos.
- */
-slots: Array<RuneSlot>, };
+export type RuneStyle = {
+  id: number,
+  name: string,
+  /**
+   * Árvores que podem ser a secundária quando esta é a primária.
+   */
+  allowedSubStyles: Array<number>,
+  /**
+   * Linhas da árvore, de cima para baixo: a das runas principais, as 3
+   * linhas comuns e as 3 de fragmentos.
+   */
+  slots: Array<RuneSlot>,
+};

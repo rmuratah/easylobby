@@ -3,4 +3,7 @@
 /**
  * Tipo da linha.
  */
-export type RuneSlotKind = "keystone" | "regular" | "statMod";
+export type RuneSlotKind =
+  | "keystone"
+  | "regular"
+  | "statMod";

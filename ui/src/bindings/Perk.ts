@@ -3,8 +3,11 @@
 /**
  * Nome e descrição de uma runa.
  */
-export type Perk = { id: number, name: string, 
-/**
- * Descrição curta, em texto puro (sem as marcações da Riot).
- */
-shortDesc: string, };
+export type Perk = {
+  id: number,
+  name: string,
+  /**
+   * Descrição curta, em texto puro (sem as marcações da Riot).
+   */
+  shortDesc: string,
+};

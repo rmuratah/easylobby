@@ -4,8 +4,11 @@ import type { InvitationState } from "./InvitationState";
 /**
  * Um convite que o grupo mandou (#32).
  */
-export type LobbyInvitation = { 
-/**
- * Quem foi convidado. A UI cruza com a lista de amigos para o nome.
- */
-puuid: string, summonerId: number, state: InvitationState, };
+export type LobbyInvitation = {
+  /**
+   * Quem foi convidado. A UI cruza com a lista de amigos para o nome.
+   */
+  puuid: string,
+  summonerId: number,
+  state: InvitationState,
+};

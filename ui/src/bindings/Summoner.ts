@@ -3,16 +3,21 @@
 /**
  * Invocador logado no client. Também vai para a UI pelo `/ws` (#15).
  */
-export type Summoner = { 
-/**
- * Nome do Riot ID (antes do `#`).
- */
-gameName: string, 
-/**
- * Tag do Riot ID (depois do `#`).
- */
-tagLine: string, 
-/**
- * Nome antigo de invocador. Vazio nas contas que só têm Riot ID.
- */
-displayName: string, summonerLevel: number, profileIconId: number, puuid: string, summonerId: number, };
+export type Summoner = {
+  /**
+   * Nome do Riot ID (antes do `#`).
+   */
+  gameName: string,
+  /**
+   * Tag do Riot ID (depois do `#`).
+   */
+  tagLine: string,
+  /**
+   * Nome antigo de invocador. Vazio nas contas que só têm Riot ID.
+   */
+  displayName: string,
+  summonerLevel: number,
+  profileIconId: number,
+  puuid: string,
+  summonerId: number,
+};

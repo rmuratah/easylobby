@@ -70,6 +70,15 @@ tipo(escopo): descrição curta no imperativo (#issue)
 - Merge sempre por **squash**; o título do PR vira a mensagem do commit na `main`.
 - Depois do merge, a branch é apagada.
 
+## Evitando conflitos entre PRs
+
+Os arquivos do canal `/ws` são os que mais conflitam, porque quase toda feature mexe neles. Eles estão divididos por assunto (conexão, lobby e fila, seleção de campeões, runas, social) para que PRs de assuntos diferentes não toquem nas mesmas linhas:
+
+- **Agente:** cada assunto do `Hub` tem o seu arquivo em `agent/src/ws/hub/`, com os próprios testes. Comandos, mensagens e campos do estado ficam em blocos por assunto em `ws/protocol.rs` e `ws/commands.rs`; algo novo entra no fim do bloco do seu assunto, não no fim do enum.
+- **Tipos gerados:** `ui/src/bindings/` tem uma variante ou um campo por linha. Num conflito nesses arquivos, resolva o Rust e rode `EASYLOBBY_UPDATE_BINDINGS=1 cargo test -p easylobby-agent bindings` de novo em vez de editar à mão.
+- **Testes da UI:** monte o estado do agente com `makeState({ ... })` de `ui/src/test/state.ts`, passando só os campos que o teste usa. Campo novo no `AgentState` muda só o `emptyState`.
+- **Ordem:** no máximo um PR aberto por vez mexendo no protocolo do agente, e merge logo que estiver aprovado.
+
 ## Revisão de PRs
 
 A revisão serve para achar problemas que impedem o merge, não para deixar o código perfeito. Para não virar um ciclo sem fim:

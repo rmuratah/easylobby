@@ -17,43 +17,49 @@ import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
 /**
  * Tudo o que a UI precisa para desenhar a tela do zero.
  */
-export type AgentState = { lcu: LcuStatus, summoner: Summoner | null, gameflowPhase: GameflowPhase | null, 
-/**
- * Ready check aberto (partida encontrada, #20), ou `null`.
- */
-readyCheck: ReadyCheck | null, lobby: Lobby | null, matchmaking: Matchmaking | null, 
-/**
- * Seleção de campeões em andamento (#22), ou `null`.
- */
-champSelect: ChampSelect | null, 
-/**
- * Convites de lobby recebidos e ainda pendentes (#32).
- */
-receivedInvitations: Array<ReceivedInvitation>, 
-/**
- * Conversas 1:1 abertas (#31), cada uma com o histórico da sessão. Sem
- * ordem definida; a UI ordena (pela última mensagem, por exemplo).
- */
-conversations: Array<Conversation>, 
-/**
- * Sala de chat do time na seleção de campeões (#27), ou `null` fora da
- * seleção.
- */
-champSelectChat: ChampSelectChat | null, 
-/**
- * Páginas de runas (#26), ou `null` com o LoL fechado.
- */
-runePages: RunePages | null, 
-/**
- * Árvores de runas para o editor (#26), ou `null`.
- */
-runeCatalog: RuneCatalog | null, 
-/**
- * Feitiços de invocador do jogo, para a escolha na seleção (#24), ou
- * `null`.
- */
-summonerSpellCatalog: SummonerSpellCatalog | null, 
-/**
- * Amigos com a presença de cada um (#30), na ordem da tela.
- */
-friends: Array<Friend>, };
+export type AgentState = {
+  lcu: LcuStatus,
+  summoner: Summoner | null,
+  gameflowPhase: GameflowPhase | null,
+  lobby: Lobby | null,
+  matchmaking: Matchmaking | null,
+  /**
+   * Ready check aberto (partida encontrada, #20), ou `null`.
+   */
+  readyCheck: ReadyCheck | null,
+  /**
+   * Seleção de campeões em andamento (#22), ou `null`.
+   */
+  champSelect: ChampSelect | null,
+  /**
+   * Sala de chat do time na seleção de campeões (#27), ou `null` fora da
+   * seleção.
+   */
+  champSelectChat: ChampSelectChat | null,
+  /**
+   * Feitiços de invocador do jogo, para a escolha na seleção (#24), ou
+   * `null`.
+   */
+  summonerSpellCatalog: SummonerSpellCatalog | null,
+  /**
+   * Páginas de runas (#26), ou `null` com o LoL fechado.
+   */
+  runePages: RunePages | null,
+  /**
+   * Árvores de runas para o editor (#26), ou `null`.
+   */
+  runeCatalog: RuneCatalog | null,
+  /**
+   * Amigos com a presença de cada um (#30), na ordem da tela.
+   */
+  friends: Array<Friend>,
+  /**
+   * Convites de lobby recebidos e ainda pendentes (#32).
+   */
+  receivedInvitations: Array<ReceivedInvitation>,
+  /**
+   * Conversas 1:1 abertas (#31), cada uma com o histórico da sessão. Sem
+   * ordem definida; a UI ordena (pela última mensagem, por exemplo).
+   */
+  conversations: Array<Conversation>,
+};

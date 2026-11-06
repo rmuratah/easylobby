@@ -5,12 +5,13 @@ import type { RuneStyle } from "./RuneStyle";
 /**
  * As árvores de runas, para o editor. Lidas uma vez por conexão.
  */
-export type RuneCatalog = { 
-/**
- * Árvores (Precisão, Dominação...), na ordem da LCU.
- */
-styles: Array<RuneStyle>, 
-/**
- * Nome e descrição das runas que aparecem em [`RuneStyle::slots`].
- */
-perks: Array<Perk>, };
+export type RuneCatalog = {
+  /**
+   * Árvores (Precisão, Dominação...), na ordem da LCU.
+   */
+  styles: Array<RuneStyle>,
+  /**
+   * Nome e descrição das runas que aparecem em [`RuneStyle::slots`].
+   */
+  perks: Array<Perk>,
+};

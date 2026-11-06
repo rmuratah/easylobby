@@ -3,4 +3,9 @@
 /**
  * Tipo de imagem, o primeiro pedaço do caminho depois de `/assets/`.
  */
-export type AssetKind = "champion" | "profileIcon" | "summonerSpell" | "perk" | "perkStyle";
+export type AssetKind =
+  | "champion"
+  | "profileIcon"
+  | "summonerSpell"
+  | "perk"
+  | "perkStyle";

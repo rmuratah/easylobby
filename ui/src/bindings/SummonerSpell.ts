@@ -4,32 +4,33 @@ import type { Queue } from "./Queue";
 /**
  * Um feitiço de invocador (Flash, Incendiar...).
  */
-export type SummonerSpell = { 
-/**
- * O mesmo de `spell1Id`/`spell2Id` e do ícone em
- * `/assets/summonerSpell/{id}`.
- */
-id: number, 
-/**
- * Nome no idioma do client.
- */
-name: string, 
-/**
- * Descrição no idioma do client, com as tags da Riot (`<br>`...).
- */
-description: string, 
-/**
- * Nível de invocador a partir do qual o feitiço está liberado.
- */
-summonerLevel: number, 
-/**
- * Modos de jogo da LCU em que o feitiço vale (`CLASSIC`, `ARAM`,
- * `SWIFTPLAY`...).
- */
-gameModes: Array<string>, 
-/**
- * As filas do easylobby em que o feitiço vale, calculadas de
- * `gameModes`. A tela mostra os que têm `champSelect.queue` aqui (e
- * todos quando `champSelect.queue` é `null`, como numa personalizada).
- */
-queues: Array<Queue>, };
+export type SummonerSpell = {
+  /**
+   * O mesmo de `spell1Id`/`spell2Id` e do ícone em
+   * `/assets/summonerSpell/{id}`.
+   */
+  id: number,
+  /**
+   * Nome no idioma do client.
+   */
+  name: string,
+  /**
+   * Descrição no idioma do client, com as tags da Riot (`<br>`...).
+   */
+  description: string,
+  /**
+   * Nível de invocador a partir do qual o feitiço está liberado.
+   */
+  summonerLevel: number,
+  /**
+   * Modos de jogo da LCU em que o feitiço vale (`CLASSIC`, `ARAM`,
+   * `SWIFTPLAY`...).
+   */
+  gameModes: Array<string>,
+  /**
+   * As filas do easylobby em que o feitiço vale, calculadas de
+   * `gameModes`. A tela mostra os que têm `champSelect.queue` aqui (e
+   * todos quando `champSelect.queue` é `null`, como numa personalizada).
+   */
+  queues: Array<Queue>,
+};

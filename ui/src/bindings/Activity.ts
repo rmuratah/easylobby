@@ -4,4 +4,6 @@ import type { LeagueActivity } from "./LeagueActivity";
 /**
  * O que um amigo online está fazendo.
  */
-export type Activity = { "type": "league" } & LeagueActivity | { "type": "otherGame", productName: string, };
+export type Activity =
+  | { "type": "league" } & LeagueActivity
+  | { "type": "otherGame", productName: string, };

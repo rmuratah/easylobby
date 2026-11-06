@@ -3,35 +3,38 @@
 /**
  * Uma página de runas.
  */
-export type RunePage = { id: number, name: string, 
-/**
- * Árvore primária (`perkStyle`), por exemplo `8000` (Precisão).
- */
-primaryStyleId: number, 
-/**
- * Árvore secundária.
- */
-subStyleId: number, 
-/**
- * Runas escolhidas, na ordem do client: a principal (keystone), as 3
- * da árvore primária, as 2 da secundária e os 3 fragmentos. `0` é uma
- * linha vazia (página incompleta).
- */
-selectedPerkIds: Array<number>, 
-/**
- * Se pode ser editada (`updateRunePage`).
- */
-isEditable: boolean, 
-/**
- * Se pode ser apagada (`deleteRunePage`).
- */
-isDeletable: boolean, 
-/**
- * Página temporária, como a recomendada para o campeão na seleção.
- * Some sozinha e não ocupa espaço de página comprada.
- */
-isTemporary: boolean, 
-/**
- * Se a página está completa e vale no jogo.
- */
-isValid: boolean, };
+export type RunePage = {
+  id: number,
+  name: string,
+  /**
+   * Árvore primária (`perkStyle`), por exemplo `8000` (Precisão).
+   */
+  primaryStyleId: number,
+  /**
+   * Árvore secundária.
+   */
+  subStyleId: number,
+  /**
+   * Runas escolhidas, na ordem do client: a principal (keystone), as 3
+   * da árvore primária, as 2 da secundária e os 3 fragmentos. `0` é uma
+   * linha vazia (página incompleta).
+   */
+  selectedPerkIds: Array<number>,
+  /**
+   * Se pode ser editada (`updateRunePage`).
+   */
+  isEditable: boolean,
+  /**
+   * Se pode ser apagada (`deleteRunePage`).
+   */
+  isDeletable: boolean,
+  /**
+   * Página temporária, como a recomendada para o campeão na seleção.
+   * Some sozinha e não ocupa espaço de página comprada.
+   */
+  isTemporary: boolean,
+  /**
+   * Se a página está completa e vale no jogo.
+   */
+  isValid: boolean,
+};

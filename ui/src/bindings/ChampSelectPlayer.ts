@@ -4,40 +4,43 @@ import type { Position } from "./Position";
 /**
  * Um jogador na seleção.
  */
-export type ChampSelectPlayer = { 
-/**
- * Posição do jogador na seleção (0 a 4 num time, 5 a 9 no outro). As
- * ações apontam para ela em `actorCellId`.
- */
-cellId: number, 
-/**
- * Se é o jogador logado.
- */
-isLocalPlayer: boolean, 
-/**
- * Riot ID. `null` quando a LCU esconde o nome (ranqueada, time
- * adversário).
- */
-gameName: string | null, tagLine: string | null, 
-/**
- * Cargo recebido na fila, ou `unselected` nas filas sem cargo e no time
- * adversário.
- */
-assignedPosition: Position, 
-/**
- * Campeão escolhido (ou em hover na vez do jogador), ou `null`.
- */
-championId: number | null, 
-/**
- * Campeão que o jogador pretende jogar, mostrado antes da vez dele
- * (etapa `PLANNING` e hover fora da vez), ou `null`.
- */
-championPickIntent: number | null, 
-/**
- * Skin escolhida, ou `null`.
- */
-selectedSkinId: number | null, 
-/**
- * Feitiços de invocador, ou `null` quando escondidos.
- */
-spell1Id: number | null, spell2Id: number | null, };
+export type ChampSelectPlayer = {
+  /**
+   * Posição do jogador na seleção (0 a 4 num time, 5 a 9 no outro). As
+   * ações apontam para ela em `actorCellId`.
+   */
+  cellId: number,
+  /**
+   * Se é o jogador logado.
+   */
+  isLocalPlayer: boolean,
+  /**
+   * Riot ID. `null` quando a LCU esconde o nome (ranqueada, time
+   * adversário).
+   */
+  gameName: string | null,
+  tagLine: string | null,
+  /**
+   * Cargo recebido na fila, ou `unselected` nas filas sem cargo e no time
+   * adversário.
+   */
+  assignedPosition: Position,
+  /**
+   * Campeão escolhido (ou em hover na vez do jogador), ou `null`.
+   */
+  championId: number | null,
+  /**
+   * Campeão que o jogador pretende jogar, mostrado antes da vez dele
+   * (etapa `PLANNING` e hover fora da vez), ou `null`.
+   */
+  championPickIntent: number | null,
+  /**
+   * Skin escolhida, ou `null`.
+   */
+  selectedSkinId: number | null,
+  /**
+   * Feitiços de invocador, ou `null` quando escondidos.
+   */
+  spell1Id: number | null,
+  spell2Id: number | null,
+};

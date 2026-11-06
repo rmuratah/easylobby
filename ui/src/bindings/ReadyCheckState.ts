@@ -3,4 +3,11 @@
 /**
  * Estado do ready check, com os nomes da LCU.
  */
-export type ReadyCheckState = "InProgress" | "EveryoneReady" | "StrangerNotReady" | "PartyNotReady" | "Error" | "Invalid" | "Unknown";
+export type ReadyCheckState =
+  | "InProgress"
+  | "EveryoneReady"
+  | "StrangerNotReady"
+  | "PartyNotReady"
+  | "Error"
+  | "Invalid"
+  | "Unknown";

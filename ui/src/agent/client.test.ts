@@ -10,6 +10,7 @@ import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import type { Command } from '../bindings/Command';
 import type { CommandResult } from '../bindings/CommandResult';
+import { makeState } from '../test/state';
 
 class Socket {
   static OPEN = 1;
@@ -26,7 +27,7 @@ class Socket {
 const testChampSelectChat: ChampSelectChat = {
   messages: [{ id: 'm1', body: 'vou top', fromMe: false, fromCellId: 0, timestamp: '2026-11-05T01:15:00.000Z' }],
 };
-const state: AgentState = { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: 'Lobby', readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], champSelectChat: null, friends: [], runeCatalog: null, summonerSpellCatalog: null, runePages: null, receivedInvitations: [] };
+const state: AgentState = makeState({ gameflowPhase: 'Lobby' });
 const hello = (overrides: Partial<AgentState> = {}): ServerMessage => ({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: { ...state, ...overrides } });
 let client: AgentClient;
 const socket = () => Socket.instances.at(-1)!;

@@ -5,4 +5,11 @@
  * [`Position::lcu_name`]; para a UI vão em camelCase (`"top"`,
  * `"middle"`...).
  */
-export type Position = "top" | "jungle" | "middle" | "bottom" | "utility" | "fill" | "unselected";
+export type Position =
+  | "top"
+  | "jungle"
+  | "middle"
+  | "bottom"
+  | "utility"
+  | "fill"
+  | "unselected";

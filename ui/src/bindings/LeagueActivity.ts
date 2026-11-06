@@ -4,19 +4,21 @@ import type { LeagueStatus } from "./LeagueStatus";
 /**
  * O que um amigo está fazendo dentro do LoL.
  */
-export type LeagueActivity = { status: LeagueStatus, 
-/**
- * Fila do lobby, da busca ou da partida (`420` é a ranqueada solo).
- * `null` fora de partida e quando a LCU não manda.
- */
-queueId: number | null, 
-/**
- * Campeão da partida em andamento, para `/assets/champion/<id>`. `null`
- * fora de partida.
- */
-championId: number | null, 
-/**
- * Quando o status atual começou (na fila, em jogo), em milissegundos
- * desde 1970. `null` quando a LCU não manda.
- */
-since: number | null, };
+export type LeagueActivity = {
+  status: LeagueStatus,
+  /**
+   * Fila do lobby, da busca ou da partida (`420` é a ranqueada solo).
+   * `null` fora de partida e quando a LCU não manda.
+   */
+  queueId: number | null,
+  /**
+   * Campeão da partida em andamento, para `/assets/champion/<id>`. `null`
+   * fora de partida.
+   */
+  championId: number | null,
+  /**
+   * Quando o status atual começou (na fila, em jogo), em milissegundos
+   * desde 1970. `null` quando a LCU não manda.
+   */
+  since: number | null,
+};

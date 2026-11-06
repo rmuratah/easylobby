@@ -4,34 +4,36 @@ import type { ChampSelectActionType } from "./ChampSelectActionType";
 /**
  * Uma ação do draft: um ban, um pick ou a revelação dos bans.
  */
-export type ChampSelectAction = { 
-/**
- * Id da ação na LCU.
- */
-id: number, type: ChampSelectActionType, 
-/**
- * `cellId` de quem faz a ação; `-1` nas ações sem jogador
- * (`ten_bans_reveal`).
- */
-actorCellId: number, 
-/**
- * Campeão da ação (em hover, banido ou escolhido), ou `null`.
- */
-championId: number | null, 
-/**
- * Ação confirmada.
- */
-completed: boolean, 
-/**
- * É a vez desta ação.
- */
-isInProgress: boolean, 
-/**
- * Ação do time do jogador.
- */
-isAllyAction: boolean, 
-/**
- * Ordem da ação no draft, a partir de 0. Ações do mesmo turno rodam ao
- * mesmo tempo (os bans simultâneos, os picks em dupla).
- */
-turn: number, };
+export type ChampSelectAction = {
+  /**
+   * Id da ação na LCU.
+   */
+  id: number,
+  type: ChampSelectActionType,
+  /**
+   * `cellId` de quem faz a ação; `-1` nas ações sem jogador
+   * (`ten_bans_reveal`).
+   */
+  actorCellId: number,
+  /**
+   * Campeão da ação (em hover, banido ou escolhido), ou `null`.
+   */
+  championId: number | null,
+  /**
+   * Ação confirmada.
+   */
+  completed: boolean,
+  /**
+   * É a vez desta ação.
+   */
+  isInProgress: boolean,
+  /**
+   * Ação do time do jogador.
+   */
+  isAllyAction: boolean,
+  /**
+   * Ordem da ação no draft, a partir de 0. Ações do mesmo turno rodam ao
+   * mesmo tempo (os bans simultâneos, os picks em dupla).
+   */
+  turn: number,
+};

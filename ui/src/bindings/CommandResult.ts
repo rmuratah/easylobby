@@ -4,4 +4,6 @@ import type { ErrorCode } from "./ErrorCode";
 /**
  * Resultado de um comando.
  */
-export type CommandResult = { "status": "ok" } | { "status": "error", code: ErrorCode, message: string, };
+export type CommandResult =
+  | { "status": "ok" }
+  | { "status": "error", code: ErrorCode, message: string, };

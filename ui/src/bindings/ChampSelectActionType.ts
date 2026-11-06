@@ -3,4 +3,8 @@
 /**
  * Tipo de ação, com os nomes da LCU.
  */
-export type ChampSelectActionType = "ban" | "pick" | "ten_bans_reveal" | "unknown";
+export type ChampSelectActionType =
+  | "ban"
+  | "pick"
+  | "ten_bans_reveal"
+  | "unknown";

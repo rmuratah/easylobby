@@ -3,4 +3,8 @@
 /**
  * Por que um comando falhou.
  */
-export type ErrorCode = "notConnected" | "lcu" | "launchFailed" | "invalidCommand";
+export type ErrorCode =
+  | "notConnected"
+  | "lcu"
+  | "launchFailed"
+  | "invalidCommand";

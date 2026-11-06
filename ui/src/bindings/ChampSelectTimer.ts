@@ -4,25 +4,27 @@ import type { ChampSelectPhase } from "./ChampSelectPhase";
 /**
  * Etapa atual da seleção e o tempo dela.
  */
-export type ChampSelectTimer = { phase: ChampSelectPhase, 
-/**
- * Milissegundos que faltavam para a etapa acabar quando o agente
- * recebeu a sessão.
- */
-timeLeftMs: number, 
-/**
- * Duração total da etapa, em milissegundos.
- */
-totalTimeMs: number, 
-/**
- * Etapa sem limite de tempo (algumas personalizadas). Aí `timeLeftMs` e
- * `endsAtMs` não valem.
- */
-isInfinite: boolean, 
-/**
- * Quando a etapa acaba, em milissegundos desde 1970 pelo relógio do
- * computador (o mesmo da UI). A contagem regressiva é
- * `Math.max(0, endsAtMs - Date.now())`; assim ela fica certa mesmo para
- * uma UI que conectou depois, entre um evento e outro da LCU.
- */
-endsAtMs: number, };
+export type ChampSelectTimer = {
+  phase: ChampSelectPhase,
+  /**
+   * Milissegundos que faltavam para a etapa acabar quando o agente
+   * recebeu a sessão.
+   */
+  timeLeftMs: number,
+  /**
+   * Duração total da etapa, em milissegundos.
+   */
+  totalTimeMs: number,
+  /**
+   * Etapa sem limite de tempo (algumas personalizadas). Aí `timeLeftMs` e
+   * `endsAtMs` não valem.
+   */
+  isInfinite: boolean,
+  /**
+   * Quando a etapa acaba, em milissegundos desde 1970 pelo relógio do
+   * computador (o mesmo da UI). A contagem regressiva é
+   * `Math.max(0, endsAtMs - Date.now())`; assim ela fica certa mesmo para
+   * uma UI que conectou depois, entre um evento e outro da LCU.
+   */
+  endsAtMs: number,
+};
