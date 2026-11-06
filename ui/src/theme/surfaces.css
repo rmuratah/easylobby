@@ -1,0 +1,91 @@
+/*
+ * Superfícies, sombras e movimento do layout de referência (Home e Lobby).
+ * Tudo deriva da paleta do easylobby (tokens.css); aqui só entram forma, profundidade e animação.
+ */
+
+:root,
+[data-theme="claro"] {
+  --el-shadow-soft: 0 1px 2px rgb(23 32 43 / 0.04), 0 8px 24px -14px rgb(23 32 43 / 0.14);
+  --el-shadow-lift: 0 2px 6px rgb(23 32 43 / 0.05), 0 22px 44px -20px color-mix(in oklab, var(--el-palette-primary-default) 30%, rgb(23 32 43 / 0.3));
+  --el-shadow-glow: 0 10px 30px -10px color-mix(in oklab, var(--el-palette-primary-default) 55%, transparent);
+  --el-glass: color-mix(in oklab, var(--el-surface) 72%, transparent);
+  --el-glass-line: color-mix(in oklab, var(--el-surface) 70%, transparent);
+}
+
+[data-theme="escuro"] {
+  --el-shadow-soft: 0 1px 2px rgb(0 0 0 / 0.25), 0 10px 28px -14px rgb(0 0 0 / 0.55);
+  --el-shadow-lift: 0 2px 6px rgb(0 0 0 / 0.3), 0 24px 48px -20px rgb(0 0 0 / 0.7);
+  --el-shadow-glow: 0 10px 32px -10px color-mix(in oklab, var(--el-palette-primary-default) 55%, transparent);
+  --el-glass: color-mix(in oklab, var(--el-surface) 60%, transparent);
+  --el-glass-line: rgb(255 255 255 / 0.1);
+}
+
+@theme {
+  /* Título de destaque do cartão principal do início. */
+  --text-display: 2.75rem;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.02em;
+
+  /* Cartões grandes (painéis) e blocos internos (linhas de cargo, campos arredondados). */
+  --radius-panel: 1.875rem;
+  --radius-tile: 1.25rem;
+}
+
+@theme inline {
+  --shadow-soft: var(--el-shadow-soft);
+  --shadow-lift: var(--el-shadow-lift);
+  --shadow-glow: var(--el-shadow-glow);
+}
+
+/* Cartão na cor da superfície, com borda. A sombra vem à parte (shadow-soft, shadow-lift). */
+@utility surface {
+  background-color: var(--el-surface);
+  border: 1px solid var(--el-line);
+}
+
+/* Vidro fosco sobre o fundo decorado do cartão principal. */
+@utility glass {
+  background-color: var(--el-glass);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid var(--el-glass-line);
+}
+
+/* Arte do cartão principal: brilhos da paleta (destaque e dourado) sobre a superfície. */
+@utility bg-hero-art {
+  background:
+    radial-gradient(55% 75% at 82% 28%, color-mix(in oklab, var(--el-palette-primary-default) 34%, transparent), transparent 70%),
+    radial-gradient(45% 60% at 68% 105%, color-mix(in oklab, var(--el-palette-gold-default) 30%, transparent), transparent 70%),
+    var(--el-raised);
+}
+
+/* Esmaece a arte à esquerda, onde fica o texto. */
+@utility bg-hero-fade {
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--el-surface) 94%, transparent) 0%,
+    color-mix(in oklab, var(--el-surface) 70%, transparent) 32%,
+    transparent 62%
+  );
+}
+
+@utility animate-fade-up {
+  animation: el-fade-up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@utility animate-search-ring {
+  animation: el-search-ring 1.8s ease-out infinite;
+}
+
+@keyframes el-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes el-search-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--el-accent) 45%, transparent); }
+  100% { box-shadow: 0 0 0 18px color-mix(in oklab, var(--el-accent) 0%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up, .animate-search-ring { animation: none; }
+}

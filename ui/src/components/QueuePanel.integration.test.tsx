@@ -152,4 +152,15 @@ describe('tela unificada', () => {
     expect(screen.getByRole('combobox', { name: 'Cargo primário' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
   });
+
+  it('mostra um botão principal por vez: iniciar fora da fila, cancelar durante a busca', () => {
+    configure({ defaultHidden: false });
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    expect(screen.getByRole('button', { name: 'Iniciar busca' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
+    hello({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
+    expect(screen.getByRole('button', { name: 'Cancelar busca' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Iniciar busca' })).not.toBeInTheDocument();
+  });
 });
