@@ -74,18 +74,31 @@ it('bloqueia resposta desconhecida e ações incompatíveis mesmo antes da fase'
   expect(panel().getByText('Resposta desconhecida')).toBeInTheDocument();
   expect(button('Aceitar')).toBeDisabled();
   hello({ gameflowPhase: 'Lobby', lobby: testLobby, readyCheck: testReadyCheck });
-  expect(screen.getByRole('button', { name: 'Iniciar busca' })).toBeDisabled();
-  expect(screen.getByRole('button', { name: 'Sair do lobby' })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Iniciar busca' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Iniciar busca', hidden: true })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Sair do lobby' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Sair do lobby', hidden: true })).toBeDisabled();
   hello({ gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking, readyCheck: testReadyCheck });
-  expect(screen.getByRole('button', { name: 'Cancelar busca' })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Cancelar busca', hidden: true })).toBeDisabled();
 });
 it.each(['Lobby', 'ChampSelect'] as const)('limpa timer e descarta resposta ao mudar para %s', async phase => {
-  render(<App />); open(); fireEvent.click(button('Aceitar'));
+  const view = render(<App />);
+  hello();
+  // A lista de amigos mantém seu relógio; só o timer do ready check deve desaparecer.
+  const backgroundTimers = vi.getTimerCount();
+  open(); fireEvent.click(button('Aceitar'));
   act(() => socket().receive({ type: 'gameflowPhase', phase }));
   await respond({ status: 'error', code: 'lcu', message: 'antigo' });
-  expect(panel().queryByText(/antigo/)).not.toBeInTheDocument();
-  expect(panel().queryByLabelText('Tempo para responder')).not.toBeInTheDocument();
-  expect(button('Aceitar')).toBeDisabled();
+  expect(screen.queryByText(/antigo/)).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Tempo para responder')).not.toBeInTheDocument();
+  if (phase === 'Lobby') expect(button('Aceitar')).toBeDisabled();
+  else {
+    expect(screen.queryByRole('region', { name: 'Partida encontrada' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Seleção de campeões em andamento/)).toBeVisible();
+  }
+  expect(vi.getTimerCount()).toBe(backgroundTimers);
+  view.unmount();
   expect(vi.getTimerCount()).toBe(0);
 });
 it('trata erro LCU, falha de envio e não repete envio incerto', async () => {
@@ -122,4 +135,27 @@ it.each(['null', 'session', 'lcu', 'socket', 'unmount'])('descarta resposta anti
   expect(screen.queryByText(/antigo/)).not.toBeInTheDocument();
   if (transition !== 'unmount') expect(button('Aceitar')).toBeEnabled();
   view.unmount(); expect(vi.getTimerCount()).toBe(0);
+});
+
+it('substitui a espera pelas ações e preserva resposta pendente durante navegação', async () => {
+  render(<App />);
+  hello({ gameflowPhase: 'Matchmaking', matchmaking: { ...testMatchmaking, searchState: 'Found' } });
+  expect(screen.getByRole('alert')).toHaveTextContent('Aguardando os dados');
+  expect(screen.getByRole('button', { name: 'Abrir client oficial' })).toBeEnabled();
+  event();
+  expect(screen.queryByText(/Aguardando os dados/)).not.toBeInTheDocument();
+  expect(button('Aceitar')).toBeDisabled();
+  act(() => socket().receive({ type: 'gameflowPhase', phase: 'ReadyCheck' }));
+  fireEvent.click(button('Aceitar'));
+  for (const name of ['Runas', 'Home', 'Partida encontrada']) {
+    fireEvent.click(screen.getByRole('button', { name }));
+    expect(button('Aceitar')).toBeVisible();
+    expect(button('Aceitar')).toBeDisabled();
+    fireEvent.click(button('Recusar'));
+  }
+  expect(socket().send).toHaveBeenCalledTimes(1);
+  expect(Socket.instances).toHaveLength(1);
+  await respond();
+  event({ playerResponse: 'Accepted' });
+  expect(panel().getByText('Aceitou')).toBeVisible();
 });
