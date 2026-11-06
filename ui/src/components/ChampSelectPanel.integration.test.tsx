@@ -74,7 +74,7 @@ it('acompanha a sessão nova: etapa, vez, bans e tempo sem limite', () => {
   expect(grid().queryByRole('button', { name: "Kai'Sa" })).not.toBeInTheDocument();
 });
 
-it('busca na grade e marca a escolha local', () => {
+it('busca na grade e marca a escolha', () => {
   render(<App />); hello();
   expect(panel().getByRole('region', { name: 'Campeões para banir' })).toBeVisible();
   expect(grid().getAllByRole('button')).toHaveLength(5);
@@ -85,7 +85,6 @@ it('busca na grade e marca a escolha local', () => {
   expect(grid().getByRole('button', { name: 'Wukong' })).toHaveAttribute('aria-pressed', 'true');
   fireEvent.change(panel().getByRole('searchbox', { name: 'Buscar campeão' }), { target: { value: 'xyz' } });
   expect(panel().getByText('Nenhum campeão encontrado.')).toBeVisible();
-  expect(socket().send).not.toHaveBeenCalled();
 });
 
 it('preserva a busca na navegação e recomeça numa seleção nova', () => {

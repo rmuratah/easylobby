@@ -3,6 +3,7 @@ import type { ChampSelect } from '../bindings/ChampSelect';
 import type { ChampSelectPlayer } from '../bindings/ChampSelectPlayer';
 import { testChampionCatalog } from './events';
 import { testState } from './lobby';
+import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 
 const player = (cellId: number, change: Partial<ChampSelectPlayer> = {}): ChampSelectPlayer => ({
   cellId, isLocalPlayer: false, gameName: null, tagLine: null, assignedPosition: 'unselected', championId: null,
@@ -39,4 +40,15 @@ export const champSelectState: AgentState = {
   champSelect: draftChampSelect,
   championCatalog: testChampionCatalog,
   champSelectChampions: { pickable: [20, 62, 103, 266], bannable: [20, 62, 103, 145, 266] },
+};
+
+/** Feitiços para os testes da seleção: Marcar só no ARAM, Golpear no nível 9. */
+export const spellCatalog: SummonerSpellCatalog = {
+  spells: [
+    { id: 4, name: 'Flash', description: '', summonerLevel: 7, gameModes: ['CLASSIC', 'ARAM'], queues: ['rankedSolo', 'aram'] },
+    { id: 14, name: 'Incendiar', description: '', summonerLevel: 9, gameModes: ['CLASSIC', 'ARAM'], queues: ['rankedSolo', 'aram'] },
+    { id: 11, name: 'Golpear', description: '', summonerLevel: 9, gameModes: ['CLASSIC'], queues: ['rankedSolo'] },
+    { id: 32, name: 'Marcar', description: '', summonerLevel: 7, gameModes: ['ARAM'], queues: ['aram'] },
+    { id: 21, name: 'Barreira', description: '', summonerLevel: 4, gameModes: ['CLASSIC', 'ARAM'], queues: ['rankedSolo', 'aram'] },
+  ],
 };

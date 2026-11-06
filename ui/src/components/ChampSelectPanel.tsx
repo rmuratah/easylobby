@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import { assetUrl } from '../agent/assets';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import {
-  actingCells, champSelectPhaseLabels, championName, gridChampions, gridPurpose, playerName, remainingMs, searchChampions,
+  actingCells, champSelectPhaseLabels, championName, gridChampions, gridPurpose, markedChampion, myAction, playerName,
+  remainingMs, searchChampions, type GridChampion, type MyAction,
 } from '../agent/champSelect';
+import { useCommand, type CommandFeedback } from '../agent/useCommand';
+import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { positionNames } from '../agent/positions';
 import type { AgentState } from '../bindings/AgentState';
 import type { ChampSelect } from '../bindings/ChampSelect';
@@ -26,7 +29,8 @@ export function ChampionIcon({ id, size = 40, dim = false }: { id: number | null
 /**
  * Tela da seleção de campeões (#28): os dois times, o timer da etapa, os
  * bans e a grade de campeões com busca. Mostra só o estado confirmado pelo
- * agente; a escolha na grade é local até as ações da seleção (#23).
+ * agente. Na vez do jogador, clicar na grade marca o campeão (hover) e o
+ * botão confirma o ban ou o pick; antes da vez, marca a intenção (#23).
  */
 export function ChampSelectPanel({ connection, send }: Props) {
   const state = connection.state;
@@ -45,18 +49,44 @@ export function ChampSelectPanel({ connection, send }: Props) {
 
 type ContentProps = { state: AgentState; champSelect: ChampSelect; send: AgentClient['send'] };
 
-function ChampSelectContent({ state, champSelect }: ContentProps) {
-  const [selected, setSelected] = useState<number | null>(null);
+function ChampSelectContent({ state, champSelect, send }: ContentProps) {
   const catalog = state.championCatalog;
   const acting = actingCells(champSelect);
+  const mine = myAction(champSelect);
+  // A escolha na grade vale só para a ação em que foi feita; depois vale o que a LCU marcou.
+  const [choice, setChoice] = useState<{ actionId: number; championId: number } | null>(null);
+  const chosen = mine && choice?.actionId === mine.action.id ? choice.championId : mine && markedChampion(champSelect, mine);
+  const hover = useCommand(send);
+  const confirm = useCommand(send);
+  function select(championId: number) {
+    if (!mine || confirm.pending) return;
+    setChoice({ actionId: mine.action.id, championId });
+    void hover.run({ type: 'hoverChampion', actionId: mine.action.id, championId },
+      { pending: 'Marcando o campeão…', failure: 'marcar o campeão' });
+  }
+  function lockIn(championId: number) {
+    if (!mine?.turn || confirm.pending) return;
+    const verb = mine.action.type === 'ban' ? 'banir' : 'escolher';
+    void confirm.run({ type: 'confirmAction', actionId: mine.action.id, championId },
+      { pending: mine.action.type === 'ban' ? 'Confirmando o ban…' : 'Confirmando a escolha…', failure: verb });
+  }
+  const grid = gridChampions(state, champSelect);
+  const chosenAvailable = !!chosen && grid.some(item => item.champion.id === chosen && item.available);
   return (
     <section aria-label="Seleção de campeões" className="champ-select">
       <ChampSelectStatus champSelect={champSelect} />
       <div className="champ-select-board">
-        <TeamList label="Seu time" players={champSelect.myTeam} ally acting={acting} catalog={catalog} />
+        <div className="flex min-w-0 flex-col gap-4">
+          <TeamList label="Seu time" players={champSelect.myTeam} ally acting={acting} catalog={catalog} />
+          <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
+            summonerLevel={state.summoner?.summonerLevel ?? null} send={send} />
+        </div>
         <div className="champ-select-center">
           <Bans champSelect={champSelect} catalog={catalog} />
-          <ChampionGrid state={state} champSelect={champSelect} selected={selected} onSelect={setSelected} />
+          <ActionBar mine={mine} chosen={chosen || null} chosenAvailable={chosenAvailable} catalog={catalog}
+            busy={confirm.pending} onConfirm={lockIn} feedback={[confirm.feedback, hover.feedback]} />
+          <ChampionGrid state={state} champSelect={champSelect} grid={grid} selected={chosen || null}
+            onSelect={mine && !confirm.pending ? select : null} />
         </div>
         <TeamList label="Time adversário" players={champSelect.theirTeam} ally={false} acting={acting} catalog={catalog} />
       </div>
@@ -115,6 +145,12 @@ function TeamList({ label, players, ally, acting, catalog }: TeamProps) {
               <li key={player.cellId} aria-current={player.isLocalPlayer ? 'true' : undefined}
                 className={`flex items-center gap-2 rounded border p-2 ${acting.has(player.cellId) ? 'border-sky-400' : 'border-slate-700'}`}>
                 <ChampionIcon id={champion} dim={intent !== null} />
+                {ally && (player.spell1Id || player.spell2Id) ? (
+                  <span className="flex flex-col gap-0.5" aria-hidden="true">
+                    <SpellIcon id={player.spell1Id} size={18} />
+                    <SpellIcon id={player.spell2Id} size={18} />
+                  </span>
+                ) : null}
                 <div className="min-w-0">
                   <p className="truncate font-medium">
                     {playerName(player, index, ally)}{player.isLocalPlayer && ' (você)'}
@@ -156,17 +192,61 @@ function Bans({ champSelect, catalog }: { champSelect: ChampSelect; catalog: Cha
   );
 }
 
+type ActionBarProps = {
+  mine: MyAction | null;
+  chosen: number | null;
+  chosenAvailable: boolean;
+  catalog: ChampionCatalog | null;
+  busy: boolean;
+  onConfirm: (championId: number) => void;
+  feedback: CommandFeedback[];
+};
+
+function ActionBar({ mine, chosen, chosenAvailable, catalog, busy, onConfirm, feedback }: ActionBarProps) {
+  // O retorno mais recente que ainda diz algo: o da confirmação primeiro.
+  const shown = feedback.find(f => f.status !== 'idle');
+  const message = shown && <p role={shown.status === 'error' ? 'alert' : 'status'}
+    className={shown.status === 'error' ? 'text-amber-300' : 'text-slate-300'}>{shown.message}</p>;
+  if (!mine) return message ?? null;
+  if (!mine.turn) {
+    return (
+      <div className="flex flex-col gap-1">
+        <p className="text-slate-300">
+          {chosen ? `Intenção: ${championName(catalog, chosen)}. ` : ''}Ainda não é sua vez; o campeão marcado aparece para o time.
+        </p>
+        {message}
+      </div>
+    );
+  }
+  const ban = mine.action.type === 'ban';
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" disabled={!chosen || !chosenAvailable || busy}
+          onClick={() => { if (chosen) onConfirm(chosen); }}
+          className={`rounded border px-4 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${ban ? 'border-rose-400' : 'border-sky-400'}`}>
+          {chosen ? `${ban ? 'Banir' : 'Escolher'} ${championName(catalog, chosen)}` : ban ? 'Banir' : 'Escolher'}
+        </button>
+        {!chosen && <p className="text-slate-300">{ban ? 'Escolha na grade quem banir.' : 'Escolha seu campeão na grade.'}</p>}
+        {chosen && !chosenAvailable && <p className="text-amber-300">Esse campeão não está mais disponível.</p>}
+      </div>
+      {message}
+    </div>
+  );
+}
+
 type GridProps = {
   state: AgentState;
   champSelect: ChampSelect;
+  grid: GridChampion[];
   selected: number | null;
-  onSelect: (id: number) => void;
+  /** `null` quando o jogador não tem ação para marcar agora. */
+  onSelect: ((id: number) => void) | null;
 };
 
-function ChampionGrid({ state, champSelect, selected, onSelect }: GridProps) {
+function ChampionGrid({ state, champSelect, grid: all, selected, onSelect }: GridProps) {
   const [query, setQuery] = useState('');
   const purpose = gridPurpose(champSelect);
-  const all = gridChampions(state, champSelect);
   const byId = new Map(all.map(item => [item.champion.id, item]));
   const shown = searchChampions(all.map(item => item.champion), query).map(c => byId.get(c.id)!);
   const label = purpose === 'ban' ? 'Campeões para banir' : 'Campeões';
@@ -183,9 +263,9 @@ function ChampionGrid({ state, champSelect, selected, onSelect }: GridProps) {
           <ul className="champion-grid" aria-label="Grade de campeões">
             {shown.map(({ champion, available }) => (
               <li key={champion.id}>
-                <button type="button" aria-pressed={selected === champion.id} disabled={!available}
+                <button type="button" aria-pressed={selected === champion.id} disabled={!available || !onSelect}
                   title={available ? champion.name : `${champion.name} (indisponível)`}
-                  onClick={() => onSelect(champion.id)}
+                  onClick={() => onSelect?.(champion.id)}
                   className="flex w-full flex-col items-center gap-1 rounded border border-transparent p-1 text-xs aria-pressed:border-sky-400 aria-pressed:bg-sky-950 disabled:cursor-not-allowed disabled:opacity-40">
                   <ChampionIcon id={champion.id} size={48} />
                   <span className="w-full truncate text-center">{champion.name}</span>
