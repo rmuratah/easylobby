@@ -29,6 +29,7 @@ use crate::gameflow::{self, GameflowPhase};
 use crate::invitations::{ReceivedInvitation, RECEIVED_INVITATIONS_PATH};
 use crate::lobby::{Lobby, LOBBY_PATH};
 use crate::matchmaking::{self, Matchmaking, SEARCH_PATH};
+use crate::queues::GAME_QUEUES_PATH;
 use crate::ready_check::{ReadyCheck, READY_CHECK_PATH};
 use crate::rest::{LcuClient, LcuError};
 use crate::runes::{CURRENT_PAGE_PATH, INVENTORY_PATH, PAGES_PATH};
@@ -235,10 +236,10 @@ impl Hub {
 
     /// Atualiza o estado com o que a [`LcuConnection`] devolveu.
     ///
-    /// Num `Connected`, relê pelo REST o invocador, a fase, o lobby, a fila,
-    /// o ready check, a seleção de campeões, as páginas e as árvores de
-    /// runas, porque os eventos de antes da conexão se perderam. Num
-    /// `Disconnected`, limpa o que dependia do LoL.
+    /// Num `Connected`, relê pelo REST o invocador, a fase, as filas
+    /// disponíveis, o lobby, a fila, o ready check, a seleção de campeões, as
+    /// páginas e as árvores de runas, porque os eventos de antes da conexão
+    /// se perderam. Num `Disconnected`, limpa o que dependia do LoL.
     pub async fn apply(&self, event: ConnectionEvent) {
         match event {
             ConnectionEvent::Connected(session) => {
@@ -270,6 +271,7 @@ impl Hub {
                     spell_catalog,
                     champion_catalog,
                     friend_list,
+                    queues,
                 ) = tokio::join!(
                     summoner::current_summoner(&client),
                     gameflow::current_phase(&client),
@@ -282,12 +284,15 @@ impl Hub {
                     summoner_spells::catalog(&client),
                     crate::champions::catalog(&client),
                     crate::friends::friends(&client),
+                    crate::queues::available(&client),
                 );
                 // 404 antes do login; qualquer outro erro também deixa vazio,
                 // e o próximo evento da LCU corrige.
                 self.set_summoner(summoner.ok());
                 let phase = phase.ok();
                 self.set_gameflow_phase(phase);
+                // Antes do lobby, para a UI já achar a fila dele na lista.
+                self.restore_queues(chat_session, queues.ok().flatten().unwrap_or_default());
                 // Um comando que publicou durante a releitura é mais novo.
                 self.set_lobby_if(lobby_stamp, lobby.ok().flatten());
                 self.set_matchmaking_if(search_stamp, search.ok().flatten());
@@ -342,6 +347,7 @@ impl Hub {
                 self.set_gameflow_phase(None);
                 self.set_ready_check(None);
                 self.set_lobby(None);
+                self.set_queues(Vec::new());
                 self.set_matchmaking(None);
                 self.set_champ_select(None);
                 self.set_received_invitations(Vec::new());
@@ -391,6 +397,13 @@ impl Hub {
             LOBBY_PATH => {
                 if let Some(lobby) = Lobby::from_json(&event.data) {
                     self.set_lobby(Some(lobby));
+                }
+            }
+            // Uma fila entrou ou saiu de rotação (#146).
+            GAME_QUEUES_PATH if deleted => {}
+            GAME_QUEUES_PATH => {
+                if let Some(queues) = crate::queues::from_json(&event.data) {
+                    self.set_queues(queues);
                 }
             }
             SEARCH_PATH if deleted => self.set_matchmaking(None),

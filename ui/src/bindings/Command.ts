@@ -18,6 +18,7 @@ export type Command =
   | { "type": "setPositions", first: Position, second: Position, }
   | { "type": "startQueue" }
   | { "type": "stopQueue" }
+  | { "type": "createLobbyById", queueId: number, }
   | { "type": "acceptReadyCheck" }
   | { "type": "declineReadyCheck" }
   | { "type": "hoverChampion", actionId: number, championId: number, }

@@ -25,6 +25,7 @@
 //! ```json
 //! {"id":7,"command":{"type":"ping"}}
 //! {"id":8,"command":{"type":"createLobby","queue":"rankedSolo"}}
+//! {"id":9,"command":{"type":"createLobbyById","queueId":2400}}
 //! {"id":9,"command":{"type":"selectRunePage","pageId":994528921}}
 //! {"id":10,"command":{"type":"confirmAction","actionId":13,"championId":121}}
 //! {"id":11,"command":{"type":"setSummonerSpells","spell1Id":4,"spell2Id":14}}
@@ -54,6 +55,7 @@ use crate::gameflow::GameflowPhase;
 use crate::invitations::{Invitee, ReceivedInvitation};
 use crate::lobby::{Lobby, Position, Queue};
 use crate::matchmaking::Matchmaking;
+use crate::queues::GameQueue;
 use crate::ready_check::ReadyCheck;
 use crate::runes::{RuneCatalog, RunePageInput, RunePages};
 use crate::summoner::Summoner;
@@ -104,6 +106,11 @@ pub enum ServerMessage {
     /// mais ou menos a cada segundo enquanto ele está aberto, com o `timer`
     /// novo. `null` quando não há ready check (fechou, ou o LoL fechou).
     ReadyCheck { ready_check: Option<ReadyCheck> },
+    /// Mudou a lista de filas em que dá para criar lobby agora (#146): chega
+    /// logo depois de conectar e quando uma fila entra ou sai de rotação.
+    /// Sempre a lista inteira, na ordem do `queueId`. Vazia com o LoL
+    /// fechado ou se a LCU não mandou a lista.
+    Queues { queues: Vec<GameQueue> },
 
     // Seleção de campeões
     /// A seleção de campeões (#22) abriu ou mudou: hover, ban, pick, troca
@@ -190,6 +197,9 @@ pub struct AgentState {
     pub matchmaking: Option<Matchmaking>,
     /// Ready check aberto (partida encontrada, #20), ou `null`.
     pub ready_check: Option<ReadyCheck>,
+    /// Filas em que dá para criar lobby agora (#146), lidas da LCU. Vazia
+    /// com o LoL fechado.
+    pub queues: Vec<GameQueue>,
 
     // Seleção de campeões
     /// Seleção de campeões em andamento (#22), ou `null`.
@@ -316,6 +326,12 @@ pub enum Command {
     /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
     /// recusar.
     StopQueue,
+    /// Como `createLobby`, com o `queueId` de uma das filas da lista
+    /// `queues` (#146): serve também para as filas que não são uma das
+    /// [`Queue`] fixas (ARAM: Desordem, Jade, contra IA...). Responde
+    /// `invalidCommand` sem falar com a LCU se a fila não está na lista, e
+    /// os mesmos erros do `createLobby` no resto.
+    CreateLobbyById { queue_id: u32 },
     /// Aceita a partida encontrada (`POST
     /// /lol-matchmaking/v1/ready-check/accept`, #20). Responde
     /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (por
@@ -538,6 +554,7 @@ mod tests {
                     "readyCheck": null,
                     "lobby": null,
                     "matchmaking": null,
+                    "queues": [],
                     "champSelect": null,
                     "receivedInvitations": [],
                     "conversations": [],
@@ -680,6 +697,11 @@ mod tests {
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 11, "command": {"type": "stopQueue"}})).unwrap();
         assert_eq!(msg.command, Command::StopQueue);
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 11, "command": {"type": "createLobbyById", "queueId": 2400}}),
+        )
+        .unwrap();
+        assert_eq!(msg.command, Command::CreateLobbyById { queue_id: 2400 });
         let msg: ClientMessage = serde_json::from_value(
             json!({"id": 12, "command": {"type": "selectRunePage", "pageId": 994528921}}),
         )

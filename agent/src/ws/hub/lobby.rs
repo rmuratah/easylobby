@@ -3,6 +3,7 @@
 use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
 use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError};
 use crate::matchmaking::{self, Matchmaking};
+use crate::queues::GameQueue;
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 
 impl Hub {
@@ -18,10 +19,33 @@ impl Hub {
     /// `createLobby`, #17). Publica o lobby que a LCU respondeu antes de
     /// devolver, sem esperar o evento do WAMP.
     pub async fn create_lobby(&self, queue: Queue) -> CommandResult {
+        self.create_lobby_in(queue.id()).await
+    }
+
+    /// Como [`Hub::create_lobby`], com o `queueId` de uma das filas
+    /// disponíveis (comando `createLobbyById`, #146). Recusa sem falar com a
+    /// LCU uma fila que não está na lista.
+    pub async fn create_lobby_by_id(&self, queue_id: u32) -> CommandResult {
+        let listed = self
+            .lock()
+            .state
+            .queues
+            .iter()
+            .any(|q| q.queue_id == queue_id);
+        if !listed {
+            return CommandResult::error(
+                ErrorCode::InvalidCommand,
+                format!("a fila {queue_id} não está disponível agora"),
+            );
+        }
+        self.create_lobby_in(queue_id).await
+    }
+
+    async fn create_lobby_in(&self, queue_id: u32) -> CommandResult {
         let Some((client, stamp)) = self.begin(Resource::Lobby) else {
             return not_connected();
         };
-        match lobby::create_lobby(&client, queue).await {
+        match lobby::create_lobby_by_id(&client, queue_id).await {
             Ok(lobby) => {
                 if !(lobby.is_some() && self.set_lobby_if(stamp, lobby)) {
                     self.refresh_lobby().await;
@@ -72,6 +96,22 @@ impl Hub {
                 CommandResult::error(ErrorCode::Lcu, error.to_string())
             }
         }
+    }
+
+    /// Publica as filas em que dá para criar lobby (#146).
+    pub fn set_queues(&self, queues: Vec<GameQueue>) {
+        self.update(|shared| write_queues(shared, queues));
+    }
+
+    /// Como [`Hub::set_queues`], mas só se a conexão ainda é a `session` da
+    /// releitura.
+    pub(super) fn restore_queues(&self, session: u64, queues: Vec<GameQueue>) {
+        self.update(|shared| {
+            if shared.session != session {
+                return None;
+            }
+            write_queues(shared, queues)
+        });
     }
 
     pub fn set_matchmaking(&self, matchmaking: Option<Matchmaking>) {
@@ -161,6 +201,14 @@ impl Hub {
     }
 }
 
+fn write_queues(shared: &mut Shared, queues: Vec<GameQueue>) -> Option<ServerMessage> {
+    if shared.state.queues == queues {
+        return None;
+    }
+    shared.state.queues = queues.clone();
+    Some(ServerMessage::Queues { queues })
+}
+
 /// Troca o lobby, contando a escrita mesmo quando nada muda (#73).
 pub(super) fn write_lobby(shared: &mut Shared, lobby: Option<Lobby>) -> Option<ServerMessage> {
     shared.lobby_rev += 1;
@@ -191,6 +239,7 @@ mod tests {
     use crate::lobby::LOBBY_PATH;
     use crate::matchmaking::SearchState;
     use crate::matchmaking::SEARCH_PATH;
+    use crate::queues::GAME_QUEUES_PATH;
     use crate::wamp::EventType;
     use serde_json::json;
 
@@ -241,6 +290,71 @@ mod tests {
                 }
             ));
         }
+    }
+
+    fn queues_json() -> serde_json::Value {
+        let queue = |id: u32, name: &str, mode: &str| {
+            json!({
+                "id": id, "name": name, "gameMode": mode, "gameSelectCategory": "kPvP",
+                "gameSelectModeGroup": "kARAM", "mapId": 12,
+                "queueAvailability": "Available", "isEnabled": true, "isVisible": true,
+            })
+        };
+        json!([
+            queue(2400, "ARAM: Desordem", "KIWI"),
+            queue(450, "ARAM", "ARAM")
+        ])
+    }
+
+    #[tokio::test]
+    async fn segue_as_filas_disponiveis() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        hub.apply(event(GAME_QUEUES_PATH, EventType::Update, queues_json()))
+            .await;
+        // A mesma lista de novo não manda nada.
+        hub.apply(event(GAME_QUEUES_PATH, EventType::Update, queues_json()))
+            .await;
+        // Nem um `Delete` ou um JSON que não é lista.
+        hub.apply(event(GAME_QUEUES_PATH, EventType::Delete, json!(null)))
+            .await;
+        hub.apply(event(GAME_QUEUES_PATH, EventType::Update, json!({})))
+            .await;
+
+        let messages: Vec<ServerMessage> = std::iter::from_fn(|| rx.try_recv().ok()).collect();
+        let [ServerMessage::Queues { queues }] = messages.as_slice() else {
+            panic!("esperava uma mensagem queues: {messages:?}");
+        };
+        let ids: Vec<u32> = queues.iter().map(|q| q.queue_id).collect();
+        assert_eq!(ids, [450, 2400]);
+        assert_eq!(queues[0].queue, Some(Queue::Aram));
+        assert_eq!(hub.state().queues, *queues);
+    }
+
+    #[tokio::test]
+    async fn criar_lobby_por_id_so_com_fila_da_lista() {
+        let hub = Hub::new();
+        let not_listed = hub.create_lobby_by_id(2400).await;
+        assert!(
+            matches!(
+                &not_listed,
+                CommandResult::Error {
+                    code: ErrorCode::InvalidCommand,
+                    message,
+                } if message.contains("2400")
+            ),
+            "{not_listed:?}"
+        );
+        hub.apply(event(GAME_QUEUES_PATH, EventType::Update, queues_json()))
+            .await;
+        // Na lista, segue para a LCU, que aqui não está conectada.
+        assert!(matches!(
+            hub.create_lobby_by_id(2400).await,
+            CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            }
+        ));
     }
 
     #[tokio::test]

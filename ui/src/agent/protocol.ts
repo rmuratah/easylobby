@@ -26,6 +26,7 @@ import type { Friend } from '../bindings/Friend';
 import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 import type { ChampionCatalog } from '../bindings/ChampionCatalog';
 import type { ChampSelectChampions } from '../bindings/ChampSelectChampions';
+import type { GameQueue } from '../bindings/GameQueue';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
 const errorCodes = {
@@ -100,6 +101,11 @@ function matchmaking(v: unknown): v is Matchmaking | null {
     uint(v.queueId) &&
     nums(v, ['timeInQueue', 'estimatedQueueTime', 'lowPriorityTimeRemaining']) && list(v.errors, matchmakingError));
 }
+function gameQueue(v: unknown): v is GameQueue {
+  return object(v) && uints(v, ['queueId', 'mapId']) && (v.queue === null || isQueue(v.queue)) &&
+    strings(v, ['name', 'description', 'gameMode', 'modeGroup']) &&
+    booleans(v, ['versusAi', 'ranked', 'showPositionSelector', 'limitedTime']);
+}
 function champSelect(v: unknown): v is ChampSelect | null {
   return v === null || (object(v) && typeof v.id === 'string' && uint(v.queueId) && Number.isSafeInteger(v.localPlayerCellId) &&
     (v.queue === null || isQueue(v.queue)) && booleans(v, ['isCustomGame', 'hasSimultaneousBans', 'hasSimultaneousPicks']) &&
@@ -151,7 +157,7 @@ function status(v: unknown): v is LcuStatus {
 }
 function state(v: unknown): v is AgentState {
   return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) &&
-    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && champSelect(v.champSelect) &&
+    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
@@ -172,6 +178,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'gameflowPhase': valid = nullableString(v.phase); break;
     case 'readyCheck': valid = readyCheck(v.readyCheck); break;
     case 'matchmaking': valid = matchmaking(v.matchmaking); break;
+    case 'queues': valid = list(v.queues, gameQueue); break;
     case 'champSelect': valid = champSelect(v.champSelect); break;
     case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
     case 'receivedInvitations': valid = list(v.invitations, receivedInvitation); break;

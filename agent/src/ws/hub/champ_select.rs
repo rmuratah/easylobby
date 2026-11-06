@@ -103,8 +103,13 @@ impl Hub {
         let (client, checked) = {
             let shared = self.lock();
             let state = &shared.state;
-            let checked = summoner_spells::check_spells(
-                state.champ_select.as_ref(),
+            let champ_select = state.champ_select.as_ref();
+            // A fila da seleção na lista, para as filas fora das fixas (#146).
+            let game_queue =
+                champ_select.and_then(|cs| state.queues.iter().find(|q| q.queue_id == cs.queue_id));
+            let checked = summoner_spells::check_spells_in(
+                champ_select,
+                game_queue,
                 state.summoner_spell_catalog.as_ref(),
                 state.summoner.as_ref().map(|s| s.summoner_level),
                 spell1_id,
