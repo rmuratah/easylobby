@@ -80,13 +80,16 @@ it('bloqueia resposta desconhecida e ações incompatíveis mesmo antes da fase'
   expect(screen.getByRole('button', { name: 'Cancelar busca' })).toBeDisabled();
 });
 it.each(['Lobby', 'ChampSelect'] as const)('limpa timer e descarta resposta ao mudar para %s', async phase => {
-  render(<App />); open(); fireEvent.click(button('Aceitar'));
+  render(<App />); hello({ gameflowPhase: 'Lobby', lobby: testLobby });
+  // Outros timers da tela (o relógio da lista de amigos) não são do ready check.
+  const otherTimers = vi.getTimerCount();
+  open(); fireEvent.click(button('Aceitar'));
   act(() => socket().receive({ type: 'gameflowPhase', phase }));
   await respond({ status: 'error', code: 'lcu', message: 'antigo' });
   expect(panel().queryByText(/antigo/)).not.toBeInTheDocument();
   expect(panel().queryByLabelText('Tempo para responder')).not.toBeInTheDocument();
   expect(button('Aceitar')).toBeDisabled();
-  expect(vi.getTimerCount()).toBe(0);
+  expect(vi.getTimerCount()).toBe(otherTimers);
 });
 it('trata erro LCU, falha de envio e não repete envio incerto', async () => {
   render(<App />); open(); fireEvent.click(button('Aceitar'));
