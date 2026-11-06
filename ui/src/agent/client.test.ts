@@ -216,7 +216,6 @@ describe('eventos de estado do agente', () => {
     [{ type: 'champSelectChampions', champSelectChampions: { pickable: [1, 266], bannable: null } },
       { champSelectChampions: { pickable: [1, 266], bannable: null } }],
     [{ type: 'friends', friends: [testFriend] }, { friends: [testFriend] }],
-    [{ type: 'champSelectChat', champSelectChat: testChampSelectChat }, { champSelectChat: testChampSelectChat }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
     socket().receive(hello({ lobby: testLobby }));
     socket().receive(message);
@@ -225,7 +224,7 @@ describe('eventos de estado do agente', () => {
   it.each([
     [{ type: 'readyCheck', readyCheck: null }, { readyCheck: null }],
     [{ type: 'matchmaking', matchmaking: null }, { matchmaking: null }],
-    [{ type: 'champSelect', champSelect: null }, { champSelect: null }],
+    [{ type: 'champSelect', champSelect: null }, { champSelect: null, champSelectChat: null }],
     [{ type: 'receivedInvitations', invitations: [] }, { receivedInvitations: [] }],
     [{ type: 'runePages', runePages: null }, { runePages: null }],
     [{ type: 'runeCatalog', runeCatalog: null }, { runeCatalog: null }],

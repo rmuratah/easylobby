@@ -21,14 +21,21 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
   switch (message.type) {
     case 'lcu': return { ...state, lcu: message.status,
       readyCheck: message.status.state === 'connected' && state.lcu.state === 'connected' &&
-        message.status.session === state.lcu.session ? state.readyCheck : null };
+        message.status.session === state.lcu.session ? state.readyCheck : null,
+      champSelectChat: message.status.state === 'connected' && state.lcu.state === 'connected' &&
+        message.status.session === state.lcu.session ? state.champSelectChat : null };
     case 'summoner': return { ...state, summoner: message.summoner };
-    case 'gameflowPhase': return { ...state, gameflowPhase: message.phase };
+    case 'gameflowPhase': return { ...state, gameflowPhase: message.phase,
+      champSelectChat: message.phase === 'ChampSelect' ? state.champSelectChat : null };
     case 'readyCheck': return { ...state, readyCheck: message.readyCheck };
     case 'lobby': return { ...state, lobby: message.lobby };
     case 'matchmaking': return { ...state, matchmaking: message.matchmaking };
-    case 'champSelect': return { ...state, champSelect: message.champSelect };
-    case 'champSelectChat': return { ...state, champSelectChat: message.champSelectChat };
+    case 'champSelect': return { ...state, champSelect: message.champSelect,
+      champSelectChat: message.champSelect && (!state.champSelect || state.champSelect.id === message.champSelect.id)
+        ? state.champSelectChat : null };
+    case 'champSelectChat': return { ...state, champSelectChat:
+      state.lcu.state === 'connected' && state.gameflowPhase === 'ChampSelect' && state.champSelect
+        ? message.champSelectChat : null };
     case 'receivedInvitations': return { ...state, receivedInvitations: message.invitations };
     case 'conversation': {
       const { conversation } = message;
