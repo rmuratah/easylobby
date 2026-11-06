@@ -1,3 +1,4 @@
+import { ReadyCheckPanel } from './components/ReadyCheckPanel';
 import { LobbyPanel } from './components/LobbyPanel';
 import { useAgent } from './agent/useAgent';
 import type { ConnectionSnapshot } from './agent/client';
@@ -37,6 +38,7 @@ export default function App() {
       )}
       {connection.error && <p role="alert" className="max-w-lg text-center text-amber-300">{connection.error}</p>}
       <LobbyPanel connection={connection} send={connection.send} />
+      <ReadyCheckPanel connection={connection} send={connection.send} />
       <QueuePanel connection={connection} send={connection.send} />
     </main>
   );
