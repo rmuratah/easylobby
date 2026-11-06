@@ -1,4 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { testLobby, testState } from './test/lobby';
+import { testMatchmaking } from './test/events';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { useAgent } from './agent/useAgent';
@@ -60,5 +62,64 @@ describe('invocador logado', () => {
     vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: makeState({ lcu: { state: 'starting' }, summoner }), send: vi.fn() });
     render(<App />);
     expect(screen.queryByText('Nível 122')).not.toBeInTheDocument();
+  });
+});
+
+describe('telas confirmadas pelo agente', () => {
+  const send = vi.fn(() => new Promise<never>(() => {}));
+  function snapshot(overrides: Parameters<typeof makeState>[0] = {}) {
+    vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null,
+      state: makeState({ ...testState, ...overrides }), send });
+  }
+  it('preserva criar lobby pendente ao navegar e ao receber o lobby', () => {
+    send.mockClear();
+    snapshot();
+    const { rerender } = render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Criar lobby' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
+    expect(screen.queryByRole('button', { name: 'Criar lobby' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+    expect(screen.getByRole('button', { name: 'Criar lobby' })).toBeDisabled();
+    snapshot({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    rerender(<App />);
+    expect(screen.getByRole('button', { name: 'Sair do lobby' })).toBeDisabled();
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+  it('preserva busca pendente entre Lobby, Runas e Fila e volta após reconectar', () => {
+    send.mockClear();
+    snapshot({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    const { rerender } = render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar busca' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
+    snapshot({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
+    rerender(<App />);
+    expect(screen.getByRole('button', { name: 'Cancelar busca' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Tempo na fila')).toBeVisible();
+    expect(send).toHaveBeenCalledTimes(1);
+    vi.mocked(useAgent).mockReturnValue({ status: 'reconnecting', state: null, error: null, send });
+    rerender(<App />);
+    expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Abrir client oficial' })).toBeDisabled();
+    snapshot({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
+    rerender(<App />);
+    expect(screen.getByRole('button', { name: 'Cancelar busca' })).toBeEnabled();
+  });
+  it('destaca partida encontrada mesmo antes da fase e durante navegação', () => {
+    snapshot({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    const { rerender } = render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
+    snapshot({ lobby: testLobby, gameflowPhase: 'Lobby', matchmaking: { ...testMatchmaking, searchState: 'Found' } });
+    rerender(<App />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Partida encontrada');
+    expect(screen.queryByRole('button', { name: 'Iniciar busca' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Abrir client oficial' })).toBeEnabled();
+    snapshot({ gameflowPhase: 'ChampSelect', matchmaking: testMatchmaking });
+    rerender(<App />);
+    expect(screen.getByText(/Seleção de campeões em andamento/)).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
   });
 });

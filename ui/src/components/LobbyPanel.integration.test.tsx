@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { configure, act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
 import { AGENT_URL } from '../agent/client';
@@ -36,8 +36,9 @@ async function ok() {
 function choose(queue: Queue) {
   fireEvent.change(panel().getByRole('combobox', { name: 'Fila' }), { target: { value: queue } });
 }
-beforeEach(() => { vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal('WebSocket', Socket); });
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+// Estes testes verificam também as guardas dos painéis montados fora da tela ativa.
+beforeEach(() => { configure({ defaultHidden: true }); vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal('WebSocket', Socket); });
+afterEach(() => { configure({ defaultHidden: false }); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('lobby pelo único /ws do App', () => {
   it.each(Object.keys(queueNames) as Queue[])('cria %s sem duplicar e aguarda estado e resposta do agente', async queue => {
