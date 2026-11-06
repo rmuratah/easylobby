@@ -1,5 +1,7 @@
 //! Shell Tauri 2 com janela, bandeja e canal local do agente.
 
+mod match_found;
+
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -98,6 +100,10 @@ fn bind_channel() -> std::io::Result<TcpListener> {
 async fn run_channel(app: &AppHandle, listener: TcpListener, source: CredentialSource) -> String {
     let hub = Hub::new();
     app.state::<Channel>().set_hub(Some(hub.clone()));
+    let watcher = {
+        let (app, hub) = (app.clone(), hub.clone());
+        tauri::async_runtime::spawn(async move { match_found::watch(app, &hub).await })
+    };
     let task = tauri::async_runtime::spawn(async move {
         let listener = tokio::net::TcpListener::from_std(listener)?;
         let lcu = LcuConnection::new(ReconnectConfig::with_source(source));
@@ -108,6 +114,7 @@ async fn run_channel(app: &AppHandle, listener: TcpListener, source: CredentialS
         Ok(Err(error)) => error.to_string(),
         Err(error) => format!("a tarefa do canal falhou: {error}"),
     };
+    watcher.abort();
     app.state::<Channel>().set_hub(None);
     reason
 }
