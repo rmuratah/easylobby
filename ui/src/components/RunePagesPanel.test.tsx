@@ -159,4 +159,27 @@ describe('RunePagesPanel', () => {
     await act(async () => { fireEvent.click(page('Mid').getByRole('button', { name: 'Usar Mid' })); });
     expect(panel().getByRole('alert')).toHaveTextContent('O League of Legends desconectou');
   });
+
+  it('edita e salva só pelo teclado: foco no nome, Enter salva, Esc cancela e devolve o foco', async () => {
+    const send = vi.fn(async (): Promise<CommandResult> => ({ status: 'ok' }));
+    render(<RunePagesPanel connection={connection()} send={send} />);
+    const edit = page('Mid').getByRole('button', { name: 'Editar Mid' });
+    edit.focus();
+    click(edit);
+    const name = editor('Editar Mid').getByRole('textbox', { name: 'Nome da página' });
+    expect(name).toHaveFocus();
+    act(() => { fireEvent.keyDown(name, { key: 'Escape' }); });
+    expect(panel().queryByRole('form')).toBeNull();
+    expect(page('Mid').getByRole('button', { name: 'Editar Mid' })).toHaveFocus();
+    expect(send).not.toHaveBeenCalled();
+
+    click(page('Mid').getByRole('button', { name: 'Editar Mid' }));
+    const form = editor('Editar Mid');
+    fireEvent.change(form.getByRole('textbox', { name: 'Nome da página' }), { target: { value: 'Mid 2' } });
+    // Enter num campo de texto envia o formulário.
+    await act(async () => { fireEvent.submit(form.getByRole('textbox', { name: 'Nome da página' })); });
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'updateRunePage', pageId: 10,
+      page: expect.objectContaining({ name: 'Mid 2' }) }));
+    expect(panel().queryByRole('form')).toBeNull();
+  });
 });

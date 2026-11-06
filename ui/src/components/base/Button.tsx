@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, Ref } from "react";
 import { cx } from "./cx";
 import { Spinner } from "./Spinner";
 
@@ -23,6 +23,7 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: ButtonSize;
   /** Mostra o indicador de carregamento e bloqueia novos cliques, mantendo o texto. */
   loading?: boolean;
+  ref?: Ref<HTMLButtonElement>;
 };
 
 export function Button({

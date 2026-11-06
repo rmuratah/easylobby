@@ -153,3 +153,15 @@ it.each(['agente', 'LCU'] as const)('remove o seletor ao desconectar %s e não r
   expect(oldSocket.send).toHaveBeenCalledTimes(1);
   if (source === 'agente') expect(socket().send).not.toHaveBeenCalled();
 });
+
+it('abre a lista com o foco no feitiço atual e fecha com Esc devolvendo o foco', () => {
+  render(<App />); hello();
+  const slot = spells().getByRole('button', { name: 'Feitiço 1 (D): Flash' });
+  fireEvent.click(slot);
+  const list = spells().getByRole('list', { name: 'Escolher Feitiço 1 (D)' });
+  expect(within(list).getByRole('button', { name: 'Flash' })).toHaveFocus();
+  fireEvent.keyDown(within(list).getByRole('button', { name: 'Flash' }), { key: 'Escape' });
+  expect(spells().queryByRole('list')).toBeNull();
+  expect(slot).toHaveFocus();
+  expect(socket().send).not.toHaveBeenCalledWith(expect.stringContaining('setSummonerSpells'));
+});

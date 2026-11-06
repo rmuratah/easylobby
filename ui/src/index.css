@@ -24,6 +24,11 @@ button[aria-current="page"] { background: var(--el-accent-soft); border-color: v
   .champ-select-board { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .champ-select-center { grid-column: 1 / -1; grid-row: 2; }
 }
+/* Editor de runas (#131): árvore primária à esquerda, secundária e fragmentos à direita. */
+.rune-editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; }
+@container (max-width: 44rem) {
+  .rune-editor { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* Compatibilidade das telas funcionais com ambos os temas. */
 @theme inline {

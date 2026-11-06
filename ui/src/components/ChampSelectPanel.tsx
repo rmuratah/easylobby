@@ -9,6 +9,7 @@ import { useCommand, type CommandFeedback } from '../agent/useCommand';
 import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
+import { RuneQuickPick } from './RuneQuickPick';
 import { positionNames } from '../agent/positions';
 import type { AgentState } from '../bindings/AgentState';
 import type { ChampSelect } from '../bindings/ChampSelect';
@@ -17,7 +18,7 @@ import type { ChampionCatalog } from '../bindings/ChampionCatalog';
 import { Button } from './base';
 import { cx } from './base/cx';
 
-type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
+type Props = { connection: ConnectionSnapshot; send: AgentClient['send']; onOpenRunes?: () => void };
 
 export function ChampionIcon({ id, size = 40, dim = false }: { id: number | null; size?: number; dim?: boolean }) {
   // O fundo fica no lugar da imagem enquanto ela carrega ou quando não há ícone.
@@ -36,7 +37,7 @@ export function ChampionIcon({ id, size = 40, dim = false }: { id: number | null
  * agente. Na vez do jogador, clicar na grade marca o campeão (hover) e o
  * botão confirma o ban ou o pick; antes da vez, marca a intenção (#23).
  */
-export function ChampSelectPanel({ connection, send }: Props) {
+export function ChampSelectPanel({ connection, send, onOpenRunes }: Props) {
   const state = connection.state;
   if (connection.status !== 'connected' || state?.lcu.state !== 'connected') return null;
   if (!state.champSelect) {
@@ -48,12 +49,12 @@ export function ChampSelectPanel({ connection, send }: Props) {
     );
   }
   // Cada seleção (e cada conexão) começa do zero: busca e escolha locais não passam para a próxima.
-  return <ChampSelectContent key={`${state.lcu.session}:${state.champSelect.id}`} state={state} champSelect={state.champSelect} send={send} />;
+  return <ChampSelectContent key={`${state.lcu.session}:${state.champSelect.id}`} state={state} champSelect={state.champSelect} send={send} onOpenRunes={onOpenRunes} />;
 }
 
-type ContentProps = { state: AgentState; champSelect: ChampSelect; send: AgentClient['send'] };
+type ContentProps = { state: AgentState; champSelect: ChampSelect; send: AgentClient['send']; onOpenRunes?: () => void };
 
-function ChampSelectContent({ state, champSelect, send }: ContentProps) {
+function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentProps) {
   const catalog = state.championCatalog;
   const acting = actingCells(champSelect);
   const mine = myAction(champSelect);
@@ -87,6 +88,7 @@ function ChampSelectContent({ state, champSelect, send }: ContentProps) {
               : <SwapOffers champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
           <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
             summonerLevel={state.summoner?.summonerLevel ?? null} send={send} />
+          <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />
         </div>
         <div className="champ-select-center">
           <Bans champSelect={champSelect} catalog={catalog} />
