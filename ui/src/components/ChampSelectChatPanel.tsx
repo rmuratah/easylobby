@@ -82,8 +82,8 @@ function OpenChat({ champSelect, chat, send }: Props & { chat: ChampSelectChat }
               if (element) follow.current = element.scrollHeight - element.scrollTop - element.clientHeight <= 32;
             }} role="log" aria-label="Mensagens do time" className="flex max-h-64 flex-col gap-1 overflow-y-auto pr-1">
               {messages.map(message => (
-                <li key={message.id} className="break-words text-sm">
-                  <span className="text-xs text-muted">{messageTime(message)} </span>
+                <li key={message.id} className="break-words text-body">
+                  <span className="text-caption text-muted">{messageTime(message)} </span>
                   <span className={`font-semibold ${message.fromMe ? 'text-accent-ink' : 'text-ink'}`}>{senderName(champSelect, message)}: </span>
                   <span className="whitespace-pre-wrap">{message.body}</span>
                 </li>

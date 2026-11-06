@@ -85,7 +85,7 @@ export default function App() {
               {summoner && <SummonerHeader summoner={summoner} />}
               {screen !== 'home' && <button type="button" className="nav-button self-start" onClick={() => setNavigation({ screen, page: 'main' })}>Voltar para {title}</button>}
             </section>
-            {page === 'main' && screen === 'champSelect' && <h2 className="text-2xl font-semibold">{title}</h2>}
+            {page === 'main' && screen === 'champSelect' && <h2 className="text-title font-semibold tracking-[-0.015em]">{title}</h2>}
             {page === 'main' && screen === 'other' && <EmptyState title={phaseLabel(connection.state?.gameflowPhase)}
               description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />}
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}

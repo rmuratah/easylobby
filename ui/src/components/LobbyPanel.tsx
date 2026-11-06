@@ -26,9 +26,9 @@ export function LobbyPanel({ connection, send }: Props) {
   const lcu = state?.lcu;
   if (connection.status !== 'connected' || !state || lcu?.state !== 'connected') {
     return (
-      <section aria-label="Lobby" className="w-full max-w-lg rounded border border-slate-700 p-4">
-        <h2 className="text-xl font-semibold">Lobby</h2>
-        <p>Aguarde a conexão com o agente e o League of Legends. Confira o lobby após reconectar antes de tentar novamente.</p>
+      <section aria-label="Lobby" className="flex w-full flex-col gap-2 rounded-card border border-line bg-surface p-5 text-ink">
+        <h2 className="text-section font-semibold">Lobby</h2>
+        <p className="text-body text-muted">Aguarde a conexão com o agente e o League of Legends. Confira o lobby após reconectar antes de tentar novamente.</p>
       </section>
     );
   }
