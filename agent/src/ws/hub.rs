@@ -450,37 +450,39 @@ impl Hub {
     }
 
     pub fn set_champ_select(&self, champ_select: Option<ChampSelect>) {
+        self.update(|shared| write_champ_select(shared, champ_select));
+        self.resolve_champ_select_chat_senders();
+    }
+
+    fn set_champ_select_if(&self, stamp: Stamp, champ_select: Option<ChampSelect>) -> bool {
+        let applied = self.update_if(Resource::ChampSelect, stamp, |shared| {
+            write_champ_select(shared, champ_select)
+        });
+        if applied {
+            self.resolve_champ_select_chat_senders();
+        }
+        applied
+    }
+
+    /// Quem trocou de célula na seleção leva as mensagens do chat junto
+    /// (#27). Roda depois de toda escrita da seleção, venha ela do WAMP ou da
+    /// releitura de um comando, e depois de a seleção ser publicada, para a
+    /// UI já ter as células novas quando a sala chegar.
+    fn resolve_champ_select_chat_senders(&self) {
         self.update(|shared| {
-            shared.champ_select_rev += 1;
-            if shared.state.champ_select == champ_select {
-                return None;
-            }
-            shared.state.champ_select = champ_select.clone();
-            // Quem trocou de célula leva as mensagens junto (#27). A sala vai
-            // depois da seleção, para a UI já ter as células novas.
             let state = &mut shared.state;
             let senders = Senders {
                 my_puuid: state.summoner.as_ref().map(|s| s.puuid.as_str()),
                 champ_select: state.champ_select.as_ref(),
             };
-            if let Some(room) = state.champ_select_chat.as_mut() {
-                if room.resolve_senders(&senders) {
-                    let _ = self.inner.tx.send(ServerMessage::ChampSelect {
-                        champ_select: champ_select.clone(),
-                    });
-                    return Some(ServerMessage::ChampSelectChat {
-                        champ_select_chat: Some(room.clone()),
-                    });
-                }
+            let room = state.champ_select_chat.as_mut()?;
+            if !room.resolve_senders(&senders) {
+                return None;
             }
-            Some(ServerMessage::ChampSelect { champ_select })
+            Some(ServerMessage::ChampSelectChat {
+                champ_select_chat: Some(room.clone()),
+            })
         });
-    }
-
-    fn set_champ_select_if(&self, stamp: Stamp, champ_select: Option<ChampSelect>) -> bool {
-        self.update_if(Resource::ChampSelect, stamp, |shared| {
-            write_champ_select(shared, champ_select)
-        })
     }
 
     pub fn set_rune_pages(&self, rune_pages: Option<RunePages>) {
@@ -2249,6 +2251,27 @@ mod tests {
             .map(|m| m.from_cell_id)
             .collect();
         assert_eq!(celulas, [Some(2), Some(0)]);
+
+        // A releitura de um comando (`set_champ_select_if`) também leva as
+        // mensagens junto: o aliado volta para a célula 0.
+        let mut de_volta = champ_select("BAN_PICK", 0);
+        de_volta["localPlayerCellId"] = json!(2);
+        de_volta["myTeam"] = json!([
+            {"cellId": 0, "puuid": "", "obfuscatedPuuid": "aliado", "assignedPosition": "top"},
+            {"cellId": 2, "puuid": "eu-puuid", "obfuscatedPuuid": "", "assignedPosition": "middle"},
+        ]);
+        let stamp = hub.lock().stamp(Resource::ChampSelect);
+        assert!(hub.set_champ_select_if(stamp, ChampSelect::from_json(&de_volta)));
+        let celulas: Vec<Option<i32>> = hub
+            .state()
+            .champ_select_chat
+            .unwrap()
+            .messages
+            .iter()
+            .map(|m| m.from_cell_id)
+            .collect();
+        assert_eq!(celulas, [Some(0), Some(2)]);
+        let _ = salas(&mut rx);
 
         // Delete de outra conversa não fecha a sala; o da sala fecha.
         hub.apply(event(AMIGO_URI, EventType::Delete, json!(null)))
