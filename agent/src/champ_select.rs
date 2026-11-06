@@ -17,7 +17,10 @@
 //!   jogador agora ([`ChampSelect::pending_action`]);
 //! - os campeões banidos de cada time.
 //!
-//! Trocas, banco do ARAM e skins ficam para as issues que as usam (#25...).
+//! - as trocas que o jogador pode pedir ou responder: de campeão, de ordem
+//!   de pick e de cargo (#25, veja [`crate::swaps`]).
+//!
+//! Banco do ARAM e skins ficam para as issues que as usam.
 //!
 //! As ações do jogador (#23) usam o `id` de uma ação da sessão:
 //!
@@ -43,6 +46,7 @@ use serde_json::json;
 
 use crate::lobby::{Position, Queue};
 use crate::rest::{LcuClient, LcuError};
+use crate::swaps::{ChampSelectSwap, SwapKind, SwapState};
 
 /// Endpoint (e URI dos eventos WAMP) da sessão de seleção de campeões.
 pub const CHAMP_SELECT_SESSION_PATH: &str = "/lol-champ-select/v1/session";
@@ -84,6 +88,13 @@ pub struct ChampSelect {
     /// e ainda não confirmado), ou `null` se não é a vez dele. O `id` dela
     /// é o que os comandos `hoverChampion` e `confirmAction` (#23) usam.
     pub pending_action: Option<ChampSelectAction>,
+    /// Trocas de campeão com cada aliado (#25). Vazia quando a fila não
+    /// deixa trocar ou antes de os dois terem campeão.
+    pub trades: Vec<ChampSelectSwap>,
+    /// Trocas de vez no draft com cada aliado (#25).
+    pub pick_order_swaps: Vec<ChampSelectSwap>,
+    /// Trocas de cargo com cada aliado (#25).
+    pub position_swaps: Vec<ChampSelectSwap>,
 }
 
 /// Etapa atual da seleção e o tempo dela.
@@ -391,12 +402,24 @@ impl ChampSelect {
             bans,
             actions,
             pending_action,
+            trades: swaps(raw.trades),
+            pick_order_swaps: swaps(raw.pick_order_swaps),
+            position_swaps: swaps(raw.position_swaps),
         })
     }
 
     /// O jogador logado em `myTeam`, se estiver lá.
     pub fn local_player(&self) -> Option<&ChampSelectPlayer> {
         self.my_team.iter().find(|p| p.is_local_player)
+    }
+
+    /// As trocas de um tipo (#25).
+    pub fn swaps(&self, kind: SwapKind) -> &[ChampSelectSwap] {
+        match kind {
+            SwapKind::Champion => &self.trades,
+            SwapKind::PickOrder => &self.pick_order_swaps,
+            SwapKind::Position => &self.position_swaps,
+        }
     }
 }
 
@@ -423,6 +446,12 @@ struct RawSession {
     actions: Vec<Vec<RawAction>>,
     #[serde(default)]
     bans: RawBans,
+    #[serde(default)]
+    trades: Vec<RawSwap>,
+    #[serde(default)]
+    pick_order_swaps: Vec<RawSwap>,
+    #[serde(default)]
+    position_swaps: Vec<RawSwap>,
 }
 
 #[derive(Deserialize)]
@@ -488,6 +517,39 @@ struct RawBans {
     my_team_bans: Vec<i64>,
     #[serde(default)]
     their_team_bans: Vec<i64>,
+}
+
+/// Uma entrada de `trades`, `pickOrderSwaps` ou `positionSwaps`. Campos
+/// faltando ou estranhos não derrubam a sessão inteira: a entrada é pulada.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawSwap {
+    #[serde(default)]
+    id: i64,
+    #[serde(default = "no_actor_i64")]
+    cell_id: i64,
+    #[serde(default = "unknown_swap_state")]
+    state: SwapState,
+}
+
+fn no_actor_i64() -> i64 {
+    -1
+}
+
+fn unknown_swap_state() -> SwapState {
+    SwapState::Unknown
+}
+
+fn swaps(raw: Vec<RawSwap>) -> Vec<ChampSelectSwap> {
+    raw.into_iter()
+        .filter_map(|s| {
+            Some(ChampSelectSwap {
+                id: u64::try_from(s.id).ok()?,
+                cell_id: i32::try_from(s.cell_id).ok().filter(|&c| c >= 0)?,
+                state: s.state,
+            })
+        })
+        .collect()
 }
 
 fn no_actor() -> i32 {
@@ -869,6 +931,57 @@ mod tests {
             complete_action_path(13),
             "/lol-champ-select/v1/session/actions/13/complete"
         );
+    }
+
+    #[test]
+    fn le_as_trocas() {
+        // Formato da gravação 16.22, com uma troca de campeão pedida pelo
+        // jogador e uma de cargo pedida por um aliado.
+        let mut raw = session();
+        raw["trades"] = json!([
+            {"cellId": 0, "id": 30, "state": "SENT"},
+            {"cellId": 4, "id": 47, "state": "INVALID"},
+        ]);
+        raw["pickOrderSwaps"] = json!([{"cellId": 0, "id": 28, "state": "AVAILABLE"}]);
+        raw["positionSwaps"] = json!([
+            {"cellId": 0, "id": 8, "state": "RECEIVED"},
+            {"cellId": 3, "id": 10, "state": "ESTADO_NOVO"},
+            // Entradas quebradas são puladas, sem derrubar a sessão.
+            {"cellId": -1, "id": 11, "state": "AVAILABLE"},
+            {"cellId": 1, "id": -5, "state": "AVAILABLE"},
+        ]);
+        let cs = ChampSelect::from_json_at(&raw, 0).unwrap();
+        let swap = |id, cell_id, state| ChampSelectSwap { id, cell_id, state };
+        assert_eq!(
+            cs.trades,
+            [
+                swap(30, 0, SwapState::Sent),
+                swap(47, 4, SwapState::Invalid)
+            ]
+        );
+        assert_eq!(cs.pick_order_swaps, [swap(28, 0, SwapState::Available)]);
+        assert_eq!(
+            cs.position_swaps,
+            [
+                swap(8, 0, SwapState::Received),
+                swap(10, 3, SwapState::Unknown)
+            ]
+        );
+        assert_eq!(cs.swaps(SwapKind::PickOrder), cs.pick_order_swaps);
+
+        // Sessão sem as listas (modos sem troca).
+        let mut raw = session();
+        for key in ["trades", "pickOrderSwaps"] {
+            raw.as_object_mut().unwrap().remove(key);
+        }
+        let cs = ChampSelect::from_json_at(&raw, 0).unwrap();
+        assert!(cs.trades.is_empty() && cs.position_swaps.is_empty());
+
+        let value =
+            serde_json::to_value(ChampSelect::from_json_at(&session(), 0).unwrap()).unwrap();
+        assert_eq!(value["trades"], json!([]));
+        assert_eq!(value["pickOrderSwaps"], json!([]));
+        assert_eq!(value["positionSwaps"], json!([]));
     }
 
     #[test]

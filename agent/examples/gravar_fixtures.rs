@@ -60,10 +60,11 @@ const SNAPSHOT_PATHS: [&str; 15] = [
 ];
 
 /// Endpoints grandes e que quase não mudam: só no início.
-const STARTUP_ONLY_PATHS: [&str; 3] = [
+const STARTUP_ONLY_PATHS: [&str; 4] = [
     "/lol-game-queues/v1/queues",
     "/lol-game-data/assets/v1/perkstyles.json",
     "/lol-game-data/assets/v1/perks.json",
+    "/lol-game-data/assets/v1/summoner-spells.json",
 ];
 
 /// Prefixos de URI dos eventos WAMP que interessam ao easylobby.

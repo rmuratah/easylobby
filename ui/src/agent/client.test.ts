@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentClient } from './client';
 import { testLobby } from '../test/lobby';
+import {
+  testChampSelect, testConversation, testFriend, testInvitation, testMatchmaking, testReadyCheck, testRuneCatalog, testRunePages,
+} from '../test/events';
 import type { AgentState } from '../bindings/AgentState';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import type { Command } from '../bindings/Command';
@@ -18,7 +21,7 @@ class Socket {
   constructor() { Socket.instances.push(this); }
   receive(message: ServerMessage) { this.onmessage?.({ data: JSON.stringify(message) }); }
 }
-const state: AgentState = { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: 'Lobby', readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], champSelectChat: null, friends: [], runeCatalog: null, runePages: null, receivedInvitations: [] };
+const state: AgentState = { lcu: { state: 'connected', session: 1 }, summoner: null, gameflowPhase: 'Lobby', readyCheck: null, lobby: null, matchmaking: null, champSelect: null, conversations: [], champSelectChat: null, friends: [], runeCatalog: null, summonerSpellCatalog: null, runePages: null, receivedInvitations: [] };
 const hello = (overrides: Partial<AgentState> = {}): ServerMessage => ({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: { ...state, ...overrides } });
 let client: AgentClient;
 const socket = () => Socket.instances.at(-1)!;
@@ -191,5 +194,93 @@ describe('canal do agente', () => {
     expect(Socket.instances).toHaveLength(2);
     socket().receive(hello());
     expect(client.getSnapshot().status).toBe('connected');
+  });
+});
+
+describe('eventos de estado do agente', () => {
+  it.each([
+    [{ type: 'readyCheck', readyCheck: testReadyCheck }, { readyCheck: testReadyCheck }],
+    [{ type: 'matchmaking', matchmaking: testMatchmaking }, { matchmaking: testMatchmaking }],
+    [{ type: 'champSelect', champSelect: testChampSelect }, { champSelect: testChampSelect }],
+    [{ type: 'receivedInvitations', invitations: [testInvitation] }, { receivedInvitations: [testInvitation] }],
+    [{ type: 'runePages', runePages: testRunePages }, { runePages: testRunePages }],
+    [{ type: 'runeCatalog', runeCatalog: testRuneCatalog }, { runeCatalog: testRuneCatalog }],
+    [{ type: 'friends', friends: [testFriend] }, { friends: [testFriend] }],
+  ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
+    socket().receive(hello({ lobby: testLobby }));
+    socket().receive(message);
+    expect(client.getSnapshot()).toEqual({ status: 'connected', state: { ...state, lobby: testLobby, ...change }, error: null });
+  });
+  it.each([
+    [{ type: 'readyCheck', readyCheck: null }, { readyCheck: null }],
+    [{ type: 'matchmaking', matchmaking: null }, { matchmaking: null }],
+    [{ type: 'champSelect', champSelect: null }, { champSelect: null }],
+    [{ type: 'receivedInvitations', invitations: [] }, { receivedInvitations: [] }],
+    [{ type: 'runePages', runePages: null }, { runePages: null }],
+    [{ type: 'runeCatalog', runeCatalog: null }, { runeCatalog: null }],
+    [{ type: 'friends', friends: [] }, { friends: [] }],
+  ] satisfies [ServerMessage, Partial<AgentState>][])('limpa o campo com %j', (message, change) => {
+    const full: Partial<AgentState> = {
+      readyCheck: testReadyCheck, matchmaking: testMatchmaking, champSelect: testChampSelect, receivedInvitations: [testInvitation],
+      runePages: testRunePages, runeCatalog: testRuneCatalog, friends: [testFriend],
+    };
+    socket().receive(hello(full));
+    socket().receive(message);
+    expect(client.getSnapshot().state).toEqual({ ...state, ...full, ...change });
+  });
+  it('troca a conversa de mesmo id, acrescenta as novas e tira as fechadas', () => {
+    const other = { ...testConversation, id: 'outro@br1.pvp.net', gameName: 'Outro', messages: [] };
+    socket().receive(hello({ conversations: [testConversation, other] }));
+    const updated = { ...testConversation, unreadCount: 0, messages: [...testConversation.messages,
+      { id: 'm2', body: 'bora', fromMe: true, timestamp: '2026-11-05T01:14:00.000Z' }] };
+    socket().receive({ type: 'conversation', conversation: updated });
+    expect(client.getSnapshot().state?.conversations).toEqual([updated, other]);
+    const fresh = { ...testConversation, id: 'novo@br1.pvp.net', gameName: 'Novo' };
+    socket().receive({ type: 'conversation', conversation: fresh });
+    expect(client.getSnapshot().state?.conversations).toEqual([updated, other, fresh]);
+    socket().receive({ type: 'conversationClosed', id: other.id });
+    expect(client.getSnapshot().state?.conversations).toEqual([updated, fresh]);
+    socket().receive({ type: 'conversationClosed', id: 'desconhecida' });
+    expect(client.getSnapshot().state?.conversations).toEqual([updated, fresh]);
+  });
+  it('substitui os dados dos eventos na ressincronização', () => {
+    socket().receive(hello());
+    socket().receive({ type: 'friends', friends: [testFriend] });
+    socket().receive({ type: 'conversation', conversation: testConversation });
+    socket().receive(hello());
+    expect(client.getSnapshot().state).toEqual(state);
+  });
+  it.each([
+    ['readyCheck', { type: 'readyCheck', readyCheck: { ...testReadyCheck, timer: '2' } }],
+    ['readyCheck sem campo', { type: 'readyCheck' }],
+    ['matchmaking', { type: 'matchmaking', matchmaking: { ...testMatchmaking, errors: null } }],
+    ['champSelect', { type: 'champSelect', champSelect: { ...testChampSelect, id: 1 } }],
+    ['champSelect com fila herdada', { type: 'champSelect', champSelect: { ...testChampSelect, queue: 'toString' } }],
+    ['champSelect sem bans', { type: 'champSelect', champSelect: { ...testChampSelect, bans: null } }],
+    ['convites', { type: 'receivedInvitations', invitations: [{ ...testInvitation, canAccept: 'sim' }] }],
+    ['convites nulos', { type: 'receivedInvitations', invitations: null }],
+    ['conversa', { type: 'conversation', conversation: { ...testConversation, id: null } }],
+    ['conversa nula', { type: 'conversation', conversation: null }],
+    ['conversa fechada', { type: 'conversationClosed', id: 3 }],
+    ['runas', { type: 'runePages', runePages: { ...testRunePages, pages: [null] } }],
+    ['catálogo', { type: 'runeCatalog', runeCatalog: { ...testRuneCatalog, perks: null } }],
+    ['amigos', { type: 'friends', friends: [{ ...testFriend, id: undefined }] }],
+  ])('rejeita evento malformado: %s', (_name, message) => {
+    socket().receive(hello());
+    socket().onmessage?.({ data: JSON.stringify(message) });
+    expect(client.getSnapshot()).toEqual({ status: 'reconnecting', state: null, error: 'Recebemos uma mensagem inválida do agente.' });
+  });
+  it.each([
+    ['readyCheck', { readyCheck: {} }],
+    ['matchmaking', { matchmaking: [] }],
+    ['champSelect', { champSelect: { ...testChampSelect, timer: null } }],
+    ['convites', { receivedInvitations: undefined }],
+    ['conversas', { conversations: [{ ...testConversation, messages: null }] }],
+    ['runas', { runePages: { ...testRunePages, currentPageId: -1 } }],
+    ['catálogo', { runeCatalog: { styles: [] } }],
+    ['amigos', { friends: null }],
+  ])('rejeita hello com %s malformado', (_name, change) => {
+    socket().onmessage?.({ data: JSON.stringify({ ...hello(), state: { ...state, ...change } }) });
+    expect(client.getSnapshot().status).toBe('reconnecting');
   });
 });

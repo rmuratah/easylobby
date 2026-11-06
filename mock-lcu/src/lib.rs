@@ -14,6 +14,8 @@
 //!
 //! - [`state`]: que resposta cada `GET` recebe em cada momento.
 //! - [`champ_select`]: hover, ban e pick na seleção de campeões (#23).
+//! - [`summoner_spells`]: troca de feitiços na seleção e a lista de
+//!   feitiços do jogo (#24).
 //! - [`lobby`]: criar lobby, trocar a fila e sair (#17); escolher os cargos
 //!   (#18).
 //! - [`invitations`]: convites de lobby recebidos e enviados (#32).
@@ -21,6 +23,7 @@
 //! - [`chat`]: mandar mensagem e marcar a conversa ativa no chat 1:1 (#31).
 //! - [`perks`]: páginas de runas: criar, editar, apagar e aplicar, e as
 //!   árvores de runas (#26).
+//! - [`swaps`]: trocas de campeão, de vez e de cargo na seleção (#25).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
 //!
@@ -33,6 +36,8 @@ pub mod lobby;
 pub mod matchmaking;
 pub mod perks;
 pub mod state;
+pub mod summoner_spells;
+pub mod swaps;
 pub mod tls;
 pub mod wamp;
 
@@ -422,6 +427,17 @@ impl MockLcu {
             .to_owned()
     }
 
+    /// Um aliado pede uma troca ao jogador na seleção (#25), como a rota
+    /// [`swaps::SIMULATE`]. Devolve o id da troca, ou `None` sem seleção ou
+    /// sem troca disponível desse tipo.
+    pub fn receive_swap(&self, kind: easylobby_agent::swaps::SwapKind) -> Option<u64> {
+        let (response, events) = swaps::simulate(&self.shared.state(), kind);
+        for event in events {
+            emit(&self.shared, event);
+        }
+        (response.status == 200).then(|| response.body["id"].as_u64())?
+    }
+
     /// Derruba os WebSockets abertos e recusa os novos, mas continua
     /// respondendo ao REST: o agente vê a conexão cair enquanto uma resposta
     /// segurada ainda está a caminho.
@@ -747,6 +763,16 @@ async fn handle_request(
             emit_all(&shared, events);
             response
         }
+        // Feitiços de invocador (#24).
+        (&Method::GET, summoner_spells::SUMMONER_SPELLS) => {
+            summoner_spells::game_data(&shared.state())
+        }
+        (&Method::PATCH, summoner_spells::MY_SELECTION) => {
+            let body = read_json(request).await;
+            let (response, events) = summoner_spells::select(&shared.state(), &body);
+            emit_all(&shared, events);
+            response
+        }
         // Seleção de campeões (#23): hover, ban e pick.
         (&Method::PATCH, p) if champ_select::parse_route(p).is_some() => {
             let Some(champ_select::ActionRoute::Action(id)) = champ_select::parse_route(p) else {
@@ -768,6 +794,32 @@ async fn handle_request(
                 return json_response(&Response::error(405, "mock-lcu: use PATCH"));
             };
             let (response, events) = champ_select::complete(&shared.state(), id);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        // Trocas na seleção (#25).
+        (&Method::POST, p) if swaps::parse_route(p).is_some() => {
+            let Some((kind, id, intent)) = swaps::parse_route(p) else {
+                return json_response(&Response::error(404, "mock-lcu: rota de troca"));
+            };
+            let (response, events) = swaps::respond(&shared.state(), kind, id, intent);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::POST, swaps::SIMULATE) => {
+            let body = axum::body::to_bytes(request.into_body(), 64 * 1024)
+                .await
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .unwrap_or(Value::Null);
+            let kind = serde_json::from_value(body["kind"].clone())
+                .unwrap_or(easylobby_agent::swaps::SwapKind::Champion);
+            let (response, events) = swaps::simulate(&shared.state(), kind);
+            println!("troca recebida: {} (de mentira)", response.body);
             for event in events {
                 emit(&shared, event);
             }
