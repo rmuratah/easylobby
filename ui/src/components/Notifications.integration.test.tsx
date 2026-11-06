@@ -7,6 +7,9 @@ import type { ServerMessage } from '../bindings/ServerMessage';
 import { testConversation, testInvitation, testReadyCheck } from '../test/events';
 import { testState } from '../test/lobby';
 import { MESSAGE_NOTICE_MS } from './Notifications';
+import { sound } from '../agent/sound';
+
+vi.mock('../agent/sound', () => ({ sound: { unlock: vi.fn(), playMatchFound: vi.fn() } }));
 
 class Socket {
   static OPEN = 1;
@@ -29,7 +32,7 @@ const notices = () => within(region()!);
 const chat = (change: Partial<Conversation>) => receive({ type: 'conversation', conversation: { ...testConversation, ...change } });
 const newMessage = { id: 'm2', body: 'joga uma?', fromMe: false, timestamp: '2026-11-05T01:14:00.000Z' };
 
-beforeEach(() => { vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal('WebSocket', Socket); });
+beforeEach(() => { vi.clearAllMocks(); vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal('WebSocket', Socket); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 it('não avisa o histórico que já existia ao conectar', () => {
@@ -87,4 +90,24 @@ it('limpa os avisos quando a conexão com o agente cai', () => {
   chat({ unreadCount: 2, messages: [...testConversation.messages, newMessage] });
   act(() => socket().onclose?.());
   expect(region()).not.toBeInTheDocument();
+});
+
+it('toca o som uma vez por partida encontrada', () => {
+  render(<App />);
+  hello({ gameflowPhase: 'Matchmaking' });
+  expect(sound.playMatchFound).not.toHaveBeenCalled();
+  receive({ type: 'gameflowPhase', phase: 'ReadyCheck' });
+  receive({ type: 'readyCheck', readyCheck: testReadyCheck });
+  receive({ type: 'readyCheck', readyCheck: { ...testReadyCheck, timer: 3.5 } });
+  expect(sound.playMatchFound).toHaveBeenCalledTimes(1);
+  receive({ type: 'readyCheck', readyCheck: { ...testReadyCheck, playerResponse: 'Accepted' } });
+  receive({ type: 'readyCheck', readyCheck: null });
+  receive({ type: 'readyCheck', readyCheck: testReadyCheck });
+  expect(sound.playMatchFound).toHaveBeenCalledTimes(2);
+});
+
+it('libera o áudio no primeiro clique', () => {
+  render(<App />);
+  fireEvent.pointerDown(window);
+  expect(sound.unlock).toHaveBeenCalledTimes(1);
 });

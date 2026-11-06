@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ConnectionSnapshot } from '../agent/client';
 import { invitationText, matchFoundPending, updateMessageNotices, type MessageNotice } from '../agent/notifications';
 import type { AgentState } from '../bindings/AgentState';
+import { sound } from '../agent/sound';
 
 /** Tempo que um aviso de mensagem fica na tela sem mensagem nova. */
 export const MESSAGE_NOTICE_MS = 8_000;
@@ -28,6 +29,7 @@ export function Notifications({ connection }: Props) {
     (id: string) => setMessages(current => current.filter(n => n.conversationId !== id)), []);
   const invitations = state?.receivedInvitations.filter(i => !dismissed.has(i.invitationId)) ?? [];
   const matchFound = state !== null && matchFoundPending(state);
+  useMatchFoundSound(matchFound);
   if (!matchFound && invitations.length === 0 && messages.length === 0) return null;
   return (
     <section aria-label="Notificações"
@@ -45,6 +47,25 @@ export function Notifications({ connection }: Props) {
       {messages.map(notice => <MessageToast key={notice.conversationId} notice={notice} onDismiss={dismissMessage} />)}
     </section>
   );
+}
+
+/**
+ * Toca o som uma vez quando a partida é encontrada. O navegador só libera o
+ * áudio depois de um clique ou tecla; o primeiro já basta para os próximos.
+ */
+function useMatchFoundSound(matchFound: boolean) {
+  useEffect(() => {
+    const unlock = () => sound.unlock();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
+  useEffect(() => {
+    if (matchFound) sound.playMatchFound();
+  }, [matchFound]);
 }
 
 function MessageToast({ notice, onDismiss }: { notice: MessageNotice; onDismiss: (id: string) => void }) {
