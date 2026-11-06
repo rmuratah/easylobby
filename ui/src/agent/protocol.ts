@@ -15,7 +15,6 @@ import type { ChampSelect } from '../bindings/ChampSelect';
 import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
 import type { Conversation } from '../bindings/Conversation';
-import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { RunePages } from '../bindings/RunePages';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
 import type { Friend } from '../bindings/Friend';
@@ -96,9 +95,6 @@ function receivedInvitation(v: unknown): v is ReceivedInvitation {
 function conversation(v: unknown): v is Conversation {
   return object(v) && strings(v, ['id', 'gameName', 'tagLine']) && uint(v.unreadCount) && list(v.messages, object);
 }
-function champSelectChat(v: unknown): v is ChampSelectChat | null {
-  return v === null || (object(v) && list(v.messages, object));
-}
 function runePages(v: unknown): v is RunePages | null {
   return v === null || (object(v) && list(v.pages, object) && (v.currentPageId === null || uint(v.currentPageId)) &&
     typeof v.canCreatePage === 'boolean');
@@ -150,7 +146,6 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'receivedInvitations': valid = list(v.invitations, receivedInvitation); break;
     case 'conversation': valid = conversation(v.conversation); break;
     case 'conversationClosed': valid = typeof v.id === 'string'; break;
-    case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
     case 'runePages': valid = runePages(v.runePages); break;
     case 'runeCatalog': valid = runeCatalog(v.runeCatalog); break;
     case 'summonerSpellCatalog': valid = summonerSpellCatalog(v.summonerSpellCatalog); break;
