@@ -8,6 +8,7 @@ import { QueuePanel } from './components/QueuePanel';
 import { RunePagesPanel } from './components/RunePagesPanel';
 import { ReadyCheckPanel } from './components/ReadyCheckPanel';
 import { FriendsList } from './components/FriendsList';
+import { ChatButton, ChatPanel } from './components/ChatPanel';
 import { Notifications } from './components/Notifications';
 
 function connectionLabel(connection: ConnectionSnapshot): string {
@@ -25,6 +26,7 @@ function connectionLabel(connection: ConnectionSnapshot): string {
 
 export default function App() {
   const connection = useAgent();
+  const [chatWith, setChatWith] = useState<string | null>(null);
   const screen = mainScreen(connection);
   const contentRef = useRef<HTMLElement>(null);
   const flowButtonRef = useRef<HTMLButtonElement>(null);
@@ -90,7 +92,8 @@ export default function App() {
         <div hidden={page !== 'runes'}>
           <RunePagesPanel connection={connection} send={connection.send} />
         </div>
-        <FriendsList connection={connection} />
+        <FriendsList connection={connection} renderActions={friend => <ChatButton friend={friend} onOpen={setChatWith} />} />
+        <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
       </main>
       <Notifications connection={connection} />
     </div>
