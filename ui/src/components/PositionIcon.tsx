@@ -21,15 +21,15 @@ export function PositionIcon({ position, size = 18, className }: Props) {
   };
   switch (position) {
     case 'top':
-      return <svg {...common}><path d="M4 10V4h6M14 20h6v-6M5 19 19 5M8 16l8-8" /></svg>;
+      return <svg {...common}><path d="m12 3 8 3v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-3Z" /><path d="M9 8.5h6v4c0 2-1.2 3.5-3 4.3-1.8-.8-3-2.3-3-4.3v-4Z" /></svg>;
     case 'jungle':
-      return <svg {...common}><path d="M12 20c0-6-2-10-6-14 4 1 6 4 7 8 1-5 3-8 6-10-1 6-2 12-7 16ZM9 14c-2-1-4-3-5-6" /></svg>;
+      return <svg {...common}><path d="m8 4-4 6h3l-4 6h10l-4-6h3L8 4ZM17 6l-3 5h2l-3 5h8l-3-5h2l-3-5ZM8 16v4M17 16v4" /></svg>;
     case 'middle':
-      return <svg {...common}><rect x="4" y="4" width="16" height="16" rx="2" /><path d="m6 18 12-12M9 20l11-11M4 15 15-11" /></svg>;
+      return <svg {...common}><path d="m5 19 11-11 3 3L8 22l-3-3ZM14.5 9.5l-3-3 2-2 3 3-2 2ZM6 3v3M4.5 4.5h3M19 15v4M17 17h4" /></svg>;
     case 'bottom':
-      return <svg {...common}><path d="M4 10V4h6M14 20h6v-6M5 19 19 5M8 16l8-8" transform="rotate(90 12 12)" /></svg>;
+      return <svg {...common}><circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="3" /><path d="M12 2v5M12 17v5M2 12h5M17 12h5" /></svg>;
     case 'utility':
-      return <svg {...common}><circle cx="12" cy="8" r="3" /><path d="M5 20c1-5 3-7 7-7s6 2 7 7M4 11h3M17 11h3" /></svg>;
+      return <svg {...common}><path d="M12 14.5S8 12.3 8 9.5A2.5 2.5 0 0 1 12 7a2.5 2.5 0 0 1 4 2.5c0 2.8-4 5-4 5Z" /><path d="m3 12 3.5 5c.8 1.1 2.4 1.8 5.5 3M6.5 17 5 12.5c-.4-1.2 1.1-2 1.9-1l2.6 3M21 12l-3.5 5c-.8 1.1-2.4 1.8-5.5 3M17.5 17l1.5-4.5c.4-1.2-1.1-2-1.9-1l-2.6 3" /></svg>;
     case 'fill':
       return <svg {...common}><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg>;
     case 'unselected':

@@ -23,6 +23,7 @@ export function Segmented<T extends string>({ label, options, value, onChange, c
             type="button"
             aria-pressed={selected}
             aria-label={option.ariaLabel}
+            title={option.ariaLabel}
             onClick={() => onChange(option.value)}
             className={cx(
               "inline-flex h-8 items-center justify-center gap-1.5 rounded-control-sm px-3 text-body font-medium",

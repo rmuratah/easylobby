@@ -24,18 +24,18 @@ function fakeWindow(maximized = false) {
   return { controls, resize, unlisten };
 }
 
-function renderBar(controls: WindowControls | null, onThemeChange = vi.fn()) {
+function renderBar(controls: WindowControls | null, onSidebarToggle = vi.fn()) {
   return render(
-    <TitleBar connection={connected} send={vi.fn()} theme="claro" onThemeChange={onThemeChange} controls={controls} />,
+    <TitleBar connection={connected} send={vi.fn()} sidebarOpen onSidebarToggle={onSidebarToggle}
+      invitations={0} unread={0} controls={controls} />,
   );
 }
 
 describe("TitleBar", () => {
-  it("arrasta pela barra e pelo nome, mas não pelos botões", () => {
+  it("arrasta pelo espaço livre, mas não pelos botões", () => {
     const { container } = renderBar(fakeWindow().controls);
     const header = container.querySelector("header")!;
     expect(header).toHaveAttribute("data-tauri-drag-region");
-    expect(screen.getByRole("heading", { name: "easylobby" })).toHaveAttribute("data-tauri-drag-region");
     for (const button of screen.getAllByRole("button")) expect(button).not.toHaveAttribute("data-tauri-drag-region");
   });
 
@@ -67,14 +67,11 @@ describe("TitleBar", () => {
     expect(screen.getByRole("button", { name: "Abrir client oficial" })).toBeInTheDocument();
   });
 
-  it("traz o seletor de tema", () => {
-    const onThemeChange = vi.fn();
-    renderBar(null, onThemeChange);
-    expect(screen.getByRole("group", { name: "Tema" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Sistema" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Tema claro" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Tema claro" })).toHaveTextContent("");
-    fireEvent.click(screen.getByRole("button", { name: "Tema escuro" }));
-    expect(onThemeChange).toHaveBeenCalledWith("escuro");
+  it("mantém recuperação do client e controle da lateral em formato compacto", () => {
+    const onSidebarToggle = vi.fn();
+    renderBar(null, onSidebarToggle);
+    expect(screen.getByRole("button", { name: "Abrir client oficial" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Recolher amigos" }));
+    expect(onSidebarToggle).toHaveBeenCalledOnce();
   });
 });

@@ -13,7 +13,7 @@ import { ChampSelectPanel } from './components/ChampSelectPanel';
 import { TitleBar } from './components/titlebar/TitleBar';
 import { useTheme } from './theme/theme';
 import { useSidebar } from './layout/sidebar';
-import { SidebarToggle } from './layout/SidebarToggle';
+import { SideNavigation, type NavigationPage } from './layout/SideNavigation';
 import { connectionView } from './screens/connection';
 import { ConnectionScreen } from './components/connection/ConnectionScreen';
 import { SummonerHeader } from './components/home/SummonerHeader';
@@ -39,20 +39,21 @@ export default function App() {
     if (contentRef.current) contentRef.current.scrollTop = 0;
     if (document.activeElement?.closest('[hidden]')) flowButtonRef.current?.focus();
   }, [screen, ready]);
-  const [navigation, setNavigation] = useState({ screen, page: 'main' });
+  const [navigation, setNavigation] = useState<{ screen: typeof screen; page: 'main' | NavigationPage }>({ screen, page: 'main' });
   // Uma nova fase confirmada traz o fluxo principal de volta ao primeiro plano.
   if (navigation.screen !== screen) setNavigation({ screen, page: 'main' });
   const page = navigation.screen === screen ? navigation.page : 'main';
+  const activePage: NavigationPage = page === 'main' ? (screen === 'home' ? 'home' : 'flow') : page;
   // Quem trocou de página por um botão que agora ficou escondido não perde o foco.
   useEffect(() => {
     if (!document.activeElement?.closest('[hidden]')) return;
-    (page === 'runes' ? runesBackRef.current ?? flowButtonRef.current : flowButtonRef.current)?.focus();
-  }, [page]);
+    (activePage === 'runes' ? runesBackRef.current ?? flowButtonRef.current : flowButtonRef.current)?.focus();
+  }, [activePage]);
   const found = screen === 'found';
   // Início (#128) e lobby (#129) no layout de referência: cartões lado a lado quando há largura.
-  const homeMain = page === 'main' && screen === 'home';
-  const lobbyMain = screen === 'lobby' || screen === 'queue';
   const playable = screen === 'home' || screen === 'lobby' || screen === 'queue' || found;
+  const homeLayout = activePage === 'home' && playable;
+  const lobbyMain = screen === 'lobby' || screen === 'queue';
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
     : found ? 'Partida encontrada' : screen === 'champSelect' ? 'Seleção de campeões'
       : screen === 'other' ? 'Partida' : 'Início';
@@ -60,30 +61,23 @@ export default function App() {
     ? connection.state.summoner : null;
   return (
     <div className="app-shell">
-      <TitleBar connection={connection} send={connection.send} theme={theme} onThemeChange={setPreference} />
       <div className="app-body">
-        <main ref={contentRef} className="app-content">
+        <SideNavigation active={activePage} flowLabel="Lobby" flowButtonRef={flowButtonRef} theme={theme}
+          onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference} />
+        <div className="app-main-column">
+          <TitleBar connection={connection} send={connection.send} sidebarOpen={sidebar.open} onSidebarToggle={sidebar.toggle}
+            invitations={invitations} unread={unread} />
+          <main ref={contentRef} className="app-content">
           {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error} />}
           {/* Escondido, e não desmontado, enquanto reconecta: comandos em andamento sobrevivem à queda. */}
-          <div hidden={!ready} className={homeMain
-            ? 'grid max-w-[72rem] grid-flow-row-dense grid-cols-1 gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(15rem,1fr)]'
+          <div hidden={!ready} className={homeLayout
+            ? 'grid grid-flow-row-dense grid-cols-1 gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(15rem,1fr)]'
             : 'flex flex-col gap-5'}>
             {ready && connection.error && <p role="alert" className="col-span-full text-warn">{connection.error}</p>}
-            <div className="col-span-full flex flex-wrap items-start justify-between gap-2">
-              <nav aria-label="Funcionalidades" className="flex flex-wrap gap-2">
-                <button ref={flowButtonRef} type="button" aria-current={page === 'main' ? 'page' : undefined}
-                  onClick={() => setNavigation({ screen, page: 'main' })}>{title}</button>
-                {screen !== 'home' && <button type="button" aria-current={page === 'home' ? 'page' : undefined}
-                  onClick={() => setNavigation({ screen, page: 'home' })}>Início</button>}
-                <button type="button" aria-current={page === 'runes' ? 'page' : undefined}
-                  onClick={() => setNavigation({ screen, page: 'runes' })}>Runas</button>
-              </nav>
-              <SidebarToggle open={sidebar.open} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />
-            </div>
-            <section hidden={page !== 'home' && !(page === 'main' && screen === 'home')} aria-label="Início"
-              className={homeMain ? 'order-2 grid min-w-0 gap-4 @min-[44rem]:order-none @min-[44rem]:col-start-2' : 'flex max-w-[22rem] flex-col gap-4'}>
+            <section hidden={activePage !== 'home'} aria-label="Início"
+              className={homeLayout ? 'order-2 grid min-w-0 gap-4 @min-[44rem]:order-none @min-[44rem]:col-start-2' : 'flex max-w-[22rem] flex-col gap-4'}>
               {summoner && <SummonerHeader summoner={summoner} />}
-              {homeMain && <div className="grid grid-cols-1 gap-4 @min-[22rem]:grid-cols-2">
+              {homeLayout && <div className="grid grid-cols-1 gap-4 @min-[22rem]:grid-cols-2">
                 <article aria-label="Área reservada" className="flex min-h-32 flex-col justify-end rounded-panel surface p-5 shadow-soft animate-fade-up" style={{ animationDelay: '140ms' }}>
                   <h2 className="text-section font-semibold text-ink">Área reservada</h2>
                   <p className="mt-1 text-body text-muted">Espaço para uma futura funcionalidade.</p>
@@ -93,19 +87,19 @@ export default function App() {
                   <p className="mt-1 text-body text-muted">Espaço reservado no momento.</p>
                 </article>
               </div>}
-              {screen !== 'home' && <button type="button" className="nav-button self-start" onClick={() => setNavigation({ screen, page: 'main' })}>Voltar para {title}</button>}
+              {screen !== 'home' && !playable && <button type="button" className="nav-button self-start" onClick={() => setNavigation({ screen, page: 'flow' })}>Voltar para {title}</button>}
             </section>
-            {page === 'main' && screen === 'champSelect' && <h2 className="text-title font-semibold tracking-[-0.015em]">{title}</h2>}
-            {page === 'main' && screen === 'other' && <EmptyState title={phaseLabel(connection.state?.gameflowPhase)}
+            {activePage === 'flow' && screen === 'champSelect' && <h2 className="text-title font-semibold tracking-[-0.015em]">{title}</h2>}
+            {activePage === 'flow' && screen === 'other' && <EmptyState title={phaseLabel(connection.state?.gameflowPhase)}
               description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />}
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
             {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}
-            <div hidden={page !== 'main' || !playable} className={homeMain ? 'order-1 @min-[44rem]:order-none @min-[44rem]:col-start-1'
-              : lobbyMain ? 'grid max-w-[72rem] items-start gap-5 @min-[44rem]:grid-cols-[minmax(0,1fr)_18rem]'
-              : 'flex max-w-[56rem] flex-col gap-4'}>
+            <div hidden={!playable || (activePage !== 'flow' && activePage !== 'home')} className={homeLayout ? 'order-1 @min-[44rem]:order-none @min-[44rem]:col-start-1'
+              : lobbyMain ? 'grid items-start gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]'
+              : 'flex flex-col gap-4'}>
               <LobbyPanel connection={connection} send={connection.send} />
               {/* Coluna da direita com largura; embaixo, presa à borda, quando a janela é estreita. */}
-              <div hidden={screen === 'home' || found} className="sticky bottom-0 z-10 @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
+              <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
                 <QueuePanel connection={connection} send={connection.send} />
               </div>
             </div>
@@ -117,18 +111,19 @@ export default function App() {
             </section>}
             {found && <ReadyCheckPanel connection={connection} send={connection.send} />}
             {/* Montada fora da tela também, para a busca e as ações em andamento sobreviverem à navegação. */}
-            <div hidden={page !== 'main' || screen !== 'champSelect'}>
+            <div hidden={activePage !== 'flow' || screen !== 'champSelect'}>
               <ChampSelectPanel connection={connection} send={connection.send}
                 onOpenRunes={() => setNavigation({ screen, page: 'runes' })} />
             </div>
-            <div hidden={page !== 'runes'} className="flex flex-col gap-4">
+            <div hidden={activePage !== 'runes'} className="flex flex-col gap-4">
               {/* Na seleção, a volta fica à mão: a seleção continua montada e o timer segue correndo (#131). */}
               {screen !== 'home' && <button ref={runesBackRef} type="button" className="nav-button self-start"
-                onClick={() => setNavigation({ screen, page: 'main' })}>Voltar para {title}</button>}
+                onClick={() => setNavigation({ screen, page: 'flow' })}>Voltar para {title}</button>}
               <RunePagesPanel connection={connection} send={connection.send} />
             </div>
           </div>
-        </main>
+          </main>
+        </div>
         {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento. */}
         <aside id="coluna-amigos" aria-label="Amigos e conversas" hidden={!sidebar.open} className="app-sidebar">
           <InvitationsPanel connection={connection} send={connection.send} />

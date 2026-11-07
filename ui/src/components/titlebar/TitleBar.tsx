@@ -1,22 +1,18 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { AgentClient, ConnectionSnapshot } from "../../agent/client";
-import { Segmented } from "../base";
 import { LaunchUxButton } from "../LaunchUxButton";
 import { ConnectionIndicator } from "../connection/ConnectionIndicator";
 import { connectionView } from "../../screens/connection";
-import type { Theme } from "../../theme/theme";
 import { tauriWindowControls, type WindowControls } from "./windowControls";
-
-const THEME_OPTIONS: { value: Theme; label: ReactNode; ariaLabel: string }[] = [
-  { value: "claro", label: <SunIcon />, ariaLabel: "Tema claro" },
-  { value: "escuro", label: <MoonIcon />, ariaLabel: "Tema escuro" },
-];
+import { SidebarToggle } from "../../layout/SidebarToggle";
 
 type Props = {
   connection: ConnectionSnapshot;
   send: AgentClient["send"];
-  theme: Theme;
-  onThemeChange: (preference: Theme) => void;
+  sidebarOpen: boolean;
+  onSidebarToggle: () => void;
+  invitations: number;
+  unread: number;
   /** Injetável nos testes; por padrão, a janela do Tauri (ou nada, no navegador). */
   controls?: WindowControls | null;
 };
@@ -24,32 +20,22 @@ type Props = {
 const defaultControls = tauriWindowControls();
 
 /**
- * Barra de título do app, no lugar da moldura do Windows (#126). As áreas com
- * `data-tauri-drag-region` arrastam a janela e maximizam no duplo clique; o
- * Tauri cuida disso sozinho, inclusive do encaixe nas bordas.
+ * Controles compactos da moldura (#126, #160). O espaço vazio com
+ * `data-tauri-drag-region` arrasta a janela; nenhum botão faz parte da região.
  */
-export function TitleBar({ connection, send, theme, onThemeChange, controls = defaultControls }: Props) {
+export function TitleBar({ connection, send, sidebarOpen, onSidebarToggle, invitations, unread, controls = defaultControls }: Props) {
   return (
     <header
       data-tauri-drag-region
-      className="flex h-12 shrink-0 select-none items-center gap-3 border-b border-line bg-surface pl-4 text-ink"
+      className="app-toolbar select-none text-ink"
     >
-      <h1 data-tauri-drag-region className="text-section font-semibold tracking-[-0.01em]">easylobby</h1>
       <ConnectionIndicator view={connectionView(connection)} />
       <div data-tauri-drag-region className="h-full min-w-4 flex-1" />
-      <LaunchUxButton connection={connection} send={send} />
-      <Segmented label="Tema" value={theme} onChange={onThemeChange} options={THEME_OPTIONS} className="shrink-0" />
+      <LaunchUxButton connection={connection} send={send} compact />
+      <SidebarToggle open={sidebarOpen} onToggle={onSidebarToggle} invitations={invitations} unread={unread} />
       {controls ? <WindowButtons controls={controls} /> : <div className="w-1" />}
     </header>
   );
-}
-
-function SunIcon() {
-  return <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>;
-}
-
-function MoonIcon() {
-  return <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z" /></svg>;
 }
 
 function WindowButtons({ controls }: { controls: WindowControls }) {

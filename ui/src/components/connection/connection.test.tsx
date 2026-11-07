@@ -37,11 +37,9 @@ describe('estados de conexão', () => {
     expect(connectionView(connection).label).toBe(label);
     show(connection);
     expect(screen.getByRole('status')).toHaveTextContent(label);
+    expect(screen.getByRole('navigation', { name: 'Funcionalidades' })).toBeInTheDocument();
     if (title) {
       expect(screen.getByRole('heading', { level: 2, name: title })).toBeInTheDocument();
-      expect(screen.queryByRole('navigation', { name: 'Funcionalidades' })).not.toBeInTheDocument();
-    } else {
-      expect(screen.getByRole('navigation', { name: 'Funcionalidades' })).toBeInTheDocument();
     }
   });
 
