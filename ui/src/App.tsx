@@ -61,6 +61,8 @@ export default function App() {
   // Início (#128) e lobby (#129) no layout de referência: cartões lado a lado quando há largura.
   const playable = screen === 'home' || screen === 'lobby' || screen === 'queue' || found;
   const homeLayout = activePage === 'home' && playable;
+  // Sem lobby, o cartão principal do Início ainda não tem função definida: criar lobby fica só no Jogar.
+  const homeReserved = activePage === 'home' && screen === 'home';
   const lobbyMain = screen === 'lobby' || screen === 'queue';
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
     : found ? 'Partida encontrada' : screen === 'champSelect' ? 'Seleção de campeões'
@@ -105,7 +107,15 @@ export default function App() {
             <div hidden={!playable || (activePage !== 'flow' && activePage !== 'home')} className={homeLayout ? 'home-primary'
               : lobbyMain ? 'grid min-h-0 flex-1 items-stretch gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]'
               : 'flex flex-1 flex-col gap-4'}>
-              <LobbyPanel connection={connection} send={connection.send} />
+              {homeReserved && <article aria-label="Área reservada para atualização"
+                className="flex h-full min-h-[24rem] flex-col items-start justify-end gap-3 rounded-panel surface p-8 shadow-soft animate-fade-up @min-[44rem]:p-10">
+                <span className="rounded-full bg-raised px-3 py-1 text-caption font-semibold uppercase tracking-wider text-muted">Em breve</span>
+                <h2 className="text-display font-semibold text-ink">Área reservada</h2>
+                <p className="max-w-md text-section text-muted">Este espaço vai ganhar uma nova função numa futura atualização. Para jogar, use “Jogar” na barra lateral.</p>
+              </article>}
+              <div hidden={homeReserved} className="contents">
+                <LobbyPanel connection={connection} send={connection.send} />
+              </div>
               {/* Coluna da direita com largura (metade da altura do lobby, sem cortar o conteúdo); embaixo, presa à borda, quando a janela é estreita. */}
               <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 h-full @min-[44rem]:top-0 @min-[44rem]:bottom-auto @min-[44rem]:h-1/2 @min-[44rem]:min-h-fit">
                 <QueuePanel connection={connection} send={connection.send} />

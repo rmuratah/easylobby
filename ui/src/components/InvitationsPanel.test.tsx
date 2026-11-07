@@ -100,6 +100,26 @@ describe('InvitationsPanel', () => {
     expect(screen.getByRole('button', { name: 'Recusar convite de Bia' })).toBeEnabled();
   });
 
+  it('mostra o nick do amigo que convidou e o nome da fila da LCU', () => {
+    const desordem = {
+      queueId: 2400, queue: null, name: 'ARAM: Desordem', description: 'ARAM: Desordem', gameMode: 'KIWI', modeGroup: '',
+      mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: true,
+    };
+    const invitation = { ...testInvitation, fromSummonerId: 2001, fromSummonerName: '', queue: null, queueId: 2400 };
+    render(panel(connected({ receivedInvitations: [invitation], queues: [desordem] }), vi.fn()));
+    const item = within(screen.getByRole('list', { name: 'Convites recebidos' })).getByRole('listitem');
+    expect(item).toHaveTextContent('Ana chamou você para ARAM: Desordem.');
+    expect(within(item).getByText('Ana')).toHaveAttribute('title', 'Ana#BR1');
+    expect(within(item).getByRole('button', { name: 'Aceitar convite de Ana' })).toBeEnabled();
+  });
+
+  it('usa o nome fixo da fila conhecida e o nome da LCU quando quem convidou não é amigo', () => {
+    const invitation = { ...testInvitation, fromSummonerId: 9999, fromSummonerName: 'Zed', queue: 'aram' as const, queueId: 450 };
+    render(panel(connected({ receivedInvitations: [invitation] }), vi.fn()));
+    expect(within(screen.getByRole('list', { name: 'Convites recebidos' })).getByRole('listitem'))
+      .toHaveTextContent('Zed chamou você para ARAM.');
+  });
+
   it('não deixa aceitar quando a LCU não permite', () => {
     render(panel(connected({ receivedInvitations: [{ ...testInvitation, canAccept: false }] }), vi.fn()));
     expect(screen.getByRole('button', { name: 'Aceitar convite de Um amigo' })).toBeDisabled();

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
-import { friendDisplayName } from '../agent/friends';
-import { freeSlots, invitableFriends, invitationQueueName, inviterName } from '../agent/invitations';
+import { assetUrl } from '../agent/assets';
+import { friendDisplayName, friendRiotId } from '../agent/friends';
+import { freeSlots, invitableFriends, invitationQueueName, invitationSender, inviterName } from '../agent/invitations';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
 import type { Friend } from '../bindings/Friend';
+import type { GameQueue } from '../bindings/GameQueue';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
 import { Avatar, Button, Card } from './base';
 
@@ -117,11 +119,11 @@ function InvitationsActions({ state, send, children }: {
           <ul aria-label="Convites recebidos" className="flex flex-col gap-2">
             {received.map(invitation => (
               <ReceivedItem
-                key={invitation.invitationId} invitation={invitation} busy={busy(`invitation:${invitation.invitationId}`)}
+                key={invitation.invitationId} invitation={invitation} friends={friends} queues={state.queues} busy={busy(`invitation:${invitation.invitationId}`)}
                 onAccept={() => { void execute({ type: 'acceptInvitation', invitationId: invitation.invitationId },
-                  `Convite de ${inviterName(invitation)} aceito.`); }}
+                  `Convite de ${inviterName(invitation, friends)} aceito.`); }}
                 onDecline={() => { void execute({ type: 'declineInvitation', invitationId: invitation.invitationId },
-                  `Convite de ${inviterName(invitation)} recusado.`); }}
+                  `Convite de ${inviterName(invitation, friends)} recusado.`); }}
               />
             ))}
           </ul>
@@ -136,15 +138,20 @@ function InvitationsActions({ state, send, children }: {
   );
 }
 
-function ReceivedItem({ invitation, busy, onAccept, onDecline }: {
-  invitation: ReceivedInvitation; busy: boolean; onAccept: () => void; onDecline: () => void;
+function ReceivedItem({ invitation, friends, queues, busy, onAccept, onDecline }: {
+  invitation: ReceivedInvitation; friends: Friend[]; queues: GameQueue[]; busy: boolean; onAccept: () => void; onDecline: () => void;
 }) {
-  const name = inviterName(invitation);
+  const sender = invitationSender(invitation, friends);
+  const name = inviterName(invitation, friends);
+  const icon = sender?.profileIconId != null ? assetUrl('profileIcon', sender.profileIconId) : undefined;
   return (
     <li className="flex flex-col gap-2 rounded-card border border-accent bg-accent-soft p-3">
       <span className="flex items-start gap-2">
-        <Avatar name={name} size={32} />
-        <span className="min-w-0 break-words text-body"><strong>{name}</strong> chamou você para {invitationQueueName(invitation)}.</span>
+        <Avatar name={name} size={32} src={icon} />
+        <span className="min-w-0 break-words text-body">
+          <strong title={sender ? friendRiotId(sender) : undefined}>{name}</strong> chamou você
+          para <strong>{invitationQueueName(invitation, queues)}</strong>.
+        </span>
       </span>
       {!invitation.canAccept && <span className="text-caption text-warn">Não dá para aceitar agora (na fila ou em partida).</span>}
       <span className="flex gap-2">

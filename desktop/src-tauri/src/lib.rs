@@ -8,8 +8,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use easylobby_agent::connection::{CredentialSource, LcuConnection, ReconnectConfig};
-use easylobby_agent::ws::protocol::CommandResult;
-use easylobby_agent::ws::{self, Hub, WsConfig};
+use easylobby_agent::ws::{self, ExitAction, Hub, WsConfig};
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -18,9 +17,9 @@ use tauri::{
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
-/// Quanto o Sair espera a LCU reabrir a UI oficial antes de fechar mesmo
-/// assim (#89).
-const LAUNCH_UX_TIMEOUT: Duration = Duration::from_secs(3);
+/// Quanto o Sair espera a LCU encerrar o LoL (ou reabrir a UI oficial)
+/// antes de fechar mesmo assim (#89).
+const EXIT_LCU_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Quantas vezes seguidas o canal do agente é subido de novo antes de
 /// desistir e avisar o jogador (#91).
@@ -33,7 +32,7 @@ const RESTART_DELAY: Duration = Duration::from_secs(2);
 /// raras, espalhadas por horas, não esgotam as tentativas.
 const HEALTHY_RUN: Duration = Duration::from_secs(60);
 
-/// O [`Hub`] do canal que está rodando, para o Sair pedir o `launch-ux`.
+/// O [`Hub`] do canal que está rodando, para o Sair cuidar do LoL.
 /// Cada vez que o canal sobe de novo ele ganha um `Hub` novo, para a UI não
 /// receber o estado da conexão anterior.
 #[derive(Default)]
@@ -169,9 +168,10 @@ async fn supervise_channel(app: AppHandle, listener: TcpListener, source: Creden
     }
 }
 
-/// Sair pela bandeja: reabre a UI oficial antes de fechar, senão o LoL fica
-/// rodando sem nenhuma janela (#89). Se a LCU não responder em
-/// [`LAUNCH_UX_TIMEOUT`], fecha mesmo assim.
+/// Sair pela bandeja: encerra o LoL junto, senão ele fica rodando sem
+/// nenhuma janela. Na seleção de campeões e na partida, reabre a UI oficial
+/// em vez de encerrar (#89). Se a LCU não responder em [`EXIT_LCU_TIMEOUT`],
+/// fecha mesmo assim.
 fn quit(app: &AppHandle) {
     static QUITTING: AtomicBool = AtomicBool::new(false);
     if QUITTING.swap(true, Ordering::SeqCst) {
@@ -179,14 +179,15 @@ fn quit(app: &AppHandle) {
     }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let hub = app.state::<Channel>().hub();
-        if let Some(hub) = hub.filter(|hub| hub.client().is_some()) {
-            match tokio::time::timeout(LAUNCH_UX_TIMEOUT, hub.launch_ux()).await {
-                Ok(CommandResult::Ok) => {}
-                Ok(CommandResult::Error { message, .. }) => {
-                    eprintln!("erro ao reabrir a UI oficial: {message}");
+        if let Some(hub) = app.state::<Channel>().hub() {
+            match tokio::time::timeout(EXIT_LCU_TIMEOUT, hub.close_league_on_exit()).await {
+                Ok(Ok(ExitAction::QuitClient)) => eprintln!("LoL encerrado junto com o app"),
+                Ok(Ok(ExitAction::LaunchUx)) => {
+                    eprintln!("LoL em partida ou na seleção: UI oficial reaberta");
                 }
-                Err(_) => eprintln!("a LCU não respondeu ao launch-ux a tempo"),
+                Ok(Ok(ExitAction::NotConnected | ExitAction::KeepOpen)) => {}
+                Ok(Err(error)) => eprintln!("erro ao encerrar o LoL: {error}"),
+                Err(_) => eprintln!("a LCU não respondeu a tempo ao sair"),
             }
         }
         app.exit(0);
