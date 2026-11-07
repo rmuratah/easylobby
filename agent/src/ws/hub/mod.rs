@@ -443,7 +443,12 @@ impl Hub {
             CURRENT_SUMMONER_PATH if deleted => self.set_summoner(None),
             CURRENT_SUMMONER_PATH => {
                 if let Ok(summoner) = serde_json::from_value(event.data.clone()) {
+                    let logged_in = self.lock().state.summoner.is_none();
                     self.set_summoner(Some(summoner));
+                    // Lida antes do login, a lista de filas vem vazia (#210).
+                    if logged_in {
+                        self.spawn_refresh_queues();
+                    }
                 }
             }
             GAMEFLOW_PHASE_PATH if deleted => self.set_gameflow_phase(None),
@@ -459,6 +464,13 @@ impl Hub {
                     // A partida terminou: histórico, ranks e maestria mudaram.
                     if profile::ends_a_game(before, Some(phase)) {
                         self.spawn_refresh_profile();
+                    }
+                    // De volta à escolha de modo: as filas abertas podem ter
+                    // mudado sem evento (#210).
+                    if before != Some(phase)
+                        && matches!(phase, GameflowPhase::Idle | GameflowPhase::Lobby)
+                    {
+                        self.spawn_refresh_queues();
                     }
                 }
             }
