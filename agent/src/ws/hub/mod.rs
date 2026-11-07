@@ -92,6 +92,9 @@ struct Shared {
     rune_pages_rev: u64,
     /// Fecha de novo a UI oficial quando o LoL a reabre (#188).
     ux_guard: ux_guard::UxGuard,
+    /// Sala do grupo em que o agente já tentou entrar nesta conexão, e
+    /// quantas vezes (#206). Evita repetir o `POST` a cada evento do lobby.
+    lobby_chat_join: (String, u8),
 }
 
 /// Recurso do estado que um comando relê ou muda pelo REST.
@@ -153,6 +156,7 @@ impl Hub {
                     champ_select_rev: 0,
                     rune_pages_rev: 0,
                     ux_guard: ux_guard::UxGuard::default(),
+                    lobby_chat_join: (String::new(), 0),
                 }),
                 tx,
             }),
@@ -329,6 +333,8 @@ impl Hub {
                         self.restore_lobby_chat(chat_session, id, &messages);
                     }
                 }
+                // Com a UI oficial fechada ninguém entrou na sala.
+                self.ensure_lobby_chat().await;
                 // O catálogo antes das páginas, para a UI já poder desenhá-las.
                 self.set_rune_catalog(rune_catalog.ok().flatten());
                 self.set_rune_pages_if(rune_pages_stamp, rune_pages.ok());
@@ -379,6 +385,10 @@ impl Hub {
                 if event.uri == CHAMP_SELECT_SESSION_PATH {
                     self.refresh_champion_offers().await;
                 }
+                // Com a UI oficial fechada, o agente entra na sala do grupo.
+                if event.uri == LOBBY_PATH {
+                    self.ensure_lobby_chat().await;
+                }
             }
             ConnectionEvent::Disconnected(reason) => {
                 {
@@ -386,6 +396,7 @@ impl Hub {
                     shared.client = None;
                     shared.session += 1;
                     shared.ux_guard.active = false;
+                    shared.lobby_chat_join = (String::new(), 0);
                 }
                 self.set_summoner(None);
                 self.set_gameflow_phase(None);

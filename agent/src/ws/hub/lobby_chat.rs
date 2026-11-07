@@ -9,6 +9,9 @@ use crate::lobby_chat::{self, LobbyChat, LobbyChatMessage};
 use crate::wamp::{EventType, LcuEvent};
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 
+/// Tentativas de entrar na mesma sala do grupo por conexão.
+const MAX_JOIN_ATTEMPTS: u8 = 3;
+
 impl Hub {
     /// Sala do chat do grupo (#206): abre com o `Create` da conversa do
     /// lobby, junta as mensagens dela e fecha com o `Delete`. Devolve `false`
@@ -98,6 +101,38 @@ impl Hub {
                 })
             })
         });
+    }
+
+    /// Entra na sala do grupo quando há lobby e a sala ainda não está aberta
+    /// (#206). Quem entra é a UI oficial; com ela fechada pelo `kill-ux`, a
+    /// sala nunca abre e o chat fica esperando. Tenta no máximo
+    /// [`MAX_JOIN_ATTEMPTS`] vezes por sala em cada conexão.
+    pub(super) async fn ensure_lobby_chat(&self) {
+        let (client, session, lobby) = {
+            let mut shared = self.lock();
+            let Some(client) = shared.client.clone() else {
+                return;
+            };
+            let Some(lobby) = shared.state.lobby.clone() else {
+                return;
+            };
+            if shared.state.lobby_chat.is_some() || lobby.chat_id.is_empty() {
+                return;
+            }
+            let join = &mut shared.lobby_chat_join;
+            if join.0 != lobby.chat_id {
+                *join = (lobby.chat_id.clone(), 0);
+            }
+            if join.1 >= MAX_JOIN_ATTEMPTS {
+                return;
+            }
+            join.1 += 1;
+            (client, shared.session, lobby)
+        };
+        // Num erro, o próximo evento do lobby tenta de novo.
+        if let Ok(Some((id, messages))) = lobby_chat::join_room(&client, &lobby).await {
+            self.restore_lobby_chat(session, id, &messages);
+        }
     }
 
     /// Manda uma mensagem no chat do grupo (comando `sendLobbyMessage`,

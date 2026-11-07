@@ -13,14 +13,25 @@
 //!   `POST .../{id}/messages {"body", "type": "chat"}` manda uma;
 //! - no lobby os nomes não são escondidos: a mensagem traz `fromPuuid`, e a
 //!   UI acha o nome pela lista de amigos (o jogador logado é `fromMe`);
-//! - os avisos de entrada e saída da sala (`type: "system"`) ficam de fora.
+//! - os avisos de entrada e saída da sala (`type: "system"`) ficam de fora;
+//! - quem entra na sala é a UI oficial. Com ela fechada pelo `kill-ux`, a
+//!   sala nunca aparece em `/lol-chat/v1/conversations`, então o agente entra
+//!   sozinho ([`join_room`]) com o `multiUserChatPassword` e o `mucJwtDto` do
+//!   lobby, como a UI oficial faz.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use ts_rs::TS;
 
 use crate::chat::{self, SendMessageError, CONVERSATIONS_PATH, MAX_MESSAGES};
+use crate::lobby::Lobby;
 use crate::rest::{LcuClient, LcuError};
+
+/// O jogador logado no chat (`id` = `<puuid>@<região>.pvp.net`).
+const CHAT_ME_PATH: &str = "/lol-chat/v1/me";
+
+/// Domínio padrão das salas de grupo (`<id>@sec.<região>.pvp.net`).
+const ROOM_DOMAIN: &str = "sec";
 
 /// `type` da LCU para a sala do lobby.
 const ROOM_TYPE: &str = "customGame";
@@ -180,6 +191,79 @@ pub async fn current_room(
     Ok(Some((id, messages)))
 }
 
+/// `id` da sala do grupo de `lobby`: `<multiUserChatId>@<domínio>.<servidor>`.
+/// O domínio e a região vêm do `mucJwtDto` (`domain`, `targetRegion`); sem
+/// eles, o domínio é `sec` e o servidor é `fallback_host`, a parte depois do
+/// `@` do `id` do jogador no chat (`br1.pvp.net`). `None` sem sala no lobby
+/// ou sem servidor.
+pub fn room_id(lobby: &Lobby, fallback_host: Option<&str>) -> Option<String> {
+    if lobby.chat_id.is_empty() {
+        return None;
+    }
+    // A LCU pode já mandar o `id` completo.
+    if lobby.chat_id.contains('@') {
+        return Some(lobby.chat_id.clone());
+    }
+    let field = |name: &str| {
+        lobby
+            .chat_muc_jwt
+            .get(name)
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+    };
+    let domain = field("domain").unwrap_or(ROOM_DOMAIN);
+    let host = match field("targetRegion") {
+        Some(region) => format!("{}.pvp.net", region.to_lowercase()),
+        None => fallback_host.filter(|h| !h.is_empty())?.to_owned(),
+    };
+    Some(format!("{}@{domain}.{host}", lobby.chat_id))
+}
+
+/// O corpo do `POST /lol-chat/v1/conversations` que entra na sala `id`.
+fn join_body(lobby: &Lobby, id: &str) -> Value {
+    let mut body = json!({ "id": id, "type": ROOM_TYPE });
+    if !lobby.chat_password.is_empty() {
+        body["password"] = json!(lobby.chat_password);
+    }
+    if !lobby.chat_muc_jwt.is_null() {
+        body["mucJwtDto"] = lobby.chat_muc_jwt.clone();
+    }
+    body
+}
+
+/// Entra na sala do grupo de `lobby` (`POST /lol-chat/v1/conversations`),
+/// como a UI oficial faz ao abrir o lobby. Devolve o `id` da sala e as
+/// mensagens dela, cruas, como [`current_room`]. `None` quando o lobby não
+/// tem sala.
+pub async fn join_room(
+    lcu: &LcuClient,
+    lobby: &Lobby,
+) -> Result<Option<(String, Value)>, LcuError> {
+    let host = if lobby.chat_id.contains('@') || lobby.chat_muc_jwt.get("targetRegion").is_some() {
+        None
+    } else {
+        lcu.get::<Value>(CHAT_ME_PATH).await.ok().and_then(|me| {
+            let id = me.get("id")?.as_str()?;
+            Some(id.split_once('@')?.1.to_owned())
+        })
+    };
+    let Some(id) = room_id(lobby, host.as_deref()) else {
+        return Ok(None);
+    };
+    let response: Option<Value> = lcu.post(CONVERSATIONS_PATH, &join_body(lobby, &id)).await?;
+    // A LCU responde a conversa; o `id` dela é o que vale para mandar.
+    let id = response
+        .as_ref()
+        .and_then(|c| c.get("id")?.as_str())
+        .filter(|id| !id.is_empty())
+        .map_or(id, str::to_owned);
+    let messages = lcu
+        .get::<Value>(&format!("{}/messages", chat::conversation_path(&id)))
+        .await
+        .unwrap_or(Value::Null);
+    Ok(Some((id, messages)))
+}
+
 /// Manda `body` na sala `room_id`
 /// (`POST /lol-chat/v1/conversations/{id}/messages`), depois de conferir com
 /// [`chat::check_message`]. Devolve a mensagem que a LCU respondeu, crua,
@@ -266,6 +350,44 @@ mod tests {
                 .map(|m| m.id.as_str())
                 .collect::<Vec<_>>(),
             ["a", "b"]
+        );
+    }
+
+    fn lobby(chat_id: &str, muc: Value) -> Lobby {
+        let mut lobby = Lobby::from_json(&json!({"gameConfig": {"queueId": 440}})).unwrap();
+        lobby.chat_id = chat_id.into();
+        lobby.chat_password = "senha".into();
+        lobby.chat_muc_jwt = muc;
+        lobby
+    }
+
+    #[test]
+    fn monta_o_id_da_sala_do_grupo() {
+        let muc = json!({"jwt": "x", "domain": "sec", "targetRegion": "BR1"});
+        assert_eq!(
+            room_id(&lobby("grupo-1", muc), None).as_deref(),
+            Some("grupo-1@sec.br1.pvp.net")
+        );
+        // Sem o `mucJwtDto`, pelo servidor do jogador no chat.
+        assert_eq!(
+            room_id(&lobby("grupo-1", Value::Null), Some("br1.pvp.net")).as_deref(),
+            Some("grupo-1@sec.br1.pvp.net")
+        );
+        assert_eq!(room_id(&lobby("grupo-1", Value::Null), None), None);
+        assert_eq!(room_id(&lobby("", Value::Null), Some("br1.pvp.net")), None);
+        assert_eq!(
+            room_id(&lobby("g@sec.br1.pvp.net", Value::Null), None).as_deref(),
+            Some("g@sec.br1.pvp.net")
+        );
+    }
+
+    #[test]
+    fn entra_com_a_senha_e_o_jwt_do_lobby() {
+        let muc = json!({"jwt": "x", "targetRegion": "br1"});
+        let corpo = join_body(&lobby("grupo-1", muc.clone()), "grupo-1@sec.br1.pvp.net");
+        assert_eq!(
+            corpo,
+            json!({"id": "grupo-1@sec.br1.pvp.net", "type": "customGame", "password": "senha", "mucJwtDto": muc})
         );
     }
 
