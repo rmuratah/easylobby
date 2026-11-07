@@ -37,6 +37,8 @@ describe("coluna de amigos", () => {
     const { unmount } = render(<App />);
     expect(screen.getByRole("complementary", { name: "Amigos e conversas" })).toBe(column());
     const toggle = screen.getByRole("button", { name: "Recolher amigos" });
+    expect(toggle.closest('.app-social-region')).not.toBeNull();
+    expect(toggle.closest('header')).toBeNull();
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(toggle).toHaveAttribute("aria-controls", column().id);
     fireEvent.click(toggle);

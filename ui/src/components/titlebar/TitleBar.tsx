@@ -4,15 +4,10 @@ import { LaunchUxButton } from "../LaunchUxButton";
 import { ConnectionIndicator } from "../connection/ConnectionIndicator";
 import { connectionView } from "../../screens/connection";
 import { tauriWindowControls, type WindowControls } from "./windowControls";
-import { SidebarToggle } from "../../layout/SidebarToggle";
 
 type Props = {
   connection: ConnectionSnapshot;
   send: AgentClient["send"];
-  sidebarOpen: boolean;
-  onSidebarToggle: () => void;
-  invitations: number;
-  unread: number;
   /** Injetável nos testes; por padrão, a janela do Tauri (ou nada, no navegador). */
   controls?: WindowControls | null;
 };
@@ -23,7 +18,7 @@ const defaultControls = tauriWindowControls();
  * Controles compactos da moldura (#126, #160). O espaço vazio com
  * `data-tauri-drag-region` arrasta a janela; nenhum botão faz parte da região.
  */
-export function TitleBar({ connection, send, sidebarOpen, onSidebarToggle, invitations, unread, controls = defaultControls }: Props) {
+export function TitleBar({ connection, send, controls = defaultControls }: Props) {
   return (
     <header
       data-tauri-drag-region
@@ -32,7 +27,6 @@ export function TitleBar({ connection, send, sidebarOpen, onSidebarToggle, invit
       <ConnectionIndicator view={connectionView(connection)} />
       <div data-tauri-drag-region className="h-full min-w-4 flex-1" />
       <LaunchUxButton connection={connection} send={send} compact />
-      <SidebarToggle open={sidebarOpen} onToggle={onSidebarToggle} invitations={invitations} unread={unread} />
       {controls ? <WindowButtons controls={controls} /> : <div className="w-1" />}
     </header>
   );

@@ -24,10 +24,9 @@ function fakeWindow(maximized = false) {
   return { controls, resize, unlisten };
 }
 
-function renderBar(controls: WindowControls | null, onSidebarToggle = vi.fn()) {
+function renderBar(controls: WindowControls | null) {
   return render(
-    <TitleBar connection={connected} send={vi.fn()} sidebarOpen onSidebarToggle={onSidebarToggle}
-      invitations={0} unread={0} controls={controls} />,
+    <TitleBar connection={connected} send={vi.fn()} controls={controls} />,
   );
 }
 
@@ -67,11 +66,9 @@ describe("TitleBar", () => {
     expect(screen.getByRole("button", { name: "Abrir client oficial" })).toBeInTheDocument();
   });
 
-  it("mantém recuperação do client e controle da lateral em formato compacto", () => {
-    const onSidebarToggle = vi.fn();
-    renderBar(null, onSidebarToggle);
+  it("mantém a recuperação do client em formato compacto e sem o controle social", () => {
+    renderBar(null);
     expect(screen.getByRole("button", { name: "Abrir client oficial" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Recolher amigos" }));
-    expect(onSidebarToggle).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Recolher amigos" })).not.toBeInTheDocument();
   });
 });
