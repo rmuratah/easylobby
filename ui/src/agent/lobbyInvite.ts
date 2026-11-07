@@ -13,9 +13,13 @@ export type LobbyInvite = {
   canInvite: boolean;
   /** Amigos que dá para convidar agora, sem os que acabaram de ser convidados. */
   candidates: Friend[];
+  /** Vagas que ainda dá para preencher com convites. */
+  slots: number;
   /** Convite em envio para este amigo. */
   pending: (puuid: string) => boolean;
   invite: (friend: Friend) => Promise<void>;
+  /** Convida vários amigos de uma vez (pop-up do "+"). Devolve se o agente aceitou. */
+  inviteMany: (friends: Friend[]) => Promise<boolean>;
   /** Convida pelo `puuid` (amigo arrastado); explica quando ele não pode ser convidado. */
   inviteByPuuid: (puuid: string) => void;
   error: string;
@@ -46,32 +50,38 @@ export function useLobbyInvite(state: AgentState, send: AgentClient['send']): Lo
   const canInvite = !!lobby && lobby.canInvite && phase === 'Lobby' && !matchmaking && !state.readyCheck && slots > 0;
   const candidates = canInvite && lobby ? invitableFriends(lobby, friends).filter(f => !done.has(f.puuid)) : [];
 
-  async function invite(friend: Friend) {
-    const puuid = friend.puuid;
-    if (inFlight.current.has(puuid) || done.has(puuid)) return;
-    inFlight.current.add(puuid);
-    setPending(current => new Set(current).add(puuid));
+  async function inviteMany(selected: Friend[]): Promise<boolean> {
+    const batch = selected.filter(f => !inFlight.current.has(f.puuid) && !done.has(f.puuid));
+    if (batch.length === 0) return false;
+    const puuids = batch.map(f => f.puuid);
+    for (const puuid of puuids) inFlight.current.add(puuid);
+    setPending(current => new Set([...current, ...puuids]));
     setError('');
+    const names = batch.map(friendDisplayName).join(', ');
     try {
       // A LCU só entrega o convite com o `summonerId`; o `puuid` vai junto, como no client oficial.
-      const result = await send({ type: 'inviteToLobby', invitees: [{ summonerId: friend.summonerId, puuid }] });
-      if (!mounted.current) return;
-      if (result.status === 'ok') setDone(current => new Set(current).add(puuid));
-      else setError(result.code === 'notConnected'
+      const result = await send({ type: 'inviteToLobby', invitees: batch.map(f => ({ summonerId: f.summonerId, puuid: f.puuid })) });
+      if (!mounted.current) return false;
+      if (result.status === 'ok') {
+        setDone(current => new Set([...current, ...puuids]));
+        return true;
+      }
+      setError(result.code === 'notConnected'
         ? 'O League of Legends desconectou. Aguarde a reconexão e confira o grupo antes de convidar de novo.'
-        : `Não foi possível convidar ${friendDisplayName(friend)}: ${result.message}`);
+        : `Não foi possível convidar ${names}: ${result.message}`);
     } catch {
       if (mounted.current) setError('Não foi possível confirmar o convite. Confira a conexão e o grupo antes de tentar de novo.');
     } finally {
-      inFlight.current.delete(puuid);
+      for (const puuid of puuids) inFlight.current.delete(puuid);
       if (mounted.current) {
-        setPending(current => {
-          const next = new Set(current);
-          next.delete(puuid);
-          return next;
-        });
+        setPending(current => new Set([...current].filter(puuid => !puuids.includes(puuid))));
       }
     }
+    return false;
+  }
+
+  async function invite(friend: Friend) {
+    await inviteMany([friend]);
   }
 
   function inviteByPuuid(puuid: string) {
@@ -88,6 +98,6 @@ export function useLobbyInvite(state: AgentState, send: AgentClient['send']): Lo
       : `${name} não pode ser convidado agora (offline, no celular ou sem LoL).`);
   }
 
-  return { canInvite, candidates, pending: puuid => pending.has(puuid) || done.has(puuid), invite, inviteByPuuid, error };
+  return { canInvite, candidates, slots: Math.max(slots, 0), pending: puuid => pending.has(puuid) || done.has(puuid), invite, inviteMany, inviteByPuuid, error };
 }
 
