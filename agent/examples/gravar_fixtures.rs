@@ -66,9 +66,8 @@ const SNAPSHOT_PATHS: [&str; 19] = [
 ];
 
 /// Endpoints grandes e que quase não mudam: só no início.
-const STARTUP_ONLY_PATHS: [&str; 6] = [
+const STARTUP_ONLY_PATHS: [&str; 5] = [
     "/lol-game-queues/v1/queues",
-    "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=20&endIndex=39",
     "/lol-game-data/assets/v1/perkstyles.json",
     "/lol-game-data/assets/v1/perks.json",
     "/lol-game-data/assets/v1/summoner-spells.json",
@@ -184,9 +183,28 @@ impl Recorder {
             for path in STARTUP_ONLY_PATHS {
                 self.snapshot(path).await;
             }
+            self.snapshot_second_page().await;
         }
         self.snapshot_match_details().await;
         println!("[{}] foto REST na fase {}", self.elapsed_ms(), self.phase);
+    }
+
+    /// Segunda página do histórico pela rota do puuid, a que o agente usa no
+    /// "Carregar mais" (#172). O caminho gravado sai com o puuid falso.
+    async fn snapshot_second_page(&mut self) {
+        let Ok(response) = self
+            .lcu
+            .request(Method::GET, "/lol-summoner/v1/current-summoner", None)
+            .await
+        else {
+            return;
+        };
+        let puuid = response.body["puuid"].as_str().map(str::to_owned);
+        let path = easylobby_agent::match_history::page_path(
+            easylobby_agent::match_history::PAGE_SIZE,
+            puuid.as_deref(),
+        );
+        self.snapshot(&path).await;
     }
 
     /// Placar completo das partidas mais novas do histórico (#174). O

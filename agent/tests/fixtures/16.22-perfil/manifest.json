@@ -1,0 +1,8 @@
+{
+  "formatVersion": 1,
+  "patch": "16.22-perfil",
+  "gameVersion": "16.22.8348910+branch.releases-16-22.code.public.content.release.anticheat.vanguard",
+  "recordedAt": "2026-11-07T16:10:27Z",
+  "synthetic": false,
+  "notes": "Gravação real, sanitizada, da tela de Perfil (#171 a #175): ranks Solo/Duo e Flex, maestria, as duas primeiras páginas do histórico (Ferramenta de Treino, ARAM: Desordem e Solo/Duo) e o placar das 3 partidas mais novas. Sem eventos."
+}

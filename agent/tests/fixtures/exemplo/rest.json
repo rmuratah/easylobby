@@ -2589,7 +2589,7 @@
   },
   {
     "method": "GET",
-    "path": "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=20&endIndex=39",
+    "path": "/lol-match-history/v1/products/lol/fake-puuid-0001/matches?begIndex=20&endIndex=39",
     "phase": "None",
     "status": 200,
     "body": {

@@ -4,7 +4,10 @@
 //! A lista sai de
 //! `GET /lol-match-history/v1/products/lol/current-summoner/matches?begIndex=..&endIndex=..`,
 //! [`PAGE_SIZE`] partidas por vez (os índices são inclusivos e contam da mais
-//! nova). Nessa resposta cada partida só traz o jogador logado em
+//! nova). Na gravação do LoL real (`16.22-perfil`) essa rota ignorou o
+//! `begIndex` e mandou de novo as 20 mais novas; por isso as páginas
+//! seguintes usam a rota pelo puuid, `/lol-match-history/v1/products/lol/{puuid}/matches`,
+//! e uma página que não começa no índice pedido conta como vazia. Nessa resposta cada partida só traz o jogador logado em
 //! `participants`. O placar com os 10 jogadores sai de
 //! `GET /lol-match-history/v1/games/{gameId}`.
 //!
@@ -23,6 +26,9 @@ pub const PAGE_SIZE: usize = 20;
 
 /// Caminho da lista do jogador logado, sem a query.
 pub const MATCHES_PATH: &str = "/lol-match-history/v1/products/lol/current-summoner/matches";
+
+/// Começo da lista de um jogador pelo puuid: `<prefixo>/<puuid>/matches`.
+pub const PUUID_MATCHES_PREFIX: &str = "/lol-match-history/v1/products/lol";
 
 /// Prefixo do placar de uma partida: `<prefixo>/<gameId>`.
 pub const GAME_PATH_PREFIX: &str = "/lol-match-history/v1/games";
@@ -329,11 +335,14 @@ impl MatchHistory {
         }
     }
 
-    /// Acrescenta a página seguinte (`loadMoreMatches`).
+    /// Acrescenta a página seguinte (`loadMoreMatches`). Uma página sem
+    /// nenhuma partida nova encerra o histórico, para o "Carregar mais" não
+    /// ficar pedindo a mesma página para sempre.
     pub fn append(&mut self, page: Vec<MatchSummary>, received: usize) {
+        let before = self.matches.len();
         self.matches.extend(page);
         sort_newest_first(&mut self.matches);
-        self.has_more = received >= PAGE_SIZE;
+        self.has_more = received >= PAGE_SIZE && self.matches.len() > before;
     }
 
     /// Junta uma primeira página relida (depois de uma partida) com o que já
@@ -349,10 +358,37 @@ impl MatchHistory {
     }
 }
 
-/// Caminho com a query da página que começa em `begin`.
-pub fn page_path(begin: usize) -> String {
+/// Caminho com a query da página que começa em `begin`. A primeira página
+/// usa a rota do jogador logado; as seguintes, a rota pelo `puuid`, quando
+/// ele é conhecido e só tem letras, números e `-`.
+pub fn page_path(begin: usize, puuid: Option<&str>) -> String {
     let end = begin + PAGE_SIZE - 1;
-    format!("{MATCHES_PATH}?begIndex={begin}&endIndex={end}")
+    let query = format!("begIndex={begin}&endIndex={end}");
+    let puuid = puuid
+        .filter(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'));
+    match puuid {
+        Some(puuid) if begin > 0 => format!("{PUUID_MATCHES_PREFIX}/{puuid}/matches?{query}"),
+        _ => format!("{MATCHES_PATH}?{query}"),
+    }
+}
+
+/// Como [`page_from_json`], mas uma resposta que diz começar em outro índice
+/// (`games.gameIndexBegin`) vira uma página vazia: a LCU devolveu a lista do
+/// começo em vez da página pedida.
+pub fn page_at(
+    value: &Value,
+    begin: usize,
+    puuid: Option<&str>,
+) -> Option<(Vec<MatchSummary>, usize)> {
+    let page = page_from_json(value, puuid)?;
+    let index_begin = value
+        .get("games")
+        .and_then(|g| g.get("gameIndexBegin"))
+        .and_then(Value::as_u64);
+    match index_begin {
+        Some(index) if index != begin as u64 => Some((Vec::new(), 0)),
+        _ => Some(page),
+    }
 }
 
 /// Busca a página que começa em `begin` (0 para as mais novas).
@@ -361,8 +397,8 @@ pub async fn page(
     begin: usize,
     puuid: Option<&str>,
 ) -> Result<Option<(Vec<MatchSummary>, usize)>, LcuError> {
-    let body = lcu.get::<Value>(&page_path(begin)).await?;
-    Ok(page_from_json(&body, puuid))
+    let body = lcu.get::<Value>(&page_path(begin, puuid)).await?;
+    Ok(page_at(&body, begin, puuid))
 }
 
 /// Busca o placar da partida `game_id`.
@@ -488,10 +524,60 @@ pub(crate) mod tests {
             .unwrap_or_else(|| panic!("o exemplo tem {path}"))
     }
 
+    /// Corpo de `path` na gravação real da tela de Perfil.
+    pub(crate) fn gravacao_perfil(path: &str) -> Value {
+        let rest: Value =
+            serde_json::from_str(include_str!("../tests/fixtures/16.22-perfil/rest.json")).unwrap();
+        rest.as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["path"] == path)
+            .map(|e| e["body"].clone())
+            .unwrap_or_else(|| panic!("a gravação tem {path}"))
+    }
+
+    #[test]
+    fn historico_da_gravacao_real() {
+        let (first, received) = page_from_json(
+            &gravacao_perfil(&page_path(0, None)),
+            Some("fake-puuid-0001"),
+        )
+        .unwrap();
+        assert_eq!((first.len(), received), (PAGE_SIZE, PAGE_SIZE));
+        assert!(first.iter().all(|m| m.player.puuid == "fake-puuid-0001"));
+        assert!(first.iter().any(|m| m.queue_id == 420));
+        assert!(first.iter().any(|m| m.game_mode == "KIWI"));
+        let mut history = MatchHistory::first_page(first, received);
+        assert!(history.has_more);
+
+        // A rota do jogador logado ignorou o `begIndex=20` e mandou as mesmas
+        // 20: a página conta como vazia e o "Carregar mais" some.
+        let repeated = gravacao_perfil(&format!("{MATCHES_PATH}?begIndex=20&endIndex=39"));
+        let (second, received) = page_at(&repeated, 20, Some("fake-puuid-0001")).unwrap();
+        assert_eq!((second.len(), received), (0, 0));
+        history.append(second, received);
+        assert_eq!(history.matches.len(), PAGE_SIZE);
+        assert!(!history.has_more);
+
+        // O placar de uma ARAM: Desordem bate com o resumo da mesma partida.
+        let summary = history.matches.iter().find(|m| m.game_id == 1157).unwrap();
+        let details =
+            details_from_json(&gravacao_perfil(&format!("{GAME_PATH_PREFIX}/1157"))).unwrap();
+        assert_eq!(details.players.len(), 10);
+        let me = details
+            .players
+            .iter()
+            .find(|p| p.puuid == "fake-puuid-0001")
+            .unwrap();
+        assert_eq!(*me, summary.player);
+        assert_eq!(summary.result, MatchResult::Win);
+        assert!(me.items.iter().any(|&item| item > 0));
+    }
+
     #[test]
     fn historico_do_exemplo() {
         let (first, received) =
-            page_from_json(&exemplo(&page_path(0)), Some("fake-puuid-0001")).unwrap();
+            page_from_json(&exemplo(&page_path(0, None)), Some("fake-puuid-0001")).unwrap();
         assert_eq!((first.len(), received), (PAGE_SIZE, PAGE_SIZE));
         assert!(first.iter().all(|m| m.player.puuid == "fake-puuid-0001"));
         assert_eq!(
@@ -502,7 +588,8 @@ pub(crate) mod tests {
             1
         );
         let mut history = MatchHistory::first_page(first, received);
-        let (second, received) = page_from_json(&exemplo(&page_path(20)), None).unwrap();
+        let second_path = page_path(20, Some("fake-puuid-0001"));
+        let (second, received) = page_at(&exemplo(&second_path), 20, None).unwrap();
         history.append(second, received);
         assert_eq!(history.matches.len(), 26);
         assert!(!history.has_more);
@@ -532,8 +619,28 @@ pub(crate) mod tests {
         assert_eq!(ids, [4, 3, 2, 1]);
         assert!(!history.has_more);
         assert_eq!(
-            page_path(20),
+            page_path(0, Some("abc-123")),
+            "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=19"
+        );
+        assert_eq!(
+            page_path(20, Some("abc-123")),
+            "/lol-match-history/v1/products/lol/abc-123/matches?begIndex=20&endIndex=39"
+        );
+        assert_eq!(
+            page_path(20, None),
             "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=20&endIndex=39"
         );
+        assert_eq!(
+            page_path(20, Some("../x")),
+            "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=20&endIndex=39"
+        );
+    }
+
+    #[test]
+    fn pagina_repetida_nao_carrega_mais() {
+        let mut history = MatchHistory::first_page(summaries(&[(2, 20), (1, 10)]), PAGE_SIZE);
+        history.append(summaries(&[(2, 20), (1, 10)]), PAGE_SIZE);
+        assert_eq!(history.matches.len(), 2);
+        assert!(!history.has_more);
     }
 }
