@@ -1,11 +1,11 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type DragEvent } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import { createLobbyCommand, isQueueKey, lobbyQueueName, queueGroups, queueKey, type QueueKey } from '../agent/queueOptions';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
-import type { Friend } from '../bindings/Friend';
-import type { LobbyMember } from '../bindings/LobbyMember';
-import { friendDisplayName } from '../agent/friends';
+import { playerName } from '../agent/friends';
+import { FRIEND_DRAG_TYPE, useLobbyInvite } from '../agent/lobbyInvite';
+import { InvitePicker } from './LobbyInvites';
 import { isPosition, positionNames, validPositions } from '../agent/positions';
 import { queuePenalty } from '../agent/matchmaking';
 import type { Position } from '../bindings/Position';
@@ -53,13 +53,6 @@ function positionsComplete(first: Position, second: Position) {
   return second !== 'unselected' || first === 'fill' || first === 'unselected';
 }
 
-/** Riot ID de quem está no lobby: a LCU não manda o nome, então vem da lista de amigos pelo `puuid`. */
-function memberName(member: LobbyMember, friends: Friend[]): string {
-  const friend = friends.find(f => f.puuid === member.puuid)
-    ?? (member.summonerId ? friends.find(f => f.summonerId === member.summonerId) : undefined);
-  return friend ? friendDisplayName(friend) : 'Jogador';
-}
-
 function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['send'] }) {
   const { lobby, matchmaking, summoner, gameflowPhase: phase } = state;
   const localMember = summoner?.puuid ? lobby?.members.find(member => member.puuid === summoner.puuid) : undefined;
@@ -84,6 +77,10 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     setSelection({ queueId, queue: syncing.queue && lobby ? selection.queue : currentKey ?? 'normalDraft' });
   }
   const groups = queueGroups(state.queues);
+  const invites = useLobbyInvite(state, send);
+  const [picker, setPicker] = useState<number | null>(null);
+  const [dropping, setDropping] = useState(false);
+  const closePicker = useCallback(() => setPicker(null), []);
   const [feedback, setFeedback] = useState<Feedback>({ status: 'idle', message: '' });
   const inFlight = useRef(false);
   const mounted = useRef(false);
@@ -283,10 +280,31 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     );
   }
 
+  // Amigo arrastado da lista de amigos (#206): solto em qualquer ponto do lobby, vira convite.
+  const isFriendDrag = (event: DragEvent) => event.dataTransfer.types.includes(FRIEND_DRAG_TYPE);
+  function onDragOver(event: DragEvent) {
+    if (!isFriendDrag(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = invites.canInvite ? 'copy' : 'none';
+    if (!dropping) setDropping(true);
+  }
+  function onDragLeave(event: DragEvent) {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropping(false);
+  }
+  function onDrop(event: DragEvent) {
+    if (!isFriendDrag(event)) return;
+    event.preventDefault();
+    setDropping(false);
+    const puuid = event.dataTransfer.getData(FRIEND_DRAG_TYPE);
+    if (puuid) invites.inviteByPuuid(puuid);
+  }
+
   const queueLabel = lobbyQueueName(lobby, state.queues);
   const freeSlots = Math.max(0, lobby.maxLobbySize - lobby.members.length);
   return (
-    <section aria-label="Lobby" className="flex h-full min-h-0 w-full flex-col gap-4 text-ink">
+    <section aria-label="Lobby" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
+      className={cx('flex h-full min-h-0 w-full flex-col gap-4 rounded-panel text-ink transition-shadow',
+        dropping && 'ring-2 ring-accent')}>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Lobby</h2>
@@ -313,7 +331,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
       <ul aria-label="Jogadores no lobby" className="flex min-h-0 flex-1 flex-col gap-3">
         {lobby.members.map((member, index) => {
           const me = member.puuid === summoner?.puuid;
-          const name = me ? localName : memberName(member, state.friends);
+          const name = me ? localName : playerName(member.puuid, member.summonerId, state.friends);
           return (
             <li key={member.puuid} style={{ animationDelay: `${index * 70}ms` }}
               className={cx('relative flex min-h-20 flex-1 items-center gap-4 rounded-panel px-4 py-3 transition-all duration-200 animate-fade-up',
@@ -353,12 +371,21 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
         })}
         {Array.from({ length: freeSlots }, (_, index) => (
           <li key={`vaga-${index}`} aria-label="Vaga livre" style={{ animationDelay: `${(lobby.members.length + index) * 70}ms` }}
-            className="flex min-h-20 flex-1 items-center justify-center gap-3 rounded-panel border-2 border-dashed border-line bg-surface/40 text-muted animate-fade-up">
-            <span aria-hidden="true" className="flex size-11 items-center justify-center rounded-full bg-raised"><PlusIcon size={20} /></span>
+            className="relative flex min-h-20 flex-1 items-center justify-center gap-3 rounded-panel border-2 border-dashed border-line bg-surface/40 text-muted animate-fade-up">
+            {/* O "+" abre a lista de amigos para convidar (#206); sem permissão de convidar, fica só o desenho. */}
+            {lobby.canInvite ? (
+              <button type="button" aria-label="Convidar amigo" title="Convidar amigo" aria-expanded={picker === index}
+                aria-haspopup="dialog" onClick={() => setPicker(picker === index ? null : index)}
+                className={`flex size-11 items-center justify-center rounded-full bg-raised text-ink transition-colors hover:bg-accent hover:text-on-accent ${focusRing}`}>
+                <PlusIcon size={20} />
+              </button>
+            ) : <span aria-hidden="true" className="flex size-11 items-center justify-center rounded-full bg-raised"><PlusIcon size={20} /></span>}
             <span className="text-body font-semibold">Vaga livre</span>
+            {picker === index && <InvitePicker invites={invites} onClose={closePicker} />}
           </li>
         ))}
       </ul>
+      {invites.error && <p role="alert" className="text-body text-danger">{invites.error}</p>}
 
       <div className={cx('grid items-stretch gap-4', !searching && '@min-[44rem]:grid-cols-2')}>
         {lobby.showPositionSelector ? (
