@@ -31,22 +31,56 @@ function drop(puuid: string) {
 }
 
 describe('convidar pelo lobby', () => {
-  it('o "+" da vaga livre abre os amigos disponíveis e convida', async () => {
+  it('o "+" da vaga livre abre o pop-up e convida os amigos marcados', async () => {
     const send = ok();
     const { rerender } = render(<LobbyPanel connection={connected({})} send={send} />);
     const plus = lobby().getAllByRole('button', { name: 'Convidar amigo' });
     expect(plus).toHaveLength(4);
     fireEvent.click(plus[0]);
     const picker = within(screen.getByRole('dialog', { name: 'Convidar amigos' }));
-    expect(picker.getAllByRole('listitem').map(item => item.textContent)).toEqual(['ANAna#BR1Convidar', 'BIBia#BR1Convidar']);
-    await act(async () => fireEvent.click(picker.getByRole('button', { name: 'Convidar Ana#BR1' })));
-    expect(send).toHaveBeenCalledWith({ type: 'inviteToLobby', invitees: [{ summonerId: 2001, puuid: 'ana' }] });
-    // Até o convite aparecer no lobby, Ana não volta para a lista.
-    expect(picker.queryByRole('button', { name: 'Convidar Ana#BR1' })).not.toBeInTheDocument();
+    // Caio está offline: só Ana e Bia aparecem, na pasta padrão.
+    expect(picker.getAllByRole('checkbox').map(box => box.getAttribute('aria-label'))).toEqual(['Convidar Ana#BR1', 'Convidar Bia#BR1']);
+    expect(picker.getByRole('button', { name: 'Enviar convites' })).toBeDisabled();
+    fireEvent.click(picker.getByRole('checkbox', { name: 'Convidar Ana#BR1' }));
+    fireEvent.click(picker.getByRole('checkbox', { name: 'Convidar Bia#BR1' }));
+    await act(async () => fireEvent.click(picker.getByRole('button', { name: 'Enviar convites' })));
+    expect(send).toHaveBeenCalledWith({ type: 'inviteToLobby', invitees: [{ summonerId: 2001, puuid: 'ana' }, { summonerId: 2002, puuid: 'bia' }] });
+    // Convites aceitos fecham o pop-up.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // Até o convite aparecer no lobby, Ana não volta para a lista; recusado, ela volta.
     rerender(<LobbyPanel connection={connected({ lobby: { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 2001, state: 'Declined' }] } })} send={send} />);
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Convidar Ana#BR1' })).toBeEnabled();
+    fireEvent.click(lobby().getAllByRole('button', { name: 'Convidar amigo' })[0]);
+    expect(within(screen.getByRole('dialog')).getByRole('checkbox', { name: 'Convidar Ana#BR1' })).toBeEnabled();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('filtra pelo nome de jogo e pela tagline, e respeita as vagas livres', () => {
+    const duoLobby: Lobby = { ...flexLobby, maxLobbySize: 2 };
+    render(<LobbyPanel connection={connected({ lobby: duoLobby, friends: [ana, bia, friend({ id: 'bea', puuid: 'bea', summonerId: 2004, gameName: 'Béa', tagLine: 'XYZ' })] })} send={ok()} />);
+    fireEvent.click(lobby().getByRole('button', { name: 'Convidar amigo' }));
+    const picker = within(screen.getByRole('dialog', { name: 'Convidar amigos' }));
+    fireEvent.change(picker.getByLabelText('Nome de jogo'), { target: { value: 'be' } });
+    expect(picker.getAllByRole('checkbox').map(box => box.getAttribute('aria-label'))).toEqual(['Convidar Béa#XYZ']);
+    fireEvent.change(picker.getByLabelText('Tagline'), { target: { value: 'br' } });
+    expect(picker.getByText('Nenhum amigo disponível com esse nome.')).toBeInTheDocument();
+    fireEvent.click(picker.getByRole('button', { name: 'Limpar nome de jogo' }));
+    fireEvent.click(picker.getByRole('button', { name: 'Limpar tagline' }));
+    // Uma vaga livre: marcado um, os outros ficam bloqueados.
+    fireEvent.click(picker.getByRole('checkbox', { name: 'Convidar Ana#BR1' }));
+    expect(picker.getByRole('checkbox', { name: 'Convidar Bia#BR1' })).toBeDisabled();
+  });
+
+  it('as pastas de amigos abrem e fecham', () => {
+    const amigos = { id: 7, name: 'Fiotes', priority: 1, collapsed: true };
+    render(<LobbyPanel connection={connected({ friends: [ana, { ...bia, groupId: 7, groupName: 'Fiotes' }], friendGroups: [{ id: 0, name: '**Default', priority: 0, collapsed: false }, amigos] })} send={ok()} />);
+    fireEvent.click(lobby().getAllByRole('button', { name: 'Convidar amigo' })[0]);
+    const picker = within(screen.getByRole('dialog', { name: 'Convidar amigos' }));
+    const fiotes = picker.getByRole('button', { name: /Fiotes/ });
+    expect(fiotes).toHaveAttribute('aria-expanded', 'false');
+    expect(picker.queryByRole('checkbox', { name: 'Convidar Bia#BR1' })).not.toBeInTheDocument();
+    fireEvent.click(fiotes);
+    expect(picker.getByRole('checkbox', { name: 'Convidar Bia#BR1' })).toBeInTheDocument();
   });
 
   it('sem permissão de convidar, a vaga livre não tem botão', () => {

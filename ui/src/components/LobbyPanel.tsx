@@ -361,11 +361,12 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
               </button>
             ) : <span aria-hidden="true" className="flex size-11 items-center justify-center rounded-full bg-raised"><PlusIcon size={20} /></span>}
             <span className="text-body font-semibold">Vaga livre</span>
-            {picker === index && <InvitePicker invites={invites} onClose={closePicker} />}
+            
           </li>
         ))}
       </ul>
-      {invites.error && <p role="alert" className="text-body text-danger">{invites.error}</p>}
+      {invites.error && picker === null && <p role="alert" className="text-body text-danger">{invites.error}</p>}
+      {picker !== null && <InvitePicker invites={invites} groups={state.friendGroups} onClose={closePicker} />}
 
       <div className={cx('grid items-stretch gap-4', !searching && '@min-[44rem]:grid-cols-2')}>
         {lobby.showPositionSelector ? (
