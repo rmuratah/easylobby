@@ -1,22 +1,43 @@
 import type { Friend } from '../bindings/Friend';
+import type { GameQueue } from '../bindings/GameQueue';
 import type { InvitationState } from '../bindings/InvitationState';
 import type { Lobby } from '../bindings/Lobby';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
-import { isOnline } from './friends';
+import { friendNick, isOnline } from './friends';
 import { queueNames } from './queues';
 
 /** Convites que ainda ocupam uma vaga no grupo: o amigo pode aceitar a qualquer momento. */
 const openStates = { Requested: true, Pending: true, OnHold: true } as Partial<Record<InvitationState, true>>;
 export const isOpenInvitation = (state: InvitationState) => !!openStates[state];
 
-/** Nome de quem convidou: a LCU pode mandar vazio com o Riot ID. */
-export function inviterName(invitation: ReceivedInvitation): string {
-  return invitation.fromSummonerName || 'Um amigo';
+/**
+ * Amigo que mandou o convite, achado pelo `summonerId`. `undefined` quando
+ * quem convidou não está na lista de amigos.
+ */
+export function invitationSender(invitation: ReceivedInvitation, friends: Friend[]): Friend | undefined {
+  if (invitation.fromSummonerId <= 0) return undefined;
+  return friends.find(f => f.summonerId === invitation.fromSummonerId);
 }
 
-/** Nome da fila do convite, ou "outra fila" quando o app não conhece. */
-export function invitationQueueName(invitation: ReceivedInvitation): string {
-  return invitation.queue ? queueNames[invitation.queue] : `outra fila (ID ${invitation.queueId})`;
+/**
+ * Nome de quem convidou: o nick do amigo (sem a tag, como na lista de
+ * amigos), o nome que a LCU mandou (pode vir vazio com o Riot ID) ou "Um
+ * amigo".
+ */
+export function inviterName(invitation: ReceivedInvitation, friends: Friend[]): string {
+  const sender = invitationSender(invitation, friends);
+  return (sender && friendNick(sender)) || invitation.fromSummonerName || 'Um amigo';
+}
+
+/**
+ * Nome da fila do convite: o nome fixo, o da lista de filas da LCU (ARAM:
+ * Desordem e outros modos, #146), ou "outra fila" quando nenhum dos dois
+ * conhece.
+ */
+export function invitationQueueName(invitation: ReceivedInvitation, queues: GameQueue[]): string {
+  if (invitation.queue) return queueNames[invitation.queue];
+  const listed = queues.find(q => q.queueId === invitation.queueId);
+  return listed?.name || listed?.description || `outra fila (ID ${invitation.queueId})`;
 }
 
 /** Vagas livres no grupo, descontando quem já está e quem tem convite em aberto. */
