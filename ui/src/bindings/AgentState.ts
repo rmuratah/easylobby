@@ -37,8 +37,9 @@ export type AgentState = {
    */
   readyCheck: ReadyCheck | null,
   /**
-   * Filas em que dá para criar lobby agora (#146), lidas da LCU. Vazia
-   * com o LoL fechado.
+   * Filas em que dá para criar lobby agora (#146), lidas da LCU, mais as
+   * fixas da tela de escolha de modo que estão fechadas, com `available:
+   * false` (#209). Vazia com o LoL fechado.
    */
   queues: Array<GameQueue>,
   /**

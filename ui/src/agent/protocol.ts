@@ -115,7 +115,7 @@ function matchmaking(v: unknown): v is Matchmaking | null {
 function gameQueue(v: unknown): v is GameQueue {
   return object(v) && uints(v, ['queueId', 'mapId']) && (v.queue === null || isQueue(v.queue)) &&
     strings(v, ['name', 'description', 'gameMode', 'modeGroup']) &&
-    booleans(v, ['versusAi', 'ranked', 'showPositionSelector', 'limitedTime']);
+    booleans(v, ['versusAi', 'ranked', 'showPositionSelector', 'limitedTime', 'available']);
 }
 function champSelect(v: unknown): v is ChampSelect | null {
   return v === null || (object(v) && typeof v.id === 'string' && uint(v.queueId) && Number.isSafeInteger(v.localPlayerCellId) &&

@@ -51,7 +51,7 @@ afterEach(() => { configure({ defaultHidden: false }); vi.useRealTimers(); vi.un
 const queueSelect = () => panel().getByRole('combobox', { name: 'Fila' });
 const gameQueue = (queueId: number, name: string, gameMode: string, versusAi = false): GameQueue => ({
   queueId, queue: null, name, description: name, gameMode, modeGroup: gameMode === 'KIWI' ? 'kARAM' : 'kOther', mapId: 12,
-  versusAi, ranked: false, showPositionSelector: false, limitedTime: false,
+  versusAi, ranked: false, showPositionSelector: false, limitedTime: false, available: true,
 });
 const desordem = gameQueue(2400, 'ARAM: Desordem', 'KIWI');
 const jade = gameQueue(4310, 'Jade', 'JADE');

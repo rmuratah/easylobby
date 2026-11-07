@@ -27,6 +27,8 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::StopQueue => hub.stop_queue().await,
         Command::AcceptReadyCheck => hub.accept_ready_check().await,
         Command::DeclineReadyCheck => hub.decline_ready_check().await,
+        Command::StartTutorial => hub.start_tutorial().await,
+        Command::StartPracticeTool => hub.start_practice_tool().await,
 
         // Seleção de campeões
         Command::HoverChampion {

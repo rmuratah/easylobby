@@ -24,7 +24,7 @@ export type QueueGroup = { label: string; options: QueueOption[] };
  */
 export function queueGroups(queues: GameQueue[]): QueueGroup[] {
   const fixed: QueueOption[] = (Object.keys(queueNames) as Queue[]).map(queue => ({ key: queue, label: queueNames[queue] }));
-  const extra = queues.filter(q => q.queue === null);
+  const extra = queues.filter(q => q.queue === null && q.available);
   const option = (q: GameQueue): QueueOption => ({ key: queueKey(q), label: q.name || q.description || `Fila ${q.queueId}` });
   const groups: QueueGroup[] = [{ label: 'Filas principais', options: fixed }];
   const pvp = extra.filter(q => !q.versusAi).map(option);

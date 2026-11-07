@@ -18,7 +18,7 @@ describe('feitiços de invocador', () => {
       spell(11, 'Golpear', ['CLASSIC']), spell(32, 'Marca', ['ARAM', 'KIWI']), spell(714, 'Incendiar', ['JADE']),
     ] };
     const mayhem: GameQueue = { queueId: 2400, queue: null, name: 'ARAM: Desordem', description: '', gameMode: 'KIWI',
-      modeGroup: 'kARAM', mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: false };
+      modeGroup: 'kARAM', mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: false, available: true };
     const names = (list: { name: string }[]) => list.map(s => s.name);
     expect(names(spellsForChampSelect(catalog, { ...aramChampSelect, queueId: 2400, queue: null }, [mayhem]))).toEqual(['Flash', 'Marca']);
     // Personalizada de ARAM (fila fora da lista, com banco): modo ARAM.

@@ -2,7 +2,8 @@
 import type { Queue } from "./Queue";
 
 /**
- * Uma fila em que dá para criar lobby agora.
+ * Uma fila da lista do agente: aberta agora, ou uma das filas fixas de
+ * [`MODE_SCREEN_QUEUES`], aberta ou fechada.
  */
 export type GameQueue = {
   /**
@@ -49,4 +50,11 @@ export type GameQueue = {
    * Fila de tempo limitado (evento), segundo a LCU.
    */
   limitedTime: boolean,
+  /**
+   * Se a fila está aberta agora (`queueAvailability` `Available`,
+   * `isEnabled` e `isVisible`). Só as filas fixas de
+   * [`MODE_SCREEN_QUEUES`] vêm com `false`; `createLobbyById` recusa
+   * essas (#209).
+   */
+  available: boolean,
 };

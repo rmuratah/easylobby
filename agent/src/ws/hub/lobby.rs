@@ -4,6 +4,7 @@ use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
 use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError};
 use crate::matchmaking::{self, Matchmaking};
 use crate::queues::GameQueue;
+use crate::training;
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 
 impl Hub {
@@ -31,14 +32,54 @@ impl Hub {
             .state
             .queues
             .iter()
-            .any(|q| q.queue_id == queue_id);
-        if !listed {
-            return CommandResult::error(
+            .find(|q| q.queue_id == queue_id)
+            .map(|q| q.available);
+        match listed {
+            None => CommandResult::error(
                 ErrorCode::InvalidCommand,
                 format!("a fila {queue_id} não está disponível agora"),
-            );
+            ),
+            Some(false) => CommandResult::error(
+                ErrorCode::InvalidCommand,
+                format!("a fila {queue_id} está fechada agora"),
+            ),
+            Some(true) => self.create_lobby_in(queue_id).await,
         }
-        self.create_lobby_in(queue_id).await
+    }
+
+    /// Inicia a próxima parte do Tutorial (comando `startTutorial`, #209):
+    /// cria o lobby na fila da parte e entra na busca. O lobby e a busca
+    /// são publicados antes de devolver.
+    pub async fn start_tutorial(&self) -> CommandResult {
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        let queue_id = training::next_tutorial(&client).await;
+        if let error @ CommandResult::Error { .. } = self.create_lobby_in(queue_id).await {
+            return error;
+        }
+        self.start_queue().await
+    }
+
+    /// Inicia o Modo de Treino (comando `startPracticeTool`, #209): cria a
+    /// personalizada e já inicia a seleção de campeões. Publica o lobby
+    /// antes de devolver; a seleção chega pelo WAMP.
+    pub async fn start_practice_tool(&self) -> CommandResult {
+        let Some((client, stamp)) = self.begin(Resource::Lobby) else {
+            return not_connected();
+        };
+        match training::create_practice_tool(&client).await {
+            Ok(lobby) => {
+                if !(lobby.is_some() && self.set_lobby_if(stamp, lobby)) {
+                    self.refresh_lobby().await;
+                }
+            }
+            Err(error) => return CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+        match training::start_custom_champ_select(&client).await {
+            Ok(()) => CommandResult::Ok,
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
     }
 
     async fn create_lobby_in(&self, queue_id: u32) -> CommandResult {
@@ -297,6 +338,8 @@ mod tests {
             hub.create_lobby(Queue::RankedSolo).await,
             hub.leave_lobby().await,
             hub.set_positions(Position::Top, Position::Jungle).await,
+            hub.start_tutorial().await,
+            hub.start_practice_tool().await,
         ] {
             assert!(matches!(
                 result,
@@ -371,6 +414,29 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[tokio::test]
+    async fn criar_lobby_por_id_recusa_fila_fechada() {
+        let hub = Hub::new();
+        let closed = json!([{
+            "id": 1750, "name": "Arena 3x6", "gameMode": "CHERRY", "gameSelectCategory": "kPvP",
+            "queueAvailability": "PlatformDisabled", "isEnabled": false, "isVisible": false,
+        }]);
+        hub.apply(event(GAME_QUEUES_PATH, EventType::Update, closed))
+            .await;
+        assert!(!hub.state().queues[0].available);
+        let result = hub.create_lobby_by_id(1750).await;
+        assert!(
+            matches!(
+                &result,
+                CommandResult::Error {
+                    code: ErrorCode::InvalidCommand,
+                    message,
+                } if message.contains("fechada")
+            ),
+            "{result:?}"
+        );
     }
 
     #[tokio::test]

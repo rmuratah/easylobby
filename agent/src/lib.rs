@@ -17,6 +17,7 @@
 //!   (`launch-ux`) (#12)
 //! - [`lobby`]: lobby e escolha de fila (#17)
 //! - [`queues`]: filas disponíveis para criar lobby, lidas da LCU (#146)
+//! - [`training`]: Tutorial e Modo de Treino da aba Treinamento (#209)
 //! - [`invitations`]: convites de lobby recebidos e enviados (#32)
 //! - [`matchmaking`]: entrar e sair da fila, com o tempo na fila (#19)
 //! - [`ws`]: canal `/ws` com eventos e comandos tipados para a UI (#15)
@@ -67,6 +68,7 @@ pub mod runes;
 pub mod summoner;
 pub mod summoner_spells;
 pub mod swaps;
+pub mod training;
 pub mod ux;
 pub mod wamp;
 pub mod ws;
