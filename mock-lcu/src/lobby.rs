@@ -12,6 +12,7 @@
 use easylobby_agent::fixtures::EventFixture;
 use serde_json::{json, Value};
 
+use crate::matchmaking::SEARCH;
 use crate::state::{LcuState, Response, GAMEFLOW_PHASE};
 
 /// Recurso do lobby.
@@ -105,6 +106,10 @@ pub fn leave(state: &LcuState) -> (Response, Vec<EventFixture>) {
     let mut events = Vec::new();
     if state.get(LOBBY).status == 200 {
         events.push(event(LOBBY, "Delete", Value::Null));
+    }
+    // Sem lobby não há busca, nem a parada por punição.
+    if state.get(SEARCH).status == 200 {
+        events.push(event(SEARCH, "Delete", Value::Null));
     }
     if state.phase() != "None" {
         events.push(event(GAMEFLOW_PHASE, "Update", json!("None")));

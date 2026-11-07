@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use easylobby_agent::connection::{CredentialSource, LcuConnection, ReconnectConfig};
-use easylobby_agent::fixtures::FixtureSet;
+use easylobby_agent::fixtures::{EventFixture, FixtureSet};
 use easylobby_agent::lobby::Queue;
 use easylobby_agent::matchmaking::{Matchmaking, SearchState};
 use easylobby_agent::ws::protocol::{
@@ -198,6 +198,79 @@ async fn entra_na_fila_conta_o_tempo_e_sai() {
         _ => panic!("esperava hello: {before:?}"),
     }
     assert_eq!(mock.phase(), "Lobby");
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Com a punição de dodge, a LCU deixa a busca em `Error` com o tempo de
+/// punição. A UI deixa sair do lobby nesse estado, e o agente sai da busca e
+/// do lobby, sem deixar a busca parada para trás.
+#[tokio::test]
+async fn sai_do_lobby_com_a_busca_parada_por_punicao() {
+    let dir = temp_dir("punicao");
+    let mock = start_mock(&dir).await;
+    let url = start_agent(&dir).await;
+    let mut ui = tokio_tungstenite::connect_async(&url).await.unwrap().0;
+    wait_connected(&mut ui).await;
+
+    send(
+        &mut ui,
+        1,
+        Command::CreateLobby {
+            queue: Queue::RankedSolo,
+        },
+    )
+    .await;
+    assert_eq!(until_response(&mut ui, 1).await.1, CommandResult::Ok);
+    send(&mut ui, 2, Command::StartQueue).await;
+    assert_eq!(until_response(&mut ui, 2).await.1, CommandResult::Ok);
+
+    mock.emit(EventFixture {
+        t_ms: 0,
+        uri: "/lol-matchmaking/v1/search".into(),
+        event_type: "Update".into(),
+        data: serde_json::json!({
+            "searchState": "Error",
+            "queueId": 420,
+            "timeInQueue": 0.0,
+            "estimatedQueueTime": 0.0,
+            "errors": [{
+                "errorType": "QUEUE_DODGER",
+                "message": "",
+                "penaltyTimeRemaining": 300.0,
+            }],
+        }),
+    });
+    loop {
+        if let ServerMessage::Matchmaking {
+            matchmaking: Some(m),
+        } = recv(&mut ui).await
+        {
+            if m.search_state == SearchState::Error {
+                assert_eq!(m.errors[0].error_type, "QUEUE_DODGER");
+                break;
+            }
+        }
+    }
+
+    send(&mut ui, 3, Command::LeaveLobby).await;
+    assert_eq!(until_response(&mut ui, 3).await.1, CommandResult::Ok);
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    send(&mut ui, 4, Command::GetState).await;
+    let (before, _) = until_response(&mut ui, 4).await;
+    match before
+        .iter()
+        .rev()
+        .find(|m| matches!(m, ServerMessage::Hello { .. }))
+    {
+        Some(ServerMessage::Hello { state, .. }) => {
+            assert_eq!(state.lobby, None);
+            assert_eq!(state.matchmaking, None);
+        }
+        _ => panic!("esperava hello: {before:?}"),
+    }
+    assert_eq!(mock.phase(), "None");
 
     mock.shutdown().await;
     let _ = std::fs::remove_dir_all(&dir);

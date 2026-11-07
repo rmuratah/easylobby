@@ -57,7 +57,20 @@ impl Hub {
     }
 
     /// Sai do lobby (comando `leaveLobby`, #17).
+    ///
+    /// Com uma busca aberta (por exemplo, parada pela punição de dodge ou de
+    /// abandono, com o tempo correndo), sai da busca antes: a UI deixa sair
+    /// do lobby nesse estado, e a busca parada não pode ficar presa na tela
+    /// depois que o lobby some. Se a LCU recusar sair da busca, tenta sair do
+    /// lobby mesmo assim.
     pub async fn leave_lobby(&self) -> CommandResult {
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        let in_search = self.lock().state.matchmaking.is_some();
+        if in_search {
+            let _ = matchmaking::stop_search(&client).await;
+        }
         let Some((client, stamp)) = self.begin(Resource::Lobby) else {
             return not_connected();
         };
@@ -67,6 +80,9 @@ impl Hub {
                 // evento atrasado de um comando anterior; relê para saber.
                 if !self.set_lobby_if(stamp, None) {
                     self.refresh_lobby().await;
+                }
+                if in_search {
+                    self.refresh_matchmaking().await;
                 }
                 CommandResult::Ok
             }
