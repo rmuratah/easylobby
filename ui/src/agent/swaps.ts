@@ -8,7 +8,7 @@ export const swapKinds = ['champion', 'pickOrder', 'position'] as const satisfie
 export const swapKindNames = {
   champion: 'campeão',
   pickOrder: 'vez',
-  position: 'cargo',
+  position: 'posição',
 } satisfies Record<SwapKind, string>;
 
 export function swapsOf(champSelect: ChampSelect, kind: SwapKind): ChampSelectSwap[] {
@@ -21,7 +21,7 @@ export function swapsOf(champSelect: ChampSelect, kind: SwapKind): ChampSelectSw
 
 export type SwapEntry = { kind: SwapKind; swap: ChampSelectSwap };
 
-/** Todas as trocas da seleção com um estado, na ordem campeão, vez, cargo. */
+/** Todas as trocas da seleção com um estado, na ordem campeão, vez, posição. */
 export function swapsIn(champSelect: ChampSelect, state: ChampSelectSwap['state'], cellId?: number): SwapEntry[] {
   return swapKinds.flatMap(kind => swapsOf(champSelect, kind)
     .filter(swap => swap.state === state && (cellId === undefined || swap.cellId === cellId))

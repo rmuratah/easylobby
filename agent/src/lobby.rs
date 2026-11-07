@@ -110,11 +110,11 @@ pub enum InvalidPositions {
 impl std::fmt::Display for InvalidPositions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            InvalidPositions::Repeated => "o cargo primário e o secundário são iguais",
+            InvalidPositions::Repeated => "a posição primária e a secundária são iguais",
             InvalidPositions::SecondWithFill => {
                 "com o primário em preenchimento, o secundário fica `unselected`"
             }
-            InvalidPositions::SecondWithoutFirst => "escolha o cargo primário antes do secundário",
+            InvalidPositions::SecondWithoutFirst => "escolha a posição primária antes da secundária",
         })
     }
 }

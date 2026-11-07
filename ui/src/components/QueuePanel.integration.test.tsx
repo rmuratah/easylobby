@@ -52,10 +52,10 @@ describe('matchmaking pelo /ws', () => {
     await respond();
     expect(button('Cancelar busca')).toBeEnabled();
     expect(lobbyPanel().queryByRole('combobox', { name: 'Fila' })).not.toBeInTheDocument();
-    expect(lobbyPanel().getByRole('combobox', { name: 'Cargo primário' })).toBeDisabled();
+    expect(lobbyPanel().getByRole('combobox', { name: 'Posição primária' })).toBeDisabled();
     act(() => socket().receive({ type: 'gameflowPhase', phase: 'Lobby' }));
     expect(lobbyPanel().queryByRole('button', { name: 'Sair do lobby' })).not.toBeInTheDocument();
-    expect(lobbyPanel().getByRole('combobox', { name: 'Cargo primário' })).toBeDisabled();
+    expect(lobbyPanel().getByRole('combobox', { name: 'Posição primária' })).toBeDisabled();
   });
 
   it('sincroniza e limpa o cronômetro nas transições', () => {
@@ -149,7 +149,7 @@ describe('tela unificada', () => {
     hello({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
     expect(screen.getByRole('region', { name: 'Lobby' })).toBeVisible();
     expect(screen.getByRole('region', { name: 'Busca de partida' })).toBeVisible();
-    expect(screen.getByRole('combobox', { name: 'Cargo primário' })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: 'Posição primária' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
   });
 

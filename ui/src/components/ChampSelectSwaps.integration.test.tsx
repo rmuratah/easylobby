@@ -41,7 +41,7 @@ it('pede as trocas disponíveis com um aliado', async () => {
   }));
   expect(panel().queryByRole('button', { name: /troca de campeão/ })).not.toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Trocas' })).not.toBeInTheDocument();
-  fireEvent.click(panel().getByRole('button', { name: 'Pedir troca de cargo com Amigo#BR1' }));
+  fireEvent.click(panel().getByRole('button', { name: 'Pedir troca de posição com Amigo#BR1' }));
   expect(last().command).toEqual({ type: 'requestSwap', kind: 'position', swapId: 9 });
   expect(panel().getByRole('button', { name: 'Pedir troca de vez com Amigo#BR1' })).toBeDisabled();
   await respond();
@@ -49,8 +49,8 @@ it('pede as trocas disponíveis com um aliado', async () => {
     type: 'champSelect',
     champSelect: withSwaps({ pickOrderSwaps: [{ id: 8, cellId: 1, state: 'INVALID' }], positionSwaps: [{ id: 9, cellId: 1, state: 'SENT' }] }),
   }));
-  const sent = within(panel().getByRole('group', { name: 'Seu pedido de troca de cargo' }));
-  expect(sent.getByText('Aguardando Amigo#BR1 responder a troca de cargo.')).toBeVisible();
+  const sent = within(panel().getByRole('group', { name: 'Seu pedido de troca de posição' }));
+  expect(sent.getByText('Aguardando Amigo#BR1 responder a troca de posição.')).toBeVisible();
   fireEvent.click(sent.getByRole('button', { name: 'Cancelar pedido' }));
   expect(last().command).toEqual({ type: 'cancelSwap', kind: 'position', swapId: 9 });
 });
