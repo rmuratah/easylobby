@@ -2,7 +2,6 @@ import type { ReactNode, RefObject } from 'react';
 import type { Theme } from '../theme/theme';
 import { Segmented } from '../components/base';
 import { cx } from '../components/base/cx';
-import { useNavigationCollapsed } from './navigation';
 
 export type NavigationPage = 'flow' | 'home';
 
@@ -22,41 +21,35 @@ const themeOptions: { value: Theme; label: ReactNode; ariaLabel: string }[] = [
 
 /**
  * Navegação permanente da janela (#160); não controla nem remonta o conteúdo.
- * Pode ser recolhida para mostrar só os ícones das telas; a escolha fica salva.
+ * Fica estreita, só com os ícones das telas, e se expande sobre o conteúdo
+ * ao passar o mouse ou ao navegar pelo teclado.
  */
 export function SideNavigation({ active, flowLabel, flowButtonRef, theme, onNavigate, onThemeChange }: Props) {
-  const { collapsed, toggle } = useNavigationCollapsed();
-  const toggleLabel = collapsed ? 'Expandir navegação' : 'Recolher navegação';
   return (
-    <aside className={cx('app-navigation surface shadow-soft', collapsed && 'is-collapsed')} aria-label="Navegação do aplicativo">
-      <h1 data-tauri-drag-region className="app-logo" title="easylobby">
-        {collapsed
-          ? <><span className="sr-only">easylobby</span><span aria-hidden="true">e<span>l</span></span></>
-          : <>easy<span>lobby</span></>}
-      </h1>
-      <nav aria-label="Funcionalidades" className="flex flex-col items-stretch gap-2">
-        <NavigationButton ref={flowButtonRef} active={active === 'flow'} label={flowLabel} primary collapsed={collapsed}
-          icon={<GroupIcon />} onClick={() => onNavigate('flow')} />
-        <div aria-hidden="true" className="mx-2 my-1 border-t border-line" />
-        <NavigationButton active={active === 'home'} label="Início" icon={<HomeIcon />} collapsed={collapsed}
-          onClick={() => onNavigate('home')} />
-      </nav>
-      <div className="mt-auto flex flex-col items-center gap-3">
-        <button type="button" aria-label={toggleLabel} title={toggleLabel} aria-expanded={!collapsed} onClick={toggle}
-          className="flex size-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-raised hover:text-ink">
-          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-            strokeLinecap="round" strokeLinejoin="round">
-            <path d={collapsed ? 'm13 17 5-5-5-5M6 17l5-5-5-5' : 'm11 17-5-5 5-5M18 17l-5-5 5-5'} />
-          </svg>
-        </button>
-        <Segmented label="Tema" value={theme} onChange={onThemeChange} options={themeOptions}
-          appearance="embedded" className="theme-switch max-w-full flex-col rounded-full p-1" />
-        <button type="button" disabled aria-label="Configurações — em breve" title="Configurações — em breve"
-          className="flex size-11 items-center justify-center rounded-full border border-control text-muted disabled:cursor-not-allowed disabled:opacity-60">
-          <SettingsIcon />
-        </button>
-      </div>
-    </aside>
+    <div className="app-navigation-slot">
+      <aside className="app-navigation surface shadow-soft" aria-label="Navegação do aplicativo">
+        <h1 data-tauri-drag-region className="app-logo" title="easylobby">
+          <span className="sr-only">easylobby</span>
+          <span aria-hidden="true" className="app-logo-short">e<span>l</span></span>
+          <span aria-hidden="true" className="app-logo-full">easy<span>lobby</span></span>
+        </h1>
+        <nav aria-label="Funcionalidades" className="flex flex-col items-stretch gap-2">
+          <NavigationButton ref={flowButtonRef} active={active === 'flow'} label={flowLabel} primary
+            icon={<GroupIcon />} onClick={() => onNavigate('flow')} />
+          <div aria-hidden="true" className="mx-1 my-1 border-t border-line" />
+          <NavigationButton active={active === 'home'} label="Início" icon={<HomeIcon />}
+            onClick={() => onNavigate('home')} />
+        </nav>
+        <div className="mt-auto flex flex-col items-center gap-3">
+          <Segmented label="Tema" value={theme} onChange={onThemeChange} options={themeOptions}
+            appearance="embedded" className="theme-switch max-w-full flex-col rounded-full p-1" />
+          <button type="button" disabled aria-label="Configurações — em breve" title="Configurações — em breve"
+            className="flex size-11 items-center justify-center rounded-full border border-control text-muted disabled:cursor-not-allowed disabled:opacity-60">
+            <SettingsIcon />
+          </button>
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -66,20 +59,17 @@ type ButtonProps = {
   label: string;
   icon: ReactNode;
   primary?: boolean;
-  collapsed?: boolean;
   onClick: () => void;
 };
 
-function NavigationButton({ ref, active, label, icon, primary = false, collapsed = false, onClick }: ButtonProps) {
+function NavigationButton({ ref, active, label, icon, primary = false, onClick }: ButtonProps) {
   return (
-    <button ref={ref} type="button" aria-current={active ? 'page' : undefined} onClick={onClick}
-      aria-label={collapsed ? label : undefined} title={collapsed ? label : undefined}
-      className={cx('flex flex-col items-center justify-center gap-1 rounded-tile border px-2 py-2 text-caption font-semibold transition-colors',
+    <button ref={ref} type="button" aria-current={active ? 'page' : undefined} onClick={onClick} aria-label={label} title={label}
+      className={cx('app-navigation-button flex flex-col items-center justify-center gap-1 rounded-tile border px-1 py-2 text-caption font-semibold transition-colors',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         active ? 'border-accent bg-accent-soft text-accent-ink' : 'border-transparent text-muted hover:bg-raised hover:text-ink',
-        collapsed ? 'min-h-11' : 'min-h-16',
         primary && !active && 'border-line bg-raised text-ink')}>
-      {icon}{!collapsed && <span>{label}</span>}
+      {icon}<span aria-hidden="true" className="app-navigation-label">{label}</span>
     </button>
   );
 }
