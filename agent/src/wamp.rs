@@ -68,9 +68,10 @@ const WAMP_UNSUBSCRIBE: u64 = 6;
 const WAMP_EVENT: u64 = 8;
 
 /// Prefixos de URI dos recursos que o easylobby acompanha: gameflow (fase e
-/// sessão), lobby, fila e ready check, champ select, runas, chat e o
-/// invocador logado. Os mesmos que o gravador de fixtures (#5) grava.
-pub const EASYLOBBY_EVENT_PREFIXES: [&str; 7] = [
+/// sessão), lobby, fila e ready check, champ select, runas, chat, o
+/// invocador logado e os ranks dele (#171). Os mesmos que o gravador de
+/// fixtures (#5) grava.
+pub const EASYLOBBY_EVENT_PREFIXES: [&str; 8] = [
     "/lol-gameflow/v1/",
     "/lol-lobby/v2/",
     "/lol-matchmaking/v1/",
@@ -78,6 +79,7 @@ pub const EASYLOBBY_EVENT_PREFIXES: [&str; 7] = [
     "/lol-perks/v1/",
     "/lol-chat/v1/",
     "/lol-summoner/v1/current-summoner",
+    "/lol-ranked/v1/current-ranked-stats",
 ];
 
 /// URIs dentro dos prefixos que o easylobby não usa e que carregam

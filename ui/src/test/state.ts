@@ -23,6 +23,10 @@ export const emptyState: AgentState = {
   friendGroups: [],
   receivedInvitations: [],
   conversations: [],
+  ranked: null,
+  championMasteries: [],
+  matchHistory: null,
+  matchDetails: null,
 };
 
 /**

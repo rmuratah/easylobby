@@ -79,6 +79,10 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
             hub.set_active_conversation(conversation_id.as_deref())
                 .await
         }
+
+        // Perfil
+        Command::LoadMoreMatches => hub.load_more_matches().await,
+        Command::OpenMatchDetails { game_id } => hub.open_match_details(game_id).await,
     }
 }
 

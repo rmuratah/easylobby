@@ -4,6 +4,7 @@ import type { ChampSelect } from "./ChampSelect";
 import type { ChampSelectChampions } from "./ChampSelectChampions";
 import type { ChampSelectChat } from "./ChampSelectChat";
 import type { ChampionCatalog } from "./ChampionCatalog";
+import type { ChampionMastery } from "./ChampionMastery";
 import type { CommandResult } from "./CommandResult";
 import type { Conversation } from "./Conversation";
 import type { Friend } from "./Friend";
@@ -12,7 +13,10 @@ import type { GameQueue } from "./GameQueue";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
 import type { Lobby } from "./Lobby";
+import type { MatchDetails } from "./MatchDetails";
+import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
+import type { RankedStats } from "./RankedStats";
 import type { ReadyCheck } from "./ReadyCheck";
 import type { ReceivedInvitation } from "./ReceivedInvitation";
 import type { RuneCatalog } from "./RuneCatalog";
@@ -52,5 +56,9 @@ export type ServerMessage =
   | { "type": "receivedInvitations", invitations: Array<ReceivedInvitation>, }
   | { "type": "conversation", conversation: Conversation, }
   | { "type": "conversationClosed", id: string, }
+  | { "type": "ranked", ranked: RankedStats | null, }
+  | { "type": "championMasteries", championMasteries: Array<ChampionMastery>, }
+  | { "type": "matchHistory", matchHistory: MatchHistory | null, }
+  | { "type": "matchDetails", matchDetails: MatchDetails | null, }
   | { "type": "response", id: number, result: CommandResult, }
   | { "type": "invalidMessage", message: string, };

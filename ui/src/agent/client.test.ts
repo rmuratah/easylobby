@@ -8,6 +8,7 @@ import {
 import type { AgentState } from '../bindings/AgentState';
 import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { GameQueue } from '../bindings/GameQueue';
+import type { MatchSummary } from '../bindings/MatchSummary';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import type { Command } from '../bindings/Command';
 import type { CommandResult } from '../bindings/CommandResult';
@@ -32,6 +33,16 @@ const testQueue: GameQueue = {
   queueId: 2400, queue: null, name: 'ARAM: Desordem', description: 'ARAM: Desordem', gameMode: 'KIWI', modeGroup: 'kARAM',
   mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: false,
 };
+const testMatch: MatchSummary = {
+  gameId: 2001, queueId: 420, gameMode: 'CLASSIC', mapId: 11, createdAt: 1794326400000, durationSecs: 1800, result: 'win',
+  player: {
+    puuid: 'p', gameName: 'Jogador', tagLine: 'BR1', profileIconId: 29, teamId: 100, win: true, championId: 103,
+    championLevel: 16, spell1Id: 4, spell2Id: 14, kills: 7, deaths: 2, assists: 9, cs: 180, gold: 12000,
+    damageToChampions: 21000, visionScore: 22, items: [3071, 0, 0, 0, 0, 0, 3340], perkId: 8112, perkStyleId: 8100,
+    perkSubStyleId: 8300,
+  },
+};
+const unranked = { tier: null, division: null, leaguePoints: 0, wins: 0, losses: 0, provisional: false };
 const state: AgentState = makeState({ gameflowPhase: 'Lobby' });
 const hello = (overrides: Partial<AgentState> = {}): ServerMessage => ({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: { ...state, ...overrides } });
 let client: AgentClient;
@@ -222,6 +233,14 @@ describe('eventos de estado do agente', () => {
       { champSelectChampions: { pickable: [1, 266], bannable: null } }],
     [{ type: 'friends', friends: [testFriend] }, { friends: [testFriend] }],
     [{ type: 'queues', queues: [testQueue] }, { queues: [testQueue] }],
+    [{ type: 'ranked', ranked: { soloDuo: { ...unranked, tier: 'GOLD', division: 'II' }, flex: unranked } },
+      { ranked: { soloDuo: { ...unranked, tier: 'GOLD', division: 'II' }, flex: unranked } }],
+    [{ type: 'championMasteries', championMasteries: [{ championId: 103, level: 23, points: 287450 }] },
+      { championMasteries: [{ championId: 103, level: 23, points: 287450 }] }],
+    [{ type: 'matchHistory', matchHistory: { matches: [testMatch], hasMore: true } },
+      { matchHistory: { matches: [testMatch], hasMore: true } }],
+    [{ type: 'matchDetails', matchDetails: { ...testMatch, remake: false, players: [testMatch.player] } },
+      { matchDetails: { ...testMatch, remake: false, players: [testMatch.player] } }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
     socket().receive(hello({ lobby: testLobby }));
     socket().receive(message);

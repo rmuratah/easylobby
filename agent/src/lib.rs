@@ -33,6 +33,10 @@
 //!   com as árvores para o editor (#26)
 //! - [`friends`]: lista de amigos com presença (#30)
 //! - [`summoner_spells`]: feitiços de invocador na seleção de campeões (#24)
+//! - [`ranked`]: ranks do jogador logado na Solo/Duo e na Flex (#171)
+//! - [`match_history`]: histórico de partidas e placar de uma partida (#172,
+//!   #174)
+//! - [`mastery`]: campeões com mais maestria (#175)
 //! - [`swaps`]: trocas de campeão, de ordem de pick e de cargo na seleção
 //!   (#25)
 
@@ -49,8 +53,11 @@ pub mod invitations;
 pub mod launcher;
 pub mod lobby;
 pub mod lockfile;
+pub mod mastery;
+pub mod match_history;
 pub mod matchmaking;
 pub mod queues;
+pub mod ranked;
 pub mod ready_check;
 pub mod rest;
 pub mod runes;

@@ -28,6 +28,14 @@ import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 import type { ChampionCatalog } from '../bindings/ChampionCatalog';
 import type { ChampSelectChampions } from '../bindings/ChampSelectChampions';
 import type { GameQueue } from '../bindings/GameQueue';
+import type { RankedStats } from '../bindings/RankedStats';
+import type { RankedEntry } from '../bindings/RankedEntry';
+import type { ChampionMastery } from '../bindings/ChampionMastery';
+import type { MatchHistory } from '../bindings/MatchHistory';
+import type { MatchSummary } from '../bindings/MatchSummary';
+import type { MatchDetails } from '../bindings/MatchDetails';
+import type { MatchPlayer } from '../bindings/MatchPlayer';
+import type { MatchResult } from '../bindings/MatchResult';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
 const errorCodes = {
@@ -150,6 +158,37 @@ function friend(v: unknown): v is Friend {
 function friendGroup(v: unknown): v is FriendGroup {
   return object(v) && uint(v.id) && typeof v.name === 'string' && Number.isInteger(v.priority) && typeof v.collapsed === 'boolean';
 }
+// Perfil (#171, #172, #174, #175).
+function rankedEntry(v: unknown): v is RankedEntry {
+  return object(v) && nullableString(v.tier) && nullableString(v.division) &&
+    uints(v, ['leaguePoints', 'wins', 'losses']) && typeof v.provisional === 'boolean';
+}
+function ranked(v: unknown): v is RankedStats | null {
+  return v === null || (object(v) && rankedEntry(v.soloDuo) && rankedEntry(v.flex));
+}
+function championMastery(v: unknown): v is ChampionMastery {
+  return object(v) && uints(v, ['championId', 'level', 'points']);
+}
+const matchResults = { win: true, loss: true, remake: true } satisfies Record<MatchResult, true>;
+function matchPlayer(v: unknown): v is MatchPlayer {
+  return object(v) && strings(v, ['puuid', 'gameName', 'tagLine']) &&
+    uints(v, ['profileIconId', 'teamId', 'championId', 'championLevel', 'spell1Id', 'spell2Id', 'kills', 'deaths',
+      'assists', 'cs', 'gold', 'damageToChampions', 'visionScore', 'perkId', 'perkStyleId', 'perkSubStyleId']) &&
+    typeof v.win === 'boolean' && list(v.items, uint);
+}
+function matchInfo(v: Record<string, unknown>): boolean {
+  return uints(v, ['gameId', 'queueId', 'mapId', 'createdAt', 'durationSecs']) && typeof v.gameMode === 'string';
+}
+function matchSummary(v: unknown): v is MatchSummary {
+  return object(v) && matchInfo(v) && typeof v.result === 'string' && Object.hasOwn(matchResults, v.result) &&
+    matchPlayer(v.player);
+}
+function matchHistory(v: unknown): v is MatchHistory | null {
+  return v === null || (object(v) && list(v.matches, matchSummary) && typeof v.hasMore === 'boolean');
+}
+function matchDetails(v: unknown): v is MatchDetails | null {
+  return v === null || (object(v) && matchInfo(v) && typeof v.remake === 'boolean' && list(v.players, matchPlayer));
+}
 function status(v: unknown): v is LcuStatus {
   if (!object(v)) return false;
   switch (v.state) {
@@ -166,7 +205,9 @@ function state(v: unknown): v is AgentState {
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
-    champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup);
+    champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) &&
+    ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory) &&
+    matchDetails(v.matchDetails);
 }
 
 // Os tipos vêm do Rust; esta validação protege a fronteira JSON em runtime.
@@ -196,6 +237,10 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'champSelectChampions': valid = champSelectChampions(v.champSelectChampions); break;
     case 'friends': valid = list(v.friends, friend); break;
     case 'friendGroups': valid = list(v.friendGroups, friendGroup); break;
+    case 'ranked': valid = ranked(v.ranked); break;
+    case 'championMasteries': valid = list(v.championMasteries, championMastery); break;
+    case 'matchHistory': valid = matchHistory(v.matchHistory); break;
+    case 'matchDetails': valid = matchDetails(v.matchDetails); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
       (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;
     case 'invalidMessage': valid = typeof v.message === 'string'; break;

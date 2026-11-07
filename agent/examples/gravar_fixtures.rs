@@ -9,7 +9,8 @@
 //! ```
 //!
 //! Tira uma foto dos endpoints REST de lobby, fila, ready check, champ select,
-//! runas e chat, grava os eventos WAMP desses recursos e tira uma nova foto a
+//! runas, chat e perfil (ranks, maestria, histórico e o placar das partidas
+//! mais novas), grava os eventos WAMP desses recursos e tira uma nova foto a
 //! cada mudança de fase do gameflow. Pare com Ctrl+C (ou `--segundos`). Tudo
 //! passa pelo `Sanitizer` antes de ir para `agent/tests/fixtures/<patch>/`.
 //!
@@ -41,7 +42,7 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::Connector;
 
 /// Endpoints fotografados no início e a cada mudança de fase.
-const SNAPSHOT_PATHS: [&str; 16] = [
+const SNAPSHOT_PATHS: [&str; 19] = [
     "/lol-patch/v1/game-version",
     "/lol-summoner/v1/current-summoner",
     "/lol-gameflow/v1/gameflow-phase",
@@ -58,11 +59,16 @@ const SNAPSHOT_PATHS: [&str; 16] = [
     "/lol-chat/v1/me",
     "/lol-chat/v1/friends",
     "/lol-chat/v1/conversations",
+    // Perfil (#171, #172, #175): mudam no fim de cada partida.
+    "/lol-ranked/v1/current-ranked-stats",
+    "/lol-champion-mastery/v1/local-player/champion-mastery",
+    "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=19",
 ];
 
 /// Endpoints grandes e que quase não mudam: só no início.
-const STARTUP_ONLY_PATHS: [&str; 5] = [
+const STARTUP_ONLY_PATHS: [&str; 6] = [
     "/lol-game-queues/v1/queues",
+    "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=20&endIndex=39",
     "/lol-game-data/assets/v1/perkstyles.json",
     "/lol-game-data/assets/v1/perks.json",
     "/lol-game-data/assets/v1/summoner-spells.json",
@@ -70,7 +76,7 @@ const STARTUP_ONLY_PATHS: [&str; 5] = [
 ];
 
 /// Prefixos de URI dos eventos WAMP que interessam ao easylobby.
-const EVENT_PREFIXES: [&str; 7] = [
+const EVENT_PREFIXES: [&str; 8] = [
     "/lol-gameflow/v1/",
     "/lol-lobby/v2/",
     "/lol-matchmaking/v1/",
@@ -78,7 +84,12 @@ const EVENT_PREFIXES: [&str; 7] = [
     "/lol-perks/v1/",
     "/lol-chat/v1/",
     "/lol-summoner/v1/current-summoner",
+    "/lol-ranked/v1/current-ranked-stats",
 ];
+
+/// Quantas partidas do histórico ganham o placar completo (#174) em cada
+/// foto.
+const MATCH_DETAILS: usize = 3;
 
 /// URIs dentro dos prefixos que não interessam e carregam preferências do
 /// jogador (como os nomes dos grupos de amigos).
@@ -174,7 +185,33 @@ impl Recorder {
                 self.snapshot(path).await;
             }
         }
+        self.snapshot_match_details().await;
         println!("[{}] foto REST na fase {}", self.elapsed_ms(), self.phase);
+    }
+
+    /// Placar completo das partidas mais novas do histórico (#174). O
+    /// `gameId` sai da resposta sem sanitizar; o caminho gravado já sai com o
+    /// id falso, porque o sanitizer aprendeu o id na foto do histórico.
+    async fn snapshot_match_details(&mut self) {
+        let path =
+            "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=19";
+        let Ok(response) = self.lcu.request(Method::GET, path, None).await else {
+            return;
+        };
+        let ids: Vec<u64> = response.body["games"]["games"]
+            .as_array()
+            .map(|games| {
+                games
+                    .iter()
+                    .filter_map(|g| g["gameId"].as_u64())
+                    .take(MATCH_DETAILS)
+                    .collect()
+            })
+            .unwrap_or_default();
+        for id in ids {
+            self.snapshot(&format!("/lol-match-history/v1/games/{id}"))
+                .await;
+        }
     }
 
     fn elapsed_ms(&self) -> u64 {
