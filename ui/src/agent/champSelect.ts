@@ -94,3 +94,14 @@ export function markedChampion(champSelect: ChampSelect, mine: MyAction): number
   const me = champSelect.myTeam.find(p => p.cellId === champSelect.localPlayerCellId);
   return me?.championPickIntent || null;
 }
+
+/** `queueId` do ARAM e da ARAM: Desordem, para quando a sessão não liga o banco. */
+const aramQueueIds = new Set([450, 2400]);
+
+/**
+ * Seleção no estilo do ARAM (#201): sem ban nem pick, com campeão sorteado,
+ * reroll e banco. Vale pelo banco ligado na sessão ou pela fila.
+ */
+export function isAramChampSelect(champSelect: ChampSelect): boolean {
+  return champSelect.benchEnabled || champSelect.queue === 'aram' || aramQueueIds.has(champSelect.queueId);
+}
