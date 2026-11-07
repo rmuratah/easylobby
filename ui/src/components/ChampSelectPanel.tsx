@@ -90,7 +90,7 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
             renderActions={player => player.isLocalPlayer ? null
               : <SwapOffers champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
           <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
-            summonerLevel={state.summoner?.summonerLevel ?? null} send={send} />
+            summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} send={send} />
           <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />
         </div>
         <div className="champ-select-center">

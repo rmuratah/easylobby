@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { assetUrl } from '../agent/assets';
 import type { AgentClient } from '../agent/client';
-import { spellName, spellsForQueue, spellUnlocked, withSpell } from '../agent/summonerSpells';
+import { spellName, spellsForChampSelect, spellUnlocked, withSpell } from '../agent/summonerSpells';
 import { useCommand } from '../agent/useCommand';
 import type { ChampSelect } from '../bindings/ChampSelect';
+import type { GameQueue } from '../bindings/GameQueue';
 import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 
 export function SpellIcon({ id, size = 32 }: { id: number | null; size?: number }) {
@@ -19,13 +20,15 @@ type Props = {
   champSelect: ChampSelect;
   catalog: SummonerSpellCatalog | null;
   summonerLevel: number | null;
+  /** Filas disponíveis, para achar o modo de jogo das filas fora das fixas (#203). */
+  queues?: GameQueue[];
   send: AgentClient['send'];
 };
 
 const slotNames = ['Feitiço 1 (D)', 'Feitiço 2 (F)'] as const;
 
 /** Escolha dos dois feitiços de invocador do jogador logado (#24). */
-export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send }: Props) {
+export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queues = [], send }: Props) {
   const [open, setOpen] = useState<0 | 1 | null>(null);
   const command = useCommand(send);
   const slotButtons = useRef<(HTMLButtonElement | null)[]>([]);
@@ -43,7 +46,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, send
   if (!me) return null;
   const current: [number, number] = [me.spell1Id ?? 0, me.spell2Id ?? 0];
   const disabled = champSelect.timer.phase === 'GAME_STARTING' || command.pending || !catalog;
-  const spells = spellsForQueue(catalog, champSelect.queue);
+  const spells = spellsForChampSelect(catalog, champSelect, queues);
   function choose(slot: 0 | 1, spellId: number) {
     if (disabled) return;
     close(slot);
