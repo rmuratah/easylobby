@@ -5,6 +5,7 @@ import type { ChampSelect } from '../bindings/ChampSelect';
 import type { ClientMessage } from '../bindings/ClientMessage';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { aramChampSelect, champSelectState, spellCatalog } from '../test/champSelect';
+import { testRuneCatalog, testRunePages } from '../test/events';
 
 class Socket {
   static OPEN = 1;
@@ -25,7 +26,7 @@ const bench = () => within(panel().getByRole('region', { name: 'Banco' }));
 const last = (): ClientMessage => JSON.parse(socket().send.mock.lastCall![0]);
 function hello(change: Partial<ChampSelect> = {}) {
   act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0',
-    state: { ...champSelectState, summonerSpellCatalog: spellCatalog, champSelect: { ...aramChampSelect, ...change } } }));
+    state: { ...champSelectState, runePages: testRunePages, runeCatalog: testRuneCatalog, summonerSpellCatalog: spellCatalog, champSelect: { ...aramChampSelect, ...change } } }));
 }
 async function respond(result: Extract<ServerMessage, { type: 'response' }>['result'] = { status: 'ok' }) {
   await act(async () => socket().receive({ type: 'response', id: last().id, result }));
@@ -39,7 +40,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-it('mostra o campeão, os rerolls, o banco e o time, sem grade nem runas', () => {
+it('mostra o campeão, os rerolls, o banco, o time e as runas, sem grade', () => {
   render(<App />); hello();
   expect(panel().getAllByRole('status')[0]).toHaveTextContent('Troque com o banco ou com um aliado.');
   expect(panel().getByLabelText('Tempo da etapa')).toHaveTextContent('25 s');
@@ -53,7 +54,7 @@ it('mostra o campeão, os rerolls, o banco e o time, sem grade nem runas', () =>
   expect(team.getByRole('button', { name: 'Pedir troca de campeão com Amigo#BR1' })).toBeEnabled();
   expect(panel().queryByRole('list', { name: 'Grade de campeões' })).not.toBeInTheDocument();
   expect(panel().queryByRole('region', { name: 'Time adversário' })).not.toBeInTheDocument();
-  expect(panel().queryByRole('region', { name: /runas/i })).not.toBeInTheDocument();
+  expect(panel().getByRole('region', { name: 'Suas runas' })).toBeInTheDocument();
 });
 
 it('rola de novo e acompanha o campeão novo e o banco', async () => {
@@ -93,13 +94,15 @@ it('sem reroll na fila e com o banco vazio', () => {
 it('a ARAM: Desordem também usa a tela do ARAM, com o nome da fila', () => {
   render(<App />);
   act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: {
-    ...champSelectState,
+    ...champSelectState, runePages: testRunePages, runeCatalog: testRuneCatalog,
     queues: [{ queueId: 2400, queue: null, name: 'ARAM: Desordem', description: '', gameMode: 'KIWI', modeGroup: 'kARAM',
       mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: false }],
     champSelect: { ...aramChampSelect, queueId: 2400, queue: null, benchEnabled: false },
   } }));
   expect(mine().getByText('Aatrox')).toBeVisible();
   expect(panel().getByText('ARAM: Desordem')).toBeVisible();
+  // Na Desordem a troca de runas não aparece (#197).
+  expect(panel().queryByRole('region', { name: 'Suas runas' })).not.toBeInTheDocument();
 });
 
 it('escolhe uma das cartas de campeão no início da seleção', async () => {

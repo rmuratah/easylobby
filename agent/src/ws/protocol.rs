@@ -55,6 +55,7 @@ use crate::friends::{Friend, FriendGroup};
 use crate::gameflow::GameflowPhase;
 use crate::invitations::{Invitee, ReceivedInvitation};
 use crate::lobby::{Lobby, Position, Queue};
+use crate::lobby_chat::LobbyChat;
 use crate::mastery::ChampionMastery;
 use crate::match_history::{MatchDetails, MatchHistory};
 use crate::matchmaking::Matchmaking;
@@ -129,6 +130,10 @@ pub enum ServerMessage {
     ChampSelectChat {
         champ_select_chat: Option<ChampSelectChat>,
     },
+    /// A sala de chat do grupo no lobby (#206) abriu, recebeu mensagem ou
+    /// fechou. Sempre a sala inteira, com as mensagens desde que ela abriu.
+    /// `null` sem lobby e com o LoL fechado.
+    LobbyChat { lobby_chat: Option<LobbyChat> },
     /// Os feitiços de invocador do jogo, para a escolha na seleção (#24).
     /// Chega uma vez por conexão com o LoL, logo depois de conectar. `null`
     /// com o LoL fechado ou se a LCU não mandou a lista.
@@ -229,6 +234,8 @@ pub struct AgentState {
     /// Filas em que dá para criar lobby agora (#146), lidas da LCU. Vazia
     /// com o LoL fechado.
     pub queues: Vec<GameQueue>,
+    /// Sala de chat do grupo no lobby (#206), ou `null` sem lobby.
+    pub lobby_chat: Option<LobbyChat>,
 
     // Seleção de campeões
     /// Seleção de campeões em andamento (#22), ou `null`.
@@ -476,6 +483,12 @@ pub enum Command {
     /// sem falar com a LCU, `notConnected` com o LoL fechado e `lcu` se a
     /// LCU recusar.
     SendChampSelectMessage { body: String },
+    /// Manda `body` no chat do grupo do lobby (#206). Vai para a sala aberta.
+    /// A mensagem chega numa `lobbyChat` antes da resposta quando a LCU
+    /// devolve a mensagem, e depois pelo WAMP nos outros casos. Responde
+    /// `invalidCommand` para texto vazio ou sem sala aberta, sem falar com a
+    /// LCU, `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
+    SendLobbyMessage { body: String },
 
     // Runas
     /// Aplica a página de runas `pageId` (#26). As páginas com o
@@ -631,6 +644,7 @@ mod tests {
                     "lobby": null,
                     "matchmaking": null,
                     "queues": [],
+                    "lobbyChat": null,
                     "champSelect": null,
                     "receivedInvitations": [],
                     "conversations": [],

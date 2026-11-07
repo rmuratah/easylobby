@@ -11,6 +11,7 @@ import type { GameQueue } from "./GameQueue";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
 import type { Lobby } from "./Lobby";
+import type { LobbyChat } from "./LobbyChat";
 import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
@@ -40,6 +41,10 @@ export type AgentState = {
    * com o LoL fechado.
    */
   queues: Array<GameQueue>,
+  /**
+   * Sala de chat do grupo no lobby (#206), ou `null` sem lobby.
+   */
+  lobbyChat: LobbyChat | null,
   /**
    * Seleção de campeões em andamento (#22), ou `null`.
    */

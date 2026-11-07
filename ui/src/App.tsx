@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { mainScreen, phaseLabel } from './screens/mainScreen';
 import { LobbyPanel } from './components/LobbyPanel';
+import { LobbyChatPanel } from './components/LobbyChatPanel';
 import { LobbyGroupCard } from './components/LobbyInvites';
 import { useAgent } from './agent/useAgent';
 import { QueuePanel } from './components/QueuePanel';
@@ -120,8 +121,9 @@ export default function App() {
               {/* Coluna da direita com largura, só da altura do conteúdo (sem sobra); embaixo, presa à borda, quando a janela é estreita. */}
               <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 flex h-fit flex-col gap-4 self-start @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
                 <QueuePanel connection={connection} send={connection.send} />
-                {/* Embaixo da busca, quem foi convidado e o status (#206). */}
+                {/* Embaixo da busca, quem foi convidado e o status, e o chat do grupo (#206). */}
                 <LobbyGroupCard connection={connection} />
+                <LobbyChatPanel connection={connection} send={connection.send} />
               </div>
             </div>
             {/* A partida encontrada fica no lugar da faixa de busca, logo abaixo do lobby, e continua visível nas outras páginas. */}

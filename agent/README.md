@@ -68,6 +68,8 @@ A sala do time na seleção (#27) é uma conversa `type: "championSelect"` em `/
 
 Pelo `/ws` são o comando `sendChampSelectMessage {"body"}`, que vai sempre para a sala aberta (`invalidCommand` sem sala ou com texto vazio), e a mensagem `champSelectChat` (`null` quando a sala fecha).
 
+O chat do grupo no lobby (#206) segue o mesmo caminho em `lobby_chat`: a sala é a conversa `type: "customGame"` ou a que tem o `id` começando com o `multiUserChatId` do lobby. O `Hub` guarda a sala em `lobbyChat`, com mensagens `LobbyChatMessage` (`id`, `body`, `fromMe`, `fromPuuid`, `timestamp`); no lobby os nomes não são escondidos, então a UI acha quem mandou pelo `fromPuuid`. A sala fecha com o `Delete` dela ou quando o lobby acaba. Pelo `/ws` são o comando `sendLobbyMessage {"body"}` e a mensagem `lobbyChat`.
+
 ## Eventos em tempo real (`wamp`)
 
 `wamp::LcuEvents` abre o WebSocket WAMP da LCU (`wss://127.0.0.1:<porta>/`), com o mesmo Basic Auth e o mesmo `riotgames.pem` fixado do cliente REST, e se inscreve em `OnJsonApiEvent`. Cada `next().await` devolve o próximo `LcuEvent` (`uri`, `event_type` `Create`/`Update`/`Delete` e `data`) que passa no `EventFilter`, na ordem em que a LCU mandou.
