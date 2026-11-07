@@ -4,6 +4,7 @@ import { assetUrl } from '../agent/assets';
 import { availabilityColors, availabilityNames, describeActivity, friendNick, friendRiotId, groupFriends, isOnline } from '../agent/friends';
 import type { Friend } from '../bindings/Friend';
 import { Avatar, Card, SearchField } from './base';
+import { FRIEND_DRAG_TYPE } from '../agent/lobbyInvite';
 import { cx } from './base/cx';
 
 type Props = {
@@ -124,7 +125,12 @@ function FriendItem({ friend, now, actions }: { friend: Friend; now: number; act
   const activity = describeActivity(friend, now);
   const offline = !isOnline(friend);
   return (
-    <li className={cx('flex items-center gap-3 rounded-control px-2 py-1.5 hover:bg-raised', offline && 'opacity-60')}>
+    // Arrastar o amigo para o lobby convida (#206); o lobby confere se dá para convidar.
+    <li draggable={!offline} onDragStart={event => {
+      event.dataTransfer.setData(FRIEND_DRAG_TYPE, friend.puuid);
+      event.dataTransfer.effectAllowed = 'copy';
+    }}
+      className={cx('flex items-center gap-3 rounded-control px-2 py-1.5 hover:bg-raised', !offline && 'cursor-grab', offline && 'opacity-60')}>
       <span className="relative shrink-0">
         <Avatar name={name} size={36} src={friend.profileIconId !== null ? assetUrl('profileIcon', friend.profileIconId) : undefined} />
         <span

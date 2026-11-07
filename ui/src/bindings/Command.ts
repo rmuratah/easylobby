@@ -31,6 +31,7 @@ export type Command =
   | { "type": "rerollChampion" }
   | { "type": "swapBenchChampion", championId: number, }
   | { "type": "sendChampSelectMessage", body: string, }
+  | { "type": "sendLobbyMessage", body: string, }
   | { "type": "selectRunePage", pageId: number, }
   | { "type": "createRunePage", page: RunePageInput, }
   | { "type": "updateRunePage", pageId: number, page: RunePageInput, }

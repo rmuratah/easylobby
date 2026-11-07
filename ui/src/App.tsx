@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { mainScreen, phaseLabel } from './screens/mainScreen';
 import { LobbyPanel } from './components/LobbyPanel';
+import { LobbyChatPanel } from './components/LobbyChatPanel';
+import { LobbyGroupCard } from './components/LobbyInvites';
 import { useAgent } from './agent/useAgent';
 import { QueuePanel } from './components/QueuePanel';
 import { RunePagesPanel } from './components/RunePagesPanel';
@@ -116,9 +118,12 @@ export default function App() {
               <div hidden={homeReserved} className="contents">
                 <LobbyPanel connection={connection} send={connection.send} />
               </div>
-              {/* Coluna da direita com largura (metade da altura do lobby, sem cortar o conteúdo); embaixo, presa à borda, quando a janela é estreita. */}
-              <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 h-full @min-[44rem]:top-0 @min-[44rem]:bottom-auto @min-[44rem]:h-1/2 @min-[44rem]:min-h-fit">
+              {/* Coluna da direita com largura, só da altura do conteúdo (sem sobra); embaixo, presa à borda, quando a janela é estreita. */}
+              <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 flex h-fit flex-col gap-4 self-start @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
                 <QueuePanel connection={connection} send={connection.send} />
+                {/* Embaixo da busca, quem foi convidado e o status, e o chat do grupo (#206). */}
+                <LobbyGroupCard connection={connection} />
+                <LobbyChatPanel connection={connection} send={connection.send} />
               </div>
             </div>
             {/* A partida encontrada fica no lugar da faixa de busca, logo abaixo do lobby, e continua visível nas outras páginas. */}
@@ -148,12 +153,11 @@ export default function App() {
           {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento. */}
           <aside id="coluna-amigos" aria-label="Amigos e conversas" hidden={!sidebar.open} className="app-sidebar">
             {sidebar.open && <SidebarToggle open onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
-            {/* Convites recebidos e o "Convidar" de cada amigo ficam aqui, sem seção própria. */}
-            <InvitationsPanel connection={connection} send={connection.send}>
-              {inviteAction => <FriendsList connection={connection} renderActions={friend => (
-                <>{inviteAction(friend)}<ChatButton friend={friend} unread={unreadFrom(friend.id)} onOpen={setChatWith} /></>
-              )} />}
-            </InvitationsPanel>
+            {/* Convites recebidos ficam aqui, sem seção própria; convidar é pelo lobby (#206). */}
+            <InvitationsPanel connection={connection} send={connection.send} />
+            <FriendsList connection={connection} renderActions={friend => (
+              <ChatButton friend={friend} unread={unreadFrom(friend.id)} onOpen={setChatWith} />
+            )} />
             <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
           </aside>
         </div>

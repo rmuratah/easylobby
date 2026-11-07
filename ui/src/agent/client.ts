@@ -23,12 +23,16 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
       readyCheck: message.status.state === 'connected' && state.lcu.state === 'connected' &&
         message.status.session === state.lcu.session ? state.readyCheck : null,
       champSelectChat: message.status.state === 'connected' && state.lcu.state === 'connected' &&
-        message.status.session === state.lcu.session ? state.champSelectChat : null };
+        message.status.session === state.lcu.session ? state.champSelectChat : null,
+      lobbyChat: message.status.state === 'connected' && state.lcu.state === 'connected' &&
+        message.status.session === state.lcu.session ? state.lobbyChat : null };
     case 'summoner': return { ...state, summoner: message.summoner };
     case 'gameflowPhase': return { ...state, gameflowPhase: message.phase,
       champSelectChat: message.phase === 'ChampSelect' ? state.champSelectChat : null };
     case 'readyCheck': return { ...state, readyCheck: message.readyCheck };
-    case 'lobby': return { ...state, lobby: message.lobby };
+    // Sem lobby não há grupo: o chat dele some junto (#206).
+    case 'lobby': return { ...state, lobby: message.lobby, lobbyChat: message.lobby ? state.lobbyChat : null };
+    case 'lobbyChat': return { ...state, lobbyChat: state.lcu.state === 'connected' && state.lobby ? message.lobbyChat : null };
     case 'matchmaking': return { ...state, matchmaking: message.matchmaking };
     case 'queues': return { ...state, queues: message.queues };
     case 'champSelect': return { ...state, champSelect: message.champSelect,
