@@ -18,13 +18,15 @@ body { margin: 0; }
 .app-content > * { flex-shrink: 0; }
 .app-social-region { position: relative; width: 20rem; flex-shrink: 0; min-height: 0; transition: width 180ms ease; }
 .app-social-region.is-collapsed { width: 0; }
-.app-social-region > .sidebar-toggle { position: absolute; left: -.5rem; top: .5rem; z-index: 20; }
-.app-social-region.is-collapsed > .sidebar-toggle { left: auto; right: 0; }
+.app-social-region.is-collapsed > .sidebar-toggle { position: absolute; right: 0; top: .75rem; z-index: 20; }
 .sidebar-collapsed .app-content { padding-right: 3.25rem; }
-.app-sidebar { width: 100%; height: 100%; overflow: auto; padding: 0; display: flex; flex-direction: column; gap: 1rem; }
-.app-sidebar > * { flex-shrink: 0; border-radius: var(--radius-panel); box-shadow: var(--el-shadow-soft); }
+.app-sidebar { position: relative; width: 100%; height: 100%; overflow: auto; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); box-shadow: var(--el-shadow-soft); }
+.app-sidebar > .sidebar-toggle { position: absolute; right: .75rem; top: .75rem; z-index: 20; }
+.app-sidebar > section { flex-shrink: 0; border: 0; border-radius: 0; background: transparent; }
+.app-sidebar > section:first-of-type { padding-right: 3.25rem; }
+.app-sidebar > section + section { border-top: 1px solid var(--el-line); }
 .sidebar-toggle, .nav-button, .app-content > section > button { border: 1px solid var(--el-control); border-radius: .375rem; padding: .5rem 1rem; }
-.sidebar-toggle { border-radius: 9999px; padding: 0; }
+.sidebar-toggle { border: 0; border-radius: 0; padding: 0; background: transparent; box-shadow: none; }
 .theme-switch { width: 2.75rem; align-items: center; }
 .theme-switch > button { width: 2.25rem; padding: 0; border-radius: 9999px; }
 button[aria-current="page"] { background: var(--el-accent-soft); border-color: var(--el-accent); }

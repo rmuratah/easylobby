@@ -123,9 +123,10 @@ export default function App() {
           </main>
         </div>
         <div className={sidebar.open ? 'app-social-region' : 'app-social-region is-collapsed'}>
-          <SidebarToggle open={sidebar.open} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />
+          {!sidebar.open && <SidebarToggle open={false} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
           {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento. */}
           <aside id="coluna-amigos" aria-label="Amigos e conversas" hidden={!sidebar.open} className="app-sidebar">
+            {sidebar.open && <SidebarToggle open onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
             <InvitationsPanel connection={connection} send={connection.send} />
             <FriendsList connection={connection} renderActions={friend => <ChatButton friend={friend} onOpen={setChatWith} />} />
             <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
