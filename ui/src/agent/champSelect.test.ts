@@ -35,7 +35,7 @@ describe('grade', () => {
     expect(grid.map(g => [g.champion.id, g.available])).toEqual([[266, false], [103, false], [20, true], [62, true]]);
   });
   it('sem a lista da LCU usa o catálogo inteiro; sem catálogo fica vazia', () => {
-    const unknown = { ...champSelectState, champSelectChampions: { pickable: null, bannable: null } };
+    const unknown = { ...champSelectState, champSelectChampions: { pickable: null, bannable: null, subset: null } };
     expect(gridChampions(unknown, draftChampSelect)).toHaveLength(testChampionCatalog.champions.length);
     expect(gridChampions({ ...unknown, championCatalog: null }, draftChampSelect)).toEqual([]);
   });

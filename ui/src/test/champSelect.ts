@@ -43,7 +43,7 @@ export const champSelectState: AgentState = {
   gameflowPhase: 'ChampSelect',
   champSelect: draftChampSelect,
   championCatalog: testChampionCatalog,
-  champSelectChampions: { pickable: [20, 62, 103, 266], bannable: [20, 62, 103, 145, 266] },
+  champSelectChampions: { pickable: [20, 62, 103, 266], bannable: [20, 62, 103, 145, 266], subset: null },
 };
 
 /** Feitiços para os testes da seleção: Marcar só no ARAM, Golpear no nível 9. */

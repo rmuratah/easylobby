@@ -39,9 +39,9 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-it('mostra o campeão sorteado, os rerolls, o banco e o time, sem grade nem runas', () => {
+it('mostra o campeão, os rerolls, o banco e o time, sem grade nem runas', () => {
   render(<App />); hello();
-  expect(panel().getByRole('status')).toHaveTextContent('Role de novo ou pegue um campeão do banco.');
+  expect(panel().getAllByRole('status')[0]).toHaveTextContent('Troque com o banco ou com um aliado.');
   expect(panel().getByLabelText('Tempo da etapa')).toHaveTextContent('25 s');
   expect(mine().getByText('Aatrox')).toBeVisible();
   expect(mine().getByLabelText('Rerolls restantes')).toHaveTextContent('1 reroll restante');
@@ -100,4 +100,40 @@ it('a ARAM: Desordem também usa a tela do ARAM, com o nome da fila', () => {
   } }));
   expect(mine().getByText('Aatrox')).toBeVisible();
   expect(panel().getByText('ARAM: Desordem')).toBeVisible();
+});
+
+it('escolhe uma das cartas de campeão no início da seleção', async () => {
+  render(<App />);
+  const choosing: ChampSelect = {
+    ...aramChampSelect,
+    myTeam: aramChampSelect.myTeam.map(p => p.isLocalPlayer ? { ...p, championId: null } : p),
+    benchChampions: [],
+    allowRerolling: true, rerollsRemaining: 0,
+    actions: [{ id: 0, type: 'pick', actorCellId: 0, championId: null, completed: false, isInProgress: true, isAllyAction: true, turn: 0 }],
+    pendingAction: { id: 0, type: 'pick', actorCellId: 0, championId: null, completed: false, isInProgress: true, isAllyAction: true, turn: 0 },
+  };
+  act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: {
+    ...champSelectState, champSelect: choosing, champSelectChampions: { pickable: null, bannable: null, subset: null } } }));
+  const cards = () => within(panel().getByRole('region', { name: 'Suas cartas' }));
+  expect(panel().getAllByRole('status')[0]).toHaveTextContent('Escolha uma das suas cartas.');
+  expect(cards().getByText('Carregando suas cartas…')).toBeVisible();
+  expect(panel().queryByRole('button', { name: 'Rolar de novo' })).not.toBeInTheDocument();
+
+  act(() => socket().receive({ type: 'champSelectChampions', champSelectChampions: { pickable: null, bannable: null, subset: [62, 103, 266] } }));
+  expect(cards().getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Escolher Wukong', 'Escolher Ahri', 'Escolher Aatrox']);
+  fireEvent.click(cards().getByRole('button', { name: 'Escolher Ahri' }));
+  expect(last().command).toEqual({ type: 'confirmAction', actionId: 0, championId: 103 });
+  expect(cards().getByRole('button', { name: 'Escolher Aatrox' })).toBeDisabled();
+  act(() => socket().receive({ type: 'champSelect', champSelect: {
+    ...choosing,
+    timer: { ...choosing.timer, phase: 'FINALIZATION' },
+    myTeam: choosing.myTeam.map(p => p.isLocalPlayer ? { ...p, championId: 103 } : p),
+    benchChampions: [{ championId: 62, isPriority: false }, { championId: 266, isPriority: false }],
+    actions: [{ ...choosing.actions[0], championId: 103, completed: true, isInProgress: false }],
+    pendingAction: null,
+  } }));
+  await respond();
+  expect(panel().queryByRole('region', { name: 'Suas cartas' })).not.toBeInTheDocument();
+  expect(mine().getByText('Ahri')).toBeVisible();
+  expect(bench().getByRole('button', { name: 'Pegar Wukong do banco' })).toBeEnabled();
 });
