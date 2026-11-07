@@ -110,7 +110,7 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
   const big = 'h-14 min-w-0 flex-1 rounded-full px-6 text-section font-semibold tracking-wide transition-all disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
   return (
     <section aria-label="Busca de partida"
-      className={cx('flex h-full w-full flex-col gap-3 rounded-panel surface p-4 text-ink shadow-lift animate-fade-up @min-[44rem]:shadow-soft',
+      className={cx('flex w-full flex-col gap-3 rounded-panel surface p-4 text-ink shadow-lift animate-fade-up @min-[44rem]:shadow-soft',
         searching && 'ring-2 ring-accent/30')}>
       <div className="flex flex-col gap-1 px-1">
         <h2 className="text-section font-semibold">Busca de partida</h2>

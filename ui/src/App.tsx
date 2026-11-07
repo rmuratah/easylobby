@@ -116,8 +116,8 @@ export default function App() {
               <div hidden={homeReserved} className="contents">
                 <LobbyPanel connection={connection} send={connection.send} />
               </div>
-              {/* Coluna da direita com largura (metade da altura do lobby, sem cortar o conteúdo); embaixo, presa à borda, quando a janela é estreita. */}
-              <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 h-full @min-[44rem]:top-0 @min-[44rem]:bottom-auto @min-[44rem]:h-1/2 @min-[44rem]:min-h-fit">
+              {/* Coluna da direita com largura, só da altura do conteúdo (sem sobra); embaixo, presa à borda, quando a janela é estreita. */}
+              <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 h-fit self-start @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
                 <QueuePanel connection={connection} send={connection.send} />
               </div>
             </div>
