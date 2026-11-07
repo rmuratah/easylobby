@@ -42,7 +42,7 @@ use crate::rest::{LcuClient, LcuError};
 use crate::runes::{CURRENT_PAGE_PATH, INVENTORY_PATH, PAGES_PATH};
 use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
 use crate::summoner_spells::{self};
-use crate::ux;
+use crate::ux::{self, KillUx};
 use crate::wamp::{EventType, LcuEvent};
 
 pub use exit::ExitAction;
@@ -267,8 +267,10 @@ impl Hub {
                     shared.client = Some(session.client);
                     shared.session += 1;
                     // Só guarda a UI oficial fechada se foi o agente que a
-                    // fechou nesta conexão (#188).
+                    // fechou nesta conexão (#188). Com o fechamento adiado,
+                    // a guarda liga quando ele acontecer.
                     shared.ux_guard.active = session.kill_ux.is_killed();
+                    shared.ux_guard.generation += 1;
                     (
                         shared.stamp(Resource::Lobby),
                         shared.stamp(Resource::Matchmaking),
@@ -277,6 +279,9 @@ impl Hub {
                         shared.session,
                     )
                 };
+                if let KillUx::Scheduled { delay } = session.kill_ux {
+                    self.schedule_kill_ux(delay);
+                }
                 self.set_lcu_status(LcuStatus::Connected {
                     session: u32::try_from(session.id).unwrap_or(u32::MAX),
                 });
