@@ -224,6 +224,14 @@ pub struct Lobby {
     #[serde(skip)]
     #[ts(skip)]
     pub chat_id: String,
+    /// `multiUserChatPassword` e `mucJwtDto` da LCU: o que o agente manda
+    /// para entrar na sala do grupo quando a UI oficial está fechada (#206).
+    #[serde(skip)]
+    #[ts(skip)]
+    pub chat_password: String,
+    #[serde(skip)]
+    #[ts(skip)]
+    pub chat_muc_jwt: Value,
 }
 
 /// Um convite que o grupo mandou (#32).
@@ -361,6 +369,8 @@ impl Lobby {
             can_invite: local_member.is_some_and(|m| m.is_leader || m.allowed_invite_others),
             invitations,
             chat_id: raw.multi_user_chat_id,
+            chat_password: raw.multi_user_chat_password,
+            chat_muc_jwt: raw.muc_jwt_dto,
         })
     }
 }
@@ -380,6 +390,10 @@ struct RawLobby {
     invitations: Vec<RawInvitation>,
     #[serde(default)]
     multi_user_chat_id: String,
+    #[serde(default)]
+    multi_user_chat_password: String,
+    #[serde(default)]
+    muc_jwt_dto: Value,
 }
 
 #[derive(Deserialize)]
@@ -627,6 +641,8 @@ mod tests {
             }],
             // Não vai para a UI.
             chat_id: "grupo".into(),
+            chat_password: "senha".into(),
+            chat_muc_jwt: json!({"jwt": "x"}),
         };
         assert_eq!(
             serde_json::to_value(&lobby).unwrap(),
