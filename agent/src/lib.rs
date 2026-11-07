@@ -61,6 +61,7 @@ pub mod mastery;
 pub mod match_history;
 pub mod matchmaking;
 pub mod queues;
+pub mod quick_play;
 pub mod ranked;
 pub mod ready_check;
 pub mod rest;

@@ -15,6 +15,7 @@ import { cx } from './base/cx';
 import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
 import { PositionIcon } from './PositionIcon';
 import { ModeSelect } from './ModeSelect';
+import { QuickPlaySlots } from './QuickPlaySlots';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' | 'startTutorial' | 'startPracticeTool' }>;
@@ -78,6 +79,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   const groups = queueGroups(state.queues);
   const invites = useLobbyInvite(state, send);
   const [picker, setPicker] = useState<number | null>(null);
+  // Avisos dos slots do Jogo Dinâmico (#218), no quadro abaixo da lista.
+  const [slotNotes, setSlotNotes] = useState<HTMLDivElement | null>(null);
   const [dropping, setDropping] = useState(false);
   const closePicker = useCallback(() => setPicker(null), []);
   const [feedback, setFeedback] = useState<Feedback>({ status: 'idle', message: '' });
@@ -116,6 +119,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   const canLeave = !state.readyCheck && !!summoner && !!lobby
     && (matchmaking ? penalty && (phase === 'Lobby' || phase === 'Matchmaking') : phase === 'Lobby');
   const canSetPositions = !state.readyCheck && !!localMember && !!lobby?.showPositionSelector && !matchmaking && phase === 'Lobby';
+  // Jogo Dinâmico (#218): posições e campeões escolhidos no próprio card.
+  const canSetSlots = !state.readyCheck && !!localMember && !!lobby?.showQuickPlaySlots && !matchmaking && phase === 'Lobby';
   // Posições que o LoL tem (ou acabou de aceitar, antes do evento chegar).
   const saved = acceptedPositions?.confirmedKey === confirmedKey ? acceptedPositions : { first, second };
   const pending = feedback.status === 'pending';
@@ -315,7 +320,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
           return (
             <li key={member.puuid} style={{ animationDelay: `${index * 70}ms` }}
               className={cx('relative flex min-h-20 flex-1 items-center gap-4 rounded-panel px-4 py-3 transition-all duration-200 animate-fade-up',
-                me ? 'bg-surface shadow-lift ring-2 ring-accent/30' : 'surface shadow-soft hover:-translate-y-0.5 hover:shadow-lift')}>
+                // O card do jogador fica por cima dos outros para a escolha de campeão aberta nele não ficar escondida.
+                me ? 'z-10 bg-surface shadow-lift ring-2 ring-accent/30' : 'surface shadow-soft hover:-translate-y-0.5 hover:shadow-lift')}>
               <div className={cx('shrink-0 rounded-full p-1', me ? 'bg-primary-gradient' : 'bg-raised')}>
                 <Avatar name={me && summoner?.gameName ? summoner.gameName : name} src={assetUrl('profileIcon', member.summonerIconId)}
                   size={me ? 64 : 56} className="ring-2 ring-surface" />
@@ -333,6 +339,10 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
                 {me && <p className="truncate text-caption text-muted">Você</p>}
                 <span className="mt-2 inline-block rounded-full bg-raised px-2.5 py-1 text-caption font-semibold text-muted">Nível {member.summonerLevel}</span>
               </div>
+              {lobby.showQuickPlaySlots && (
+                <QuickPlaySlots key={`${lobby.queueId}:${member.puuid}`} member={member} mine={me} canEdit={canSetSlots}
+                  state={state} send={send} notes={me ? slotNotes : undefined} />
+              )}
               {lobby.showPositionSelector && (
                 <ul aria-label={`Posições de ${name}`} className="flex w-36 shrink-0 flex-col gap-2 @min-[52rem]:w-52">
                   {[member.firstPosition, member.secondPosition].map((position, slot) => (
@@ -406,6 +416,12 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
               <p className="px-1 text-caption text-muted">Escolha a posição secundária para salvar.</p>
             )}
           </fieldset>
+        ) : lobby.showQuickPlaySlots ? (
+          <div className="flex h-full min-w-0 flex-col gap-2 rounded-panel surface p-4 shadow-soft animate-fade-up">
+            <h3 className="px-1 text-section font-semibold">Suas posições e campeões</h3>
+            <p className="px-1 text-caption text-muted">No Jogo Dinâmico, escolha as duas posições e um campeão para cada uma no seu card, acima.</p>
+            <div ref={setSlotNotes} className="flex flex-col gap-1 px-1" />
+          </div>
         ) : <p className="rounded-panel surface p-4 shadow-soft text-body text-muted animate-fade-up">Esta fila não permite escolher posições.</p>}
         {/* Na fila e na partida encontrada, a faixa de ação fica com a busca; trocar fila volta depois. A troca é feita ao escolher. */}
         {!searching && (

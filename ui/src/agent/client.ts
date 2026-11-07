@@ -35,6 +35,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'lobbyChat': return { ...state, lobbyChat: state.lcu.state === 'connected' && state.lobby ? message.lobbyChat : null };
     case 'matchmaking': return { ...state, matchmaking: message.matchmaking };
     case 'queues': return { ...state, queues: message.queues };
+    case 'playableChampions': return { ...state, playableChampions: message.playableChampions };
     case 'champSelect': return { ...state, champSelect: message.champSelect,
       champSelectChat: message.champSelect && (!state.champSelect || state.champSelect.id === message.champSelect.id)
         ? state.champSelectChat : null };

@@ -299,6 +299,7 @@ impl Hub {
                     friend_list,
                     friend_groups,
                     queues,
+                    playable_champions,
                 ) = tokio::join!(
                     summoner::current_summoner(&client),
                     gameflow::current_phase(&client),
@@ -313,6 +314,7 @@ impl Hub {
                     crate::friends::friends(&client),
                     crate::friends::groups(&client),
                     crate::queues::available(&client),
+                    crate::quick_play::playable_champions(&client),
                 );
                 // 404 antes do login; qualquer outro erro também deixa vazio,
                 // e o próximo evento da LCU corrige.
@@ -346,6 +348,10 @@ impl Hub {
                 // Antes da seleção, para a UI já poder desenhar os feitiços.
                 self.set_summoner_spell_catalog(spell_catalog.ok().flatten());
                 self.set_champion_catalog(champion_catalog.ok().flatten());
+                // Antes do login a LCU responde erro; o login relê (#218).
+                if let Ok(Some(champions)) = playable_champions {
+                    self.set_playable_champions(Some(champions));
+                }
                 // Com o chat ainda conectando a LCU pode responder erro ou
                 // lista vazia; os eventos de cada amigo completam a lista.
                 // Nenhum comando mexe nos amigos e os eventos só são
@@ -418,6 +424,7 @@ impl Hub {
                 self.set_rune_catalog(None);
                 self.set_summoner_spell_catalog(None);
                 self.set_champion_catalog(None);
+                self.set_playable_champions(None);
                 self.set_champ_select_champions(ChampSelectChampions::default());
                 self.set_friends(Vec::new());
                 self.set_friend_groups(Vec::new());
@@ -453,6 +460,7 @@ impl Hub {
                     // Lida antes do login, a lista de filas vem vazia (#210).
                     if logged_in {
                         self.spawn_refresh_queues();
+                        self.spawn_refresh_playable_champions();
                     }
                 }
             }
@@ -476,6 +484,8 @@ impl Hub {
                         && matches!(phase, GameflowPhase::Idle | GameflowPhase::Lobby)
                     {
                         self.spawn_refresh_queues();
+                        // Campeão comprado ou rotação nova (#218).
+                        self.spawn_refresh_playable_champions();
                     }
                 }
             }

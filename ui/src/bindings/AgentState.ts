@@ -43,6 +43,11 @@ export type AgentState = {
    */
   queues: Array<GameQueue>,
   /**
+   * Campeões que o jogador pode pôr nos slots do Jogo Dinâmico (#218),
+   * ou `null`.
+   */
+  playableChampions: Array<number> | null,
+  /**
    * Sala de chat do grupo no lobby (#206), ou `null` sem lobby.
    */
   lobbyChat: LobbyChat | null,

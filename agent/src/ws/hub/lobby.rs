@@ -4,6 +4,7 @@ use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
 use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError};
 use crate::matchmaking::{self, Matchmaking};
 use crate::queues::{GameQueue, MODE_SCREEN_QUEUES};
+use crate::quick_play::{self, PlayerSlotInput, SetSlotsError};
 use crate::training;
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 
@@ -156,6 +157,76 @@ impl Hub {
                 CommandResult::error(ErrorCode::Lcu, error.to_string())
             }
         }
+    }
+
+    /// Escolhe as posições e os campeões do Jogo Dinâmico (comando
+    /// `setPlayerSlots`, #218). Relê o lobby pelo REST e publica antes de
+    /// devolver, sem esperar o evento do WAMP.
+    pub async fn set_player_slots(&self, slots: Vec<PlayerSlotInput>) -> CommandResult {
+        if let Err(invalid) = quick_play::check_slots(&slots) {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        let (client, current, pages) = {
+            let shared = self.lock();
+            let Some(client) = shared.client.clone() else {
+                return not_connected();
+            };
+            let state = &shared.state;
+            let me = state.summoner.as_ref().map(|s| s.puuid.as_str());
+            let current = state
+                .lobby
+                .as_ref()
+                .and_then(|l| l.members.iter().find(|m| Some(m.puuid.as_str()) == me))
+                .map(|m| m.player_slots.clone())
+                .unwrap_or_default();
+            (client, current, state.rune_pages.clone())
+        };
+        match quick_play::set_player_slots(&client, &slots, &current, pages.as_ref()).await {
+            Ok(()) => {
+                self.refresh_lobby().await;
+                CommandResult::Ok
+            }
+            Err(SetSlotsError::Invalid(invalid)) => {
+                CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string())
+            }
+            Err(SetSlotsError::Lcu(error)) => {
+                CommandResult::error(ErrorCode::Lcu, error.to_string())
+            }
+        }
+    }
+
+    /// Publica os campeões que dá para pôr nos slots do Jogo Dinâmico (#218).
+    pub fn set_playable_champions(&self, champions: Option<Vec<u32>>) {
+        self.update(|shared| {
+            if shared.state.playable_champions == champions {
+                return None;
+            }
+            shared.state.playable_champions = champions.clone();
+            Some(ServerMessage::PlayableChampions {
+                playable_champions: champions,
+            })
+        });
+    }
+
+    /// Relê em segundo plano os campeões que dá para pôr nos slots (#218):
+    /// um campeão comprado ou a rotação nova mudam a lista, e a LCU não
+    /// manda evento dela.
+    pub(super) fn spawn_refresh_playable_champions(&self) {
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let Some(client) = self.client() else {
+            return;
+        };
+        let session = self.lock().session;
+        let hub = self.clone();
+        runtime.spawn(async move {
+            if let Ok(Some(champions)) = quick_play::playable_champions(&client).await {
+                if hub.lock().session == session {
+                    hub.set_playable_champions(Some(champions));
+                }
+            }
+        });
     }
 
     /// Publica as filas em que dá para criar lobby (#146).
@@ -362,6 +433,8 @@ mod tests {
             hub.set_positions(Position::Top, Position::Jungle).await,
             hub.start_tutorial().await,
             hub.start_practice_tool().await,
+            hub.set_player_slots(vec![slot(22, Position::Bottom), slot(266, Position::Top)])
+                .await,
         ] {
             assert!(matches!(
                 result,
@@ -371,6 +444,47 @@ mod tests {
                 }
             ));
         }
+    }
+
+    fn slot(champion_id: u32, position: Position) -> PlayerSlotInput {
+        PlayerSlotInput {
+            champion_id,
+            position,
+            spell1_id: None,
+            spell2_id: None,
+            rune_page_id: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn slots_invalidos_nem_chegam_na_lcu() {
+        let hub = Hub::new();
+        let result = hub
+            .set_player_slots(vec![slot(22, Position::Top), slot(266, Position::Top)])
+            .await;
+        assert!(matches!(
+            result,
+            CommandResult::Error {
+                code: ErrorCode::InvalidCommand,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn publica_os_campeoes_jogaveis() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        hub.set_playable_champions(Some(vec![1, 22]));
+        hub.set_playable_champions(Some(vec![1, 22]));
+        let messages: Vec<ServerMessage> = std::iter::from_fn(|| rx.try_recv().ok()).collect();
+        assert_eq!(
+            messages,
+            [ServerMessage::PlayableChampions {
+                playable_champions: Some(vec![1, 22])
+            }]
+        );
+        assert_eq!(hub.state().playable_champions, Some(vec![1, 22]));
     }
 
     fn queues_json() -> serde_json::Value {

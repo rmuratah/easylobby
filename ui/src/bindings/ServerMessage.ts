@@ -45,6 +45,7 @@ export type ServerMessage =
   | { "type": "matchmaking", matchmaking: Matchmaking | null, }
   | { "type": "readyCheck", readyCheck: ReadyCheck | null, }
   | { "type": "queues", queues: Array<GameQueue>, }
+  | { "type": "playableChampions", playableChampions: Array<number> | null, }
   | { "type": "champSelect", champSelect: ChampSelect | null, }
   | { "type": "champSelectChat", champSelectChat: ChampSelectChat | null, }
   | { "type": "lobbyChat", lobbyChat: LobbyChat | null, }
