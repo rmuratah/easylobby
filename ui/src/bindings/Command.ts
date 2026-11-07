@@ -28,6 +28,8 @@ export type Command =
   | { "type": "acceptSwap", kind: SwapKind, swapId: number, }
   | { "type": "declineSwap", kind: SwapKind, swapId: number, }
   | { "type": "cancelSwap", kind: SwapKind, swapId: number, }
+  | { "type": "rerollChampion" }
+  | { "type": "swapBenchChampion", championId: number, }
   | { "type": "sendChampSelectMessage", body: string, }
   | { "type": "selectRunePage", pageId: number, }
   | { "type": "createRunePage", page: RunePageInput, }

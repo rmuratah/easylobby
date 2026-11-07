@@ -1,6 +1,7 @@
 //! Seleção de campeões: sessão, ações, trocas e feitiços de invocador.
 
 use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
+use crate::bench;
 use crate::champ_select::{self, ActionIntent, ChampSelect};
 use crate::champions::{self, ChampSelectChampions, ChampionCatalog, PICKABLE_CHAMPIONS_PATH};
 use crate::summoner_spells::{self, SummonerSpellCatalog};
@@ -195,6 +196,47 @@ impl Hub {
             return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
         }
         if let Err(error) = swaps::send(&client, kind, swap_id, intent).await {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        self.refresh_champ_select().await;
+        CommandResult::Ok
+    }
+
+    /// Rola de novo o campeão do jogador no ARAM (comando `rerollChampion`,
+    /// #201). Confere o pedido contra a seleção atual, e relê a sessão pelo
+    /// REST e a publica antes de devolver.
+    pub async fn reroll_champion(&self) -> CommandResult {
+        let (client, champ_select) = {
+            let shared = self.lock();
+            (shared.client.clone(), shared.state.champ_select.clone())
+        };
+        let Some(client) = client else {
+            return not_connected();
+        };
+        if let Err(invalid) = bench::check_reroll(champ_select.as_ref()) {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        if let Err(error) = bench::reroll(&client).await {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        self.refresh_champ_select().await;
+        CommandResult::Ok
+    }
+
+    /// Troca o campeão do jogador por um do banco do ARAM (comando
+    /// `swapBenchChampion`, #201). Como [`Hub::reroll_champion`].
+    pub async fn swap_bench_champion(&self, champion_id: u32) -> CommandResult {
+        let (client, champ_select) = {
+            let shared = self.lock();
+            (shared.client.clone(), shared.state.champ_select.clone())
+        };
+        let Some(client) = client else {
+            return not_connected();
+        };
+        if let Err(invalid) = bench::check_bench_swap(champ_select.as_ref(), champion_id) {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        if let Err(error) = bench::swap_with_bench(&client, champion_id).await {
             return CommandResult::error(ErrorCode::Lcu, error.to_string());
         }
         self.refresh_champ_select().await;

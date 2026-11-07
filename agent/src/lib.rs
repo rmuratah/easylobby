@@ -41,6 +41,7 @@
 //!   (#25)
 
 pub mod assets;
+pub mod bench;
 pub mod champ_select;
 pub mod champ_select_chat;
 pub mod champions;
