@@ -14,15 +14,14 @@ import { Avatar } from './base';
 import { cx } from './base/cx';
 import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
 import { PositionIcon } from './PositionIcon';
+import { ModeSelect } from './ModeSelect';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
-type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' }>;
+type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' | 'startTutorial' | 'startPracticeTool' }>;
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 const selectClass = `h-10 rounded-tile border border-control bg-raised px-3 text-body text-ink transition-colors disabled:cursor-not-allowed disabled:text-muted ${focusRing}`;
 /** Botão em pílula do layout de referência: o principal leva o destaque com brilho; o secundário fica na superfície. */
-const pillButton = `inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full px-5 text-body font-semibold transition-all disabled:cursor-not-allowed ${focusRing}`;
-const primaryPill = `${pillButton} bg-accent text-on-accent shadow-glow enabled:hover:-translate-y-0.5 disabled:bg-raised disabled:text-muted disabled:shadow-none`;
 
 export function LobbyPanel({ connection, send }: Props) {
   const state = connection.state;
@@ -127,11 +126,12 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     : !phaseAllowsChange ? 'Criar, trocar fila e sair do lobby só estão disponíveis fora da busca e da partida. Aguarde a fase de lobby.'
     : lobby && !lobby.isLeader ? 'Somente o líder pode trocar a fila. Você pode sair do lobby.'
     : lobby ? 'A fila muda assim que você escolhe outra.'
-    : 'Escolha uma fila para criar um lobby.';
+    : 'Escolha um modo para criar um lobby.';
 
   async function execute(command: LobbyCommand): Promise<Outcome> {
     if (inFlight.current || (command.type === 'createLobby' || command.type === 'createLobbyById'
       ? !canCreate || commandKey(command) === currentKey
+      : command.type === 'startTutorial' || command.type === 'startPracticeTool' ? !canCreate || !!lobby
       : command.type === 'leaveLobby' ? !canLeave
       : !canSetPositions || !validPositions(command.first, command.second)
         || (command.first === saved.first && command.second === saved.second))) return 'skipped';
@@ -139,6 +139,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     const revision = confirmedRevision.current;
     inFlight.current = true;
     setFeedback({ status: 'pending', message: command.type === 'setPositions' ? 'Salvando posições…' : command.type === 'leaveLobby' ? 'Saindo do lobby…'
+      : command.type === 'startTutorial' ? 'Iniciando o Tutorial…' : command.type === 'startPracticeTool' ? 'Iniciando o Modo de Treino…'
       : lobby ? 'Trocando fila…' : 'Criando lobby…' });
     try {
       const result = await send(command);
@@ -154,7 +155,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
         }
         setFeedback({ status: 'success', message: command.type === 'setPositions'
           ? 'Posições salvas.' : command.type === 'leaveLobby'
-          ? 'Saída do lobby confirmada.' : 'Lobby atualizado pelo agente.' });
+          ? 'Saída do lobby confirmada.' : command.type === 'startTutorial' ? 'Tutorial iniciado.'
+          : command.type === 'startPracticeTool' ? 'Modo de Treino iniciado.' : 'Lobby atualizado pelo agente.' });
         return 'ok';
       }
       setFeedback({ status: 'error', message: result.code === 'notConnected'
@@ -249,34 +251,12 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     </select>
   );
 
-  // Sem lobby, o painel vira o cartão principal do início: chamada grande, fila e "Criar lobby".
+  // Sem lobby, o painel vira a tela de escolha de modo de jogo (#210).
   if (!lobby) {
     return (
-      <section aria-label="Lobby"
-        className="relative isolate flex h-full min-h-[24rem] overflow-hidden rounded-panel bg-surface text-ink shadow-lift animate-fade-up">
-        <div aria-hidden="true" className="absolute inset-0 -z-10 bg-hero-art" />
-        <div aria-hidden="true" className="pointer-events-none absolute -right-20 top-1/2 -z-10 size-[26rem] -translate-y-1/2 rounded-full border border-accent/25">
-          <div className="absolute inset-12 rounded-full border border-accent/30" />
-          <div className="absolute inset-28 rounded-full bg-primary-gradient opacity-30 blur-2xl" />
-        </div>
-        <div aria-hidden="true" className="absolute inset-0 -z-10 bg-hero-fade" />
-        <div className="flex max-w-md flex-col justify-end gap-5 p-8 @min-[44rem]:p-10">
-          <span className="w-fit rounded-full glass px-3 py-1 text-caption font-semibold uppercase tracking-wider text-accent-ink">Jogar</span>
-          <div>
-            <h2 className="text-display font-semibold">Pronto para jogar?</h2>
-            <p className="mt-3 text-section text-muted">Você não está em um lobby.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <label htmlFor={selectId} className="sr-only">Fila</label>
-            {queueSelect(`h-11 min-w-0 flex-1 rounded-full glass px-4 text-body font-semibold text-ink disabled:cursor-not-allowed disabled:text-muted ${focusRing}`)}
-            <button type="button" className={primaryPill} aria-describedby={descriptionId} aria-busy={pending}
-              disabled={!canCreate || pending}
-              onClick={() => { void execute(createLobbyCommand(selection.queue)); }}>Criar lobby</button>
-          </div>
-          <p id={descriptionId} className="text-caption text-muted">{restriction}</p>
-          {feedbackLine}
-        </div>
-      </section>
+      <ModeSelect queues={state.queues} canCreate={canCreate} pending={pending} restriction={restriction}
+        descriptionId={descriptionId} feedback={feedbackLine}
+        onCreate={command => { void execute(command); }} onStart={command => { void execute(command); }} />
     );
   }
 
