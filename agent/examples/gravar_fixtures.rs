@@ -336,6 +336,10 @@ async fn run() -> Result<(), String> {
     let deadline = args
         .seconds
         .map(|s| tokio::time::Instant::now() + Duration::from_secs(s));
+    // O Ctrl+C fica registrado desde já: no Windows, sem o handler ativo
+    // (durante uma foto REST, por exemplo), ele mata o processo sem salvar.
+    let ctrl_c = tokio::signal::ctrl_c();
+    tokio::pin!(ctrl_c);
     loop {
         let sleep = async {
             match deadline {
@@ -344,7 +348,7 @@ async fn run() -> Result<(), String> {
             }
         };
         tokio::select! {
-            _ = tokio::signal::ctrl_c() => break,
+            _ = &mut ctrl_c => break,
             _ = sleep => break,
             msg = ws.next() => {
                 let Some(msg) = msg else {
