@@ -10,6 +10,7 @@ import { assetUrl } from '../agent/assets';
 import { Avatar } from './base';
 import { cx } from './base/cx';
 import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
+import { PositionIcon } from './PositionIcon';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type LobbyCommand = Extract<Command, { type: 'createLobby' | 'leaveLobby' | 'setPositions' }>;
@@ -230,6 +231,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
                   {[member.firstPosition, member.secondPosition].map((position, slot) => (
                     <li key={slot} className={cx('flex items-center gap-2 rounded-tile px-3 py-2 text-body font-medium',
                       slot === 0 ? 'bg-accent-soft text-accent-ink' : 'bg-raised text-muted')}>
+                      <PositionIcon position={position} />
                       <span className="truncate">{positionNames[position]}</span>{' '}
                       {/* Em janela estreita, a ordem e a cor dizem qual é qual; o leitor de tela continua ouvindo. */}
                       <span className="sr-only shrink-0 text-caption @min-[52rem]:not-sr-only @min-[52rem]:ml-auto">{slot === 0 ? 'Primário' : 'Secundário'}</span>
@@ -249,9 +251,9 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
         ))}
       </ul>
 
-      <div className={cx('grid items-start gap-4', !searching && '@min-[44rem]:grid-cols-2')}>
+      <div className={cx('grid items-stretch gap-4', !searching && '@min-[44rem]:grid-cols-2')}>
         {lobby.showPositionSelector ? (
-          <fieldset className="flex min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" disabled={!canSetPositions || pending}>
+          <fieldset className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" disabled={!canSetPositions || pending}>
             <legend className="sr-only">Seus cargos</legend>
             <h3 aria-hidden="true" className="px-1 text-section font-semibold">Seus cargos</h3>
             <p className="px-1 text-caption text-muted">As posições na lista de jogadores são confirmadas pelo agente.</p>
@@ -259,7 +261,9 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
             {phase !== 'Lobby' && <p className="px-1 text-body text-muted">A escolha de cargos está disponível na fase de lobby.</p>}
             <div className="grid grid-cols-2 gap-2">
               <label className="flex min-w-0 flex-col gap-1.5 px-1 text-caption font-medium text-muted" htmlFor={firstId}>Cargo primário
-                <select id={firstId} value={positions.first} className={selectClass}
+                <span className="relative flex items-center">
+                  <PositionIcon position={positions.first} className="pointer-events-none absolute left-3 z-10" />
+                <select id={firstId} value={positions.first} className={`${selectClass} w-full pl-10`}
                   onChange={event => {
                     if (!isPosition(event.target.value)) return;
                     const next = event.target.value;
@@ -268,17 +272,19 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
                   }}>
                   {(Object.keys(positionNames) as Position[]).map(position =>
                     <option key={position} value={position}>{positionNames[position]}</option>)}
-                </select>
+                </select></span>
               </label>
               <label className="flex min-w-0 flex-col gap-1.5 px-1 text-caption font-medium text-muted" htmlFor={secondId}>Cargo secundário
-                <select id={secondId} value={positions.second} className={selectClass}
+                <span className="relative flex items-center">
+                  <PositionIcon position={positions.second} className="pointer-events-none absolute left-3 z-10" />
+                <select id={secondId} value={positions.second} className={`${selectClass} w-full pl-10`}
                   disabled={!canSetPositions || pending || positions.first === 'fill' || positions.first === 'unselected'}
                   onChange={event => {
                     if (isPosition(event.target.value)) setPositions({ ...positions, second: event.target.value });
                   }}>
                   {(Object.keys(positionNames) as Position[]).map(position =>
                     <option key={position} value={position} disabled={!validPositions(positions.first, position)}>{positionNames[position]}</option>)}
-                </select>
+                </select></span>
               </label>
             </div>
             <button type="button" className={cx(primaryPill, 'w-full')} aria-busy={pending}
@@ -290,7 +296,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
         ) : <p className="rounded-panel surface p-4 shadow-soft text-body text-muted animate-fade-up">Esta fila não permite escolher cargos.</p>}
         {/* Na fila e na partida encontrada, a faixa de ação fica com a busca; trocar fila volta depois. */}
         {!searching && (
-          <div className="flex min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" style={{ animationDelay: '70ms' }}>
+          <div className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" style={{ animationDelay: '70ms' }}>
             <label className="px-1 text-section font-semibold" htmlFor={selectId}>Fila</label>
             {queueSelect(selectClass)}
             <button type="button" className={cx(secondaryPill, 'w-full')} aria-describedby={descriptionId} aria-busy={pending}

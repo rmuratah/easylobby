@@ -49,6 +49,12 @@ describe("readPreference", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("bloqueado"); });
     expect(readPreference()).toBe("sistema");
   });
+
+  it("trata a preferência antiga 'sistema' como ausência de escolha", () => {
+    localStorage.setItem(THEME_STORAGE_KEY, "sistema");
+    expect(readPreference()).toBe("sistema");
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBeNull();
+  });
 });
 
 describe("useTheme", () => {
@@ -102,6 +108,14 @@ describe("theme-init.js", () => {
 
     localStorage.setItem(THEME_STORAGE_KEY, "claro");
     new Function(script)();
+    expect(document.documentElement.dataset.theme).toBe("claro");
+  });
+
+  it("remove a preferência antiga 'sistema' antes do React", () => {
+    mockSystem(false);
+    localStorage.setItem(THEME_STORAGE_KEY, "sistema");
+    new Function(script)();
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBeNull();
     expect(document.documentElement.dataset.theme).toBe("claro");
   });
 });

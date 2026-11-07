@@ -148,7 +148,7 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
       <div className="flex items-center gap-2">
         <button ref={startRef} type="button" hidden={active} aria-busy={pending}
           disabled={!canStart || pending} onClick={() => { void execute({ type: 'startQueue' }); }}
-          className={cx(big, 'bg-accent text-on-accent shadow-glow enabled:hover:-translate-y-0.5 disabled:bg-raised disabled:text-muted disabled:shadow-none')}>
+          className={cx(big, 'bg-accent text-on-accent shadow-soft enabled:hover:-translate-y-0.5 disabled:bg-raised disabled:text-muted disabled:shadow-none')}>
           Iniciar busca
         </button>
         <button ref={stopRef} type="button" hidden={!active} aria-busy={pending}
