@@ -20,6 +20,15 @@ export function tierName(tier: string): string {
   return tierNames[tier] ?? tier.charAt(0) + tier.slice(1).toLowerCase();
 }
 
+/** Ordem dos tiers no `id` do emblema (`/assets/rankedEmblem/<id>`), a mesma de `RANKED_TIERS` no agente. */
+const emblemTiers = ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER'];
+
+/** `id` do emblema do tier (`IRON` -> 1, `CHALLENGER` -> 10), ou `null` para um tier desconhecido. */
+export function tierEmblemId(tier: string): number | null {
+  const index = emblemTiers.indexOf(tier.toUpperCase());
+  return index < 0 ? null : index + 1;
+}
+
 /** `Ouro II`, `Mestre` ou `Sem classificação`. */
 export function rankLabel(entry: RankedEntry): string {
   if (!entry.tier) return 'Sem classificação';
@@ -55,6 +64,7 @@ const knownQueues: Record<number, string> = {
   1740: 'Arena',
   1900: 'URF',
   2400: 'ARAM: Desordem',
+  3140: 'Ferramenta de Treino',
 };
 
 /** Nome da fila de uma partida: a lista do agente primeiro, depois os conhecidos. */

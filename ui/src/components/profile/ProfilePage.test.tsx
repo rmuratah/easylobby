@@ -37,6 +37,8 @@ describe('ProfilePage', () => {
     expect(screen.getByText('Nível 87')).toBeInTheDocument();
     const solo = screen.getByRole('article', { name: 'Ranqueada Solo/Duo' });
     expect(solo).toHaveTextContent('Ouro II · 47 PDL');
+    expect(solo.querySelector('img')?.getAttribute('src')).toMatch(/\/assets\/rankedEmblem\/4$/);
+    expect(screen.getByRole('article', { name: 'Ranqueada Flex' }).querySelector('img')).toBeNull();
     expect(solo).toHaveTextContent('30V 10D · 75% de vitórias');
     expect(screen.getByRole('article', { name: 'Ranqueada Flex' })).toHaveTextContent('Sem classificação');
     expect(screen.getAllByText('Ahri').length).toBeGreaterThan(0);

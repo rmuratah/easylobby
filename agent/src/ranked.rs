@@ -193,6 +193,26 @@ mod tests {
     }
 
     #[test]
+    fn ranks_da_gravacao_real() {
+        let body = crate::match_history::tests::gravacao_perfil(RANKED_STATS_PATH);
+        let stats = from_json(&body).unwrap();
+        assert_eq!(
+            stats.solo_duo,
+            RankedEntry {
+                tier: Some("DIAMOND".into()),
+                division: Some("I".into()),
+                league_points: 70,
+                wins: 144,
+                losses: 135,
+                provisional: false,
+            }
+        );
+        assert_eq!(stats.flex.tier.as_deref(), Some("EMERALD"));
+        assert_eq!(stats.flex.division.as_deref(), Some("II"));
+        assert_eq!(stats.flex.league_points, 97);
+    }
+
+    #[test]
     fn none_e_sem_classificacao() {
         let body = json!({"queues": [
             {"queueType": "RANKED_SOLO_5x5", "tier": "NONE", "division": "NA", "wins": 3}

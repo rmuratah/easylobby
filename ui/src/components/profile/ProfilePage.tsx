@@ -8,7 +8,7 @@ import type { MatchPlayer } from '../../bindings/MatchPlayer';
 import { assetUrl } from '../../agent/assets';
 import { useCommand } from '../../agent/useCommand';
 import {
-  formatDuration, kda, matchesFilter, matchFilters, matchStats, queueLabel, rankLabel, tierName, timeAgo, winRate,
+  formatDuration, kda, matchesFilter, matchFilters, matchStats, queueLabel, rankLabel, tierEmblemId, tierName, timeAgo, winRate,
   type MatchFilter,
 } from '../../agent/profile';
 import { Avatar, Button, EmptyState, Segmented, Spinner } from '../base';
@@ -150,11 +150,7 @@ function RankCard({ title, entry }: { title: string; entry: RankedEntry | null }
   const rate = entry ? winRate(entry.wins, entry.losses) : null;
   return (
     <article aria-label={title} className="flex items-center gap-4 rounded-panel surface p-5 shadow-soft">
-      <span aria-hidden="true"
-        className={cx('flex size-16 shrink-0 items-center justify-center rounded-full border-2 text-caption font-bold uppercase',
-          entry?.tier ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line bg-raised text-muted')}>
-        {entry?.tier ? tierName(entry.tier).slice(0, 3) : '—'}
-      </span>
+      <TierEmblem tier={entry?.tier ?? null} />
       <div className="min-w-0">
         <h3 className="text-caption font-semibold text-muted">{title}</h3>
         {!entry ? <p className="mt-1 text-body text-muted">Carregando…</p> : <>
@@ -167,6 +163,24 @@ function RankCard({ title, entry }: { title: string; entry: RankedEntry | null }
         </>}
       </div>
     </article>
+  );
+}
+
+/** Emblema do elo; sem classificação, ou se a imagem não carregar, um círculo com a sigla do tier. */
+function TierEmblem({ tier }: { tier: string | null }) {
+  const [failed, setFailed] = useState<string | null>(null);
+  const id = tier ? tierEmblemId(tier) : null;
+  const src = id ? assetUrl('rankedEmblem', id) : null;
+  if (tier && src && failed !== src) {
+    return <img src={src} alt="" width={64} height={64} onError={() => setFailed(src)}
+      className="size-16 shrink-0 object-contain" />;
+  }
+  return (
+    <span aria-hidden="true"
+      className={cx('flex size-16 shrink-0 items-center justify-center rounded-full border-2 text-caption font-bold uppercase',
+        tier ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line bg-raised text-muted')}>
+      {tier ? tierName(tier).slice(0, 3) : '—'}
+    </span>
   );
 }
 

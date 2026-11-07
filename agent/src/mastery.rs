@@ -98,4 +98,14 @@ mod tests {
         assert_eq!(top.len(), TOP_MASTERIES);
         assert_eq!(top[0].champion_id, 103);
     }
+
+    #[test]
+    fn maestria_da_gravacao_real() {
+        let body = crate::match_history::tests::gravacao_perfil(CHAMPION_MASTERY_PATH);
+        let top = top_from_json(&body).unwrap();
+        let ids: Vec<u32> = top.iter().map(|m| m.champion_id).collect();
+        assert_eq!(ids, [121, 64, 104]);
+        assert_eq!(top[0].level, 122);
+        assert_eq!(top[0].points, 1_312_362);
+    }
 }

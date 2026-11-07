@@ -12,11 +12,13 @@
 //! GET http://127.0.0.1:47800/assets/perk/8005           -> PNG do Pressione o Ataque
 //! GET http://127.0.0.1:47800/assets/perkStyle/8000      -> PNG da árvore Precisão
 //! GET http://127.0.0.1:47800/assets/item/3071           -> PNG da Cutelo Negro
+//! GET http://127.0.0.1:47800/assets/rankedEmblem/4      -> PNG do emblema do Ouro
 //! ```
 //!
 //! O `id` é o mesmo que a LCU manda (`championId`, `profileIconId`,
 //! `spell1Id`, `perkIds`...). Os tipos de imagem estão em [`AssetKind`], que
-//! vira o tipo TypeScript `AssetKind`.
+//! vira o tipo TypeScript `AssetKind`. Os emblemas de elo não têm `id` na
+//! LCU: o `id` é a posição do tier em [`RANKED_TIERS`], contando de 1.
 //!
 //! Como funciona:
 //!
@@ -61,6 +63,25 @@ pub const DEFAULT_CDRAGON_URL: &str = "https://raw.communitydragon.org";
 /// Pasta do CommunityDragon com os dados que o client usa.
 const GAME_DATA: &str = "plugins/rcp-be-lol-game-data/global/default";
 
+/// Pasta do CommunityDragon com as imagens fixas do client, como os emblemas
+/// de elo.
+const STATIC_ASSETS: &str = "plugins/rcp-fe-lol-static-assets/global/default";
+
+/// Tiers na ordem do `id` de [`AssetKind::RankedEmblem`]: Ferro é 1 e
+/// Desafiante é 10.
+pub const RANKED_TIERS: [&str; 10] = [
+    "iron",
+    "bronze",
+    "silver",
+    "gold",
+    "platinum",
+    "emerald",
+    "diamond",
+    "master",
+    "grandmaster",
+    "challenger",
+];
+
 /// Prefixo dos caminhos de imagem nos índices do CommunityDragon.
 const GAME_DATA_PREFIX: &str = "/lol-game-data/assets/";
 
@@ -93,16 +114,19 @@ pub enum AssetKind {
     PerkStyle,
     /// Item, pelo id de `items` do histórico de partidas (#172).
     Item,
+    /// Emblema de elo, pela posição do tier em [`RANKED_TIERS`] (1 a 10).
+    RankedEmblem,
 }
 
 impl AssetKind {
-    pub const ALL: [AssetKind; 6] = [
+    pub const ALL: [AssetKind; 7] = [
         AssetKind::Champion,
         AssetKind::ProfileIcon,
         AssetKind::SummonerSpell,
         AssetKind::Perk,
         AssetKind::PerkStyle,
         AssetKind::Item,
+        AssetKind::RankedEmblem,
     ];
 
     /// Nome no caminho da URL e da pasta do cache.
@@ -114,6 +138,7 @@ impl AssetKind {
             AssetKind::Perk => "perk",
             AssetKind::PerkStyle => "perkStyle",
             AssetKind::Item => "item",
+            AssetKind::RankedEmblem => "rankedEmblem",
         }
     }
 
@@ -121,7 +146,8 @@ impl AssetKind {
         Self::ALL.into_iter().find(|kind| kind.as_str() == name)
     }
 
-    /// Índice no CommunityDragon, em `<GAME_DATA>/v1/`.
+    /// Índice no CommunityDragon, em `<GAME_DATA>/v1/`. Os emblemas de elo
+    /// não usam índice (veja [`ranked_emblem_path`]).
     fn index_file(self) -> &'static str {
         match self {
             AssetKind::Champion => "champion-summary.json",
@@ -130,6 +156,7 @@ impl AssetKind {
             AssetKind::Perk => "perks.json",
             AssetKind::PerkStyle => "perkstyles.json",
             AssetKind::Item => "items.json",
+            AssetKind::RankedEmblem => "",
         }
     }
 
@@ -256,8 +283,18 @@ impl AssetCache {
     pub async fn get(&self, kind: AssetKind, id: i64) -> Result<Asset, AssetError> {
         let version = self.version().await?;
         let dir = self.inner.config.cache_dir.join(&version);
-        let index = self.index(&version, kind).await?;
-        let relative = index.get(&id).ok_or(AssetError::NotFound)?;
+        let (plugin, relative) = match kind {
+            AssetKind::RankedEmblem => (
+                STATIC_ASSETS,
+                ranked_emblem_path(id).ok_or(AssetError::NotFound)?,
+            ),
+            _ => {
+                let index = self.index(&version, kind).await?;
+                let relative = index.get(&id).ok_or(AssetError::NotFound)?.clone();
+                (GAME_DATA, relative)
+            }
+        };
+        let relative = relative.as_str();
         let ext = extension(relative);
         let file = dir.join(kind.as_str()).join(format!("{id}.{ext}"));
         let content_type = content_type(ext);
@@ -269,7 +306,7 @@ impl AssetCache {
             });
         }
         let bytes = self
-            .download_game_data(&version, relative, MAX_IMAGE_BYTES)
+            .download_plugin_file(&version, plugin, relative, MAX_IMAGE_BYTES)
             .await?;
         write_atomic(&file, &bytes).await?;
         Ok(Asset {
@@ -367,24 +404,25 @@ impl AssetCache {
 
     async fn download_index(&self, version: &str, kind: AssetKind) -> Result<Vec<u8>, AssetError> {
         let relative = format!("v1/{}", kind.index_file());
-        self.download_game_data(version, &relative, MAX_INDEX_BYTES)
+        self.download_plugin_file(version, GAME_DATA, &relative, MAX_INDEX_BYTES)
             .await
     }
 
-    /// Um arquivo de `<GAME_DATA>/` na pasta da versão. No dia do patch o
-    /// CommunityDragon às vezes ainda não tem a pasta da versão nova: aí vale
-    /// a `latest`.
-    async fn download_game_data(
+    /// Um arquivo de `<plugin>/` ([`GAME_DATA`] ou [`STATIC_ASSETS`]) na
+    /// pasta da versão. No dia do patch o CommunityDragon às vezes ainda não
+    /// tem a pasta da versão nova: aí vale a `latest`.
+    async fn download_plugin_file(
         &self,
         version: &str,
+        plugin: &str,
         relative: &str,
         max_bytes: usize,
     ) -> Result<Vec<u8>, AssetError> {
         let base = &self.inner.config.cdragon_url;
-        let url = format!("{base}/{version}/{GAME_DATA}/{relative}");
+        let url = format!("{base}/{version}/{plugin}/{relative}");
         match self.download(&url, max_bytes).await {
             Err(AssetError::NotFound) => {
-                let latest = format!("{base}/latest/{GAME_DATA}/{relative}");
+                let latest = format!("{base}/latest/{plugin}/{relative}");
                 self.download(&latest, max_bytes).await
             }
             other => other,
@@ -491,6 +529,13 @@ fn game_data_path(path: &str) -> Option<String> {
                     .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
         });
     safe.then_some(relative)
+}
+
+/// Caminho do emblema do tier `id` (1 a 10) em [`STATIC_ASSETS`].
+fn ranked_emblem_path(id: i64) -> Option<String> {
+    let position = usize::try_from(id).ok()?.checked_sub(1)?;
+    let tier = RANKED_TIERS.get(position)?;
+    Some(format!("images/ranked-emblem/emblem-{tier}.png"))
 }
 
 fn extension(relative: &str) -> &'static str {
@@ -649,6 +694,25 @@ mod tests {
 
         assert!(parse_index(AssetKind::Perk, b"{}").is_err());
         assert!(parse_index(AssetKind::Perk, b"nao e json").is_err());
+    }
+
+    #[test]
+    fn caminho_do_emblema_de_elo() {
+        assert_eq!(
+            ranked_emblem_path(1).as_deref(),
+            Some("images/ranked-emblem/emblem-iron.png")
+        );
+        assert_eq!(
+            ranked_emblem_path(6).as_deref(),
+            Some("images/ranked-emblem/emblem-emerald.png")
+        );
+        assert_eq!(
+            ranked_emblem_path(10).as_deref(),
+            Some("images/ranked-emblem/emblem-challenger.png")
+        );
+        assert_eq!(ranked_emblem_path(0), None);
+        assert_eq!(ranked_emblem_path(11), None);
+        assert_eq!(ranked_emblem_path(-1), None);
     }
 
     #[test]

@@ -9,4 +9,5 @@ export type AssetKind =
   | "summonerSpell"
   | "perk"
   | "perkStyle"
-  | "item";
+  | "item"
+  | "rankedEmblem";
