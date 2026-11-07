@@ -114,7 +114,9 @@ impl std::fmt::Display for InvalidPositions {
             InvalidPositions::SecondWithFill => {
                 "com o primário em preenchimento, o secundário fica `unselected`"
             }
-            InvalidPositions::SecondWithoutFirst => "escolha a posição primária antes da secundária",
+            InvalidPositions::SecondWithoutFirst => {
+                "escolha a posição primária antes da secundária"
+            }
         })
     }
 }
