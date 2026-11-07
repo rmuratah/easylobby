@@ -52,7 +52,8 @@ describe('FriendsList', () => {
     expect(within(online[0]).getByText('Ana')).toHaveAttribute('title', 'Ana#BR1');
     expect(online[0]).toHaveTextContent('Em partida · Ranqueada Solo/Duo · 12 min');
     expect(within(online[0]).getByRole('img', { name: 'Online' })).toBeInTheDocument();
-    expect(within(online[0]).getByRole('img', { name: 'Campeão da partida' })).toHaveAttribute('src', 'http://127.0.0.1:47800/assets/champion/266');
+    expect(within(online[0]).queryByRole('img', { name: 'Campeão da partida' })).toBeNull();
+    expect(online[0].querySelector('img[src*="/assets/champion/"]')).toBeNull();
     expect(online[1]).toHaveTextContent('Ausente');
     expect(online[1]).toHaveTextContent('volto já');
     const offline = within(screen.getByRole('list', { name: 'Amigos offline', hidden: true })).getAllByRole('listitem', { hidden: true });

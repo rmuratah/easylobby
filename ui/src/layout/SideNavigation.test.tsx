@@ -1,7 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { createRef } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NAVIGATION_STORAGE_KEY } from './navigation';
 import { SideNavigation } from './SideNavigation';
+
+const renderNavigation = () => render(<SideNavigation active="home" flowLabel="Lobby" flowButtonRef={createRef()}
+  theme="claro" onNavigate={vi.fn()} onThemeChange={vi.fn()} />);
+
+beforeEach(() => localStorage.clear());
 
 describe('SideNavigation', () => {
   it('mantém a ordem, o destino ativo e a reserva de configurações', () => {
@@ -12,7 +18,7 @@ describe('SideNavigation', () => {
     expect(screen.getByRole('heading', { name: 'easylobby' })).toHaveAttribute('data-tauri-drag-region');
     const buttons = Array.from(navigation.querySelectorAll('button'));
     expect(buttons.map(button => button.getAttribute('aria-label') ?? button.textContent)).toEqual([
-      'Lobby', 'Início', 'Tema claro', 'Tema escuro', 'Configurações — em breve',
+      'Lobby', 'Início', 'Recolher navegação', 'Tema claro', 'Tema escuro', 'Configurações — em breve',
     ]);
     expect(screen.getByRole('button', { name: 'Início' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Configurações — em breve' })).toBeDisabled();
@@ -30,5 +36,27 @@ describe('SideNavigation', () => {
     expect(screen.getByRole('button', { name: 'Tema escuro' })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Tema claro' }));
     expect(onThemeChange).toHaveBeenCalledWith('claro');
+  });
+
+  it('recolhe para só os ícones, expande de novo e lembra a escolha', () => {
+    const { unmount } = renderNavigation();
+    const navigation = screen.getByRole('complementary', { name: 'Navegação do aplicativo' });
+    expect(screen.getByText('Início')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher navegação' }));
+    expect(navigation).toHaveClass('is-collapsed');
+    expect(screen.queryByText('Início')).toBeNull();
+    expect(screen.queryByText('Lobby')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Início' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'Lobby' })).toHaveAttribute('title', 'Lobby');
+    expect(screen.getByRole('heading', { name: 'easylobby' })).toBeInTheDocument();
+    expect(localStorage.getItem(NAVIGATION_STORAGE_KEY)).toBe('recolhida');
+
+    unmount();
+    renderNavigation();
+    const expand = screen.getByRole('button', { name: 'Expandir navegação' });
+    expect(expand).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(expand);
+    expect(screen.getByText('Início')).toBeInTheDocument();
+    expect(localStorage.getItem(NAVIGATION_STORAGE_KEY)).toBe('expandida');
   });
 });
