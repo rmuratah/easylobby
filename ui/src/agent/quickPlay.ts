@@ -76,9 +76,17 @@ export function missingScarcePosition(pair: SlotPair, scarce: Position[]): boole
     && !pair.some(slot => scarce.includes(slot.position));
 }
 
-/** Campeões que dá para pôr num slot: os do catálogo que o jogador tem ou pode jogar. Sem a lista do agente, todos. */
+/**
+ * Versão de um campeão só de um modo, como a `Jade_Aatrox` (id 60266) do modo Jade: o catálogo traz as duas com o
+ * mesmo nome, e no Jogo Dinâmico só vale a normal.
+ */
+export function isModeVariant(champion: Champion): boolean {
+  return champion.alias.includes('_');
+}
+
+/** Campeões que dá para pôr num slot: os do catálogo que o jogador tem ou pode jogar, sem as versões de modo. Sem a lista do agente, todos. */
 export function slotChampions(catalog: ChampionCatalog | null, playable: number[] | null): Champion[] {
-  const champions = catalog?.champions ?? [];
+  const champions = (catalog?.champions ?? []).filter(champion => !isModeVariant(champion));
   if (!playable) return champions;
   const owned = new Set(playable);
   return champions.filter(champion => owned.has(champion.id));
