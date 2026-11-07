@@ -520,6 +520,7 @@ describe('cargos pelo /ws', () => {
   it.each([
     ['ARAM', { queue: 'aram' as const, queueId: 450 }],
     ['ARAM: Desordem', { queue: null, queueId: 2400 }],
+    ['Arena 3x6', { queue: null, queueId: 1750 }],
   ])('não mostra o aviso de posições no lobby do %s', (_, queue) => {
     render(<App />);
     hello({ lobby: { ...testLobby, ...queue, showPositionSelector: false }, gameflowPhase: 'Lobby' });

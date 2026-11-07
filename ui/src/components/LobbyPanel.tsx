@@ -3,6 +3,7 @@ import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import { createLobbyCommand, isQueueKey, lobbyQueueName, queueGroups, queueKey, type QueueKey } from '../agent/queueOptions';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
+import type { GameQueue } from '../bindings/GameQueue';
 import { playerName } from '../agent/friends';
 import { FRIEND_DRAG_TYPE, useLobbyInvite } from '../agent/lobbyInvite';
 import { InvitePicker } from './LobbyInvites';
@@ -49,6 +50,12 @@ type Outcome = 'skipped' | 'ok' | 'error' | 'stale';
 type Desired = { positions?: { first: Position; second: Position }; queue?: QueueKey };
 
 /** Posições prontas para salvar: só falta esperar quando há uma posição primária de verdade sem a secundária. */
+/** Fila da Arena (`CHERRY`): pela lista de filas do agente ou, antes dela chegar, pela Arena 3x6 (1750). */
+function isArenaQueue(queueId: number, queues: GameQueue[]): boolean {
+  const listed = queues.find(q => q.queueId === queueId);
+  return listed ? listed.gameMode === 'CHERRY' : queueId === 1750;
+}
+
 function positionsComplete(first: Position, second: Position) {
   return second !== 'unselected' || first === 'fill' || first === 'unselected';
 }
@@ -282,7 +289,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
 
   const queueLabel = lobbyQueueName(lobby, state.queues);
   const freeSlots = Math.max(0, lobby.maxLobbySize - lobby.members.length);
-  const hidePositions = !lobby.showPositionSelector && isAramQueue(lobby);
+  const hidePositions = !lobby.showPositionSelector && (isAramQueue(lobby) || isArenaQueue(lobby.queueId, state.queues));
   return (
     <section aria-label="Lobby" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
       className={cx('flex h-full min-h-0 w-full flex-col gap-4 rounded-panel text-ink transition-shadow',
@@ -370,7 +377,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
       {invites.error && picker === null && <p role="alert" className="text-body text-danger">{invites.error}</p>}
       {picker !== null && <InvitePicker invites={invites} groups={state.friendGroups} onClose={closePicker} />}
 
-      {/* No ARAM e na ARAM: Desordem não há posição, nem no client oficial: sem o aviso, a fila ocupa a largura toda. */}
+      {/* No ARAM, na ARAM: Desordem e na Arena não há posição, nem no client oficial: sem o aviso, a fila ocupa a largura toda. */}
       <div className={cx('grid items-stretch gap-4', !searching && !hidePositions && '@min-[44rem]:grid-cols-2')}>
         {lobby.showPositionSelector ? (
           <fieldset className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" disabled={!canSetPositions}>
