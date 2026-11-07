@@ -22,6 +22,7 @@ export const emptyState: AgentState = {
   runeCatalog: null,
   friends: [],
   friendGroups: [],
+  recentPlayers: [],
   receivedInvitations: [],
   conversations: [],
   ranked: null,

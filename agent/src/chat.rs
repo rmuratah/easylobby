@@ -334,7 +334,7 @@ pub async fn set_active(lcu: &LcuClient, id: Option<&str>) -> Result<(), LcuErro
 }
 
 /// Codifica um segmento de caminho: só letras, dígitos e `-._~` passam.
-fn encode(segment: &str) -> String {
+pub(crate) fn encode(segment: &str) -> String {
     let mut out = String::with_capacity(segment.len());
     for byte in segment.bytes() {
         if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {

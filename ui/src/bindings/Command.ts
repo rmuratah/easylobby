@@ -41,6 +41,8 @@ export type Command =
   | { "type": "acceptInvitation", invitationId: string, }
   | { "type": "declineInvitation", invitationId: string, }
   | { "type": "inviteToLobby", invitees: Array<Invitee>, }
+  | { "type": "inviteByRiotId", gameName: string, tagLine: string, }
+  | { "type": "loadRecentPlayers" }
   | { "type": "sendChatMessage", conversationId: string, body: string, }
   | { "type": "setActiveConversation", conversationId: string | null, }
   | { "type": "loadMoreMatches" }

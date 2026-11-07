@@ -38,6 +38,7 @@ import type { MatchSummary } from '../bindings/MatchSummary';
 import type { MatchDetails } from '../bindings/MatchDetails';
 import type { MatchPlayer } from '../bindings/MatchPlayer';
 import type { MatchResult } from '../bindings/MatchResult';
+import type { RecentPlayer } from '../bindings/RecentPlayer';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
 const errorCodes = {
@@ -45,6 +46,7 @@ const errorCodes = {
   lcu: true,
   launchFailed: true,
   invalidCommand: true,
+  notFound: true,
 } satisfies Record<ErrorCode, true>;
 
 function errorCode(v: unknown): v is ErrorCode {
@@ -164,6 +166,10 @@ function friend(v: unknown): v is Friend {
 function friendGroup(v: unknown): v is FriendGroup {
   return object(v) && uint(v.id) && typeof v.name === 'string' && Number.isInteger(v.priority) && typeof v.collapsed === 'boolean';
 }
+function recentPlayer(v: unknown): v is RecentPlayer {
+  return object(v) && uint(v.summonerId) && strings(v, ['puuid', 'gameName', 'tagLine', 'summonerName', 'playedAt']) &&
+    (v.championId === null || uint(v.championId));
+}
 // Perfil (#171, #172, #174, #175).
 function rankedEntry(v: unknown): v is RankedEntry {
   return object(v) && nullableString(v.tier) && nullableString(v.division) &&
@@ -211,7 +217,7 @@ function state(v: unknown): v is AgentState {
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
-    champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) &&
+    champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) &&
     ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory) &&
     matchDetails(v.matchDetails);
 }
@@ -244,6 +250,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'champSelectChampions': valid = champSelectChampions(v.champSelectChampions); break;
     case 'friends': valid = list(v.friends, friend); break;
     case 'friendGroups': valid = list(v.friendGroups, friendGroup); break;
+    case 'recentPlayers': valid = list(v.recentPlayers, recentPlayer); break;
     case 'ranked': valid = ranked(v.ranked); break;
     case 'championMasteries': valid = list(v.championMasteries, championMastery); break;
     case 'matchHistory': valid = matchHistory(v.matchHistory); break;

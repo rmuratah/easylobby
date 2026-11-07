@@ -76,6 +76,11 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
             hub.decline_invitation(&invitation_id).await
         }
         Command::InviteToLobby { invitees } => hub.invite_to_lobby(&invitees).await,
+        Command::InviteByRiotId {
+            game_name,
+            tag_line,
+        } => hub.invite_by_riot_id(&game_name, &tag_line).await,
+        Command::LoadRecentPlayers => hub.load_recent_players().await,
         Command::SendChatMessage {
             conversation_id,
             body,
