@@ -23,7 +23,9 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::sync::broadcast;
 
 use crate::champ_select::{ChampSelect, CHAMP_SELECT_SESSION_PATH};
-use crate::champions::{ChampSelectChampions, BANNABLE_CHAMPIONS_PATH, PICKABLE_CHAMPIONS_PATH};
+use crate::champions::{
+    ChampSelectChampions, BANNABLE_CHAMPIONS_PATH, PICKABLE_CHAMPIONS_PATH, SUBSET_CHAMPIONS_PATH,
+};
 use crate::chat::ChatUri;
 use crate::connection::{ConnectionEvent, LcuConnection};
 use crate::friends::{Friend, FriendGroup, FriendGroupUri};
@@ -357,7 +359,14 @@ impl Hub {
                 // de Perfil usa (#171, #172, #175).
                 self.refresh_profile().await;
             }
-            ConnectionEvent::Event(event) => self.apply_lcu_event(&event),
+            ConnectionEvent::Event(event) => {
+                self.apply_lcu_event(&event);
+                // As cartas do ARAM (#201) chegam pelo WAMP só bem depois de
+                // a seleção abrir; o REST já tem.
+                if event.uri == CHAMP_SELECT_SESSION_PATH {
+                    self.refresh_champion_offers().await;
+                }
+            }
             ConnectionEvent::Disconnected(reason) => {
                 {
                     let mut shared = self.lock();
@@ -468,7 +477,7 @@ impl Hub {
                     self.set_champ_select(Some(session));
                 }
             }
-            PICKABLE_CHAMPIONS_PATH | BANNABLE_CHAMPIONS_PATH => {
+            PICKABLE_CHAMPIONS_PATH | BANNABLE_CHAMPIONS_PATH | SUBSET_CHAMPIONS_PATH => {
                 self.apply_champ_select_champions_event(event)
             }
             RECEIVED_INVITATIONS_PATH if deleted => self.set_received_invitations(Vec::new()),

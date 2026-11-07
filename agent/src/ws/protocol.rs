@@ -639,7 +639,7 @@ mod tests {
                     "runeCatalog": null,
                     "summonerSpellCatalog": null,
                     "championCatalog": null,
-                    "champSelectChampions": {"pickable": null, "bannable": null},
+                    "champSelectChampions": {"pickable": null, "bannable": null, "subset": null},
                     "friends": [],
                     "friendGroups": [],
                     "ranked": null,

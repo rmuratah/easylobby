@@ -262,6 +262,55 @@ mod tests {
         );
     }
 
+    /// As sessões da gravação real de ARAM com cartas (16.22-aram).
+    fn recorded_sessions() -> Vec<ChampSelect> {
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/16.22-aram");
+        let set = crate::fixtures::FixtureSet::load(&dir).unwrap();
+        set.events
+            .iter()
+            .filter(|e| e.uri == CHAMP_SELECT_SESSION_PATH)
+            .map(|e| ChampSelect::from_json_at(&e.data, 0).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn le_a_gravacao_com_cartas() {
+        let sessions = recorded_sessions();
+        // Abre com o pick em andamento (a escolha da carta) e o banco vazio.
+        let open = &sessions[0];
+        assert!(open.bench_enabled);
+        assert!(open.bench_champions.is_empty());
+        assert_eq!(open.timer.phase, ChampSelectPhase::BanPick);
+        let pick = open.pending_action.as_ref().unwrap();
+        assert_eq!(
+            pick.action_type,
+            crate::champ_select::ChampSelectActionType::Pick
+        );
+        // Com 0 rerolls, mesmo com `allowRerolling`, o reroll não vale.
+        assert_eq!(check_reroll(Some(open)), Err(InvalidBenchAction::NoRerolls));
+        // Escolheu o Jayce (126): as outras cartas foram para o banco.
+        let chosen = &sessions[1];
+        assert_eq!(chosen.local_player().unwrap().champion_id, Some(126));
+        let bench: Vec<u32> = chosen
+            .bench_champions
+            .iter()
+            .map(|c| c.champion_id)
+            .collect();
+        assert_eq!(bench, [432, 77]);
+        assert!(chosen.pending_action.is_none());
+        assert_eq!(check_bench_swap(Some(chosen), 77), Ok(()));
+        // Trocou pelo Nunu (77) do banco.
+        let swapped = &sessions[2];
+        assert_eq!(swapped.local_player().unwrap().champion_id, Some(77));
+        let bench: Vec<u32> = swapped
+            .bench_champions
+            .iter()
+            .map(|c| c.champion_id)
+            .collect();
+        assert_eq!(bench, [432, 126]);
+    }
+
     #[test]
     fn caminhos() {
         assert_eq!(

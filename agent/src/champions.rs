@@ -30,6 +30,12 @@ pub const PICKABLE_CHAMPIONS_PATH: &str = "/lol-champ-select/v1/pickable-champio
 /// eventos WAMP).
 pub const BANNABLE_CHAMPIONS_PATH: &str = "/lol-champ-select/v1/bannable-champion-ids";
 
+/// As cartas de campeão do ARAM (#201): as 2 ou 3 opções que a LCU sorteia
+/// para o jogador escolher no início da seleção (endpoint e URI dos eventos
+/// WAMP). Fora do ARAM, e fora da seleção, 404.
+pub const SUBSET_CHAMPIONS_PATH: &str =
+    "/lol-lobby-team-builder/champ-select/v1/subset-champion-list";
+
 /// Os campeões do jogo, para a grade da seleção. Lidos uma vez por conexão.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -120,6 +126,10 @@ pub struct ChampSelectChampions {
     /// Ids que o jogador pode banir, ou `null` quando o agente ainda não
     /// sabe.
     pub bannable: Option<Vec<u32>>,
+    /// As cartas de campeão do ARAM (#201): os campeões que a LCU sorteou
+    /// para o jogador escolher um, na ordem da LCU. `null` quando o agente
+    /// ainda não sabe; vazia fora do ARAM.
+    pub subset: Option<Vec<u32>>,
 }
 
 /// Lê uma lista de ids (`[1, 10, 102...]`). `None` se não for uma lista;
@@ -140,14 +150,43 @@ pub fn ids_from_json(value: &Value) -> Option<Vec<u32>> {
 /// Lê os campeões que o jogador pode escolher e banir. Fora da seleção a LCU
 /// responde 404, e a lista fica `None`.
 pub async fn current(lcu: &LcuClient) -> ChampSelectChampions {
-    let (pickable, bannable) = tokio::join!(
+    let (pickable, bannable, subset) = tokio::join!(
         lcu.get::<Value>(PICKABLE_CHAMPIONS_PATH),
         lcu.get::<Value>(BANNABLE_CHAMPIONS_PATH),
+        champion_offers(lcu),
     );
     ChampSelectChampions {
         pickable: pickable.ok().as_ref().and_then(ids_from_json),
         bannable: bannable.ok().as_ref().and_then(ids_from_json),
+        subset,
     }
+}
+
+/// Lê as cartas de campeão do ARAM (#201). Sem cartas (404, fora do ARAM),
+/// lista vazia; `None` só com outro erro da LCU.
+pub async fn champion_offers(lcu: &LcuClient) -> Option<Vec<u32>> {
+    match lcu.get::<Value>(SUBSET_CHAMPIONS_PATH).await {
+        Ok(body) => offers_from_json(&body),
+        Err(error) if error.status() == Some(404) => Some(Vec::new()),
+        Err(_) => None,
+    }
+}
+
+/// Como [`ids_from_json`], mas mantém a ordem da LCU (a das cartas).
+pub fn offers_from_json(value: &Value) -> Option<Vec<u32>> {
+    let mut ids: Vec<u32> = Vec::new();
+    for id in value
+        .as_array()?
+        .iter()
+        .filter_map(Value::as_u64)
+        .filter_map(|id| u32::try_from(id).ok())
+        .filter(|&id| id > 0)
+    {
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    Some(ids)
 }
 
 #[cfg(test)]
@@ -190,10 +229,17 @@ mod tests {
         let champions = ChampSelectChampions {
             pickable: Some(vec![1, 2]),
             bannable: None,
+            subset: Some(vec![77, 432, 126]),
         };
         assert_eq!(
             serde_json::to_value(&champions).unwrap(),
-            json!({"pickable": [1, 2], "bannable": null})
+            json!({"pickable": [1, 2], "bannable": null, "subset": [77, 432, 126]})
         );
+        // As cartas ficam na ordem da LCU.
+        assert_eq!(
+            offers_from_json(&json!([77, 432, 0, 126, 77])),
+            Some(vec![77, 432, 126])
+        );
+        assert_eq!(offers_from_json(&json!({})), None);
     }
 }
