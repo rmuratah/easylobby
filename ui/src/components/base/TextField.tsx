@@ -32,7 +32,7 @@ export function TextField({ label, hideLabel = false, error, icon, id, className
           id={inputId}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
-          className="min-w-0 flex-1 bg-transparent text-body outline-none placeholder:text-muted"
+          className="min-w-0 flex-1 input-bare bg-transparent text-body outline-none placeholder:text-muted"
           {...rest}
         />
       </div>
