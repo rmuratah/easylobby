@@ -13,6 +13,7 @@ mod chat;
 mod friends;
 mod invitations;
 mod lobby;
+mod profile;
 mod ready_check;
 mod runes;
 
@@ -30,6 +31,7 @@ use crate::invitations::{ReceivedInvitation, RECEIVED_INVITATIONS_PATH};
 use crate::lobby::{Lobby, LOBBY_PATH};
 use crate::matchmaking::{self, Matchmaking, SEARCH_PATH};
 use crate::queues::GAME_QUEUES_PATH;
+use crate::ranked::RANKED_STATS_PATH;
 use crate::ready_check::{ReadyCheck, READY_CHECK_PATH};
 use crate::rest::{LcuClient, LcuError};
 use crate::runes::{CURRENT_PAGE_PATH, INVENTORY_PATH, PAGES_PATH};
@@ -238,7 +240,7 @@ impl Hub {
     ///
     /// Num `Connected`, relê pelo REST o invocador, a fase, as filas
     /// disponíveis, o lobby, a fila, o ready check, a seleção de campeões, as
-    /// páginas e as árvores de runas, porque os eventos de antes da conexão
+    /// páginas e as árvores de runas e o perfil, porque os eventos de antes da conexão
     /// se perderam. Num `Disconnected`, limpa o que dependia do LoL.
     pub async fn apply(&self, event: ConnectionEvent) {
         match event {
@@ -339,6 +341,9 @@ impl Hub {
                         }
                     }
                 }
+                // Por último: o histórico é a leitura mais lenta e só a tela
+                // de Perfil usa (#171, #172, #175).
+                self.refresh_profile().await;
             }
             ConnectionEvent::Event(event) => self.apply_lcu_event(&event),
             ConnectionEvent::Disconnected(reason) => {
@@ -364,6 +369,10 @@ impl Hub {
                 self.set_champ_select_champions(ChampSelectChampions::default());
                 self.set_friends(Vec::new());
                 self.set_friend_groups(Vec::new());
+                self.set_ranked(None);
+                self.set_champion_masteries(Vec::new());
+                self.set_match_history(None);
+                self.set_match_details(None);
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
                 });
@@ -393,7 +402,19 @@ impl Hub {
             GAMEFLOW_PHASE_PATH if deleted => self.set_gameflow_phase(None),
             GAMEFLOW_PHASE_PATH => {
                 if let Some(phase) = GameflowPhase::from_json(&event.data) {
+                    let before = self.lock().state.gameflow_phase;
                     self.set_gameflow_phase(Some(phase));
+                    // A partida terminou: histórico, ranks e maestria mudaram.
+                    if profile::ends_a_game(before, Some(phase)) {
+                        self.spawn_refresh_profile();
+                    }
+                }
+            }
+            // Os ranks mudam no fim de uma ranqueada (#171).
+            RANKED_STATS_PATH if deleted => {}
+            RANKED_STATS_PATH => {
+                if let Some(ranked) = crate::ranked::from_json(&event.data) {
+                    self.set_ranked(Some(ranked));
                 }
             }
             READY_CHECK_PATH if deleted => self.set_ready_check(None),

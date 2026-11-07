@@ -205,11 +205,13 @@ fn write(path: &Path, content: &str) -> Result<(), FixtureError> {
 }
 
 /// Chaves com identificadores da conta, trocados por texto falso.
-const ID_STRING_KEYS: [&str; 8] = [
+const ID_STRING_KEYS: [&str; 9] = [
     "puuid",
     "obfuscatedPuuid",
     "pid",
     "accountId",
+    // No histórico de partidas (#172), ao lado do `accountId`.
+    "currentAccountId",
     "summonerId",
     "obfuscatedSummonerId",
     "playerId",
@@ -459,7 +461,7 @@ fn key_kind(key: &str) -> &'static str {
     match key {
         "puuid" | "obfuscatedPuuid" => "puuid",
         "pid" => "pid",
-        "accountId" => "account",
+        "accountId" | "currentAccountId" => "account",
         "summonerId" | "obfuscatedSummonerId" => "summoner",
         _ => "player",
     }
@@ -552,6 +554,33 @@ mod tests {
         assert_eq!(out["friend"]["groupName"], "fake-group-0001");
         assert_eq!(out["friend"]["displayGroupName"], "**Default");
         assert_eq!(out["group"]["name"], "fake-group-0001");
+    }
+
+    #[test]
+    fn historico_de_partidas_sem_conta_real() {
+        let mut s = Sanitizer::new();
+        let out = s.sanitize(&json!({
+            "gameId": 3300811915_u64,
+            "participantIdentities": [{"participantId": 1, "player": {
+                "accountId": 2876543210_u64, "currentAccountId": 2876543210_u64,
+                "puuid": "aaaa-real", "gameName": "Jogador", "tagLine": "BR1",
+                "summonerName": "Jogador", "summonerId": 98765432_u64,
+                "matchHistoryUri": "/v1/stats/player_history/BR1/2876543210"
+            }}]
+        }));
+        let player = &out["participantIdentities"][0]["player"];
+        assert_eq!(out["gameId"], 1001);
+        assert_eq!(player["accountId"], player["currentAccountId"]);
+        assert_ne!(player["currentAccountId"], 2876543210_u64);
+        assert_eq!(player["tagLine"], "fake-tag-0001");
+        assert!(!player["matchHistoryUri"]
+            .as_str()
+            .unwrap()
+            .contains("2876543210"));
+        assert_eq!(
+            s.sanitize_str("/lol-match-history/v1/games/3300811915"),
+            "/lol-match-history/v1/games/1001"
+        );
     }
 
     #[test]

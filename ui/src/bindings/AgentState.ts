@@ -3,6 +3,7 @@ import type { ChampSelect } from "./ChampSelect";
 import type { ChampSelectChampions } from "./ChampSelectChampions";
 import type { ChampSelectChat } from "./ChampSelectChat";
 import type { ChampionCatalog } from "./ChampionCatalog";
+import type { ChampionMastery } from "./ChampionMastery";
 import type { Conversation } from "./Conversation";
 import type { Friend } from "./Friend";
 import type { FriendGroup } from "./FriendGroup";
@@ -10,7 +11,10 @@ import type { GameQueue } from "./GameQueue";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
 import type { Lobby } from "./Lobby";
+import type { MatchDetails } from "./MatchDetails";
+import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
+import type { RankedStats } from "./RankedStats";
 import type { ReadyCheck } from "./ReadyCheck";
 import type { ReceivedInvitation } from "./ReceivedInvitation";
 import type { RuneCatalog } from "./RuneCatalog";
@@ -84,4 +88,20 @@ export type AgentState = {
    * ordem definida; a UI ordena (pela última mensagem, por exemplo).
    */
   conversations: Array<Conversation>,
+  /**
+   * Ranks do jogador logado (#171), ou `null`.
+   */
+  ranked: RankedStats | null,
+  /**
+   * Até 3 campeões com mais maestria (#175).
+   */
+  championMasteries: Array<ChampionMastery>,
+  /**
+   * Histórico de partidas já carregado (#172), ou `null`.
+   */
+  matchHistory: MatchHistory | null,
+  /**
+   * Último placar pedido com `openMatchDetails` (#174), ou `null`.
+   */
+  matchDetails: MatchDetails | null,
 };
