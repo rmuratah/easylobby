@@ -2,19 +2,8 @@ import type { Friend } from '../bindings/Friend';
 import type { InvitationState } from '../bindings/InvitationState';
 import type { Lobby } from '../bindings/Lobby';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
-import { friendDisplayName, isOnline } from './friends';
+import { isOnline } from './friends';
 import { queueNames } from './queues';
-
-export const invitationStateNames = {
-  Requested: 'Enviando…',
-  Pending: 'Aguardando resposta',
-  Accepted: 'Aceitou',
-  Declined: 'Recusou',
-  Kicked: 'Removido do grupo',
-  OnHold: 'Em espera',
-  Error: 'Deu erro',
-  Unknown: 'Situação desconhecida',
-} satisfies Record<InvitationState, string>;
 
 /** Convites que ainda ocupam uma vaga no grupo: o amigo pode aceitar a qualquer momento. */
 const openStates = { Requested: true, Pending: true, OnHold: true } as Partial<Record<InvitationState, true>>;
@@ -28,12 +17,6 @@ export function inviterName(invitation: ReceivedInvitation): string {
 /** Nome da fila do convite, ou "outra fila" quando o app não conhece. */
 export function invitationQueueName(invitation: ReceivedInvitation): string {
   return invitation.queue ? queueNames[invitation.queue] : `outra fila (ID ${invitation.queueId})`;
-}
-
-/** Nome de quem o grupo convidou, cruzando o `puuid` com a lista de amigos. */
-export function inviteeName(puuid: string, friends: Friend[]): string {
-  const friend = friends.find(f => f.puuid === puuid);
-  return friend ? friendDisplayName(friend) : 'Jogador fora da lista de amigos';
 }
 
 /** Vagas livres no grupo, descontando quem já está e quem tem convite em aberto. */
