@@ -7,8 +7,8 @@ const conversation = (overrides: Partial<Conversation>): Conversation => ({ ...t
 const message = (timestamp: string) => ({ id: timestamp, body: 'oi', fromMe: false, timestamp });
 
 describe('chat', () => {
-  it('usa o Riot ID da conversa ou, sem ele, o nome da lista de amigos', () => {
-    expect(conversationName(conversation({}), [])).toBe('Amigo#BR1');
+  it('usa o nick da conversa (sem a tag) ou, sem ele, o nome da lista de amigos', () => {
+    expect(conversationName(conversation({}), [])).toBe('Amigo');
     expect(conversationName(conversation({ tagLine: '' }), [])).toBe('Amigo');
     const antigo = { ...testFriend, gameName: '', tagLine: '', name: 'Antigo' };
     expect(conversationName(conversation({ gameName: '', tagLine: '' }), [antigo])).toBe('Antigo');

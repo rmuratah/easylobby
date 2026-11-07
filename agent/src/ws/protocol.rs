@@ -19,6 +19,7 @@
 //! {"type":"runeCatalog","runeCatalog":{"styles":[...],"perks":[...]}}
 //! {"type":"summonerSpellCatalog","summonerSpellCatalog":{"spells":[{"id":4,"name":"Flash",...}]}}
 //! {"type":"friends","friends":[{"id":"...","gameName":"...","availability":"online",...}]}
+//! {"type":"friendGroups","friendGroups":[{"id":0,"name":"**Default","priority":0,"collapsed":false}]}
 //! {"type":"response","id":7,"result":{"status":"ok"}}
 //! ```
 //!
@@ -50,7 +51,7 @@ use crate::champ_select::ChampSelect;
 use crate::champ_select_chat::ChampSelectChat;
 use crate::champions::{ChampSelectChampions, ChampionCatalog};
 use crate::chat::Conversation;
-use crate::friends::Friend;
+use crate::friends::{Friend, FriendGroup};
 use crate::gameflow::GameflowPhase;
 use crate::invitations::{Invitee, ReceivedInvitation};
 use crate::lobby::{Lobby, Position, Queue};
@@ -160,6 +161,10 @@ pub enum ServerMessage {
     /// já ordenada (disponíveis primeiro, depois por nome). Vazia com o LoL
     /// fechado.
     Friends { friends: Vec<Friend> },
+    /// As pastas de amigos do client oficial mudaram: criada, renomeada,
+    /// apagada ou reordenada. Sempre a lista inteira, na ordem do client.
+    /// Vazia com o LoL fechado ou se a LCU não mandou as pastas.
+    FriendGroups { friend_groups: Vec<FriendGroup> },
     /// Os convites de lobby recebidos mudaram (#32): chegou um, ou um foi
     /// aceito, recusado ou cancelado. Sempre a lista inteira dos pendentes;
     /// vazia quando não há nenhum e com o LoL fechado.
@@ -224,6 +229,9 @@ pub struct AgentState {
     // Social: amigos, convites e conversas
     /// Amigos com a presença de cada um (#30), na ordem da tela.
     pub friends: Vec<Friend>,
+    /// Pastas de amigos do client oficial, na ordem dele. Cada amigo diz a
+    /// sua em [`Friend::group_id`].
+    pub friend_groups: Vec<FriendGroup>,
     /// Convites de lobby recebidos e ainda pendentes (#32).
     pub received_invitations: Vec<ReceivedInvitation>,
     /// Conversas 1:1 abertas (#31), cada uma com o histórico da sessão. Sem
@@ -565,6 +573,7 @@ mod tests {
                     "championCatalog": null,
                     "champSelectChampions": {"pickable": null, "bannable": null},
                     "friends": [],
+                    "friendGroups": [],
                 },
             })
         );

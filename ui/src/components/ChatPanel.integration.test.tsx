@@ -27,8 +27,8 @@ afterEach(() => { vi.unstubAllGlobals(); });
 it('abre o chat pela lista de amigos, manda a mensagem e mostra a conversa do agente', async () => {
   render(<App />);
   act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: makeState({ friends: [testFriend] }) }));
-  fireEvent.click(screen.getByRole('button', { name: 'Conversar com Amigo#BR1' }));
-  const view = within(screen.getByRole('region', { name: 'Conversa com Amigo#BR1' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Conversar com Amigo' }));
+  const view = within(screen.getByRole('region', { name: 'Conversa com Amigo' }));
   fireEvent.change(view.getByRole('textbox'), { target: { value: 'bora?' } });
   fireEvent.click(view.getByRole('button', { name: 'Enviar' }));
   const request = sent().at(-1)!;

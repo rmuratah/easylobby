@@ -5,6 +5,7 @@ import type { ChampSelectChat } from "./ChampSelectChat";
 import type { ChampionCatalog } from "./ChampionCatalog";
 import type { Conversation } from "./Conversation";
 import type { Friend } from "./Friend";
+import type { FriendGroup } from "./FriendGroup";
 import type { GameQueue } from "./GameQueue";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
@@ -69,6 +70,11 @@ export type AgentState = {
    * Amigos com a presença de cada um (#30), na ordem da tela.
    */
   friends: Array<Friend>,
+  /**
+   * Pastas de amigos do client oficial, na ordem dele. Cada amigo diz a
+   * sua em [`Friend::group_id`].
+   */
+  friendGroups: Array<FriendGroup>,
   /**
    * Convites de lobby recebidos e ainda pendentes (#32).
    */

@@ -23,6 +23,7 @@ import type { Conversation } from '../bindings/Conversation';
 import type { RunePages } from '../bindings/RunePages';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
 import type { Friend } from '../bindings/Friend';
+import type { FriendGroup } from '../bindings/FriendGroup';
 import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 import type { ChampionCatalog } from '../bindings/ChampionCatalog';
 import type { ChampSelectChampions } from '../bindings/ChampSelectChampions';
@@ -142,8 +143,12 @@ function champSelectChampions(v: unknown): v is ChampSelectChampions {
   return object(v) && nullableIds(v.pickable) && nullableIds(v.bannable);
 }
 function friend(v: unknown): v is Friend {
-  return object(v) && uint(v.summonerId) && strings(v, ['id', 'puuid', 'gameName', 'tagLine', 'name', 'availability', 'statusMessage']) &&
+  return object(v) && uint(v.summonerId) && uint(v.groupId) &&
+    strings(v, ['id', 'puuid', 'gameName', 'tagLine', 'name', 'availability', 'statusMessage', 'groupName']) &&
     (v.profileIconId === null || uint(v.profileIconId)) && (v.activity === null || object(v.activity));
+}
+function friendGroup(v: unknown): v is FriendGroup {
+  return object(v) && uint(v.id) && typeof v.name === 'string' && Number.isInteger(v.priority) && typeof v.collapsed === 'boolean';
 }
 function status(v: unknown): v is LcuStatus {
   if (!object(v)) return false;
@@ -161,7 +166,7 @@ function state(v: unknown): v is AgentState {
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
-    champSelectChampions(v.champSelectChampions) && list(v.friends, friend);
+    champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup);
 }
 
 // Os tipos vêm do Rust; esta validação protege a fronteira JSON em runtime.
@@ -190,6 +195,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'championCatalog': valid = championCatalog(v.championCatalog); break;
     case 'champSelectChampions': valid = champSelectChampions(v.champSelectChampions); break;
     case 'friends': valid = list(v.friends, friend); break;
+    case 'friendGroups': valid = list(v.friendGroups, friendGroup); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
       (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;
     case 'invalidMessage': valid = typeof v.message === 'string'; break;

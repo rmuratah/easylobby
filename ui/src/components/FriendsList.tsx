@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import type { ConnectionSnapshot } from '../agent/client';
 import { assetUrl } from '../agent/assets';
-import { availabilityColors, availabilityNames, describeActivity, friendDisplayName, isOnline } from '../agent/friends';
+import { availabilityColors, availabilityNames, describeActivity, friendNick, friendRiotId, groupFriends, isOnline } from '../agent/friends';
 import type { Friend } from '../bindings/Friend';
 import { Avatar, Card, SearchField } from './base';
 import { cx } from './base/cx';
@@ -28,14 +28,19 @@ function useNow(intervalMs: number): number {
 }
 
 /**
- * Lista de amigos com presença (#30). Mostra os amigos na ordem do agente,
- * separados em online e offline, com o que cada um está fazendo.
+ * Lista de amigos com presença (#30). Mostra os amigos online nas pastas do
+ * client oficial, cada pasta recolhível, e os offline numa seção no fim, com o
+ * que cada um está fazendo. Cada amigo aparece só pelo nick; o Riot ID com a
+ * tag fica no tooltip.
  */
 export function FriendsList({ connection, renderActions }: Props) {
   const state = connection.state;
   const connected = connection.status === 'connected' && state?.lcu.state === 'connected';
   const friends = connected ? state.friends : [];
+  const groups = connected ? state.friendGroups : [];
   const [filter, setFilter] = useState('');
+  /** Pastas que o jogador abriu ou fechou aqui; as outras seguem o client oficial. */
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const filterId = useId();
   const now = useNow(CLOCK_INTERVAL_MS);
 
@@ -50,12 +55,16 @@ export function FriendsList({ connection, renderActions }: Props) {
 
   const query = filter.trim().toLowerCase();
   const visible = query
-    ? friends.filter(friend => `${friendDisplayName(friend)} ${friend.name}`.toLowerCase().includes(query))
+    ? friends.filter(friend => `${friendRiotId(friend)} ${friend.name}`.toLowerCase().includes(query))
     : friends;
-  const online = visible.filter(isOnline);
   const offline = visible.filter(friend => !isOnline(friend));
   const onlineTotal = friends.filter(isOnline).length;
+  const totals = new Map(groupFriends(friends, groups).map(folder => [folder.id, folder.friends.length]));
+  const folders = groupFriends(visible.filter(isOnline), groups);
   const item = (friend: Friend) => <FriendItem key={friend.id} friend={friend} now={now} actions={renderActions?.(friend)} />;
+  const isOpen = (key: string, startsOpen: boolean) => !!query || (toggled[key] ?? startsOpen);
+  const toggle = (key: string, startsOpen: boolean) =>
+    setToggled(current => ({ ...current, [key]: !(current[key] ?? startsOpen) }));
 
   return (
     <Card as="section" aria-label="Amigos" className="flex w-full flex-col gap-3 p-4 text-ink">
@@ -68,19 +77,20 @@ export function FriendsList({ connection, renderActions }: Props) {
             onChange={event => setFilter(event.target.value)} />
           {visible.length === 0 && <p className="text-body text-muted">Nenhum amigo encontrado.</p>}
           {!query && onlineTotal === 0 && <p className="text-body text-muted">Nenhum amigo online agora.</p>}
-          {online.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <p aria-hidden="true" className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Online ({online.length})</p>
-              <ul aria-label="Amigos online" className="-mx-2 flex flex-col">{online.map(item)}</ul>
-            </div>
-          )}
+          {folders.map(folder => {
+            const key = `pasta-${folder.id}`;
+            return (
+              <Folder key={key} id={key} title={folder.name} count={`${folder.friends.length}/${totals.get(folder.id) ?? folder.friends.length}`}
+                open={isOpen(key, !folder.collapsed)} onToggle={() => toggle(key, !folder.collapsed)}>
+                <ul aria-label={`Amigos online em ${folder.name}`} className="-mx-2 flex flex-col">{folder.friends.map(item)}</ul>
+              </Folder>
+            );
+          })}
           {offline.length > 0 && (
-            <details open={!!query} className="group">
-              <summary className="cursor-pointer rounded-control-sm text-caption font-semibold uppercase tracking-[0.06em] text-muted hover:text-ink">
-                Offline ({offline.length})
-              </summary>
-              <ul aria-label="Amigos offline" className="-mx-2 mt-1 flex flex-col">{offline.map(item)}</ul>
-            </details>
+            <Folder id="pasta-offline" title="Offline" count={String(offline.length)}
+              open={isOpen('offline', false)} onToggle={() => toggle('offline', false)}>
+              <ul aria-label="Amigos offline" className="-mx-2 flex flex-col">{offline.map(item)}</ul>
+            </Folder>
           )}
         </>
       )}
@@ -88,8 +98,29 @@ export function FriendsList({ connection, renderActions }: Props) {
   );
 }
 
+/** Pasta recolhível: o título abre e fecha a lista. */
+function Folder({ id, title, count, open, onToggle, children }: {
+  id: string; title: string; count: string; open: boolean; onToggle: () => void; children: ReactNode;
+}) {
+  const listId = useId();
+  return (
+    <div className="flex flex-col gap-1" data-folder={id}>
+      <button type="button" aria-expanded={open} aria-controls={listId} onClick={onToggle}
+        className="flex items-center gap-1 rounded-control-sm text-left text-caption font-semibold uppercase tracking-[0.06em] text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
+        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+          strokeLinecap="round" strokeLinejoin="round" className={cx('shrink-0 transition-transform', open && 'rotate-90')}>
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+        <span className="min-w-0 truncate">{title}</span> <span className="shrink-0 font-normal">({count})</span>
+      </button>
+      <div id={listId} hidden={!open}>{children}</div>
+    </div>
+  );
+}
+
 function FriendItem({ friend, now, actions }: { friend: Friend; now: number; actions?: ReactNode }) {
-  const name = friendDisplayName(friend);
+  const name = friendNick(friend);
+  const riotId = friendRiotId(friend);
   const activity = describeActivity(friend, now);
   const league = friend.activity?.type === 'league' ? friend.activity : null;
   const offline = !isOnline(friend);
@@ -103,7 +134,7 @@ function FriendItem({ friend, now, actions }: { friend: Friend; now: number; act
         />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-body font-semibold" title={name}>{name}</span>
+        <span className="truncate text-body font-semibold" title={riotId}>{name}</span>
         <span className="truncate text-caption text-muted">{activity}</span>
         {friend.statusMessage && <span className="truncate text-caption text-muted italic" title={friend.statusMessage}>{friend.statusMessage}</span>}
       </span>

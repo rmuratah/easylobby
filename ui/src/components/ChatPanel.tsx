@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { conversationName, messageTime, sortConversations, totalUnread } from '../agent/chat';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
-import { friendDisplayName } from '../agent/friends';
+import { friendNick } from '../agent/friends';
 import type { Conversation } from '../bindings/Conversation';
 import type { Friend } from '../bindings/Friend';
 import { Avatar, Button, Card } from './base';
@@ -195,7 +195,7 @@ function ConversationView({ conversation, name, send, onBack }: {
 
 /** Botão "Conversar" de cada amigo da lista de amigos: só o ícone, para a coluna estreita caber o status. */
 export function ChatButton({ friend, onOpen }: { friend: Friend; onOpen: (id: string) => void }) {
-  const label = `Conversar com ${friendDisplayName(friend)}`;
+  const label = `Conversar com ${friendNick(friend)}`;
   return (
     <Button size="sm" variant="ghost" onClick={() => onOpen(friend.id)} aria-label={label} title={label}>
       <svg aria-hidden="true" className="shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

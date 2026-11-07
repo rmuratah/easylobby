@@ -12,11 +12,16 @@
 //! presença muda e `Delete` quando a amizade acaba. O `<id>` é o `pid` do
 //! amigo (`puuid@plataforma.pvp.net`), com o `@` escapado como `%40`.
 //!
-//! O [`Friend`] guarda só o que a lista de amigos usa. Os outros campos (grupo,
-//! nota, ranque, Discord, banner...) são ignorados, então um campo novo num
-//! patch não quebra a leitura. Em particular, os grupos de amigos ficam de
-//! fora: os nomes deles são preferências do jogador
-//! ([`crate::wamp::EASYLOBBY_EVENT_EXCLUDED`]).
+//! O [`Friend`] guarda só o que a lista de amigos usa. Os outros campos (nota,
+//! ranque, Discord, banner...) são ignorados, então um campo novo num patch
+//! não quebra a leitura.
+//!
+//! As pastas (grupos) de amigos do client oficial vêm de
+//! `GET /lol-chat/v1/friend-groups`, com o nome, a ordem (`priority`) e se a
+//! pasta está fechada (`collapsed`). Cada amigo diz em que pasta está
+//! (`groupId`, `groupName`); quem não foi posto em nenhuma fica na pasta
+//! padrão, de id `0` e nome `**Default`. Os eventos chegam em
+//! `/lol-chat/v1/friend-groups/<id>` ([`FriendGroup`]).
 
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -32,6 +37,12 @@ pub const FRIENDS_PATH: &str = "/lol-chat/v1/friends";
 
 /// Prefixo dos eventos WAMP de cada amigo: `/lol-chat/v1/friends/<id>`.
 pub const FRIEND_EVENT_PREFIX: &str = "/lol-chat/v1/friends/";
+
+/// Endpoint das pastas de amigos.
+pub const FRIEND_GROUPS_PATH: &str = "/lol-chat/v1/friend-groups";
+
+/// Nome da pasta padrão na LCU (a "Geral" do client oficial).
+pub const DEFAULT_GROUP_NAME: &str = "**Default";
 
 /// `product` da LCU para quem está no LoL.
 const LEAGUE_PRODUCT: &str = "league_of_legends";
@@ -62,6 +73,10 @@ pub struct Friend {
     pub availability: Availability,
     /// Mensagem de status que o amigo escreveu. Vazia quando não tem.
     pub status_message: String,
+    /// Pasta do amigo ([`FriendGroup::id`]). `0` é a pasta padrão.
+    pub group_id: u32,
+    /// Nome da pasta, como a LCU manda (`**Default` na pasta padrão).
+    pub group_name: String,
     /// O que o amigo está fazendo: no LoL (e em que parte), em outro jogo da
     /// Riot ou `null` (offline, no celular ou sem informação).
     pub activity: Option<Activity>,
@@ -103,6 +118,15 @@ impl Friend {
             profile_icon_id: raw.icon.and_then(|icon| u32::try_from(icon).ok()),
             availability: raw.availability,
             status_message: raw.status_message,
+            group_id: raw
+                .group_id
+                .and_then(|id| u32::try_from(id).ok())
+                .unwrap_or(0),
+            group_name: if raw.group_name.is_empty() {
+                DEFAULT_GROUP_NAME.to_owned()
+            } else {
+                raw.group_name
+            },
             activity,
         })
     }
@@ -345,6 +369,10 @@ struct LcuFriend {
     product_name: String,
     #[serde(default)]
     lol: Option<LcuLeaguePresence>,
+    #[serde(default)]
+    group_id: Option<i64>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    group_name: String,
 }
 
 fn offline() -> Availability {
@@ -373,6 +401,109 @@ fn null_as_default<'de, D: Deserializer<'de>, T: Default + Deserialize<'de>>(
 
 fn parse_number<T: std::str::FromStr>(text: &str) -> Option<T> {
     text.trim().parse().ok()
+}
+
+/// Uma pasta de amigos do client oficial.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct FriendGroup {
+    /// O mesmo número do [`Friend::group_id`] de quem está na pasta.
+    pub id: u32,
+    /// Nome como a LCU manda. A pasta padrão vem como `**Default`, e a UI
+    /// mostra o nome traduzido.
+    pub name: String,
+    /// Ordem da pasta no client oficial: menor vem antes.
+    pub priority: i32,
+    /// Se o jogador deixou a pasta fechada no client oficial.
+    pub collapsed: bool,
+}
+
+impl FriendGroup {
+    /// Lê uma pasta do `data` de um evento ou de um item da lista. `None`
+    /// para pastas de sistema (`isMetaGroup`, como a de offline) e valores
+    /// sem o formato esperado.
+    pub fn from_json(value: &Value) -> Option<Self> {
+        let raw = LcuFriendGroup::deserialize(value).ok()?;
+        if raw.is_meta_group {
+            return None;
+        }
+        Some(FriendGroup {
+            id: u32::try_from(raw.id?).ok()?,
+            name: if raw.name.is_empty() {
+                DEFAULT_GROUP_NAME.to_owned()
+            } else {
+                raw.name
+            },
+            priority: raw
+                .priority
+                .and_then(|p| i32::try_from(p).ok())
+                .unwrap_or(0),
+            collapsed: raw.collapsed,
+        })
+    }
+
+    /// Lê a lista de `GET /lol-chat/v1/friend-groups`, já na ordem de
+    /// [`sort_groups`].
+    pub fn list_from_json(value: &Value) -> Option<Vec<Self>> {
+        let mut groups: Vec<FriendGroup> = value
+            .as_array()?
+            .iter()
+            .filter_map(FriendGroup::from_json)
+            .collect();
+        sort_groups(&mut groups);
+        Some(groups)
+    }
+}
+
+/// Ordem das pastas: pela `priority` da LCU, depois pelo `id`.
+pub fn sort_groups(groups: &mut [FriendGroup]) {
+    groups.sort_by(|a, b| a.priority.cmp(&b.priority).then_with(|| a.id.cmp(&b.id)));
+}
+
+/// Uma pasta como a LCU manda.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LcuFriendGroup {
+    #[serde(default)]
+    id: Option<i64>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    name: String,
+    #[serde(default)]
+    priority: Option<i64>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    collapsed: bool,
+    #[serde(default, deserialize_with = "null_as_default")]
+    is_meta_group: bool,
+}
+
+/// O que um evento de `/lol-chat/v1/friend-groups...` diz.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FriendGroupUri {
+    /// A lista inteira (`/lol-chat/v1/friend-groups`).
+    List,
+    /// Uma pasta (`/lol-chat/v1/friend-groups/<id>`).
+    Group(u32),
+}
+
+impl FriendGroupUri {
+    /// `None` para outros URIs, inclusive subrecursos de uma pasta.
+    pub fn parse(uri: &str) -> Option<Self> {
+        let rest = uri.strip_prefix(FRIEND_GROUPS_PATH)?;
+        if rest.is_empty() {
+            return Some(FriendGroupUri::List);
+        }
+        let id = rest.strip_prefix('/')?;
+        if id.is_empty() || id.contains('/') {
+            return None;
+        }
+        id.parse().ok().map(FriendGroupUri::Group)
+    }
+}
+
+/// Busca as pastas de amigos, já ordenadas.
+pub async fn groups(lcu: &LcuClient) -> Result<Vec<FriendGroup>, LcuError> {
+    let value = lcu.get::<Value>(FRIEND_GROUPS_PATH).await?;
+    Ok(FriendGroup::list_from_json(&value).unwrap_or_default())
 }
 
 /// O `id` do amigo num URI de evento (`/lol-chat/v1/friends/<id>`), com o
@@ -574,6 +705,87 @@ mod tests {
     }
 
     #[test]
+    fn pasta_do_amigo() {
+        let mut value = lcu("p", "chat", "league_of_legends", json!({}));
+        value["groupId"] = json!(2);
+        value["groupName"] = json!("amigos da facul");
+        let friend = Friend::from_json(&value).unwrap();
+        assert_eq!(friend.group_id, 2);
+        assert_eq!(friend.group_name, "amigos da facul");
+        // Sem pasta (ou com campos estranhos), vai para a padrão.
+        let sem =
+            Friend::from_json(&json!({"pid": "x", "groupId": -1, "groupName": null})).unwrap();
+        assert_eq!(sem.group_id, 0);
+        assert_eq!(sem.group_name, DEFAULT_GROUP_NAME);
+    }
+
+    #[test]
+    fn pastas_de_amigos() {
+        let lista = json!([
+            {"collapsed": false, "id": 0, "isEmpty": false, "isLocalized": true,
+             "isMetaGroup": false, "name": "**Default", "priority": 0},
+            {"collapsed": true, "id": 2, "isEmpty": false, "isLocalized": false,
+             "isMetaGroup": false, "name": "duo", "priority": -1},
+            {"collapsed": false, "id": 1, "isEmpty": false, "isLocalized": true,
+             "isMetaGroup": true, "name": "OFFLINE", "priority": 9},
+            {"sem": "id"},
+            {"id": 3, "name": "time", "priority": 5},
+        ]);
+        let groups = FriendGroup::list_from_json(&lista).unwrap();
+        assert_eq!(
+            groups,
+            [
+                FriendGroup {
+                    id: 2,
+                    name: "duo".into(),
+                    priority: -1,
+                    collapsed: true
+                },
+                FriendGroup {
+                    id: 0,
+                    name: "**Default".into(),
+                    priority: 0,
+                    collapsed: false
+                },
+                FriendGroup {
+                    id: 3,
+                    name: "time".into(),
+                    priority: 5,
+                    collapsed: false
+                },
+            ]
+        );
+        assert_eq!(FriendGroup::list_from_json(&json!({"erro": 1})), None);
+        assert_eq!(
+            serde_json::to_value(&groups[0]).unwrap(),
+            json!({"id": 2, "name": "duo", "priority": -1, "collapsed": true})
+        );
+    }
+
+    #[test]
+    fn uri_das_pastas() {
+        assert_eq!(
+            FriendGroupUri::parse("/lol-chat/v1/friend-groups"),
+            Some(FriendGroupUri::List)
+        );
+        assert_eq!(
+            FriendGroupUri::parse("/lol-chat/v1/friend-groups/2"),
+            Some(FriendGroupUri::Group(2))
+        );
+        assert_eq!(FriendGroupUri::parse("/lol-chat/v1/friend-groups/"), None);
+        assert_eq!(
+            FriendGroupUri::parse("/lol-chat/v1/friend-groups/2/friends"),
+            None
+        );
+        assert_eq!(
+            FriendGroupUri::parse("/lol-chat/v1/friend-groups/abc"),
+            None
+        );
+        assert_eq!(FriendGroupUri::parse("/lol-chat/v1/friend-groupsx"), None);
+        assert_eq!(FriendGroupUri::parse("/lol-chat/v1/friends"), None);
+    }
+
+    #[test]
     fn id_do_amigo_no_uri() {
         assert_eq!(
             friend_id_from_uri("/lol-chat/v1/friends/abc%40br1.pvp.net").as_deref(),
@@ -611,6 +823,8 @@ mod tests {
                 "profileIconId": 4977,
                 "availability": "online",
                 "statusMessage": "",
+                "groupId": 0,
+                "groupName": "**Default",
                 "activity": {
                     "type": "league",
                     "status": "inQueue",

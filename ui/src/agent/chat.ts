@@ -1,16 +1,16 @@
 import type { ChatMessage } from '../bindings/ChatMessage';
 import type { Conversation } from '../bindings/Conversation';
 import type { Friend } from '../bindings/Friend';
-import { friendDisplayName } from './friends';
+import { friendNick } from './friends';
 
 /**
- * Nome do amigo de uma conversa: o Riot ID que veio com a conversa ou, sem
- * ele, o nome do amigo na lista de amigos.
+ * Nome do amigo de uma conversa: o nick (o Riot ID sem a tag) que veio com a
+ * conversa ou, sem ele, o nome do amigo na lista de amigos.
  */
 export function conversationName(conversation: Pick<Conversation, 'id' | 'gameName' | 'tagLine'>, friends: Friend[]): string {
-  if (conversation.gameName) return conversation.tagLine ? `${conversation.gameName}#${conversation.tagLine}` : conversation.gameName;
+  if (conversation.gameName) return conversation.gameName;
   const friend = friends.find(f => f.id === conversation.id);
-  return friend ? friendDisplayName(friend) : 'Amigo';
+  return friend ? friendNick(friend) : 'Amigo';
 }
 
 function lastTime(conversation: Conversation): number {

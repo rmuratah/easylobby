@@ -1,6 +1,7 @@
 import type { Activity } from '../bindings/Activity';
 import type { Availability } from '../bindings/Availability';
 import type { Friend } from '../bindings/Friend';
+import type { FriendGroup } from '../bindings/FriendGroup';
 import type { LeagueStatus } from '../bindings/LeagueStatus';
 
 export const availabilityNames = {
@@ -53,6 +54,62 @@ export function isOnline(friend: Friend): boolean {
 export function friendDisplayName(friend: Friend): string {
   if (friend.gameName) return friend.tagLine ? `${friend.gameName}#${friend.tagLine}` : friend.gameName;
   return friend.name || 'Amigo';
+}
+
+/**
+ * Nick do amigo, sem a tag (`Ana`, e não `Ana#BR1`), como a lista de amigos e
+ * o chat mostram. A tag fica em {@link friendRiotId}, para o tooltip.
+ */
+export function friendNick(friend: Friend): string {
+  return friend.gameName || friend.name || 'Amigo';
+}
+
+/** Riot ID completo (`nome#tag`), para identificar o amigo no tooltip. */
+export const friendRiotId = friendDisplayName;
+
+/** Nome da pasta padrão na LCU. */
+export const DEFAULT_GROUP_NAME = '**Default';
+
+/** Nome da pasta para mostrar: a padrão vira "Geral", como no client oficial. */
+export function friendGroupName(name: string): string {
+  if (!name || name === DEFAULT_GROUP_NAME) return 'Geral';
+  return name;
+}
+
+/** Uma pasta de amigos pronta para desenhar. */
+export type FriendFolder = {
+  id: number;
+  name: string;
+  /** Se começa fechada (o jogador deixou fechada no client oficial). */
+  collapsed: boolean;
+  /** Amigos da pasta, na ordem do agente. */
+  friends: Friend[];
+};
+
+/**
+ * Separa os amigos nas pastas do client oficial, na ordem dele. Uma pasta que
+ * aparece nos amigos mas não veio na lista de pastas (a LCU não mandou, por
+ * exemplo) entra no fim, a padrão primeiro e as outras por nome. Pastas sem
+ * nenhum dos amigos dados ficam de fora.
+ */
+export function groupFriends(friends: Friend[], groups: FriendGroup[]): FriendFolder[] {
+  const folders = new Map<number, FriendFolder>();
+  for (const group of groups) {
+    folders.set(group.id, { id: group.id, name: friendGroupName(group.name), collapsed: group.collapsed, friends: [] });
+  }
+  const extra: FriendFolder[] = [];
+  for (const friend of friends) {
+    let folder = folders.get(friend.groupId);
+    if (!folder) {
+      folder = { id: friend.groupId, name: friendGroupName(friend.groupName), collapsed: false, friends: [] };
+      folders.set(friend.groupId, folder);
+      extra.push(folder);
+    }
+    folder.friends.push(friend);
+  }
+  extra.sort((a, b) => Number(b.id === 0) - Number(a.id === 0) || a.name.localeCompare(b.name, 'pt-BR'));
+  const ordered = [...folders.values()].filter(folder => !extra.includes(folder)).concat(extra);
+  return ordered.filter(folder => folder.friends.length > 0);
 }
 
 /** Minutos desde `since`, ou `null` sem horário ou com horário no futuro. */

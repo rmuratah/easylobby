@@ -20,6 +20,7 @@ export const emptyState: AgentState = {
   runePages: null,
   runeCatalog: null,
   friends: [],
+  friendGroups: [],
   receivedInvitations: [],
   conversations: [],
 };
