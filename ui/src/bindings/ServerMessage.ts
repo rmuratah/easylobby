@@ -13,6 +13,7 @@ import type { GameQueue } from "./GameQueue";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
 import type { Lobby } from "./Lobby";
+import type { LobbyChat } from "./LobbyChat";
 import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
@@ -46,6 +47,7 @@ export type ServerMessage =
   | { "type": "queues", queues: Array<GameQueue>, }
   | { "type": "champSelect", champSelect: ChampSelect | null, }
   | { "type": "champSelectChat", champSelectChat: ChampSelectChat | null, }
+  | { "type": "lobbyChat", lobbyChat: LobbyChat | null, }
   | { "type": "summonerSpellCatalog", summonerSpellCatalog: SummonerSpellCatalog | null, }
   | { "type": "championCatalog", championCatalog: ChampionCatalog | null, }
   | { "type": "champSelectChampions", champSelectChampions: ChampSelectChampions, }

@@ -18,6 +18,8 @@ import type { SearchState } from '../bindings/SearchState';
 import type { ChampSelect } from '../bindings/ChampSelect';
 import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { ChampSelectChatMessage } from '../bindings/ChampSelectChatMessage';
+import type { LobbyChat } from '../bindings/LobbyChat';
+import type { LobbyChatMessage } from '../bindings/LobbyChatMessage';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
 import type { Conversation } from '../bindings/Conversation';
 import type { RunePages } from '../bindings/RunePages';
@@ -126,6 +128,10 @@ function champSelectChat(v: unknown): v is ChampSelectChat | null {
     strings(m, ['id', 'body', 'timestamp']) && typeof m.fromMe === 'boolean' &&
     (m.fromCellId === null || (typeof m.fromCellId === 'number' && Number.isSafeInteger(m.fromCellId)))));
 }
+function lobbyChat(v: unknown): v is LobbyChat | null {
+  return v === null || (object(v) && list(v.messages, (m): m is LobbyChatMessage => object(m) &&
+    strings(m, ['id', 'body', 'fromPuuid', 'timestamp']) && typeof m.fromMe === 'boolean'));
+}
 function receivedInvitation(v: unknown): v is ReceivedInvitation {
   return object(v) && strings(v, ['invitationId', 'fromSummonerName']) && uints(v, ['fromSummonerId', 'queueId']) &&
     (v.queue === null || isQueue(v.queue)) && typeof v.canAccept === 'boolean';
@@ -201,7 +207,7 @@ function status(v: unknown): v is LcuStatus {
 }
 function state(v: unknown): v is AgentState {
   return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) &&
-    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && champSelect(v.champSelect) &&
+    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && lobbyChat(v.lobbyChat) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
@@ -227,6 +233,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'queues': valid = list(v.queues, gameQueue); break;
     case 'champSelect': valid = champSelect(v.champSelect); break;
     case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
+    case 'lobbyChat': valid = lobbyChat(v.lobbyChat); break;
     case 'receivedInvitations': valid = list(v.invitations, receivedInvitation); break;
     case 'conversation': valid = conversation(v.conversation); break;
     case 'conversationClosed': valid = typeof v.id === 'string'; break;

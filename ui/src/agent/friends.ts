@@ -134,3 +134,14 @@ export function describeActivity(friend: Friend, now: number): string {
   if (minutes !== null) parts.push(`${minutes} min`);
   return parts.join(' · ');
 }
+
+/**
+ * Riot ID de outro jogador (no lobby ou convidado), achado na lista de amigos
+ * pelo `puuid` ou, na falta dele, pelo `summonerId`: a LCU não manda o nome
+ * de quem está no grupo. "Jogador" quando não é amigo.
+ */
+export function playerName(puuid: string, summonerId: number, friends: Friend[]): string {
+  const friend = (puuid ? friends.find(f => f.puuid === puuid) : undefined)
+    ?? (summonerId > 0 ? friends.find(f => f.summonerId === summonerId) : undefined);
+  return friend ? friendDisplayName(friend) : 'Jogador';
+}

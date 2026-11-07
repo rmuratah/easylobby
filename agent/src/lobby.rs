@@ -219,6 +219,11 @@ pub struct Lobby {
     /// recusados, expulsos ou que deram erro. Quem aceitou aparece em
     /// `members`.
     pub invitations: Vec<LobbyInvitation>,
+    /// `multiUserChatId` da LCU: o começo do `id` da sala de chat do grupo
+    /// (#206). A UI não precisa: o chat chega em `lobbyChat`.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub chat_id: String,
 }
 
 /// Um convite que o grupo mandou (#32).
@@ -355,6 +360,7 @@ impl Lobby {
             members,
             can_invite: local_member.is_some_and(|m| m.is_leader || m.allowed_invite_others),
             invitations,
+            chat_id: raw.multi_user_chat_id,
         })
     }
 }
@@ -372,6 +378,8 @@ struct RawLobby {
     members: Vec<RawMember>,
     #[serde(default)]
     invitations: Vec<RawInvitation>,
+    #[serde(default)]
+    multi_user_chat_id: String,
 }
 
 #[derive(Deserialize)]
@@ -617,6 +625,8 @@ mod tests {
                 summoner_id: 4,
                 state: InvitationState::Pending,
             }],
+            // Não vai para a UI.
+            chat_id: "grupo".into(),
         };
         assert_eq!(
             serde_json::to_value(&lobby).unwrap(),

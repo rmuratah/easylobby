@@ -14,6 +14,7 @@ mod exit;
 mod friends;
 mod invitations;
 mod lobby;
+mod lobby_chat;
 mod profile;
 mod ready_check;
 mod runes;
@@ -319,6 +320,15 @@ impl Hub {
                 self.set_matchmaking_if(search_stamp, search.ok().flatten());
                 self.set_received_invitations_if(invitations_stamp, received.unwrap_or_default());
                 self.restore_conversations(chat_session, conversations);
+                // O chat do grupo depois do lobby, que diz qual é a sala (#206).
+                let lobby_chat_id = self.lock().state.lobby.as_ref().map(|l| l.chat_id.clone());
+                if let Some(lobby_chat_id) = lobby_chat_id {
+                    if let Ok(Some((id, messages))) =
+                        crate::lobby_chat::current_room(&client, &lobby_chat_id).await
+                    {
+                        self.restore_lobby_chat(chat_session, id, &messages);
+                    }
+                }
                 // O catálogo antes das páginas, para a UI já poder desenhá-las.
                 self.set_rune_catalog(rune_catalog.ok().flatten());
                 self.set_rune_pages_if(rune_pages_stamp, rune_pages.ok());
@@ -387,6 +397,7 @@ impl Hub {
                 self.set_received_invitations(Vec::new());
                 self.clear_conversations();
                 self.close_champ_select_chat(None);
+                self.close_lobby_chat(None);
                 self.set_rune_pages(None);
                 self.set_rune_catalog(None);
                 self.set_summoner_spell_catalog(None);
@@ -456,7 +467,12 @@ impl Hub {
             }
             READY_CHECK_PATH if deleted => self.set_ready_check(None),
             READY_CHECK_PATH => self.set_ready_check(ReadyCheck::from_json(&event.data)),
-            LOBBY_PATH if deleted => self.set_lobby(None),
+            LOBBY_PATH if deleted => {
+                self.set_lobby(None);
+                // Sem lobby não há grupo; a sala fecha mesmo se o `Delete`
+                // dela se perder.
+                self.close_lobby_chat(None);
+            }
             LOBBY_PATH => {
                 if let Some(lobby) = Lobby::from_json(&event.data) {
                     self.set_lobby(Some(lobby));
@@ -525,7 +541,9 @@ impl Hub {
             }
             uri => {
                 if let Some(chat_uri) = ChatUri::parse(uri) {
-                    if !self.apply_champ_select_chat_event(&chat_uri, event) {
+                    if !self.apply_champ_select_chat_event(&chat_uri, event)
+                        && !self.apply_lobby_chat_event(&chat_uri, event)
+                    {
                         self.apply_chat_event(chat_uri, event);
                     }
                 }
