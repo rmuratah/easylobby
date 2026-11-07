@@ -75,8 +75,10 @@ const STARTUP_ONLY_PATHS: [&str; 5] = [
 ];
 
 /// Prefixos de URI dos eventos WAMP que interessam ao easylobby.
-const EVENT_PREFIXES: [&str; 8] = [
+const EVENT_PREFIXES: [&str; 9] = [
     "/lol-gameflow/v1/",
+    // Cartas de campeão do ARAM (#201): as opções podem vir do team builder.
+    "/lol-lobby-team-builder/champ-select/v1/",
     "/lol-lobby/v2/",
     "/lol-matchmaking/v1/",
     "/lol-champ-select/v1/",
