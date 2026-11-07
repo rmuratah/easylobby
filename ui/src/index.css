@@ -7,25 +7,57 @@
 body { margin: 0; }
 [hidden] { display: none !important; }
 /* O color-scheme vem do tema ([data-theme]), para campos e barras de rolagem nativos seguirem claro ou escuro. */
-.app-shell { height: 100dvh; display: flex; flex-direction: column; }
-.app-body { display: flex; flex: 1; min-height: 0; gap: .75rem; padding: .75rem; }
+* { scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--el-control) 72%, transparent) transparent; }
+*::-webkit-scrollbar { width: .375rem; height: .375rem; }
+*::-webkit-scrollbar-track, *::-webkit-scrollbar-corner { background: transparent; }
+*::-webkit-scrollbar-thumb { border-radius: 9999px; background: color-mix(in oklab, var(--el-control) 72%, transparent); }
+*::-webkit-scrollbar-thumb:hover { background: color-mix(in oklab, var(--el-accent) 78%, var(--el-control)); }
+.app-shell { height: 100dvh; display: flex; flex-direction: column; gap: .75rem; padding: .75rem; }
+.app-body { display: flex; flex: 1; min-height: 0; gap: .75rem; }
 .app-navigation { width: 6.5rem; flex-shrink: 0; align-self: stretch; overflow: hidden; padding: .75rem; display: flex; flex-direction: column; gap: 1rem; border-radius: var(--radius-panel); }
 .app-logo { min-height: 3.5rem; display: flex; align-items: center; justify-content: center; font-size: .875rem; font-weight: 700; letter-spacing: -.02em; cursor: default; }
 .app-logo span { color: var(--el-accent-ink); }
 .app-main-column { container-type: inline-size; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .75rem; }
-.app-toolbar { min-height: 3rem; flex-shrink: 0; display: flex; align-items: center; gap: .625rem; padding-left: .875rem; overflow: hidden; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); box-shadow: var(--el-shadow-soft); }
-.app-content { container-type: inline-size; flex: 1; min-width: 0; overflow: auto; padding: .75rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
+.app-toolbar { width: 100%; min-height: 3rem; flex-shrink: 0; display: flex; align-items: center; gap: .625rem; padding-left: .875rem; overflow: hidden; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); box-shadow: var(--el-shadow-soft); }
+.app-content { container-type: inline-size; flex: 1; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: .75rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
 .app-content > * { flex-shrink: 0; }
-.app-sidebar { width: 20rem; flex-shrink: 0; overflow: auto; padding: 0; display: flex; flex-direction: column; gap: 1rem; }
-.app-sidebar > * { flex-shrink: 0; border-radius: var(--radius-panel); box-shadow: var(--el-shadow-soft); }
+.app-social-region { position: relative; width: 20rem; flex-shrink: 0; min-height: 0; transition: width 180ms ease; }
+.app-social-region.is-collapsed { width: 0; }
+.app-social-region.is-collapsed > .sidebar-toggle { position: absolute; right: 0; top: .75rem; z-index: 20; }
+.sidebar-collapsed .app-content { padding-right: 3.25rem; }
+.app-sidebar { position: relative; width: 100%; height: 100%; overflow: auto; scrollbar-gutter: stable; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); box-shadow: var(--el-shadow-soft); }
+.app-sidebar > .sidebar-toggle { position: absolute; right: .875rem; top: .75rem; z-index: 20; }
+.app-sidebar > section { flex-shrink: 0; border: 0; border-radius: 0; background: transparent; }
+.app-sidebar > section:first-of-type { padding-right: 3.25rem; }
+.app-sidebar > section + section { border-top: 1px solid var(--el-line); }
 .sidebar-toggle, .nav-button, .app-content > section > button { border: 1px solid var(--el-control); border-radius: .375rem; padding: .5rem 1rem; }
-.sidebar-toggle { border-radius: 9999px; padding: 0; }
+.sidebar-toggle { border: 0; border-radius: 0; padding: 0; background: transparent; box-shadow: none; }
+.theme-switch { width: 2.75rem; align-items: center; }
+.theme-switch > button { width: 2.25rem; padding: 0; border-radius: 9999px; }
 button[aria-current="page"] { background: var(--el-accent-soft); border-color: var(--el-accent); }
 :focus-visible { outline: 2px solid var(--el-accent); outline-offset: 3px; }
+
+/* Home: empilhada por padrão; largura e altura suficientes ativam a composição 2x2. */
+.home-grid { min-height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 1.25rem; }
+.home-primary { order: 1; min-width: 0; min-height: 24rem; }
+.home-secondary { order: 2; min-width: 0; display: grid; align-items: stretch; gap: 1rem; }
+.home-placeholders { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 1rem; }
+.home-placeholders > * { height: 100%; }
+@container (min-width: 22rem) {
+  .home-placeholders { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-height: 48rem) {
+  @container (min-width: 44rem) {
+    .home-grid { grid-template-columns: minmax(0, 2fr) minmax(15rem, 1fr); grid-template-rows: minmax(0, 1fr); }
+    .home-primary { order: initial; grid-column: 1; grid-row: 1; min-height: 0; }
+    .home-secondary { order: initial; grid-column: 2; grid-row: 1; min-height: 0; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+  }
+}
 .champ-select { display: flex; flex-direction: column; gap: 1rem; }
 .champ-select-board { display: grid; grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr) minmax(11rem, 15rem); gap: 1rem; align-items: start; }
 .champ-select-center { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
-.champion-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.25rem, 1fr)); gap: .25rem; max-height: 26rem; overflow: auto; }
+.champion-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.25rem, 1fr)); gap: .25rem; max-height: 26rem; overflow: auto; scrollbar-gutter: stable; }
+[role="log"] { scrollbar-gutter: stable; }
 /* Três colunas a partir de 960 px de janela (#130); abaixo disso, a grade desce. */
 @container (max-width: 47rem) {
   .champ-select-board { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }

@@ -37,9 +37,13 @@ describe('estados de conexão', () => {
     expect(connectionView(connection).label).toBe(label);
     show(connection);
     expect(screen.getByRole('status')).toHaveTextContent(label);
-    expect(screen.getByRole('navigation', { name: 'Funcionalidades' })).toBeInTheDocument();
     if (title) {
+      expect(screen.queryByRole('navigation', { name: 'Funcionalidades' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('complementary', { name: 'Amigos e conversas' })).not.toBeInTheDocument();
       expect(screen.getByRole('heading', { level: 2, name: title })).toBeInTheDocument();
+    } else {
+      expect(screen.getByRole('navigation', { name: 'Funcionalidades' })).toBeInTheDocument();
+      expect(screen.getByRole('complementary', { name: 'Amigos e conversas' })).toBeInTheDocument();
     }
   });
 

@@ -9,10 +9,11 @@ type Props<T extends string> = {
   value: T;
   onChange: (value: T) => void;
   className?: string;
+  appearance?: "default" | "embedded";
 };
 
 /** Escolha única entre poucas opções (tema, posição, aba). */
-export function Segmented<T extends string>({ label, options, value, onChange, className }: Props<T>) {
+export function Segmented<T extends string>({ label, options, value, onChange, className, appearance = "default" }: Props<T>) {
   return (
     <div role="group" aria-label={label} className={cx("inline-flex gap-0.5 rounded-control bg-raised p-[3px]", className)}>
       {options.map((option) => {
@@ -28,7 +29,9 @@ export function Segmented<T extends string>({ label, options, value, onChange, c
             className={cx(
               "inline-flex h-8 items-center justify-center gap-1.5 rounded-control-sm px-3 text-body font-medium",
               "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-              selected ? "bg-surface text-ink shadow-[0_0_0_1px_var(--el-line)]" : "text-muted hover:text-ink",
+              selected
+                ? appearance === "embedded" ? "bg-accent-soft text-accent-ink" : "bg-surface text-ink shadow-[0_0_0_1px_var(--el-line)]"
+                : "text-muted hover:text-ink",
             )}
           >
             {option.label}
