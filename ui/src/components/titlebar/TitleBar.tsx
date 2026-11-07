@@ -1,23 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { AgentClient, ConnectionSnapshot } from "../../agent/client";
-import { Segmented } from "../base";
 import { LaunchUxButton } from "../LaunchUxButton";
 import { ConnectionIndicator } from "../connection/ConnectionIndicator";
 import { connectionView } from "../../screens/connection";
-import type { ThemePreference } from "../../theme/theme";
 import { tauriWindowControls, type WindowControls } from "./windowControls";
-
-const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: "sistema", label: "Sistema" },
-  { value: "claro", label: "Claro" },
-  { value: "escuro", label: "Escuro" },
-];
 
 type Props = {
   connection: ConnectionSnapshot;
   send: AgentClient["send"];
-  themePreference: ThemePreference;
-  onThemeChange: (preference: ThemePreference) => void;
   /** Injetável nos testes; por padrão, a janela do Tauri (ou nada, no navegador). */
   controls?: WindowControls | null;
 };
@@ -25,21 +15,18 @@ type Props = {
 const defaultControls = tauriWindowControls();
 
 /**
- * Barra de título do app, no lugar da moldura do Windows (#126). As áreas com
- * `data-tauri-drag-region` arrastam a janela e maximizam no duplo clique; o
- * Tauri cuida disso sozinho, inclusive do encaixe nas bordas.
+ * Controles compactos da moldura (#126, #160). O espaço vazio com
+ * `data-tauri-drag-region` arrasta a janela; nenhum botão faz parte da região.
  */
-export function TitleBar({ connection, send, themePreference, onThemeChange, controls = defaultControls }: Props) {
+export function TitleBar({ connection, send, controls = defaultControls }: Props) {
   return (
     <header
       data-tauri-drag-region
-      className="flex h-12 shrink-0 select-none items-center gap-3 border-b border-line bg-surface pl-4 text-ink"
+      className="app-toolbar select-none text-ink"
     >
-      <h1 data-tauri-drag-region className="text-section font-semibold tracking-[-0.01em]">easylobby</h1>
       <ConnectionIndicator view={connectionView(connection)} />
       <div data-tauri-drag-region className="h-full min-w-4 flex-1" />
-      <LaunchUxButton connection={connection} send={send} />
-      <Segmented label="Tema" value={themePreference} onChange={onThemeChange} options={THEME_OPTIONS} />
+      <LaunchUxButton connection={connection} send={send} compact />
       {controls ? <WindowButtons controls={controls} /> : <div className="w-1" />}
     </header>
   );

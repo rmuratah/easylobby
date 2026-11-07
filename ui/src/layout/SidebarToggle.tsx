@@ -11,11 +11,15 @@ export function SidebarToggle({ open, onToggle, invitations, unread = 0 }: Props
     invitations > 0 && count(invitations, "convite", "convites"),
     unread > 0 && count(unread, "mensagem", "mensagens"),
   ].filter(Boolean);
+  const label = `${open ? "Recolher" : "Mostrar"} amigos${news.length > 0 ? ` (${news.join(", ")})` : ""}`;
   return (
-    <button type="button" aria-expanded={open} aria-controls="coluna-amigos" onClick={onToggle}
-      className="sidebar-toggle inline-flex items-center gap-2">
-      {news.length > 0 && <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-accent" />}
-      {open ? "Recolher amigos" : "Mostrar amigos"}{news.length > 0 ? ` (${news.join(", ")})` : ""}
+    <button type="button" aria-label={label} title={open ? "Recolher amigos" : "Mostrar amigos"}
+      aria-expanded={open} aria-controls="coluna-amigos" onClick={onToggle}
+      className="sidebar-toggle relative inline-flex size-8 items-center justify-center p-0 text-muted transition-colors hover:text-ink">
+      {news.length > 0 && <span aria-hidden="true" className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-accent" />}
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d={open ? "m15 18-6-6 6-6" : "m9 18 6-6-6-6"} />
+      </svg>
     </button>
   );
 }

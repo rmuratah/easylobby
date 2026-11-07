@@ -91,9 +91,9 @@ it('preserva a busca na navegação e recomeça numa seleção nova', () => {
   render(<App />); hello();
   const search = () => panel().getByRole('searchbox', { name: 'Buscar campeão' });
   fireEvent.change(search(), { target: { value: 'ah' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Início' }));
   expect(screen.queryByRole('region', { name: 'Seleção de campeões' })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Seleção de campeões' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Lobby' }));
   expect(search()).toHaveValue('ah');
   receive({ type: 'champSelect', champSelect: { ...draftChampSelect, id: 'outra-sessao' } });
   expect(search()).toHaveValue('');

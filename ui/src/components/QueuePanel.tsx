@@ -108,7 +108,7 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
   const big = 'h-14 min-w-0 flex-1 rounded-full px-6 text-section font-semibold tracking-wide transition-all disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
   return (
     <section aria-label="Busca de partida"
-      className={cx('flex w-full flex-col gap-3 rounded-panel surface p-4 text-ink shadow-lift animate-fade-up @min-[44rem]:shadow-soft',
+      className={cx('flex h-full w-full flex-col gap-3 rounded-panel surface p-4 text-ink shadow-lift animate-fade-up @min-[44rem]:shadow-soft',
         searching && 'ring-2 ring-accent/30')}>
       <div className="flex flex-col gap-1 px-1">
         <h2 className="text-section font-semibold">Busca de partida</h2>
@@ -145,10 +145,10 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
       <p className="rounded-tile bg-gold-soft px-4 py-2 text-center text-caption font-medium text-warn">{restriction}</p>
       {feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}
         className={cx('px-1', feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted')}>{feedback.message}</p>}
-      <div className="flex items-center gap-2">
+      <div className="mt-auto flex items-center gap-2">
         <button ref={startRef} type="button" hidden={active} aria-busy={pending}
           disabled={!canStart || pending} onClick={() => { void execute({ type: 'startQueue' }); }}
-          className={cx(big, 'bg-accent text-on-accent shadow-glow enabled:hover:-translate-y-0.5 disabled:bg-raised disabled:text-muted disabled:shadow-none')}>
+          className={cx(big, 'bg-accent text-on-accent shadow-soft enabled:hover:-translate-y-0.5 disabled:bg-raised disabled:text-muted disabled:shadow-none')}>
           Iniciar busca
         </button>
         <button ref={stopRef} type="button" hidden={!active} aria-busy={pending}

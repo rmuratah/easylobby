@@ -1,37 +1,33 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import { friendDisplayName } from '../agent/friends';
-import {
-  freeSlots, invitableFriends, invitationQueueName, invitationStateNames, inviteeName, inviterName,
-} from '../agent/invitations';
+import { freeSlots, invitableFriends, invitationQueueName, inviterName } from '../agent/invitations';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
 import type { Friend } from '../bindings/Friend';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
 import { Avatar, Button, Card } from './base';
 
-type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
+type Props = {
+  connection: ConnectionSnapshot;
+  send: AgentClient['send'];
+  /** Recebe o botão "Convidar" de cada amigo (ou nada), para a lista de amigos mostrar na linha dele. */
+  children: (inviteAction: (friend: Friend) => ReactNode) => ReactNode;
+};
 type InvitationCommand = Extract<Command, { type: 'acceptInvitation' | 'declineInvitation' | 'inviteToLobby' }>;
 type Feedback = { status: 'idle' | 'success' | 'error'; message: string };
-const subheading = 'text-caption font-semibold uppercase tracking-[0.06em] text-muted';
 
 /**
- * Convites de lobby (#32): os convites recebidos, com aceitar e recusar, e,
- * dentro de um lobby, os amigos para convidar e os convites que o grupo mandou.
+ * Convites de lobby (#32), sem seção própria: os convites recebidos aparecem
+ * só enquanto existem, com aceitar e recusar, e o "Convidar" fica na linha de
+ * cada amigo que dá para chamar ao lobby agora.
  */
-export function InvitationsPanel({ connection, send }: Props) {
+export function InvitationsPanel({ connection, send, children }: Props) {
   const state = connection.state;
   const lcu = state?.lcu;
-  if (connection.status !== 'connected' || !state || lcu?.state !== 'connected') {
-    return (
-      <Card as="section" aria-label="Convites" className="flex w-full flex-col gap-2 p-4 text-ink">
-        <h2 className="text-section font-semibold">Convites</h2>
-        <p className="text-body text-muted">Aguarde a conexão com o agente e o League of Legends para ver os convites.</p>
-      </Card>
-    );
-  }
+  if (connection.status !== 'connected' || !state || lcu?.state !== 'connected') return children(() => null);
   // Trocar a sessão ou o jogador descarta feedback e respostas da sessão anterior.
-  return <InvitationsActions key={`${lcu.session}:${state.summoner?.puuid ?? ''}`} state={state} send={send} />;
+  return <InvitationsActions key={`${lcu.session}:${state.summoner?.puuid ?? ''}`} state={state} send={send}>{children}</InvitationsActions>;
 }
 
 /** Chave do comando em andamento, para não repetir o mesmo clique. */
@@ -39,7 +35,9 @@ function commandKey(command: InvitationCommand): string {
   return command.type === 'inviteToLobby' ? `invite:${command.invitees[0]?.puuid}` : `invitation:${command.invitationId}`;
 }
 
-function InvitationsActions({ state, send }: { state: AgentState; send: AgentClient['send'] }) {
+function InvitationsActions({ state, send, children }: {
+  state: AgentState; send: AgentClient['send']; children: Props['children'];
+}) {
   const { lobby, friends, receivedInvitations: received, matchmaking, gameflowPhase: phase } = state;
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   // Comandos aceitos pelo agente cujo evento ainda não chegou: o botão fica
@@ -99,76 +97,40 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
     { type: 'inviteToLobby', invitees: [{ summonerId: friend.summonerId, puuid: friend.puuid }] },
     `Convite enviado para ${friendDisplayName(friend)}.`,
   );
-  const inviteRestriction = !lobby ? null
-    : !lobby.canInvite ? 'Só o líder pode convidar neste lobby.'
-    : !canInvite ? 'Os convites só podem ser enviados na fase de lobby, fora da busca.'
-    : slots <= 0 ? 'O grupo está cheio.'
-    : null;
+  const inviteAction = (friend: Friend) => {
+    const key = `invite:${friend.puuid}`;
+    const offered = canInvite && slots > 0 && candidates.some(c => c.puuid === friend.puuid);
+    if (!offered && !pending.has(key)) return null;
+    const name = friendDisplayName(friend);
+    return (
+      <Button size="sm" aria-label={`Convidar ${name}`} loading={pending.has(key)} disabled={busy(key)}
+        onClick={() => { void invite(friend); }}>Convidar</Button>
+    );
+  };
 
   return (
-    <Card as="section" aria-label="Convites" className="flex w-full flex-col gap-3 p-4 text-ink">
-      <h2 className="text-section font-semibold">Convites</h2>
-
-      <h3 className={subheading}>Recebidos</h3>
-      {received.length === 0 ? <p className="text-body text-muted">Nenhum convite recebido.</p> : (
-        <ul aria-label="Convites recebidos" className="flex flex-col gap-2">
-          {received.map(invitation => (
-            <ReceivedItem
-              key={invitation.invitationId} invitation={invitation} busy={busy(`invitation:${invitation.invitationId}`)}
-              onAccept={() => { void execute({ type: 'acceptInvitation', invitationId: invitation.invitationId },
-                `Convite de ${inviterName(invitation)} aceito.`); }}
-              onDecline={() => { void execute({ type: 'declineInvitation', invitationId: invitation.invitationId },
-                `Convite de ${inviterName(invitation)} recusado.`); }}
-            />
-          ))}
-        </ul>
-      )}
-
-      <h3 className={subheading}>Convidar amigos</h3>
-      {!lobby ? <p className="text-body text-muted">Entre em um lobby para convidar amigos.</p> : (
-        <>
-          <p className="text-caption text-muted">
-            {slots > 0 ? `${slots} ${slots === 1 ? 'vaga livre' : 'vagas livres'} no grupo.` : 'Nenhuma vaga livre no grupo.'}
-          </p>
-          {inviteRestriction && <p className="text-caption text-warn">{inviteRestriction}</p>}
-          {candidates.length === 0 ? <p className="text-body text-muted">Nenhum amigo disponível para convidar.</p> : (
-            <ul aria-label="Amigos para convidar" className="-mx-2 flex flex-col">
-              {candidates.map(friend => {
-                const name = friendDisplayName(friend);
-                const key = `invite:${friend.puuid}`;
-                return (
-                  <li key={friend.id} className="flex items-center justify-between gap-3 rounded-control px-2 py-1 hover:bg-raised">
-                    <span className="truncate text-body" title={name}>{name}</span>
-                    <Button
-                      size="sm" aria-label={`Convidar ${name}`} loading={pending.has(key)}
-                      disabled={!canInvite || slots <= 0 || busy(key)}
-                      onClick={() => { void invite(friend); }}
-                    >Convidar</Button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {lobby.invitations.length > 0 && (
-            <>
-              <h3 className={subheading}>Enviados pelo grupo</h3>
-              <ul aria-label="Convites enviados" className="flex flex-col gap-1">
-                {lobby.invitations.map((invitation, index) => (
-                  <li key={`${invitation.puuid}:${index}`} className="flex justify-between gap-3 text-body">
-                    <span className="truncate">{inviteeName(invitation.puuid, friends)}</span>
-                    <span className="shrink-0 text-caption text-muted">{invitationStateNames[invitation.state]}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </>
+    <>
+      {received.length > 0 && (
+        <Card as="section" aria-label="Convites recebidos" className="flex w-full flex-col gap-2 p-4 text-ink">
+          <ul aria-label="Convites recebidos" className="flex flex-col gap-2">
+            {received.map(invitation => (
+              <ReceivedItem
+                key={invitation.invitationId} invitation={invitation} busy={busy(`invitation:${invitation.invitationId}`)}
+                onAccept={() => { void execute({ type: 'acceptInvitation', invitationId: invitation.invitationId },
+                  `Convite de ${inviterName(invitation)} aceito.`); }}
+                onDecline={() => { void execute({ type: 'declineInvitation', invitationId: invitation.invitationId },
+                  `Convite de ${inviterName(invitation)} recusado.`); }}
+              />
+            ))}
+          </ul>
+        </Card>
       )}
       {feedback.message && (
         <p role={feedback.status === 'error' ? 'alert' : 'status'}
           className={feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{feedback.message}</p>
       )}
-    </Card>
+      {children(inviteAction)}
+    </>
   );
 }
 

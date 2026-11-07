@@ -37,11 +37,17 @@ describe("coluna de amigos", () => {
     const { unmount } = render(<App />);
     expect(screen.getByRole("complementary", { name: "Amigos e conversas" })).toBe(column());
     const toggle = screen.getByRole("button", { name: "Recolher amigos" });
+    expect(toggle.closest('.app-social-region')).not.toBeNull();
+    expect(toggle.parentElement).toBe(column());
+    expect(toggle.closest('header')).toBeNull();
+    expect(toggle).not.toHaveClass('rounded-full', 'shadow-soft');
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(toggle).toHaveAttribute("aria-controls", column().id);
     fireEvent.click(toggle);
     expect(column()).not.toBeVisible();
-    expect(screen.getByRole("button", { name: "Mostrar amigos" })).toHaveAttribute("aria-expanded", "false");
+    const collapsedToggle = screen.getByRole("button", { name: "Mostrar amigos" });
+    expect(collapsedToggle).toHaveAttribute("aria-expanded", "false");
+    expect(collapsedToggle.parentElement).not.toBe(column());
     expect(localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBe("recolhida");
     unmount();
     render(<App />);

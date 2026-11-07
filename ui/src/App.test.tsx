@@ -15,13 +15,17 @@ describe('App', () => {
   it('mostra o título e a espera pelo agente', () => {
     vi.mocked(useAgent).mockReturnValue({ status: 'connecting', error: null, state: null, send: vi.fn() });
     render(<App />);
-    expect(screen.getByRole('heading', { name: 'easylobby' })).toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Navegação do aplicativo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Amigos e conversas' })).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Conectando ao agente');
   });
   it('distingue agente conectado de LoL fechado', () => {
     connected({ state: 'retrying', attempt: 1, retryInMs: 1000, clientNotRunning: true, error: 'fechado' });
     render(<App />);
     expect(screen.getByRole('status')).toHaveTextContent('Abra o League of Legends');
+    expect(screen.getByRole('button', { name: 'Abrir o League of Legends' })).toBeVisible();
+    expect(screen.queryByRole('complementary', { name: 'Navegação do aplicativo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Amigos e conversas' })).not.toBeInTheDocument();
   });
   it('mostra conexão com o LoL após receber estado', () => {
     connected({ state: 'connected', session: 1 });
@@ -41,11 +45,22 @@ describe('invocador logado', () => {
   function loggedIn() {
     vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: makeState({ summoner }), send: vi.fn() });
   }
+  it('mostra as barras laterais somente depois do login', () => {
+    loggedIn();
+    render(<App />);
+    expect(screen.getByRole('complementary', { name: 'Navegação do aplicativo' })).toBeVisible();
+    expect(screen.getByRole('complementary', { name: 'Amigos e conversas' })).toBeVisible();
+  });
   it('mostra Riot ID e nível e remove os dados ao perder a conexão', () => {
     loggedIn();
     const { rerender } = render(<App />);
     expect(screen.getByRole('heading', { name: 'Victor#BR1' })).toBeInTheDocument();
     expect(screen.getByText('Nível 122')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Presença indisponível' })).toBeInTheDocument();
+    expect(screen.getByText('Solo/Duo').nextElementSibling).toHaveTextContent('Indisponível');
+    expect(screen.getByText('Flex').nextElementSibling).toHaveTextContent('Indisponível');
+    expect(screen.getByRole('article', { name: 'Área reservada' })).toHaveTextContent('futura funcionalidade');
+    expect(screen.getByRole('article', { name: 'Sem conteúdo' })).toHaveTextContent('reservado no momento');
     vi.mocked(useAgent).mockReturnValue({ status: 'reconnecting', state: null, error: null, send: vi.fn() });
     rerender(<App />);
     expect(screen.queryByRole('region', { name: 'Invocador logado' })).not.toBeInTheDocument();
@@ -71,26 +86,23 @@ describe('telas confirmadas pelo agente', () => {
     vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null,
       state: makeState({ ...testState, ...overrides }), send });
   }
-  it('preserva criar lobby pendente ao navegar e ao receber o lobby', () => {
+  it('preserva criar lobby pendente ao receber o lobby', () => {
     send.mockClear();
     snapshot();
     const { rerender } = render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Criar lobby' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
-    expect(screen.queryByRole('button', { name: 'Criar lobby' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Início' }));
     expect(screen.getByRole('button', { name: 'Criar lobby' })).toBeDisabled();
     snapshot({ lobby: testLobby, gameflowPhase: 'Lobby' });
     rerender(<App />);
     expect(screen.getByRole('button', { name: 'Sair do lobby' })).toBeDisabled();
     expect(send).toHaveBeenCalledTimes(1);
   });
-  it('preserva busca pendente entre Lobby, Runas e Fila e volta após reconectar', () => {
+  it('preserva busca pendente entre Lobby, Início e Fila e volta após reconectar', () => {
     send.mockClear();
     snapshot({ lobby: testLobby, gameflowPhase: 'Lobby' });
     const { rerender } = render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Iniciar busca' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Início' }));
     snapshot({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
     rerender(<App />);
     expect(screen.getByRole('button', { name: 'Cancelar busca' })).toBeDisabled();
@@ -108,13 +120,13 @@ describe('telas confirmadas pelo agente', () => {
   it('destaca partida encontrada mesmo antes da fase e durante navegação', () => {
     snapshot({ lobby: testLobby, gameflowPhase: 'Lobby' });
     const { rerender } = render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Início' }));
     snapshot({ lobby: testLobby, gameflowPhase: 'Lobby', matchmaking: { ...testMatchmaking, searchState: 'Found' } });
     rerender(<App />);
     expect(screen.getByRole('alert')).toHaveTextContent('Partida encontrada');
     expect(screen.queryByRole('button', { name: 'Iniciar busca' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Início' }));
     expect(screen.getByRole('alert')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Abrir client oficial' })).toBeEnabled();
     snapshot({ gameflowPhase: 'ChampSelect', matchmaking: testMatchmaking });

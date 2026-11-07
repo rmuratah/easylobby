@@ -4,6 +4,7 @@ import App from '../App';
 import type { ClientMessage } from '../bindings/ClientMessage';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { testConversation, testFriend } from '../test/events';
+import { testState } from '../test/lobby';
 import { makeState } from '../test/state';
 
 class Socket {
@@ -26,7 +27,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 
 it('abre o chat pela lista de amigos, manda a mensagem e mostra a conversa do agente', async () => {
   render(<App />);
-  act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: makeState({ friends: [testFriend] }) }));
+  act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: makeState({ ...testState, friends: [testFriend] }) }));
   fireEvent.click(screen.getByRole('button', { name: 'Conversar com Amigo' }));
   const view = within(screen.getByRole('region', { name: 'Conversa com Amigo' }));
   fireEvent.change(view.getByRole('textbox'), { target: { value: 'bora?' } });
