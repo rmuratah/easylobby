@@ -6,11 +6,13 @@
 //! easylobby segue falando com a LCU. O [`launch_ux`] reabre a interface (o
 //! botão de emergência).
 //!
-//! A [`LcuConnection`](crate::connection::LcuConnection) chama o [`kill_ux`]
-//! sozinha a cada conexão, inclusive quando o LoL reabre, a menos que
-//! `ReconnectConfig::kill_ux` seja `false`.
+//! A UI oficial é fechada a cada conexão, inclusive quando o LoL reabre, a
+//! menos que `ReconnectConfig::kill_ux` seja `false`. Por padrão o
+//! fechamento espera `ReconnectConfig::kill_ux_delay`, porque o Vanguard fecha
+//! o LoL (VAN7003) se não achar a UI enquanto inicializa.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use reqwest::Method;
 
@@ -54,6 +56,10 @@ pub enum KillUx {
     Disabled,
     /// A LCU aceitou o `kill-ux`.
     Killed,
+    /// A UI oficial ainda está aberta e deve ser fechada depois de `delay`,
+    /// por quem dirige a conexão (o [`Hub`](crate::ws::Hub)). Fechar logo que
+    /// o LoL abre dá VAN7003.
+    Scheduled { delay: Duration },
     /// O `kill-ux` falhou. A conexão continua valendo; a UI oficial pode ter
     /// ficado aberta.
     Failed(Arc<LcuError>),

@@ -21,11 +21,17 @@
 //! [`LcuConnection::close`]. Ele pode ser cancelado num `tokio::select!` sem
 //! perder evento nem reiniciar a espera.
 //!
-//! A cada conexão, depois de REST e WAMP estarem de pé, a conexão fecha a UI
-//! oficial com `POST /riotclient/kill-ux` (#12), inclusive quando o LoL
-//! reabre. Para deixar a UI oficial aberta, use `kill_ux: false` no
-//! [`ReconnectConfig`] ou [`LcuConnection::set_kill_ux`]. O resultado fica em
-//! [`LcuSession::kill_ux`]; uma falha não derruba a conexão.
+//! A cada conexão, depois de REST e WAMP estarem de pé, a UI oficial é
+//! fechada com `POST /riotclient/kill-ux` (#12), inclusive quando o LoL
+//! reabre. Por padrão o fechamento não é na hora: a conexão devolve
+//! [`KillUx::Scheduled`] e quem a dirige (o [`Hub`](crate::ws::Hub)) fecha a
+//! UI depois de [`ReconnectConfig::kill_ux_delay`]. Fechar a UI logo que o LoL
+//! abre faz o Vanguard fechar o LoL com o erro VAN7003 (veja
+//! [`DEFAULT_KILL_UX_DELAY`]). Com `kill_ux_delay` zero, a conexão fecha a UI
+//! na hora e devolve [`KillUx::Killed`]. Para deixar a UI oficial aberta, use
+//! `kill_ux: false` no [`ReconnectConfig`] ou [`LcuConnection::set_kill_ux`].
+//! O resultado fica em [`LcuSession::kill_ux`]; uma falha não derruba a
+//! conexão.
 //!
 //! ```no_run
 //! # async fn exemplo() {
@@ -70,6 +76,16 @@ pub const DEFAULT_RETRY_MIN: Duration = Duration::from_millis(500);
 /// Espera máxima entre tentativas: o LoL fechado é procurado a cada 5 s.
 pub const DEFAULT_RETRY_MAX: Duration = Duration::from_secs(5);
 
+/// Espera entre conectar e fechar a UI oficial.
+///
+/// O Vanguard procura a UI oficial (`LeagueClientUx`) enquanto inicializa,
+/// logo depois de o LoL abrir. Se ela já foi fechada, ele fecha o LoL com
+/// "VAN 7003: An unexpected error with Vanguard has occurred". A Riot cita
+/// a mesma causa para a opção "Fechar o client durante a partida". O agente
+/// conecta em um ou dois segundos e fechava a UI nesse momento. A espera dá
+/// tempo para o Vanguard terminar; a UI oficial aparece por esse tempo.
+pub const DEFAULT_KILL_UX_DELAY: Duration = Duration::from_secs(30);
+
 /// De onde vêm as credenciais a cada tentativa.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum CredentialSource {
@@ -96,13 +112,27 @@ pub struct ReconnectConfig {
     pub connect_timeout: Duration,
     /// Fechar a UI oficial (`kill-ux`) a cada conexão. Ligado por padrão.
     pub kill_ux: bool,
+    /// Quanto esperar, depois de conectar, para fechar a UI oficial.
+    /// [`DEFAULT_KILL_UX_DELAY`] com o LoL de verdade
+    /// ([`CredentialSource::Discover`]); zero com um lockfile configurado (o
+    /// mock-lcu, sem Vanguard). Diferente de zero, a conexão devolve
+    /// [`KillUx::Scheduled`] e quem a dirige fecha a UI; zero fecha na hora.
+    pub kill_ux_delay: Duration,
 }
 
 impl ReconnectConfig {
     /// Configuração padrão com outra fonte de credenciais.
+    ///
+    /// Com um lockfile configurado à mão (o mock-lcu, que não tem Vanguard),
+    /// a UI oficial é fechada na hora: `kill_ux_delay` fica zero.
     pub fn with_source(source: CredentialSource) -> Self {
+        let kill_ux_delay = match source {
+            CredentialSource::Discover => DEFAULT_KILL_UX_DELAY,
+            CredentialSource::Lockfile(_) => Duration::ZERO,
+        };
         Self {
             source,
+            kill_ux_delay,
             ..Self::default()
         }
     }
@@ -117,6 +147,7 @@ impl Default for ReconnectConfig {
             retry_max: DEFAULT_RETRY_MAX,
             connect_timeout: DEFAULT_CONNECT_TIMEOUT,
             kill_ux: true,
+            kill_ux_delay: DEFAULT_KILL_UX_DELAY,
         }
     }
 }
@@ -305,13 +336,18 @@ impl LcuConnection {
         // Só depois de REST e WAMP abrirem: se o agente não conecta, a UI
         // oficial fica aberta. Se este `next` for cancelado aqui, a próxima
         // tentativa reconecta e chama o kill-ux de novo, sem efeito colateral.
-        let kill_ux = if self.config.kill_ux {
+        let kill_ux = if !self.config.kill_ux {
+            KillUx::Disabled
+        } else if !self.config.kill_ux_delay.is_zero() {
+            // O Vanguard ainda pode estar procurando a UI (VAN7003).
+            KillUx::Scheduled {
+                delay: self.config.kill_ux_delay,
+            }
+        } else {
             match ux::kill_ux(&client).await {
                 Ok(()) => KillUx::Killed,
                 Err(error) => KillUx::Failed(error.into()),
             }
-        } else {
-            KillUx::Disabled
         };
         self.sessions += 1;
         let session = LcuSession {
@@ -414,6 +450,21 @@ mod tests {
             b"ca do mock"
         );
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn so_o_lol_de_verdade_espera_para_fechar_a_ui() {
+        // O LoL de verdade tem Vanguard (VAN7003); o mock-lcu não.
+        assert_eq!(
+            ReconnectConfig::default().kill_ux_delay,
+            DEFAULT_KILL_UX_DELAY
+        );
+        assert_eq!(
+            ReconnectConfig::with_source(CredentialSource::Discover).kill_ux_delay,
+            DEFAULT_KILL_UX_DELAY
+        );
+        let mock = CredentialSource::Lockfile(PathBuf::from("lockfile"));
+        assert!(ReconnectConfig::with_source(mock).kill_ux_delay.is_zero());
     }
 
     #[tokio::test]

@@ -11,6 +11,12 @@
 //! quando o jogador reabre a UI pelo botão de emergência (`launchUx`) e
 //! quando a conexão cai, e só age nas fases que o app cobre: no pós-jogo, por
 //! exemplo, a UI oficial fica como estiver (#180).
+//!
+//! Ao conectar, o primeiro `kill-ux` também sai daqui, depois da espera de
+//! `ReconnectConfig::kill_ux_delay` ([`Hub::schedule_kill_ux`]): fechar a UI
+//! enquanto o Vanguard inicializa fecha o LoL com o erro VAN7003. Durante a
+//! espera a guarda fica desligada, senão o próprio LoL abrindo a janela
+//! (`ShowMain`) armaria um `kill-ux` na hora.
 
 use std::time::Duration;
 
@@ -30,6 +36,10 @@ pub(super) const RECLOSE_AFTER: [Duration; 6] = [
     Duration::from_secs(10),
     Duration::from_secs(15),
 ];
+
+/// Se a fase não deixa fechar a UI quando a espera acaba (por exemplo, o
+/// agente abriu com a partida em andamento), olha de novo a cada intervalo.
+pub(super) const KILL_UX_RETRY: Duration = Duration::from_secs(5);
 
 /// Estado da guarda dentro do [`Hub`].
 #[derive(Debug, Default)]
@@ -113,6 +123,54 @@ impl Hub {
         });
     }
 
+    /// Fecha a UI oficial depois de `delay`, na conexão atual, e liga a
+    /// guarda. Desiste se a conexão cair ou se o jogador reabrir a UI pelo
+    /// botão de emergência antes disso. Fora das fases que o app cobre
+    /// (partida, pós-jogo), espera até voltar a uma delas.
+    pub(super) fn schedule_kill_ux(&self, delay: Duration) {
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let (client, session, generation) = {
+            let shared = self.lock();
+            let Some(client) = shared.client.clone() else {
+                return;
+            };
+            (client, shared.session, shared.ux_guard.generation)
+        };
+        let hub = self.clone();
+        runtime.spawn(async move {
+            tokio::time::sleep(delay).await;
+            loop {
+                match hub.take_scheduled_kill(session, generation) {
+                    ScheduledKill::Cancelled => return,
+                    ScheduledKill::Wait => tokio::time::sleep(KILL_UX_RETRY).await,
+                    ScheduledKill::Kill => {
+                        // Se falhar, a guarda (agora ligada) fecha na próxima
+                        // vez que o LoL pedir a janela.
+                        let _ = ux::kill_ux(&client).await;
+                        return;
+                    }
+                }
+            }
+        });
+    }
+
+    /// Decide o fechamento adiado. Em [`ScheduledKill::Kill`], já liga a
+    /// guarda.
+    fn take_scheduled_kill(&self, session: u64, generation: u64) -> ScheduledKill {
+        let mut shared = self.lock();
+        if shared.session != session || shared.ux_guard.generation != generation {
+            return ScheduledKill::Cancelled;
+        }
+        if !covered(shared.state.gameflow_phase) {
+            return ScheduledKill::Wait;
+        }
+        shared.ux_guard.active = true;
+        shared.ux_guard.generation += 1;
+        ScheduledKill::Kill
+    }
+
     /// Se a sequência `generation` da conexão `session` ainda deve fechar a UI.
     fn still_guarding(&self, session: u64, generation: u64) -> bool {
         let shared = self.lock();
@@ -121,6 +179,17 @@ impl Hub {
             && shared.session == session
             && covered(shared.state.gameflow_phase)
     }
+}
+
+/// O que fazer quando a espera do primeiro `kill-ux` acaba.
+#[derive(Debug, PartialEq, Eq)]
+enum ScheduledKill {
+    /// Fechar a UI agora.
+    Kill,
+    /// Fase fora do app: olhar de novo depois de [`KILL_UX_RETRY`].
+    Wait,
+    /// A conexão caiu ou o jogador reabriu a UI.
+    Cancelled,
 }
 
 #[cfg(test)]

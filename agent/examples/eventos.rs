@@ -102,6 +102,18 @@ async fn run() -> Result<(), String> {
                         KillUx::Killed => println!("UI oficial fechada (kill-ux)"),
                         KillUx::Disabled => println!("UI oficial mantida (--manter-ui)"),
                         KillUx::Failed(e) => println!("kill-ux falhou: {e}"),
+                        KillUx::Scheduled { delay } => {
+                            // Fechar na hora dá VAN7003 no LoL de verdade.
+                            println!("UI oficial fecha em {delay:?} (kill-ux adiado)");
+                            let (client, delay) = (session.client.clone(), *delay);
+                            tokio::spawn(async move {
+                                tokio::time::sleep(delay).await;
+                                match easylobby_agent::ux::kill_ux(&client).await {
+                                    Ok(()) => println!("UI oficial fechada (kill-ux)"),
+                                    Err(e) => println!("kill-ux falhou: {e}"),
+                                }
+                            });
+                        }
                     }
                 }
                 ConnectionEvent::Event(event) => print_event(&event),
