@@ -55,7 +55,10 @@ Use o mesmo método da [#121](https://github.com/rmuratah/easylobby/issues/121#i
 
 1. Abra o app e vá até a tela.
 2. Espere 10 segundos parado.
-3. Rode o script três vezes e anote a mediana da linha "Total".
+3. Cole o script inteiro no PowerShell. Ele mede três vezes, com 5 segundos entre uma e outra, e mostra a mediana.
+4. Anote também a tela em que o app estava.
+
+O script só conta o `easylobby-desktop` e os `msedgewebview2` filhos dele. A primeira versão somava tudo o que descendia do app. Quando o LoL é aberto pelo botão do easylobby, o `LeagueClient` e o `Riot Client` viram filhos do app, e o total passava de 2 GB.
 
 | Tela | Referência (#121) | Limite (+10%) | Medições (MB) | Mediana | Dentro? |
 | --- | --- | --- | --- | --- | --- |
@@ -64,15 +67,24 @@ Use o mesmo método da [#121](https://github.com/rmuratah/easylobby/issues/121#i
 | Seleção de campeões | 146,3 MB | 160,9 MB | | | |
 
 ```powershell
-$procs = Get-CimInstance Win32_Process
-$root = $procs | Where-Object { $_.Name -like 'easylobby*.exe' }
-if (-not $root) { Write-Host 'O easylobby nao esta aberto.'; return }
-$ids = [System.Collections.Generic.HashSet[int]]::new()
-$root | ForEach-Object { [void]$ids.Add([int]$_.ProcessId) }
-do { $added = 0; foreach ($p in $procs) { if ($ids.Contains([int]$p.ParentProcessId) -and $ids.Add([int]$p.ProcessId)) { $added++ } } } while ($added)
-$perf = Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { $ids.Contains([int]$_.IDProcess) }
-$perf | Sort-Object WorkingSetPrivate -Descending | Format-Table @{n='Processo';e={$_.Name}}, @{n='PID';e={$_.IDProcess}}, @{n='MB';e={[math]::Round($_.WorkingSetPrivate/1MB,1)}} -AutoSize
-"Total: {0:N1} MB em {1} processos" -f (($perf | Measure-Object WorkingSetPrivate -Sum).Sum/1MB), $perf.Count
+# Conta só o easylobby e os WebView2 dele. Quando o app abre o LoL, o LeagueClient e o Riot Client
+# viram filhos do easylobby; o filtro por nome deixa esses processos (e os filhos deles) de fora.
+function Medir-Easylobby {
+  $procs = Get-CimInstance Win32_Process
+  $root = $procs | Where-Object { $_.Name -like 'easylobby*.exe' }
+  if (-not $root) { Write-Host 'O easylobby nao esta aberto.'; return $null }
+  $ids = [System.Collections.Generic.HashSet[int]]::new()
+  $root | ForEach-Object { [void]$ids.Add([int]$_.ProcessId) }
+  do { $added = 0; foreach ($p in $procs) { if ($p.Name -eq 'msedgewebview2.exe' -and $ids.Contains([int]$p.ParentProcessId) -and $ids.Add([int]$p.ProcessId)) { $added++ } } } while ($added)
+  $perf = Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { $ids.Contains([int]$_.IDProcess) }
+  $perf | Sort-Object WorkingSetPrivate -Descending | Format-Table @{n='Processo';e={$_.Name}}, @{n='PID';e={$_.IDProcess}}, @{n='MB';e={[math]::Round($_.WorkingSetPrivate/1MB,1)}} -AutoSize | Out-Host
+  $total = ($perf | Measure-Object WorkingSetPrivate -Sum).Sum / 1MB
+  "Total: {0:N1} MB em {1} processos" -f $total, $perf.Count | Out-Host
+  return $total
+}
+# Três medições com 5 s de intervalo e a mediana.
+$totais = 1..3 | ForEach-Object { if ($_ -gt 1) { Start-Sleep -Seconds 5 }; Medir-Easylobby }
+if ($totais -notcontains $null) { "Medições: {0}  |  Mediana: {1:N1} MB" -f (($totais | ForEach-Object { '{0:N1}' -f $_ }) -join ' / '), (($totais | Sort-Object)[1]) }
 ```
 
 ## 5. Partida normal no LoL real (preencher)

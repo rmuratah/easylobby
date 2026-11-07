@@ -13,8 +13,10 @@ export function SummonerHeader({ summoner }: { summoner: Summoner }) {
       className="group relative flex h-full flex-col items-center overflow-hidden rounded-panel surface pb-6 shadow-soft text-center animate-fade-up"
       style={{ animationDelay: '80ms' }}>
       <div aria-hidden="true" className="h-24 w-full shrink-0 bg-hero-art" />
-      <div className="-mt-12 rounded-full bg-primary-gradient p-1 shadow-soft transition-transform duration-500 group-hover:scale-105">
+      <div className="relative -mt-12 rounded-full bg-primary-gradient p-1 shadow-soft transition-transform duration-500 group-hover:scale-105">
         <Avatar name={name} src={assetUrl('profileIcon', summoner.profileIconId)} size={88} className="ring-2 ring-surface" />
+        <span role="img" aria-label="Presença indisponível" title="Presença indisponível"
+          className="absolute bottom-1 right-1 size-4 rounded-full border-2 border-surface bg-control" />
       </div>
       <div className="mt-4 flex min-w-0 max-w-full flex-col items-center gap-2 px-5">
         <h2 className="max-w-full break-words text-title font-semibold text-ink">
@@ -22,6 +24,17 @@ export function SummonerHeader({ summoner }: { summoner: Summoner }) {
         </h2>
         <p className="rounded-full bg-raised px-3 py-1 text-caption font-semibold text-muted">Nível {summoner.summonerLevel}</p>
       </div>
+      <dl className="mx-5 mt-4 grid w-[calc(100%-2.5rem)] grid-cols-2 gap-2 text-left">
+        <div className="rounded-tile bg-raised p-3">
+          <dt className="text-caption font-semibold text-muted">Solo/Duo</dt>
+          <dd className="mt-1 text-body font-semibold text-ink">Indisponível</dd>
+        </div>
+        <div className="rounded-tile bg-raised p-3">
+          <dt className="text-caption font-semibold text-muted">Flex</dt>
+          <dd className="mt-1 text-body font-semibold text-ink">Indisponível</dd>
+        </div>
+      </dl>
+      <p className="mt-3 px-5 text-caption text-muted">Ranks e presença aguardam dados do agente.</p>
     </section>
   );
 }

@@ -11,9 +11,10 @@ body { margin: 0; }
 .app-body { display: flex; flex: 1; min-height: 0; }
 .app-content { container-type: inline-size; flex: 1; min-width: 0; overflow: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
 .app-content > * { flex-shrink: 0; }
-.app-sidebar { width: 20rem; flex-shrink: 0; overflow: auto; padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 1rem; border-left: 1px solid var(--el-control); }
-.app-sidebar > * { flex-shrink: 0; }
+.app-sidebar { width: 20rem; flex-shrink: 0; overflow: auto; padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 1rem; }
+.app-sidebar > * { flex-shrink: 0; border-radius: var(--radius-panel); box-shadow: var(--el-shadow-soft); }
 .sidebar-toggle, .nav-button, .app-content nav button, .app-content > section > button { border: 1px solid var(--el-control); border-radius: .375rem; padding: .5rem 1rem; }
+.sidebar-toggle { border-radius: 9999px; padding: 0; }
 button[aria-current="page"] { background: var(--el-accent-soft); border-color: var(--el-accent); }
 :focus-visible { outline: 2px solid var(--el-accent); outline-offset: 3px; }
 .champ-select { display: flex; flex-direction: column; gap: 1rem; }

@@ -6,6 +6,7 @@
   try {
     var stored = localStorage.getItem("easylobby.tema");
     if (stored === "claro" || stored === "escuro") preference = stored;
+    else if (stored === "sistema") localStorage.removeItem("easylobby.tema");
   } catch (e) {
     // Sem armazenamento, segue o sistema.
   }

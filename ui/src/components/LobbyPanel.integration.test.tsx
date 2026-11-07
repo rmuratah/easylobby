@@ -332,6 +332,7 @@ describe('cargos pelo /ws', () => {
     expect(socket().send).toHaveBeenCalledTimes(1);
     if (order === 'depois') update();
     expect(roles('Victor#BR1')).toHaveTextContent(/Meio Primário.*Selva Secundário/);
+    expect(roles('Victor#BR1').querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(2);
     expect(roles('Invocador 2')).toHaveTextContent(/Topo Primário.*Não selecionado Secundário/);
     expect(positionSelect('Cargo primário')).toHaveValue('middle');
     expect(positionSelect('Cargo secundário')).toHaveValue('jungle');
