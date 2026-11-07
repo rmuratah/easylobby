@@ -16,6 +16,7 @@ mod lobby;
 mod profile;
 mod ready_check;
 mod runes;
+mod ux_guard;
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -83,6 +84,8 @@ struct Shared {
     /// O mesmo para a seleção de campeões e as páginas de runas (#87).
     champ_select_rev: u64,
     rune_pages_rev: u64,
+    /// Fecha de novo a UI oficial quando o LoL a reabre (#188).
+    ux_guard: ux_guard::UxGuard,
 }
 
 /// Recurso do estado que um comando relê ou muda pelo REST.
@@ -143,6 +146,7 @@ impl Hub {
                     invitations_rev: 0,
                     champ_select_rev: 0,
                     rune_pages_rev: 0,
+                    ux_guard: ux_guard::UxGuard::default(),
                 }),
                 tx,
             }),
@@ -169,6 +173,8 @@ impl Hub {
 
     /// Reabre a UI oficial pela conexão atual (comando `launchUx`, #13).
     pub async fn launch_ux(&self) -> CommandResult {
+        // O jogador quer a UI oficial: o agente para de fechá-la (#188).
+        self.set_ux_guard(false);
         let Some(client) = self.client() else {
             return CommandResult::error(ErrorCode::NotConnected, "o LoL não está aberto");
         };
@@ -250,6 +256,9 @@ impl Hub {
                     let mut shared = self.lock();
                     shared.client = Some(session.client);
                     shared.session += 1;
+                    // Só guarda a UI oficial fechada se foi o agente que a
+                    // fechou nesta conexão (#188).
+                    shared.ux_guard.active = session.kill_ux.is_killed();
                     (
                         shared.stamp(Resource::Lobby),
                         shared.stamp(Resource::Matchmaking),
@@ -295,6 +304,9 @@ impl Hub {
                 self.set_summoner(summoner.ok());
                 let phase = phase.ok();
                 self.set_gameflow_phase(phase);
+                if ux_guard::reopens_ux(phase) {
+                    self.guard_ux();
+                }
                 // Antes do lobby, para a UI já achar a fila dele na lista.
                 self.restore_queues(chat_session, queues.ok().flatten().unwrap_or_default());
                 // Um comando que publicou durante a releitura é mais novo.
@@ -351,6 +363,7 @@ impl Hub {
                     let mut shared = self.lock();
                     shared.client = None;
                     shared.session += 1;
+                    shared.ux_guard.active = false;
                 }
                 self.set_summoner(None);
                 self.set_gameflow_phase(None);
@@ -404,6 +417,11 @@ impl Hub {
                 if let Some(phase) = GameflowPhase::from_json(&event.data) {
                     let before = self.lock().state.gameflow_phase;
                     self.set_gameflow_phase(Some(phase));
+                    // O LoL reabre a UI oficial na partida encontrada e na
+                    // seleção (#188).
+                    if before != Some(phase) && ux_guard::reopens_ux(Some(phase)) {
+                        self.guard_ux();
+                    }
                     // A partida terminou: histórico, ranks e maestria mudaram.
                     if profile::ends_a_game(before, Some(phase)) {
                         self.spawn_refresh_profile();
@@ -415,6 +433,13 @@ impl Hub {
             RANKED_STATS_PATH => {
                 if let Some(ranked) = crate::ranked::from_json(&event.data) {
                     self.set_ranked(Some(ranked));
+                }
+            }
+            // O LoL pediu para mostrar ou esconder a UI oficial (#188).
+            ux::UX_STATE_REQUEST_PATH if deleted => {}
+            ux::UX_STATE_REQUEST_PATH => {
+                if ux_guard::asks_to_show(&event.data) {
+                    self.guard_ux();
                 }
             }
             READY_CHECK_PATH if deleted => self.set_ready_check(None),

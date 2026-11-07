@@ -845,7 +845,16 @@ async fn handle_request(
                 body: Value::Null,
             }
         }
-        (&Method::POST, READY_CHECK_ACCEPT) => answer_ready_check(&shared, "Accepted"),
+        (&Method::POST, READY_CHECK_ACCEPT) => {
+            let response = answer_ready_check(&shared, "Accepted");
+            // Como o LoL de verdade: aceitar a partida reabre a UI oficial
+            // fechada pelo kill-ux (#188).
+            if response.status == 204 && !shared.state().ux_open() {
+                println!("ready check: o LoL reabriu a UI oficial (de mentira)");
+                shared.state().set_ux_open(true);
+            }
+            response
+        }
         (&Method::POST, READY_CHECK_DECLINE) => answer_ready_check(&shared, "Declined"),
         // O Riot Client tem uma API local igual à da LCU; o agente usa esta
         // rota para abrir o LoL quando o Riot Client já está aberto (#11).

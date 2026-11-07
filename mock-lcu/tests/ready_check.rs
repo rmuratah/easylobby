@@ -286,3 +286,82 @@ async fn sem_partida_encontrada_aceitar_da_erro() {
     mock.shutdown().await;
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Sobe o mock parado na partida encontrada e espera ela chegar na UI.
+async fn until_match_found(dir: &Path, ui: &mut Ui) -> MockLcu {
+    let mock = start_mock(
+        dir,
+        fixtures_until_ready_check(),
+        ReplayStart::OnFirstSubscribe,
+    )
+    .await;
+    until(ui, |m| {
+        matches!(
+            m,
+            ServerMessage::ReadyCheck {
+                ready_check: Some(ReadyCheck {
+                    state: ReadyCheckState::InProgress,
+                    player_response: ReadyCheckResponse::Pending,
+                    ..
+                })
+            }
+        )
+    })
+    .await;
+    mock
+}
+
+/// Espera a UI oficial do mock ficar `open`, por até 5 s.
+async fn until_ux(mock: &MockLcu, open: bool) -> bool {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while tokio::time::Instant::now() < deadline {
+        if mock.ux_open() == open {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    false
+}
+
+#[tokio::test]
+async fn aceitar_nao_deixa_a_ui_oficial_aberta() {
+    let dir = temp_dir("ui-fechada");
+    let url = start_agent(&dir).await;
+    let mut ui = connect(&url).await;
+    let mock = until_match_found(&dir, &mut ui).await;
+    assert!(!mock.ux_open(), "o agente fecha a UI oficial ao conectar");
+
+    // O mock reabre a UI oficial no aceite, como o LoL (#188); o agente
+    // fecha de novo.
+    send(&mut ui, 1, Command::AcceptReadyCheck).await;
+    let (result, _) = answer(&mut ui, 1).await;
+    assert_eq!(result, CommandResult::Ok);
+    assert!(until_ux(&mock, false).await, "a UI oficial ficou aberta");
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn com_a_ui_reaberta_pelo_jogador_aceitar_nao_a_fecha() {
+    let dir = temp_dir("ui-do-jogador");
+    let url = start_agent(&dir).await;
+    let mut ui = connect(&url).await;
+    let mock = until_match_found(&dir, &mut ui).await;
+
+    // Botão de emergência: o jogador quer a UI oficial.
+    send(&mut ui, 1, Command::LaunchUx).await;
+    let seen = until(&mut ui, |m| is_response(m, 1)).await;
+    assert_eq!(response_result(&seen), CommandResult::Ok);
+    assert!(mock.ux_open());
+
+    send(&mut ui, 2, Command::AcceptReadyCheck).await;
+    let (result, _) = answer(&mut ui, 2).await;
+    assert_eq!(result, CommandResult::Ok);
+    // Passa da primeira tentativa da guarda (300 ms) com folga.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    assert!(mock.ux_open(), "o agente fechou a UI que o jogador abriu");
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
