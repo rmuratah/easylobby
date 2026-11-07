@@ -60,6 +60,7 @@ pub mod lockfile;
 pub mod mastery;
 pub mod match_history;
 pub mod matchmaking;
+pub mod players;
 pub mod queues;
 pub mod ranked;
 pub mod ready_check;

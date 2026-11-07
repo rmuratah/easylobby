@@ -80,6 +80,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   const [picker, setPicker] = useState<number | null>(null);
   const [dropping, setDropping] = useState(false);
   const closePicker = useCallback(() => setPicker(null), []);
+  // Os recentes mudam a cada partida; o pop-up pede de novo ao abrir (#206). Um erro deixa a lista anterior.
+  const loadRecent = useCallback(() => { Promise.resolve().then(() => send({ type: 'loadRecentPlayers' })).catch(() => {}); }, [send]);
   const [feedback, setFeedback] = useState<Feedback>({ status: 'idle', message: '' });
   const inFlight = useRef(false);
   const mounted = useRef(false);
@@ -366,7 +368,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
         ))}
       </ul>
       {invites.error && picker === null && <p role="alert" className="text-body text-danger">{invites.error}</p>}
-      {picker !== null && <InvitePicker invites={invites} groups={state.friendGroups} onClose={closePicker} />}
+      {picker !== null && <InvitePicker invites={invites} groups={state.friendGroups} recent={state.recentPlayers}
+        loadRecent={loadRecent} onClose={closePicker} />}
 
       <div className={cx('grid items-stretch gap-4', !searching && '@min-[44rem]:grid-cols-2')}>
         {lobby.showPositionSelector ? (

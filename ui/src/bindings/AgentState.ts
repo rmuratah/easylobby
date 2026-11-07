@@ -18,6 +18,7 @@ import type { Matchmaking } from "./Matchmaking";
 import type { RankedStats } from "./RankedStats";
 import type { ReadyCheck } from "./ReadyCheck";
 import type { ReceivedInvitation } from "./ReceivedInvitation";
+import type { RecentPlayer } from "./RecentPlayer";
 import type { RuneCatalog } from "./RuneCatalog";
 import type { RunePages } from "./RunePages";
 import type { Summoner } from "./Summoner";
@@ -85,6 +86,10 @@ export type AgentState = {
    * sua em [`Friend::group_id`].
    */
   friendGroups: Array<FriendGroup>,
+  /**
+   * Jogadores das partidas recentes (#206), a partida mais nova primeiro.
+   */
+  recentPlayers: Array<RecentPlayer>,
   /**
    * Convites de lobby recebidos e ainda pendentes (#32).
    */
