@@ -41,7 +41,7 @@ export const AUTO_SAVE_DELAY_MS = 400;
 type Outcome = 'skipped' | 'ok' | 'error' | 'stale';
 type Desired = { positions?: { first: Position; second: Position }; queue?: Queue };
 
-/** Cargos prontos para salvar: só falta esperar quando há um cargo primário de verdade sem o secundário. */
+/** Posições prontas para salvar: só falta esperar quando há uma posição primária de verdade sem a secundária. */
 function positionsComplete(first: Position, second: Position) {
   return second !== 'unselected' || first === 'fill' || first === 'unselected';
 }
@@ -82,7 +82,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   useEffect(() => { confirmedRevision.current += 1; }, [confirmedKey]);
   useEffect(() => {
     positionContext.current += 1;
-    // Cargos escolhidos para outra fila ou outro membro não valem mais.
+    // Posições escolhidas para outra fila ou outro membro não valem mais.
     delete desired.current.positions;
   }, [queueId, lobby?.showPositionSelector, localMember?.puuid]);
   const inLobby = !!lobby;
@@ -101,7 +101,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   const canCreate = !!summoner && phaseAllowsChange && (!lobby || lobby.isLeader);
   const canLeave = !state.readyCheck && !!summoner && !!lobby && !matchmaking && phase === 'Lobby';
   const canSetPositions = !state.readyCheck && !!localMember && !!lobby?.showPositionSelector && !matchmaking && phase === 'Lobby';
-  // Cargos que o LoL tem (ou acabou de aceitar, antes do evento chegar).
+  // Posições que o LoL tem (ou acabou de aceitar, antes do evento chegar).
   const saved = acceptedPositions?.confirmedKey === confirmedKey ? acceptedPositions : { first, second };
   const pending = feedback.status === 'pending';
   const localName = summoner?.gameName
@@ -122,7 +122,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     const context = positionContext.current;
     const revision = confirmedRevision.current;
     inFlight.current = true;
-    setFeedback({ status: 'pending', message: command.type === 'setPositions' ? 'Salvando cargos…' : command.type === 'leaveLobby' ? 'Saindo do lobby…'
+    setFeedback({ status: 'pending', message: command.type === 'setPositions' ? 'Salvando posições…' : command.type === 'leaveLobby' ? 'Saindo do lobby…'
       : lobby ? 'Trocando fila…' : 'Criando lobby…' });
     try {
       const result = await send(command);
@@ -137,7 +137,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
           setAcceptedPositions({ confirmedKey, first: command.first, second: command.second });
         }
         setFeedback({ status: 'success', message: command.type === 'setPositions'
-          ? 'Cargos salvos.' : command.type === 'leaveLobby'
+          ? 'Posições salvas.' : command.type === 'leaveLobby'
           ? 'Saída do lobby confirmada.' : 'Lobby atualizado pelo agente.' });
         return 'ok';
       }
@@ -183,7 +183,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     setSyncing(current => ({ ...current, [kind]: false }));
     if (outcome === 'ok') return;
     // Recusado, falhou ou não pôde mais ser enviado: força a tela a reler o valor confirmado.
-    // Cargos iguais aos já salvos também caem aqui ('skipped'), e aí a tela já mostra o valor certo.
+    // Posições iguais às já salvas também caem aqui ('skipped'), e aí a tela já mostra o valor certo.
     if (kind === 'queue') setSelection(current => ({ ...current, queueId: -1 }));
     else if (outcome === 'error') setPositions(current => ({ ...current, confirmedKey: '' }));
   }
@@ -195,7 +195,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
       setSyncing(current => ({ ...current, positions: true }));
       schedule();
     } else {
-      // Falta o cargo secundário: nada é enviado até ele ser escolhido.
+      // Falta a posição secundária: nada é enviado até ela ser escolhida.
       delete desired.current.positions;
     }
   }
@@ -309,14 +309,14 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
                 <span className="mt-2 inline-block rounded-full bg-raised px-2.5 py-1 text-caption font-semibold text-muted">Nível {member.summonerLevel}</span>
               </div>
               {lobby.showPositionSelector && (
-                <ul aria-label={`Cargos de ${name}`} className="flex w-36 shrink-0 flex-col gap-2 @min-[52rem]:w-52">
+                <ul aria-label={`Posições de ${name}`} className="flex w-36 shrink-0 flex-col gap-2 @min-[52rem]:w-52">
                   {[member.firstPosition, member.secondPosition].map((position, slot) => (
                     <li key={slot} className={cx('flex items-center gap-2 rounded-tile px-3 py-2 text-body font-medium',
                       slot === 0 ? 'bg-accent-soft text-accent-ink' : 'bg-raised text-muted')}>
                       <PositionIcon position={position} />
                       <span className="truncate">{positionNames[position]}</span>{' '}
                       {/* Em janela estreita, a ordem e a cor dizem qual é qual; o leitor de tela continua ouvindo. */}
-                      <span className="sr-only shrink-0 text-caption @min-[52rem]:not-sr-only @min-[52rem]:ml-auto">{slot === 0 ? 'Primário' : 'Secundário'}</span>
+                      <span className="sr-only shrink-0 text-caption @min-[52rem]:not-sr-only @min-[52rem]:ml-auto">{slot === 0 ? 'Primária' : 'Secundária'}</span>
                     </li>
                   ))}
                 </ul>
@@ -336,13 +336,13 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
       <div className={cx('grid items-stretch gap-4', !searching && '@min-[44rem]:grid-cols-2')}>
         {lobby.showPositionSelector ? (
           <fieldset className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" disabled={!canSetPositions}>
-            <legend className="sr-only">Seus cargos</legend>
-            <h3 aria-hidden="true" className="px-1 text-section font-semibold">Seus cargos</h3>
+            <legend className="sr-only">Suas posições</legend>
+            <h3 aria-hidden="true" className="px-1 text-section font-semibold">Suas posições</h3>
             <p className="px-1 text-caption text-muted">As posições na lista de jogadores são confirmadas pelo agente.</p>
             {!localMember && <p className="px-1 text-body text-muted">Aguarde a identificação do seu membro no lobby.</p>}
-            {phase !== 'Lobby' && <p className="px-1 text-body text-muted">A escolha de cargos está disponível na fase de lobby.</p>}
+            {phase !== 'Lobby' && <p className="px-1 text-body text-muted">A escolha de posições está disponível na fase de lobby.</p>}
             <div className="grid grid-cols-2 gap-2">
-              <label className="flex min-w-0 flex-col gap-1.5 px-1 text-caption font-medium text-muted" htmlFor={firstId}>Cargo primário
+              <label className="flex min-w-0 flex-col gap-1.5 px-1 text-caption font-medium text-muted" htmlFor={firstId}>Posição primária
                 <span className="relative flex items-center">
                   <PositionIcon position={positions.first} className="pointer-events-none absolute left-3 z-10" />
                 <select id={firstId} value={positions.first} className={`${selectClass} w-full pl-10`}
@@ -355,7 +355,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
                     <option key={position} value={position}>{positionNames[position]}</option>)}
                 </select></span>
               </label>
-              <label className="flex min-w-0 flex-col gap-1.5 px-1 text-caption font-medium text-muted" htmlFor={secondId}>Cargo secundário
+              <label className="flex min-w-0 flex-col gap-1.5 px-1 text-caption font-medium text-muted" htmlFor={secondId}>Posição secundária
                 <span className="relative flex items-center">
                   <PositionIcon position={positions.second} className="pointer-events-none absolute left-3 z-10" />
                 <select id={secondId} value={positions.second} className={`${selectClass} w-full pl-10`}
@@ -369,10 +369,10 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
               </label>
             </div>
             {!positionsComplete(positions.first, positions.second) && (
-              <p className="px-1 text-caption text-muted">Escolha o cargo secundário para salvar.</p>
+              <p className="px-1 text-caption text-muted">Escolha a posição secundária para salvar.</p>
             )}
           </fieldset>
-        ) : <p className="rounded-panel surface p-4 shadow-soft text-body text-muted animate-fade-up">Esta fila não permite escolher cargos.</p>}
+        ) : <p className="rounded-panel surface p-4 shadow-soft text-body text-muted animate-fade-up">Esta fila não permite escolher posições.</p>}
         {/* Na fila e na partida encontrada, a faixa de ação fica com a busca; trocar fila volta depois. A troca é feita ao escolher. */}
         {!searching && (
           <div className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" style={{ animationDelay: '70ms' }}>
