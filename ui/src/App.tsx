@@ -14,6 +14,7 @@ import { TitleBar } from './components/titlebar/TitleBar';
 import { useTheme } from './theme/theme';
 import { useSidebar } from './layout/sidebar';
 import { SideNavigation, type NavigationPage } from './layout/SideNavigation';
+import { SidebarToggle } from './layout/SidebarToggle';
 import { connectionView } from './screens/connection';
 import { ConnectionScreen } from './components/connection/ConnectionScreen';
 import { SummonerHeader } from './components/home/SummonerHeader';
@@ -61,23 +62,22 @@ export default function App() {
     ? connection.state.summoner : null;
   return (
     <div className="app-shell">
-      <div className="app-body">
-        <SideNavigation active={activePage} flowLabel="Lobby" flowButtonRef={flowButtonRef} theme={theme}
-          onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference} />
+      <TitleBar connection={connection} send={connection.send} />
+      <div className={sidebar.open || !ready ? 'app-body' : 'app-body sidebar-collapsed'}>
+        <div hidden={!ready} className="contents">
+          <SideNavigation active={activePage} flowLabel="Lobby" flowButtonRef={flowButtonRef} theme={theme}
+            onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference} />
+        </div>
         <div className="app-main-column">
-          <TitleBar connection={connection} send={connection.send} sidebarOpen={sidebar.open} onSidebarToggle={sidebar.toggle}
-            invitations={invitations} unread={unread} />
           <main ref={contentRef} className="app-content">
           {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error} />}
           {/* Escondido, e não desmontado, enquanto reconecta: comandos em andamento sobrevivem à queda. */}
-          <div hidden={!ready} className={homeLayout
-            ? 'grid grid-flow-row-dense grid-cols-1 gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(15rem,1fr)]'
-            : 'flex flex-col gap-5'}>
+          <div hidden={!ready} className={homeLayout ? 'home-grid' : 'flex min-h-full flex-col gap-5'}>
             {ready && connection.error && <p role="alert" className="col-span-full text-warn">{connection.error}</p>}
             <section hidden={activePage !== 'home'} aria-label="Início"
-              className={homeLayout ? 'order-2 grid min-w-0 gap-4 @min-[44rem]:order-none @min-[44rem]:col-start-2' : 'flex max-w-[22rem] flex-col gap-4'}>
+              className={homeLayout ? 'home-secondary' : 'flex max-w-[22rem] flex-col gap-4'}>
               {summoner && <SummonerHeader summoner={summoner} />}
-              {homeLayout && <div className="grid grid-cols-1 gap-4 @min-[22rem]:grid-cols-2">
+              {homeLayout && <div className="home-placeholders">
                 <article aria-label="Área reservada" className="flex min-h-32 flex-col justify-end rounded-panel surface p-5 shadow-soft animate-fade-up" style={{ animationDelay: '140ms' }}>
                   <h2 className="text-section font-semibold text-ink">Área reservada</h2>
                   <p className="mt-1 text-body text-muted">Espaço para uma futura funcionalidade.</p>
@@ -94,12 +94,12 @@ export default function App() {
               description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />}
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
             {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}
-            <div hidden={!playable || (activePage !== 'flow' && activePage !== 'home')} className={homeLayout ? 'order-1 @min-[44rem]:order-none @min-[44rem]:col-start-1'
-              : lobbyMain ? 'grid items-start gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]'
-              : 'flex flex-col gap-4'}>
+            <div hidden={!playable || (activePage !== 'flow' && activePage !== 'home')} className={homeLayout ? 'home-primary'
+              : lobbyMain ? 'grid min-h-0 flex-1 items-stretch gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]'
+              : 'flex flex-1 flex-col gap-4'}>
               <LobbyPanel connection={connection} send={connection.send} />
               {/* Coluna da direita com largura; embaixo, presa à borda, quando a janela é estreita. */}
-              <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
+              <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 h-full @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
                 <QueuePanel connection={connection} send={connection.send} />
               </div>
             </div>
@@ -124,12 +124,16 @@ export default function App() {
           </div>
           </main>
         </div>
-        {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento. */}
-        <aside id="coluna-amigos" aria-label="Amigos e conversas" hidden={!sidebar.open} className="app-sidebar">
-          <InvitationsPanel connection={connection} send={connection.send} />
-          <FriendsList connection={connection} renderActions={friend => <ChatButton friend={friend} onOpen={setChatWith} />} />
-          <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
-        </aside>
+        <div hidden={!ready} className={sidebar.open ? 'app-social-region' : 'app-social-region is-collapsed'}>
+          {!sidebar.open && <SidebarToggle open={false} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
+          {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento. */}
+          <aside id="coluna-amigos" aria-label="Amigos e conversas" hidden={!sidebar.open} className="app-sidebar">
+            {sidebar.open && <SidebarToggle open onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
+            <InvitationsPanel connection={connection} send={connection.send} />
+            <FriendsList connection={connection} renderActions={friend => <ChatButton friend={friend} onOpen={setChatWith} />} />
+            <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
+          </aside>
+        </div>
       </div>
       <Notifications connection={connection} quiet={screen === 'champSelect'} sidebarOpen={sidebar.open} />
     </div>

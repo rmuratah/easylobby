@@ -177,7 +177,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   const queueLabel = lobby.queue ? queueNames[lobby.queue] : `Outra fila (ID ${lobby.queueId})`;
   const freeSlots = Math.max(0, lobby.maxLobbySize - lobby.members.length);
   return (
-    <section aria-label="Lobby" className="flex w-full flex-col gap-4 text-ink">
+    <section aria-label="Lobby" className="flex h-full min-h-0 w-full flex-col gap-4 text-ink">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Lobby</h2>
@@ -201,13 +201,13 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
         </div>
       </header>
 
-      <ul aria-label="Jogadores no lobby" className="flex flex-col gap-3">
+      <ul aria-label="Jogadores no lobby" className="flex min-h-0 flex-1 flex-col gap-3">
         {lobby.members.map((member, index) => {
           const me = member.puuid === summoner?.puuid;
           const name = me ? localName : `Invocador ${member.summonerId}`;
           return (
             <li key={member.puuid} style={{ animationDelay: `${index * 70}ms` }}
-              className={cx('relative flex min-h-20 items-center gap-4 rounded-panel px-4 py-3 transition-all duration-200 animate-fade-up',
+              className={cx('relative flex min-h-20 flex-1 items-center gap-4 rounded-panel px-4 py-3 transition-all duration-200 animate-fade-up',
                 me ? 'bg-surface shadow-lift ring-2 ring-accent/30' : 'surface shadow-soft hover:-translate-y-0.5 hover:shadow-lift')}>
               <div className={cx('shrink-0 rounded-full p-1', me ? 'bg-primary-gradient' : 'bg-raised')}>
                 <Avatar name={me && summoner?.gameName ? summoner.gameName : name} src={assetUrl('profileIcon', member.summonerIconId)}
@@ -244,7 +244,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
         })}
         {Array.from({ length: freeSlots }, (_, index) => (
           <li key={`vaga-${index}`} aria-label="Vaga livre" style={{ animationDelay: `${(lobby.members.length + index) * 70}ms` }}
-            className="flex min-h-20 items-center justify-center gap-3 rounded-panel border-2 border-dashed border-line bg-surface/40 text-muted animate-fade-up">
+            className="flex min-h-20 flex-1 items-center justify-center gap-3 rounded-panel border-2 border-dashed border-line bg-surface/40 text-muted animate-fade-up">
             <span aria-hidden="true" className="flex size-11 items-center justify-center rounded-full bg-raised"><PlusIcon size={20} /></span>
             <span className="text-body font-semibold">Vaga livre</span>
           </li>
