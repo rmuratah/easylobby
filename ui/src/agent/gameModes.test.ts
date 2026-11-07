@@ -76,15 +76,15 @@ describe('abas da tela de escolha de modo', () => {
     expect(sr.submodes.find(s => s.queueId === 440)!.available).toBe(false);
   });
 
-  it('antes da lista chegar, deixa tentar as cinco filas fixas e acinzenta o resto', () => {
+  it('antes da lista chegar, deixa tentar todos os modos fixos', () => {
     const tabs = buildModeTabs([]);
     expect(summary(tab(tabs, 'pvp'))).toEqual([
       ["Summoner's Rift", true, [[480, true], [400, true], [440, true], [420, true]]],
-      ['ARAM', true, [[450, true], [2400, false]]],
-      ['Arena', false, [[1750, false]]],
+      ['ARAM', true, [[450, true], [2400, true]]],
+      ['Arena', true, [[1750, true]]],
     ]);
-    expect(tab(tabs, 'coop').modes[0].available).toBe(false);
-    expect(firstAvailable(tab(tabs, 'coop'))).toBeNull();
+    expect(tab(tabs, 'coop').modes[0].available).toBe(true);
+    expect(firstAvailable(tab(tabs, 'coop'))?.submode?.queueId).toBe(870);
   });
 
   it('a seleção inicial é o primeiro submodo aberto da aba', () => {

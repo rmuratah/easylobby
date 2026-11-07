@@ -90,9 +90,9 @@ export const fixedQueueIds = new Set([...pvpModes, ...coopModes].flatMap(mode =>
 function fixedMode(mode: FixedMode, queues: GameQueue[]): GameMode {
   const submodes = mode.submodes.map((fixed): Submode => {
     const listed = queues.find(q => q.queueId === fixed.queueId);
-    // Fila que o agente ainda não listou: as cinco fixas do agente dá para tentar (a LCU diz se fechou);
-    // as que só existem pelo id dependem da lista.
-    const available = listed ? listed.available : !!fixed.queue;
+    // Só fica cinza o que o agente disse que está fechado. Fila que ainda não veio na lista (lida antes do
+    // login, por exemplo) dá para tentar: o agente repassa e a LCU decide.
+    const available = listed ? listed.available : true;
     const command = createLobbyCommand(listed ? queueKey(listed) : fixed.queue ?? `fila-${fixed.queueId}`);
     return { queueId: fixed.queueId, name: fixed.name, description: fixed.description, available, command };
   });

@@ -3,7 +3,7 @@
 use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
 use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError};
 use crate::matchmaking::{self, Matchmaking};
-use crate::queues::GameQueue;
+use crate::queues::{GameQueue, MODE_SCREEN_QUEUES};
 use crate::training;
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 
@@ -35,6 +35,9 @@ impl Hub {
             .find(|q| q.queue_id == queue_id)
             .map(|q| q.available);
         match listed {
+            // Fila fixa da tela que a lista ainda não trouxe (lida antes do
+            // login, por exemplo): a LCU decide se está aberta (#210).
+            None if MODE_SCREEN_QUEUES.contains(&queue_id) => self.create_lobby_in(queue_id).await,
             None => CommandResult::error(
                 ErrorCode::InvalidCommand,
                 format!("a fila {queue_id} não está disponível agora"),
@@ -168,6 +171,25 @@ impl Hub {
                 return None;
             }
             write_queues(shared, queues)
+        });
+    }
+
+    /// Relê a lista de filas pelo REST em segundo plano (#210). A lista lida
+    /// ao conectar pode vir vazia ou incompleta quando o LoL ainda está
+    /// subindo ou antes do login, e a LCU nem sempre manda o evento depois.
+    pub(super) fn spawn_refresh_queues(&self) {
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let Some(client) = self.client() else {
+            return;
+        };
+        let session = self.lock().session;
+        let hub = self.clone();
+        runtime.spawn(async move {
+            if let Ok(Some(queues)) = crate::queues::available(&client).await {
+                hub.restore_queues(session, queues);
+            }
         });
     }
 
@@ -393,17 +415,26 @@ mod tests {
     #[tokio::test]
     async fn criar_lobby_por_id_so_com_fila_da_lista() {
         let hub = Hub::new();
-        let not_listed = hub.create_lobby_by_id(2400).await;
+        let not_listed = hub.create_lobby_by_id(4310).await;
         assert!(
             matches!(
                 &not_listed,
                 CommandResult::Error {
                     code: ErrorCode::InvalidCommand,
                     message,
-                } if message.contains("2400")
+                } if message.contains("4310")
             ),
             "{not_listed:?}"
         );
+        // Fila fixa da tela de modos fora da lista (lida antes do login): a
+        // LCU decide (#210), e aqui ela não está conectada.
+        assert!(matches!(
+            hub.create_lobby_by_id(2400).await,
+            CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            }
+        ));
         hub.apply(event(GAME_QUEUES_PATH, EventType::Update, queues_json()))
             .await;
         // Na lista, segue para a LCU, que aqui não está conectada.

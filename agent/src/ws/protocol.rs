@@ -384,6 +384,8 @@ pub enum Command {
     /// `invalidCommand` sem falar com a LCU se a fila não está na lista, e
     /// os mesmos erros do `createLobby` no resto. Também responde
     /// `invalidCommand` numa fila da lista com `available: false` (#209).
+    /// Uma fila fixa da tela de escolha de modo que ainda não está na lista
+    /// segue para a LCU, que decide (#210).
     CreateLobbyById { queue_id: u32 },
     /// Aceita a partida encontrada (`POST
     /// /lol-matchmaking/v1/ready-check/accept`, #20). Responde
