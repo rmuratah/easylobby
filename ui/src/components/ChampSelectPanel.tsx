@@ -10,6 +10,7 @@ import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
 import { RuneQuickPick } from './RuneQuickPick';
+import { isAramQueue } from '../agent/queues';
 import { positionNames } from '../agent/positions';
 import type { AgentState } from '../bindings/AgentState';
 import type { ChampSelect } from '../bindings/ChampSelect';
@@ -56,6 +57,7 @@ type ContentProps = { state: AgentState; champSelect: ChampSelect; send: AgentCl
 
 function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentProps) {
   const catalog = state.championCatalog;
+  const aram = isAramQueue(champSelect, state.queues);
   const acting = actingCells(champSelect);
   const mine = myAction(champSelect);
   // A escolha na grade vale só para a ação em que foi feita; depois vale o que a LCU marcou.
@@ -88,7 +90,8 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
               : <SwapOffers champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
           <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
             summonerLevel={state.summoner?.summonerLevel ?? null} send={send} />
-          <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />
+          {/* No ARAM (e na ARAM: Desordem) a troca de runas não aparece. */}
+          {!aram && <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />}
         </div>
         <div className="champ-select-center">
           <Bans champSelect={champSelect} catalog={catalog} />

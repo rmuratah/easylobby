@@ -106,8 +106,8 @@ export default function App() {
               : lobbyMain ? 'grid min-h-0 flex-1 items-stretch gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]'
               : 'flex flex-1 flex-col gap-4'}>
               <LobbyPanel connection={connection} send={connection.send} />
-              {/* Coluna da direita com largura; embaixo, presa à borda, quando a janela é estreita. */}
-              <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 h-full @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
+              {/* Coluna da direita com largura (metade da altura do lobby, sem cortar o conteúdo); embaixo, presa à borda, quando a janela é estreita. */}
+              <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 h-full @min-[44rem]:top-0 @min-[44rem]:bottom-auto @min-[44rem]:h-1/2 @min-[44rem]:min-h-fit">
                 <QueuePanel connection={connection} send={connection.send} />
               </div>
             </div>

@@ -10,6 +10,7 @@ import type { GameflowPhase } from '../bindings/GameflowPhase';
 import type { GameQueue } from '../bindings/GameQueue';
 import type { Queue } from '../bindings/Queue';
 import type { ServerMessage } from '../bindings/ServerMessage';
+import { testFriend } from '../test/events';
 import { testLobby, testState } from '../test/lobby';
 
 class Socket {
@@ -369,9 +370,21 @@ describe('cargos pelo /ws', () => {
     if (order === 'depois') update();
     expect(roles('Victor#BR1')).toHaveTextContent(/Meio Primária.*Selva Secundária/);
     expect(roles('Victor#BR1').querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(2);
-    expect(roles('Invocador 2')).toHaveTextContent(/Topo Primária.*Não selecionado Secundária/);
+    expect(roles('Jogador')).toHaveTextContent(/Topo Primária.*Não selecionado Secundária/);
     expect(positionSelect('Posição primária')).toHaveValue('middle');
     expect(positionSelect('Posição secundária')).toHaveValue('jungle');
+  });
+
+  it('mostra o Riot ID dos amigos no lobby e "Jogador" para quem não é amigo', () => {
+    render(<App />);
+    const member = { ...testLobby.members[0], isLeader: false };
+    hello({ gameflowPhase: 'Lobby', friends: [{ ...testFriend, puuid: 'ana', gameName: 'Games e Musica', tagLine: 'vsfd' }],
+      lobby: { ...testLobby, maxLobbySize: 5, members: [testLobby.members[0],
+        { ...member, puuid: 'ana', summonerId: 172 }, { ...member, puuid: 'outro', summonerId: 173 }] } });
+    const players = within(panel().getByRole('list', { name: 'Jogadores no lobby' }));
+    expect(players.getByRole('heading', { name: 'Games e Musica#vsfd' })).toBeInTheDocument();
+    expect(players.getByRole('heading', { name: 'Jogador' })).toBeInTheDocument();
+    expect(players.queryByText(/Invocador/)).not.toBeInTheDocument();
   });
 
   it('normaliza preenchimento e vazio, bloqueia repetidos e permite preenchimento secundário', async () => {

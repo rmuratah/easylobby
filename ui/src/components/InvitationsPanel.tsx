@@ -71,7 +71,8 @@ function InvitationsActions({ state, send, children }: {
       if (!mounted.current) return;
       if (result.status === 'ok') {
         setDone(current => new Set(current).add(key));
-        setFeedback({ status: 'success', message: success });
+        // Sem mensagem de sucesso (o convite enviado não mostra aviso por enquanto), a linha some.
+        setFeedback(success ? { status: 'success', message: success } : { status: 'idle', message: '' });
       } else {
         setFeedback({ status: 'error', message: result.code === 'notConnected'
           ? 'O League of Legends desconectou. Aguarde a reconexão e confira os convites antes de tentar novamente.'
@@ -95,7 +96,8 @@ function InvitationsActions({ state, send, children }: {
   const invite = (friend: Friend) => execute(
     // A LCU só entrega o convite com o `summonerId`; o `puuid` vai junto, como no client oficial.
     { type: 'inviteToLobby', invitees: [{ summonerId: friend.summonerId, puuid: friend.puuid }] },
-    `Convite enviado para ${friendDisplayName(friend)}.`,
+    // Sem aviso de "convite enviado" por enquanto: o botão some e o convite aparece no lobby.
+    '',
   );
   const inviteAction = (friend: Friend) => {
     const key = `invite:${friend.puuid}`;
