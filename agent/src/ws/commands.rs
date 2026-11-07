@@ -60,6 +60,7 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::RerollChampion => hub.reroll_champion().await,
         Command::SwapBenchChampion { champion_id } => hub.swap_bench_champion(champion_id).await,
         Command::SendChampSelectMessage { body } => hub.send_champ_select_message(&body).await,
+        Command::SendLobbyMessage { body } => hub.send_lobby_message(&body).await,
 
         // Runas
         Command::SelectRunePage { page_id } => hub.select_rune_page(page_id).await,

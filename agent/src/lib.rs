@@ -27,6 +27,7 @@
 //!   ações pendentes) (#22)
 //! - [`chat`]: conversas 1:1 com amigos e o histórico da sessão (#31)
 //! - [`champ_select_chat`]: chat do time na seleção de campeões (#27)
+//! - [`lobby_chat`]: chat do grupo no lobby (#206)
 //! - [`champions`]: campeões do jogo e os que dá para escolher e banir na
 //!   seleção (#28)
 //! - [`runes`]: páginas de runas: listar, editar, criar, apagar e aplicar,
@@ -53,6 +54,7 @@ pub mod gameflow;
 pub mod invitations;
 pub mod launcher;
 pub mod lobby;
+pub mod lobby_chat;
 pub mod lockfile;
 pub mod mastery;
 pub mod match_history;
