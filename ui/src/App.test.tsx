@@ -97,10 +97,20 @@ describe('telas confirmadas pelo agente', () => {
     expect(navigation).toHaveTextContent('Grupo');
     expect(navigation).not.toHaveTextContent('Jogar');
   });
+  it('mostra a área reservada no Início sem lobby e cria o lobby pelo Jogar', () => {
+    snapshot();
+    render(<App />);
+    expect(screen.getByRole('article', { name: 'Área reservada para atualização' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Criar lobby' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Jogar' }));
+    expect(screen.queryByRole('article', { name: 'Área reservada para atualização' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Criar lobby' })).toBeVisible();
+  });
   it('preserva criar lobby pendente ao receber o lobby', () => {
     send.mockClear();
     snapshot();
     const { rerender } = render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Jogar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Criar lobby' }));
     expect(screen.getByRole('button', { name: 'Criar lobby' })).toBeDisabled();
     snapshot({ lobby: testLobby, gameflowPhase: 'Lobby' });

@@ -172,8 +172,14 @@ function TierEmblem({ tier }: { tier: string | null }) {
   const id = tier ? tierEmblemId(tier) : null;
   const src = id ? assetUrl('rankedEmblem', id) : null;
   if (tier && src && failed !== src) {
-    return <img src={src} alt="" width={112} height={112} onError={() => setFailed(src)}
-      className="-my-3 size-28 shrink-0 object-contain" />;
+    // A imagem do CommunityDragon tem muita borda transparente: ela fica com
+    // o dobro do tamanho da caixa, centralizada, e a borda sobra para fora.
+    return (
+      <span aria-hidden="true" className="relative -my-3 size-28 shrink-0">
+        <img src={src} alt="" width={224} height={224} onError={() => setFailed(src)}
+          className="pointer-events-none absolute left-1/2 top-1/2 size-56 max-w-none -translate-x-1/2 -translate-y-1/2 object-contain" />
+      </span>
+    );
   }
   return (
     <span aria-hidden="true"
