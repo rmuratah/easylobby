@@ -55,8 +55,11 @@ use crate::friends::{Friend, FriendGroup};
 use crate::gameflow::GameflowPhase;
 use crate::invitations::{Invitee, ReceivedInvitation};
 use crate::lobby::{Lobby, Position, Queue};
+use crate::mastery::ChampionMastery;
+use crate::match_history::{MatchDetails, MatchHistory};
 use crate::matchmaking::Matchmaking;
 use crate::queues::GameQueue;
+use crate::ranked::RankedStats;
 use crate::ready_check::ReadyCheck;
 use crate::runes::{RuneCatalog, RunePageInput, RunePages};
 use crate::summoner::Summoner;
@@ -180,6 +183,27 @@ pub enum ServerMessage {
     /// fechou). A UI tira ela da lista.
     ConversationClosed { id: String },
 
+    // Perfil
+    /// Os ranks do jogador logado na Solo/Duo e na Flex (#171) mudaram:
+    /// chegam logo depois de conectar e no fim de cada ranqueada. `null`
+    /// com o LoL fechado ou enquanto a LCU não respondeu.
+    Ranked { ranked: Option<RankedStats> },
+    /// Os campeões com mais maestria do jogador logado (#175), no máximo 3,
+    /// do que tem mais pontos para o que tem menos. Chegam logo depois de
+    /// conectar e no fim de cada partida. Vazia com o LoL fechado.
+    ChampionMasteries {
+        champion_masteries: Vec<ChampionMastery>,
+    },
+    /// O histórico de partidas do jogador logado (#172) mudou: a primeira
+    /// página logo depois de conectar, uma partida nova no fim de cada
+    /// partida, ou mais uma página (`loadMoreMatches`). Sempre a lista
+    /// inteira já carregada. `null` com o LoL fechado ou enquanto a LCU não
+    /// respondeu.
+    MatchHistory { match_history: Option<MatchHistory> },
+    /// O placar de uma partida pedido com `openMatchDetails` (#174). Fica
+    /// no estado até outro ser pedido. `null` com o LoL fechado.
+    MatchDetails { match_details: Option<MatchDetails> },
+
     // Respostas aos comandos
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
@@ -237,6 +261,16 @@ pub struct AgentState {
     /// Conversas 1:1 abertas (#31), cada uma com o histórico da sessão. Sem
     /// ordem definida; a UI ordena (pela última mensagem, por exemplo).
     pub conversations: Vec<Conversation>,
+
+    // Perfil
+    /// Ranks do jogador logado (#171), ou `null`.
+    pub ranked: Option<RankedStats>,
+    /// Até 3 campeões com mais maestria (#175).
+    pub champion_masteries: Vec<ChampionMastery>,
+    /// Histórico de partidas já carregado (#172), ou `null`.
+    pub match_history: Option<MatchHistory>,
+    /// Último placar pedido com `openMatchDetails` (#174), ou `null`.
+    pub match_details: Option<MatchDetails>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -498,6 +532,21 @@ pub enum Command {
     /// mensagem `conversation`. Responde `notConnected` com o LoL fechado e
     /// `lcu` se a LCU recusar.
     SetActiveConversation { conversation_id: Option<String> },
+
+    // Perfil
+    /// Carrega a próxima página do histórico de partidas (#172), depois das
+    /// que já estão em `matchHistory`. O histórico com as partidas novas
+    /// chega numa mensagem `matchHistory` antes da resposta. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
+    LoadMoreMatches,
+    /// Busca o placar com os 10 jogadores da partida `gameId` (#174). O
+    /// placar chega numa mensagem `matchDetails` antes da resposta. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (partida
+    /// que não existe, histórico fora do ar).
+    OpenMatchDetails {
+        #[ts(type = "number")]
+        game_id: u64,
+    },
 }
 
 /// Resultado de um comando.
@@ -574,6 +623,10 @@ mod tests {
                     "champSelectChampions": {"pickable": null, "bannable": null},
                     "friends": [],
                     "friendGroups": [],
+                    "ranked": null,
+                    "championMasteries": [],
+                    "matchHistory": null,
+                    "matchDetails": null,
                 },
             })
         );
@@ -891,6 +944,23 @@ mod tests {
                 invitation_id: "abc".into()
             }
         );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 15,
+            "command": {"type": "openMatchDetails", "gameId": 1234567890123u64},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::OpenMatchDetails {
+                game_id: 1_234_567_890_123
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 16,
+            "command": {"type": "loadMoreMatches"},
+        }))
+        .unwrap();
+        assert_eq!(msg.command, Command::LoadMoreMatches);
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 14,
             "command": {"type": "inviteToLobby", "invitees": [{"summonerId": 1003, "puuid": "p"}]},

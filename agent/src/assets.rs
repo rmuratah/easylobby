@@ -1,8 +1,9 @@
 //! Cache local de ícones e imagens do jogo (#29).
 //!
-//! A UI mostra ícones de campeão, de invocador, de feitiço e de runa. Em vez
-//! de cada tela baixar da internet, o agente baixa do CommunityDragon uma vez,
-//! guarda no disco e serve pela mesma porta do `/ws`:
+//! A UI mostra ícones de campeão, de invocador, de feitiço, de runa e de
+//! item. Em vez de cada tela baixar da internet, o agente baixa do
+//! CommunityDragon uma vez, guarda no disco e serve pela mesma porta do
+//! `/ws`:
 //!
 //! ```text
 //! GET http://127.0.0.1:47800/assets/champion/266        -> PNG do Aatrox
@@ -10,6 +11,7 @@
 //! GET http://127.0.0.1:47800/assets/summonerSpell/4     -> PNG do Flash
 //! GET http://127.0.0.1:47800/assets/perk/8005           -> PNG do Pressione o Ataque
 //! GET http://127.0.0.1:47800/assets/perkStyle/8000      -> PNG da árvore Precisão
+//! GET http://127.0.0.1:47800/assets/item/3071           -> PNG da Cutelo Negro
 //! ```
 //!
 //! O `id` é o mesmo que a LCU manda (`championId`, `profileIconId`,
@@ -89,15 +91,18 @@ pub enum AssetKind {
     /// Árvore de runas (Precisão, Dominação...), pelo `primaryStyleId`/
     /// `subStyleId`.
     PerkStyle,
+    /// Item, pelo id de `items` do histórico de partidas (#172).
+    Item,
 }
 
 impl AssetKind {
-    pub const ALL: [AssetKind; 5] = [
+    pub const ALL: [AssetKind; 6] = [
         AssetKind::Champion,
         AssetKind::ProfileIcon,
         AssetKind::SummonerSpell,
         AssetKind::Perk,
         AssetKind::PerkStyle,
+        AssetKind::Item,
     ];
 
     /// Nome no caminho da URL e da pasta do cache.
@@ -108,6 +113,7 @@ impl AssetKind {
             AssetKind::SummonerSpell => "summonerSpell",
             AssetKind::Perk => "perk",
             AssetKind::PerkStyle => "perkStyle",
+            AssetKind::Item => "item",
         }
     }
 
@@ -123,6 +129,7 @@ impl AssetKind {
             AssetKind::SummonerSpell => "summoner-spells.json",
             AssetKind::Perk => "perks.json",
             AssetKind::PerkStyle => "perkstyles.json",
+            AssetKind::Item => "items.json",
         }
     }
 
@@ -630,6 +637,15 @@ mod tests {
         ]}"#;
         let index = parse_index(AssetKind::PerkStyle, styles).unwrap();
         assert_eq!(index[&8000], "v1/perk-images/styles/7201_precision.png");
+
+        let items = br#"[
+            {"id":3071,"name":"Black Cleaver","iconPath":"/lol-game-data/assets/ASSETS/Items/Icons2D/3071_Fighter_T3_BlackCleaver.png"}
+        ]"#;
+        let index = parse_index(AssetKind::Item, items).unwrap();
+        assert_eq!(
+            index[&3071],
+            "assets/items/icons2d/3071_fighter_t3_blackcleaver.png"
+        );
 
         assert!(parse_index(AssetKind::Perk, b"{}").is_err());
         assert!(parse_index(AssetKind::Perk, b"nao e json").is_err());

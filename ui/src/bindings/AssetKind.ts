@@ -8,4 +8,5 @@ export type AssetKind =
   | "profileIcon"
   | "summonerSpell"
   | "perk"
-  | "perkStyle";
+  | "perkStyle"
+  | "item";

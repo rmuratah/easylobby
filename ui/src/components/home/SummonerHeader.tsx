@@ -1,12 +1,15 @@
 import { assetUrl } from '../../agent/assets';
 import type { Summoner } from '../../bindings/Summoner';
+import type { RankedStats } from '../../bindings/RankedStats';
+import type { RankedEntry } from '../../bindings/RankedEntry';
+import { rankLabel } from '../../agent/profile';
 import { Avatar } from '../base';
 
 /**
  * Quem está logado: ícone, Riot ID e nível (#128). No início, ocupa o cartão
  * ao lado do principal, com capa decorada e o ícone sobre ela.
  */
-export function SummonerHeader({ summoner }: { summoner: Summoner }) {
+export function SummonerHeader({ summoner, ranked }: { summoner: Summoner; ranked: RankedStats | null }) {
   const name = summoner.gameName || summoner.displayName || 'Invocador';
   return (
     <section aria-label="Invocador logado"
@@ -27,14 +30,19 @@ export function SummonerHeader({ summoner }: { summoner: Summoner }) {
       <dl className="mx-5 mt-3 grid w-[calc(100%-2.5rem)] grid-cols-2 gap-2 text-left">
         <div className="rounded-tile bg-raised p-3">
           <dt className="text-caption font-semibold text-muted">Solo/Duo</dt>
-          <dd className="mt-1 text-body font-semibold text-ink">Indisponível</dd>
+          <dd className="mt-1 text-body font-semibold text-ink">{rank(ranked?.soloDuo)}</dd>
         </div>
         <div className="rounded-tile bg-raised p-3">
           <dt className="text-caption font-semibold text-muted">Flex</dt>
-          <dd className="mt-1 text-body font-semibold text-ink">Indisponível</dd>
+          <dd className="mt-1 text-body font-semibold text-ink">{rank(ranked?.flex)}</dd>
         </div>
       </dl>
-      <p className="mt-2 px-5 text-caption text-muted">Ranks e presença aguardam dados do agente.</p>
     </section>
   );
+}
+
+/** Elo e PDL de uma fila, ou `Indisponível` enquanto o agente não mandou os ranks. */
+function rank(entry: RankedEntry | undefined): string {
+  if (!entry) return 'Indisponível';
+  return entry.tier ? `${rankLabel(entry)} · ${entry.leaguePoints} PDL` : rankLabel(entry);
 }

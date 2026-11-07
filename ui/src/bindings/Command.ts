@@ -37,4 +37,6 @@ export type Command =
   | { "type": "declineInvitation", invitationId: string, }
   | { "type": "inviteToLobby", invitees: Array<Invitee>, }
   | { "type": "sendChatMessage", conversationId: string, body: string, }
-  | { "type": "setActiveConversation", conversationId: string | null, };
+  | { "type": "setActiveConversation", conversationId: string | null, }
+  | { "type": "loadMoreMatches" }
+  | { "type": "openMatchDetails", gameId: number, };

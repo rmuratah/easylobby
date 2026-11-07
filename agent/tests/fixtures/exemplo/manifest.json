@@ -3,5 +3,5 @@
   "patch": "exemplo",
   "recordedAt": "2026-11-05T00:00:00Z",
   "synthetic": true,
-  "notes": "Conjunto escrito à mão, não gravado do LoL. Normal às cegas em duo: lobby, mensagem no chat, fila, ready check aceito e champ select até travar o campeão. Os formatos seguem a LCU, mas campos podem faltar; prefira uma gravação real (gravar_fixtures) quando houver."
+  "notes": "Conjunto escrito à mão, não gravado do LoL. Normal às cegas em duo: lobby, mensagem no chat, fila, ready check aceito e champ select até travar o campeão. Os formatos seguem a LCU, mas campos podem faltar; prefira uma gravação real (gravar_fixtures) quando houver. Perfil (#171, #172, #174, #175): ranks, maestria, duas páginas de histórico (26 partidas, a 8ª é um remake) e o placar das 8 mais novas, gerados por script."
 }
