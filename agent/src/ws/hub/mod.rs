@@ -24,7 +24,7 @@ use crate::champ_select::{ChampSelect, CHAMP_SELECT_SESSION_PATH};
 use crate::champions::{ChampSelectChampions, BANNABLE_CHAMPIONS_PATH, PICKABLE_CHAMPIONS_PATH};
 use crate::chat::ChatUri;
 use crate::connection::{ConnectionEvent, LcuConnection};
-use crate::friends::Friend;
+use crate::friends::{Friend, FriendGroup, FriendGroupUri};
 use crate::gameflow::{self, GameflowPhase};
 use crate::invitations::{ReceivedInvitation, RECEIVED_INVITATIONS_PATH};
 use crate::lobby::{Lobby, LOBBY_PATH};
@@ -271,6 +271,7 @@ impl Hub {
                     spell_catalog,
                     champion_catalog,
                     friend_list,
+                    friend_groups,
                     queues,
                 ) = tokio::join!(
                     summoner::current_summoner(&client),
@@ -284,6 +285,7 @@ impl Hub {
                     summoner_spells::catalog(&client),
                     crate::champions::catalog(&client),
                     crate::friends::friends(&client),
+                    crate::friends::groups(&client),
                     crate::queues::available(&client),
                 );
                 // 404 antes do login; qualquer outro erro também deixa vazio,
@@ -309,6 +311,8 @@ impl Hub {
                 // Nenhum comando mexe nos amigos e os eventos só são
                 // aplicados depois deste `apply`, então não há corrida.
                 self.set_friends(friend_list.unwrap_or_default());
+                // Sem as pastas, a UI agrupa pelo nome da pasta de cada amigo.
+                self.set_friend_groups(friend_groups.unwrap_or_default());
                 // Só existe ready check aberto nessa fase; nas outras a LCU
                 // responde 404 ou `Invalid`, e não vale o pedido a mais.
                 if phase == Some(GameflowPhase::ReadyCheck) {
@@ -359,6 +363,7 @@ impl Hub {
                 self.set_champion_catalog(None);
                 self.set_champ_select_champions(ChampSelectChampions::default());
                 self.set_friends(Vec::new());
+                self.set_friend_groups(Vec::new());
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
                 });
@@ -442,6 +447,22 @@ impl Hub {
                     if let Some(friend) = Friend::from_json(&event.data) {
                         self.upsert_friend(friend);
                     }
+                }
+            }
+            uri if uri.starts_with(crate::friends::FRIEND_GROUPS_PATH) => {
+                match crate::friends::FriendGroupUri::parse(uri) {
+                    Some(FriendGroupUri::List) if !deleted => {
+                        if let Some(list) = FriendGroup::list_from_json(&event.data) {
+                            self.set_friend_groups(list);
+                        }
+                    }
+                    Some(FriendGroupUri::Group(id)) if deleted => self.remove_friend_group(id),
+                    Some(FriendGroupUri::Group(_)) => {
+                        if let Some(group) = FriendGroup::from_json(&event.data) {
+                            self.upsert_friend_group(group);
+                        }
+                    }
+                    _ => {}
                 }
             }
             uri => {

@@ -42,6 +42,14 @@ export type Friend = {
    */
   statusMessage: string,
   /**
+   * Pasta do amigo ([`FriendGroup::id`]). `0` é a pasta padrão.
+   */
+  groupId: number,
+  /**
+   * Nome da pasta, como a LCU manda (`**Default` na pasta padrão).
+   */
+  groupName: string,
+  /**
    * O que o amigo está fazendo: no LoL (e em que parte), em outro jogo da
    * Riot ou `null` (offline, no celular ou sem informação).
    */

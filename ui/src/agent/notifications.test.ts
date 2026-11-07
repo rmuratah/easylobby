@@ -23,7 +23,7 @@ describe('updateMessageNotices', () => {
   it('avisa mensagem recebida e soma as seguintes no mesmo aviso', () => {
     const one = withChat(conversation([message('m1'), message('m2', 'oi')]));
     const notices = updateMessageNotices([], before, one);
-    expect(notices).toEqual([{ conversationId: testConversation.id, from: 'Amigo#BR1', body: 'oi', count: 1, lastMessageId: 'm2' }]);
+    expect(notices).toEqual([{ conversationId: testConversation.id, from: 'Amigo', body: 'oi', count: 1, lastMessageId: 'm2' }]);
     const two = withChat(conversation([message('m1'), message('m2', 'oi'), message('m3', 'bora'), message('m4', 'ranked?')]));
     expect(updateMessageNotices(notices, one, two)).toEqual([{ ...notices[0], body: 'ranked?', count: 3, lastMessageId: 'm4' }]);
   });

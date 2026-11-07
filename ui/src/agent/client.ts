@@ -53,6 +53,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'championCatalog': return { ...state, championCatalog: message.championCatalog };
     case 'champSelectChampions': return { ...state, champSelectChampions: message.champSelectChampions };
     case 'friends': return { ...state, friends: message.friends };
+    case 'friendGroups': return { ...state, friendGroups: message.friendGroups };
     default: return message satisfies never;
   }
 }

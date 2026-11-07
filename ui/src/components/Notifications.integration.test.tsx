@@ -47,11 +47,11 @@ it('avisa mensagem nova e some sozinho depois de um tempo', () => {
   render(<App />);
   hello({ conversations: [testConversation] });
   chat({ unreadCount: 2, messages: [...testConversation.messages, newMessage] });
-  expect(notices().getByText('Mensagem de Amigo#BR1')).toBeInTheDocument();
+  expect(notices().getByText('Mensagem de Amigo')).toBeInTheDocument();
   expect(notices().getByText('joga uma?')).toBeInTheDocument();
   act(() => vi.advanceTimersByTime(MESSAGE_NOTICE_MS - 1000));
   chat({ unreadCount: 3, messages: [...testConversation.messages, newMessage, { ...newMessage, id: 'm3', body: 'bora' }] });
-  expect(notices().getByText('2 mensagens de Amigo#BR1')).toBeInTheDocument();
+  expect(notices().getByText('2 mensagens de Amigo')).toBeInTheDocument();
   act(() => vi.advanceTimersByTime(MESSAGE_NOTICE_MS - 1000));
   expect(notices().getByText('bora')).toBeInTheDocument();
   act(() => vi.advanceTimersByTime(1000));
@@ -93,7 +93,7 @@ it('na seleção de campeões, só avisa mensagens e deixa os convites na coluna
   receive({ type: 'receivedInvitations', invitations: [testInvitation] });
   expect(region()).not.toBeInTheDocument();
   chat({ unreadCount: 2, messages: [...testConversation.messages, newMessage] });
-  expect(notices().getByText('Mensagem de Amigo#BR1')).toBeInTheDocument();
+  expect(notices().getByText('Mensagem de Amigo')).toBeInTheDocument();
   expect(notices().queryByText(/convidou você/)).not.toBeInTheDocument();
 });
 

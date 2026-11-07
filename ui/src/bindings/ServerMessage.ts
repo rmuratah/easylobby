@@ -7,6 +7,7 @@ import type { ChampionCatalog } from "./ChampionCatalog";
 import type { CommandResult } from "./CommandResult";
 import type { Conversation } from "./Conversation";
 import type { Friend } from "./Friend";
+import type { FriendGroup } from "./FriendGroup";
 import type { GameQueue } from "./GameQueue";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
@@ -47,6 +48,7 @@ export type ServerMessage =
   | { "type": "runePages", runePages: RunePages | null, }
   | { "type": "runeCatalog", runeCatalog: RuneCatalog | null, }
   | { "type": "friends", friends: Array<Friend>, }
+  | { "type": "friendGroups", friendGroups: Array<FriendGroup>, }
   | { "type": "receivedInvitations", invitations: Array<ReceivedInvitation>, }
   | { "type": "conversation", conversation: Conversation, }
   | { "type": "conversationClosed", id: string, }

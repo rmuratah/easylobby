@@ -48,7 +48,7 @@ export const testSummonerSpellCatalog: SummonerSpellCatalog = {
 };
 export const testFriend: Friend = {
   id: 'amigo@br1.pvp.net', puuid: 'amigo', summonerId: 1003, gameName: 'Amigo', tagLine: 'BR1', name: '', profileIconId: null,
-  availability: 'online', statusMessage: '', activity: null,
+  availability: 'online', statusMessage: '', groupId: 0, groupName: '**Default', activity: null,
 };
 export const testChampionCatalog: ChampionCatalog = {
   champions: [

@@ -16,8 +16,7 @@ export type MessageNotice = {
 };
 
 export function conversationName(conversation: Conversation): string {
-  if (!conversation.gameName) return 'Um amigo';
-  return conversation.tagLine ? `${conversation.gameName}#${conversation.tagLine}` : conversation.gameName;
+  return conversation.gameName || 'Um amigo';
 }
 
 export function invitationText(invitation: ReceivedInvitation): string {

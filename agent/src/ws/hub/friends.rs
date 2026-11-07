@@ -2,7 +2,7 @@
 
 use super::Hub;
 
-use crate::friends::{self, Friend};
+use crate::friends::{self, Friend, FriendGroup};
 use crate::ws::protocol::ServerMessage;
 
 impl Hub {
@@ -31,6 +31,51 @@ impl Hub {
             friends::sort_friends(list);
             Some(ServerMessage::Friends {
                 friends: list.clone(),
+            })
+        });
+    }
+
+    /// Troca a lista de pastas de amigos inteira, que deve vir na ordem de
+    /// [`friends::sort_groups`].
+    pub fn set_friend_groups(&self, list: Vec<FriendGroup>) {
+        self.update(|shared| {
+            if shared.state.friend_groups == list {
+                return None;
+            }
+            shared.state.friend_groups = list.clone();
+            Some(ServerMessage::FriendGroups {
+                friend_groups: list,
+            })
+        });
+    }
+
+    /// Põe ou atualiza uma pasta, mantendo a ordem.
+    pub(super) fn upsert_friend_group(&self, group: FriendGroup) {
+        self.edit_friend_groups(|list| {
+            match list.iter_mut().find(|g| g.id == group.id) {
+                Some(current) => *current = group,
+                None => list.push(group),
+            }
+            friends::sort_groups(list);
+        });
+    }
+
+    /// Tira uma pasta apagada.
+    pub(super) fn remove_friend_group(&self, id: u32) {
+        self.edit_friend_groups(|list| list.retain(|g| g.id != id));
+    }
+
+    /// Muda a lista de pastas e publica só se ela mudou.
+    fn edit_friend_groups(&self, edit: impl FnOnce(&mut Vec<FriendGroup>)) {
+        self.update(|shared| {
+            let mut list = shared.state.friend_groups.clone();
+            edit(&mut list);
+            if shared.state.friend_groups == list {
+                return None;
+            }
+            shared.state.friend_groups = list.clone();
+            Some(ServerMessage::FriendGroups {
+                friend_groups: list,
             })
         });
     }
@@ -193,5 +238,76 @@ mod tests {
         }
         assert!(cleared);
         assert!(hub.state().friends.is_empty());
+    }
+
+    fn group_names(message: ServerMessage) -> Vec<String> {
+        match message {
+            ServerMessage::FriendGroups { friend_groups } => {
+                friend_groups.into_iter().map(|g| g.name).collect()
+            }
+            other => panic!("esperava as pastas: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn segue_as_pastas_de_amigos() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        hub.apply(event(
+            "/lol-chat/v1/friend-groups",
+            EventType::Update,
+            json!([
+                {"id": 0, "name": "**Default", "priority": 0, "collapsed": false},
+                {"id": 1, "name": "OFFLINE", "priority": 9, "isMetaGroup": true},
+            ]),
+        ))
+        .await;
+        assert_eq!(group_names(rx.try_recv().unwrap()), ["**Default"]);
+
+        // Pasta nova, com prioridade menor: vai para o começo.
+        hub.apply(event(
+            "/lol-chat/v1/friend-groups/2",
+            EventType::Create,
+            json!({"id": 2, "name": "duo", "priority": -1, "collapsed": true}),
+        ))
+        .await;
+        assert_eq!(group_names(rx.try_recv().unwrap()), ["duo", "**Default"]);
+
+        // Renomeada.
+        hub.apply(event(
+            "/lol-chat/v1/friend-groups/2",
+            EventType::Update,
+            json!({"id": 2, "name": "duo fixo", "priority": -1, "collapsed": true}),
+        ))
+        .await;
+        assert_eq!(
+            group_names(rx.try_recv().unwrap()),
+            ["duo fixo", "**Default"]
+        );
+
+        // Igual: nada a publicar. Subrecurso: ignorado.
+        hub.apply(event(
+            "/lol-chat/v1/friend-groups/2",
+            EventType::Update,
+            json!({"id": 2, "name": "duo fixo", "priority": -1, "collapsed": true}),
+        ))
+        .await;
+        hub.apply(event(
+            "/lol-chat/v1/friend-groups/2/friends",
+            EventType::Update,
+            json!([]),
+        ))
+        .await;
+        assert!(rx.try_recv().is_err());
+
+        // Apagada.
+        hub.apply(event(
+            "/lol-chat/v1/friend-groups/2",
+            EventType::Delete,
+            json!(null),
+        ))
+        .await;
+        assert_eq!(group_names(rx.try_recv().unwrap()), ["**Default"]);
+        assert_eq!(hub.state().friend_groups.len(), 1);
     }
 }
