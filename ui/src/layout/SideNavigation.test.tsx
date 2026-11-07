@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NAVIGATION_STORAGE_KEY } from './navigation';
 import { SideNavigation } from './SideNavigation';
 
-const renderNavigation = () => render(<SideNavigation active="home" flowLabel="Lobby" flowButtonRef={createRef()}
+const renderNavigation = () => render(<SideNavigation active="home" flowLabel="Grupo" flowButtonRef={createRef()}
   theme="claro" onNavigate={vi.fn()} onThemeChange={vi.fn()} />);
 
 beforeEach(() => localStorage.clear());
@@ -12,25 +12,25 @@ beforeEach(() => localStorage.clear());
 describe('SideNavigation', () => {
   it('mantém a ordem, o destino ativo e a reserva de configurações', () => {
     const onNavigate = vi.fn();
-    const { container } = render(<SideNavigation active="home" flowLabel="Lobby" flowButtonRef={createRef()}
+    const { container } = render(<SideNavigation active="home" flowLabel="Grupo" flowButtonRef={createRef()}
       theme="claro" onNavigate={onNavigate} onThemeChange={vi.fn()} />);
     const navigation = screen.getByRole('complementary', { name: 'Navegação do aplicativo' });
     expect(screen.getByRole('heading', { name: 'easylobby' })).toHaveAttribute('data-tauri-drag-region');
     const buttons = Array.from(navigation.querySelectorAll('button'));
     expect(buttons.map(button => button.getAttribute('aria-label') ?? button.textContent)).toEqual([
-      'Lobby', 'Início', 'Recolher navegação', 'Tema claro', 'Tema escuro', 'Configurações — em breve',
+      'Grupo', 'Início', 'Recolher navegação', 'Tema claro', 'Tema escuro', 'Configurações — em breve',
     ]);
     expect(screen.getByRole('button', { name: 'Início' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Configurações — em breve' })).toBeDisabled();
     for (const button of buttons) expect(button).not.toHaveAttribute('data-tauri-drag-region');
-    fireEvent.click(screen.getByRole('button', { name: 'Lobby' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Grupo' }));
     expect(onNavigate).toHaveBeenCalledWith('flow');
     expect(container.querySelector('nav')).toBeInTheDocument();
   });
 
   it('troca o tema só entre claro e escuro', () => {
     const onThemeChange = vi.fn();
-    render(<SideNavigation active="flow" flowLabel="Lobby" flowButtonRef={createRef()}
+    render(<SideNavigation active="flow" flowLabel="Grupo" flowButtonRef={createRef()}
       theme="escuro" onNavigate={vi.fn()} onThemeChange={onThemeChange} />);
     expect(screen.queryByRole('button', { name: 'Sistema' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tema escuro' })).toHaveAttribute('aria-pressed', 'true');
@@ -45,9 +45,9 @@ describe('SideNavigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Recolher navegação' }));
     expect(navigation).toHaveClass('is-collapsed');
     expect(screen.queryByText('Início')).toBeNull();
-    expect(screen.queryByText('Lobby')).toBeNull();
+    expect(screen.queryByText('Grupo')).toBeNull();
     expect(screen.getByRole('button', { name: 'Início' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('button', { name: 'Lobby' })).toHaveAttribute('title', 'Lobby');
+    expect(screen.getByRole('button', { name: 'Grupo' })).toHaveAttribute('title', 'Grupo');
     expect(screen.getByRole('heading', { name: 'easylobby' })).toBeInTheDocument();
     expect(localStorage.getItem(NAVIGATION_STORAGE_KEY)).toBe('recolhida');
 
