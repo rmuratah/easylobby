@@ -43,9 +43,17 @@ export function isQueueKey(value: string, groups: QueueGroup[]): value is QueueK
   return groups.some(group => group.options.some(option => option.key === value));
 }
 
+/** Filas fora da lista do agente que a aba Treinamento cria (Tutorial, Modo de Treino, #210). */
+export const trainingQueueNames: Record<number, string> = {
+  2000: 'Tutorial, Parte 1',
+  2010: 'Tutorial, Parte 2',
+  2020: 'Tutorial, Parte 3',
+  3140: 'Modo de Treino',
+};
+
 /** Nome da fila de um lobby: o nome fixo, o da lista da LCU, ou o id. */
 export function lobbyQueueName(lobby: { queueId: number; queue: Queue | null }, queues: GameQueue[]): string {
   if (lobby.queue) return queueNames[lobby.queue];
   const listed = queues.find(q => q.queueId === lobby.queueId);
-  return listed?.name || `Outra fila (ID ${lobby.queueId})`;
+  return listed?.name || trainingQueueNames[lobby.queueId] || `Outra fila (ID ${lobby.queueId})`;
 }

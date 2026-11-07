@@ -49,6 +49,11 @@ beforeEach(() => { configure({ defaultHidden: true }); vi.useFakeTimers(); Socke
 afterEach(() => { configure({ defaultHidden: false }); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 const queueSelect = () => panel().getByRole('combobox', { name: 'Fila' });
+/** Nomes dos submodos na tela de escolha de modo (#210). */
+const modeNames: Record<Queue, string> = {
+  swiftplay: 'Partida Dinâmica', normalDraft: 'Partida Alternada', rankedFlex: 'Ranqueada Flex', rankedSolo: 'Ranqueada Solo/Duo', aram: 'ARAM Normal',
+};
+const radio = (name: string) => panel().getByRole('radio', { name: new RegExp(`^${name}`) });
 const gameQueue = (queueId: number, name: string, gameMode: string, versusAi = false): GameQueue => ({
   queueId, queue: null, name, description: name, gameMode, modeGroup: gameMode === 'KIWI' ? 'kARAM' : 'kOther', mapId: 12,
   versusAi, ranked: false, showPositionSelector: false, limitedTime: false, available: true,
@@ -63,8 +68,9 @@ describe('lobby pelo único /ws do App', () => {
     expect(Socket.instances).toHaveLength(1);
     expect(socket().url).toBe(AGENT_URL);
     hello();
-    expect(panel().getAllByRole('option')).toHaveLength(5);
-    choose(queue);
+    expect(panel().getByRole('tab', { name: 'PvP' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(radio(modeNames[queue]));
+    expect(radio(modeNames[queue])).toBeChecked();
     await settle();
     // Sem lobby, escolher a fila não cria nada sozinho.
     expect(socket().send).not.toHaveBeenCalled();
@@ -72,7 +78,7 @@ describe('lobby pelo único /ws do App', () => {
     expect(request().command).toEqual({ type: 'createLobby', queue });
     expect(socket().send).toHaveBeenCalledTimes(1);
     expect(panel().queryByRole('button', { name: 'Sair do lobby' })).not.toBeInTheDocument();
-    expect(queueSelect()).toBeDisabled();
+    expect(radio(modeNames[queue])).toBeDisabled();
     expect(panel().getByRole('status')).toHaveTextContent('Criando');
     expect(panel().getByText('Você não está em um lobby.')).toBeInTheDocument();
     act(() => {
@@ -290,10 +296,9 @@ describe('lobby pelo único /ws do App', () => {
   it('oferece a ARAM: Desordem e as outras filas da LCU, cria pelo id e troca de volta para uma fixa', async () => {
     render(<App />);
     hello({ queues: [desordem, jade, coop] });
-    expect(panel().getAllByRole('option')).toHaveLength(8);
-    expect(panel().getByRole('group', { name: 'Mais modos' })).toHaveTextContent('ARAM: DesordemJade');
-    expect(panel().getByRole('group', { name: 'Contra IA' })).toHaveTextContent('Introdução');
-    fireEvent.change(queueSelect(), { target: { value: 'fila-2400' } });
+    // A Desordem vai para o card ARAM; a Jade, para Eventos.
+    expect(panel().getByRole('group', { name: 'Eventos' })).toHaveTextContent('Jade');
+    fireEvent.click(radio('ARAM Desordem'));
     await settle();
     expect(socket().send).not.toHaveBeenCalled();
     fireEvent.click(button('Criar lobby'));
@@ -306,6 +311,35 @@ describe('lobby pelo único /ws do App', () => {
     fireEvent.change(queueSelect(), { target: { value: 'aram' } });
     await settle();
     expect(request().command).toEqual({ type: 'createLobby', queue: 'aram' });
+  });
+
+  it('troca de aba, inicia o Tutorial e o Modo de Treino pelo botão de confirmar', async () => {
+    render(<App />);
+    hello({ queues: [coop] });
+    fireEvent.click(panel().getByRole('tab', { name: 'Co-op versus IA' }));
+    expect(radio('Introdução')).toBeChecked();
+    fireEvent.click(button('Criar lobby'));
+    expect(request().command).toEqual({ type: 'createLobbyById', queueId: 870 });
+    await ok();
+    fireEvent.click(panel().getByRole('tab', { name: 'Treinamento' }));
+    expect(radio('Tutorial')).toBeChecked();
+    fireEvent.click(button('Iniciar'));
+    expect(request().command).toEqual({ type: 'startTutorial' });
+    expect(panel().getByRole('status')).toHaveTextContent('Iniciando o Tutorial');
+    await ok();
+    fireEvent.click(radio('Modo de Treino'));
+    fireEvent.click(button('Iniciar'));
+    expect(request().command).toEqual({ type: 'startPracticeTool' });
+    await ok();
+    expect(panel().getByRole('status')).toHaveTextContent('Modo de Treino iniciado');
+  });
+
+  it('acinzenta o modo fechado e não deixa escolher', () => {
+    render(<App />);
+    hello({ queues: [{ ...gameQueue(1750, 'Arena 3x6', 'CHERRY'), available: false }] });
+    expect(panel().getByRole('group', { name: 'Arena' })).toBeDisabled();
+    expect(radio('Arena 3x6')).toBeDisabled();
+    expect(panel().getByRole('group', { name: 'Arena' })).toHaveTextContent('Fechado agora.');
   });
 
   it('mostra a fila atual mesmo quando ela não está na lista', () => {
