@@ -36,6 +36,9 @@ export default function App() {
     ? connection.state.receivedInvitations.length : 0;
   const unread = connection.status === 'connected' && connection.state?.lcu.state === 'connected'
     ? totalUnread(connection.state.conversations) : 0;
+  const conversations = connection.status === 'connected' && connection.state?.lcu.state === 'connected'
+    ? connection.state.conversations : [];
+  const unreadFrom = (id: string) => conversations.find(c => c.id === id)?.unreadCount ?? 0;
   const contentRef = useRef<HTMLElement>(null);
   const flowButtonRef = useRef<HTMLButtonElement>(null);
   const runesBackRef = useRef<HTMLButtonElement>(null);
@@ -136,7 +139,7 @@ export default function App() {
             {/* Convites recebidos e o "Convidar" de cada amigo ficam aqui, sem seção própria. */}
             <InvitationsPanel connection={connection} send={connection.send}>
               {inviteAction => <FriendsList connection={connection} renderActions={friend => (
-                <>{inviteAction(friend)}<ChatButton friend={friend} onOpen={setChatWith} /></>
+                <>{inviteAction(friend)}<ChatButton friend={friend} unread={unreadFrom(friend.id)} onOpen={setChatWith} /></>
               )} />}
             </InvitationsPanel>
             <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
