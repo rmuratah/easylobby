@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ConnectionSnapshot } from '../agent/client';
+import type { AgentClient, ConnectionSnapshot } from '../agent/client';
+import { friendDisplayName } from '../agent/friends';
 import { freeSlots, invitableFriends } from '../agent/invitations';
 import type { AgentState } from '../bindings/AgentState';
 import type { CommandResult } from '../bindings/CommandResult';
@@ -46,16 +47,34 @@ describe('regras de convite', () => {
   });
 });
 
+/** Lista de amigos mínima, como a coluna monta: cada linha recebe a ação de convite. */
+const panel = (connection: ConnectionSnapshot, send: AgentClient['send']) => (
+  <InvitationsPanel connection={connection} send={send}>
+    {inviteAction => (
+      <ul aria-label="Amigos">
+        {[ana, bia, caio, davi].map(f => <li key={f.id}>{friendDisplayName(f)}{inviteAction(f)}</li>)}
+      </ul>
+    )}
+  </InvitationsPanel>
+);
+
 describe('InvitationsPanel', () => {
-  it('pede para aguardar sem conexão com o LoL', () => {
-    render(<InvitationsPanel connection={{ status: 'reconnecting', error: null, state: null }} send={vi.fn()} />);
-    expect(screen.getByRole('region', { name: 'Convites' })).toHaveTextContent('Aguarde a conexão');
+  it('sem conexão com o LoL, não mostra seção nem botões de convite', () => {
+    render(panel({ status: 'reconnecting', error: null, state: null }, vi.fn()));
+    expect(screen.queryByRole('region', { name: 'Convites recebidos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Convidar/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Amigos' })).toBeInTheDocument();
+  });
+
+  it('não mostra seção de convites sem convite recebido', () => {
+    render(panel(connected({ gameflowPhase: 'None' }), vi.fn()));
+    expect(screen.queryByRole('region', { name: 'Convites recebidos' })).not.toBeInTheDocument();
   });
 
   it('aceita um convite recebido uma vez só e espera o evento', async () => {
     const reply = deferred();
     const send = vi.fn(() => reply.promise);
-    const { rerender } = render(<InvitationsPanel connection={connected({ gameflowPhase: 'None', receivedInvitations: [testInvitation] })} send={send} />);
+    const { rerender } = render(panel(connected({ gameflowPhase: 'None', receivedInvitations: [testInvitation] }), send));
     const list = within(screen.getByRole('list', { name: 'Convites recebidos' }));
     expect(list.getByRole('listitem')).toHaveTextContent('Um amigo chamou você para Ranqueada Solo/Duo.');
     const accept = list.getByRole('button', { name: 'Aceitar convite de Um amigo' });
@@ -65,15 +84,16 @@ describe('InvitationsPanel', () => {
     await act(async () => reply.resolve({ status: 'ok' }));
     expect(screen.getByRole('status')).toHaveTextContent('Convite de Um amigo aceito.');
     expect(accept).toBeDisabled();
-    rerender(<InvitationsPanel connection={connected({ gameflowPhase: 'None', receivedInvitations: [] })} send={send} />);
-    expect(screen.getByText('Nenhum convite recebido.')).toBeInTheDocument();
+    rerender(panel(connected({ gameflowPhase: 'None', receivedInvitations: [] }), send));
+    expect(screen.queryByRole('region', { name: 'Convites recebidos' })).not.toBeInTheDocument();
   });
 
   it('recusa e mostra o erro do agente', async () => {
     const send = vi.fn(async (): Promise<CommandResult> => ({ status: 'error', code: 'lcu', message: 'convite expirou' }));
     const invitation = { ...testInvitation, fromSummonerName: 'Bia', queue: null, queueId: 1700 };
-    render(<InvitationsPanel connection={connected({ receivedInvitations: [invitation] })} send={send} />);
-    expect(screen.getByRole('listitem')).toHaveTextContent('Bia chamou você para outra fila (ID 1700).');
+    render(panel(connected({ receivedInvitations: [invitation] }), send));
+    const list = within(screen.getByRole('list', { name: 'Convites recebidos' }));
+    expect(list.getByRole('listitem')).toHaveTextContent('Bia chamou você para outra fila (ID 1700).');
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Recusar convite de Bia' })));
     expect(send).toHaveBeenCalledWith({ type: 'declineInvitation', invitationId: 'convite-1' });
     expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível concluir: convite expirou');
@@ -81,60 +101,46 @@ describe('InvitationsPanel', () => {
   });
 
   it('não deixa aceitar quando a LCU não permite', () => {
-    render(<InvitationsPanel connection={connected({ receivedInvitations: [{ ...testInvitation, canAccept: false }] })} send={vi.fn()} />);
+    render(panel(connected({ receivedInvitations: [{ ...testInvitation, canAccept: false }] }), vi.fn()));
     expect(screen.getByRole('button', { name: 'Aceitar convite de Um amigo' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Recusar convite de Um amigo' })).toBeEnabled();
     expect(screen.getByText(/Não dá para aceitar agora/)).toBeInTheDocument();
   });
 
-  it('pede um lobby antes de convidar', () => {
-    render(<InvitationsPanel connection={connected({ lobby: null, gameflowPhase: 'None' })} send={vi.fn()} />);
-    expect(screen.getByText('Entre em um lobby para convidar amigos.')).toBeInTheDocument();
+  it('sem lobby, não oferece convidar', () => {
+    render(panel(connected({ lobby: null, gameflowPhase: 'None' }), vi.fn()));
+    expect(screen.queryByRole('button', { name: /Convidar/ })).not.toBeInTheDocument();
   });
 
-  it('convida um amigo pelo puuid e some com ele até o convite chegar', async () => {
+  it('convida um amigo pelo puuid na linha dele e some com o botão até o convite chegar', async () => {
     const send = vi.fn(async (): Promise<CommandResult> => ({ status: 'ok' }));
-    const { rerender } = render(<InvitationsPanel connection={connected({ lobby: flexLobby })} send={send} />);
-    const candidates = within(screen.getByRole('list', { name: 'Amigos para convidar' }));
-    expect(candidates.getAllByRole('listitem').map(item => item.textContent)).toEqual(['Ana#BR1Convidar', 'Bia#BR1Convidar']);
-    expect(screen.getByText('4 vagas livres no grupo.')).toBeInTheDocument();
-    await act(async () => fireEvent.click(candidates.getByRole('button', { name: 'Convidar Ana#BR1' })));
+    const { rerender } = render(panel(connected({ lobby: flexLobby }), send));
+    const friends = within(screen.getByRole('list', { name: 'Amigos' }));
+    expect(friends.getAllByRole('listitem').map(item => item.textContent)).toEqual(['Ana#BR1Convidar', 'Bia#BR1Convidar', 'Caio#BR1', 'Davi#BR1']);
+    await act(async () => fireEvent.click(friends.getByRole('button', { name: 'Convidar Ana#BR1' })));
     expect(send).toHaveBeenCalledWith({ type: 'inviteToLobby', invitees: [{ summonerId: 2001, puuid: 'ana' }] });
     expect(screen.getByRole('status')).toHaveTextContent('Convite enviado para Ana#BR1.');
     expect(screen.queryByRole('button', { name: 'Convidar Ana#BR1' })).not.toBeInTheDocument();
-    expect(screen.getByText('3 vagas livres no grupo.')).toBeInTheDocument();
 
     const pending: Lobby = { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 0, state: 'Pending' }] };
-    rerender(<InvitationsPanel connection={connected({ lobby: pending })} send={send} />);
-    const sent = within(screen.getByRole('list', { name: 'Convites enviados' }));
-    expect(sent.getByRole('listitem')).toHaveTextContent('Ana#BR1Aguardando resposta');
-    expect(screen.getByText('3 vagas livres no grupo.')).toBeInTheDocument();
+    rerender(panel(connected({ lobby: pending }), send));
+    expect(screen.queryByRole('button', { name: 'Convidar Ana#BR1' })).not.toBeInTheDocument();
 
     const declined: Lobby = { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 0, state: 'Declined' }] };
-    rerender(<InvitationsPanel connection={connected({ lobby: declined })} send={send} />);
-    expect(screen.getByRole('list', { name: 'Convites enviados' })).toHaveTextContent('Ana#BR1Recusou');
+    rerender(panel(connected({ lobby: declined }), send));
     expect(screen.getByRole('button', { name: 'Convidar Ana#BR1' })).toBeEnabled();
   });
 
-  it('bloqueia convite sem permissão, com grupo cheio ou fora da fase de lobby', () => {
+  it('não oferece convidar sem permissão, com grupo cheio ou fora da fase de lobby', () => {
     const send = vi.fn();
-    const { rerender } = render(<InvitationsPanel connection={connected({ lobby: { ...flexLobby, isLeader: false, canInvite: false } })} send={send} />);
-    expect(screen.getByText('Só o líder pode convidar neste lobby.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Convidar Ana#BR1' })).toBeDisabled();
+    const { rerender } = render(panel(connected({ lobby: { ...flexLobby, isLeader: false, canInvite: false } }), send));
+    expect(screen.queryByRole('button', { name: /Convidar/ })).not.toBeInTheDocument();
 
-    rerender(<InvitationsPanel connection={connected({ lobby: { ...testLobby, invitations: [{ puuid: 'bia', summonerId: 0, state: 'Pending' }] } })} send={send} />);
-    expect(screen.getByText('O grupo está cheio.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Convidar Ana#BR1' })).toBeDisabled();
+    rerender(panel(connected({ lobby: { ...testLobby, invitations: [{ puuid: 'bia', summonerId: 0, state: 'Pending' }] } }), send));
+    expect(screen.queryByRole('button', { name: /Convidar/ })).not.toBeInTheDocument();
 
-    rerender(<InvitationsPanel connection={connected({ lobby: flexLobby, gameflowPhase: 'Matchmaking' })} send={send} />);
-    expect(screen.getByText(/fase de lobby/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Convidar Ana#BR1' })).toBeDisabled();
+    rerender(panel(connected({ lobby: flexLobby, gameflowPhase: 'Matchmaking' }), send));
+    expect(screen.queryByRole('button', { name: /Convidar/ })).not.toBeInTheDocument();
     expect(send).not.toHaveBeenCalled();
-  });
-
-  it('mostra quem não está na lista de amigos', () => {
-    const lobby: Lobby = { ...flexLobby, invitations: [{ puuid: 'estranho', summonerId: 9, state: 'Kicked' }] };
-    render(<InvitationsPanel connection={connected({ lobby })} send={vi.fn()} />);
-    expect(screen.getByRole('list', { name: 'Convites enviados' })).toHaveTextContent('Jogador fora da lista de amigosRemovido do grupo');
   });
 });

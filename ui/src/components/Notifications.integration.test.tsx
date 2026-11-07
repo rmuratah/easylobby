@@ -70,7 +70,7 @@ it('com a coluna aberta, o convite fica só nela', () => {
   render(<App />);
   hello({ receivedInvitations: [testInvitation] });
   expect(region()).not.toBeInTheDocument();
-  expect(within(screen.getByRole('region', { name: 'Convites' })).getByText(/chamou você/)).toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'Convites recebidos' })).getByText(/chamou você/)).toBeInTheDocument();
 });
 
 it('avisa convite enquanto ele está pendente e deixa fechar', () => {

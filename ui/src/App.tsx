@@ -75,8 +75,6 @@ export default function App() {
                   onClick={() => setNavigation({ screen, page: 'main' })}>{title}</button>
                 {screen !== 'home' && <button type="button" aria-current={page === 'home' ? 'page' : undefined}
                   onClick={() => setNavigation({ screen, page: 'home' })}>Início</button>}
-                <button type="button" aria-current={page === 'runes' ? 'page' : undefined}
-                  onClick={() => setNavigation({ screen, page: 'runes' })}>Runas</button>
               </nav>
               <SidebarToggle open={sidebar.open} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />
             </div>
@@ -121,18 +119,22 @@ export default function App() {
               <ChampSelectPanel connection={connection} send={connection.send}
                 onOpenRunes={() => setNavigation({ screen, page: 'runes' })} />
             </div>
-            <div hidden={page !== 'runes'} className="flex flex-col gap-4">
-              {/* Na seleção, a volta fica à mão: a seleção continua montada e o timer segue correndo (#131). */}
-              {screen !== 'home' && <button ref={runesBackRef} type="button" className="nav-button self-start"
-                onClick={() => setNavigation({ screen, page: 'main' })}>Voltar para {title}</button>}
+            {/* O editor de runas só abre pelo "Editar runas" da seleção, e só fica montado nela. */}
+            {screen === 'champSelect' && <div hidden={page !== 'runes'} className="flex flex-col gap-4">
+              {/* A volta fica à mão: a seleção continua montada e o timer segue correndo (#131). */}
+              <button ref={runesBackRef} type="button" className="nav-button self-start"
+                onClick={() => setNavigation({ screen, page: 'main' })}>Voltar para {title}</button>
               <RunePagesPanel connection={connection} send={connection.send} />
-            </div>
+            </div>}
           </div>
         </main>
-        {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento. */}
+        {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento. Convites recebidos e o "Convidar" de cada amigo ficam nela, sem seção própria. */}
         <aside id="coluna-amigos" aria-label="Amigos e conversas" hidden={!sidebar.open} className="app-sidebar">
-          <InvitationsPanel connection={connection} send={connection.send} />
-          <FriendsList connection={connection} renderActions={friend => <ChatButton friend={friend} onOpen={setChatWith} />} />
+          <InvitationsPanel connection={connection} send={connection.send}>
+            {inviteAction => <FriendsList connection={connection} renderActions={friend => (
+              <>{inviteAction(friend)}<ChatButton friend={friend} onOpen={setChatWith} /></>
+            )} />}
+          </InvitationsPanel>
           <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
         </aside>
       </div>
