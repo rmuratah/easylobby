@@ -35,6 +35,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'lobbyChat': return { ...state, lobbyChat: state.lcu.state === 'connected' && state.lobby ? message.lobbyChat : null };
     case 'matchmaking': return { ...state, matchmaking: message.matchmaking };
     case 'queues': return { ...state, queues: message.queues };
+    case 'playableChampions': return { ...state, playableChampions: message.playableChampions };
     case 'champSelect': return { ...state, champSelect: message.champSelect,
       champSelectChat: message.champSelect && (!state.champSelect || state.champSelect.id === message.champSelect.id)
         ? state.champSelectChat : null };
@@ -58,6 +59,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'champSelectChampions': return { ...state, champSelectChampions: message.champSelectChampions };
     case 'friends': return { ...state, friends: message.friends };
     case 'friendGroups': return { ...state, friendGroups: message.friendGroups };
+    case 'recentPlayers': return { ...state, recentPlayers: message.recentPlayers };
     case 'ranked': return { ...state, ranked: message.ranked };
     case 'championMasteries': return { ...state, championMasteries: message.championMasteries };
     case 'matchHistory': return { ...state, matchHistory: message.matchHistory };

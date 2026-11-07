@@ -7,4 +7,5 @@ export type ErrorCode =
   | "notConnected"
   | "lcu"
   | "launchFailed"
-  | "invalidCommand";
+  | "invalidCommand"
+  | "notFound";

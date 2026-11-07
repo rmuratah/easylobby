@@ -2,6 +2,7 @@
 
 use super::{not_connected, Hub, Resource, Shared, Stamp};
 use crate::invitations::{self, InvitationError, Invitee, ReceivedInvitation};
+use crate::players::RecentPlayer;
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 
 impl Hub {
@@ -84,6 +85,69 @@ impl Hub {
             }
             Err(error) => invitation_error(error),
         }
+    }
+
+    /// Comando `inviteByRiotId` (#206): acha o jogador e convida.
+    pub async fn invite_by_riot_id(&self, game_name: &str, tag_line: &str) -> CommandResult {
+        let Some((name, tag)) = crate::players::parse_riot_id(game_name, tag_line) else {
+            return CommandResult::error(
+                ErrorCode::InvalidCommand,
+                "digite o nome de jogo e a tagline",
+            );
+        };
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        match crate::players::lookup(&client, &name, &tag).await {
+            Ok(Some(invitee)) => self.invite_to_lobby(&[invitee]).await,
+            Ok(None) => CommandResult::error(
+                ErrorCode::NotFound,
+                format!("nenhum jogador com o Riot ID {name}#{tag}"),
+            ),
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
+    /// Comando `loadRecentPlayers` (#206): relê os jogadores das partidas
+    /// recentes.
+    pub async fn load_recent_players(&self) -> CommandResult {
+        let Some((client, session, puuid)) = ({
+            let shared = self.lock();
+            shared.client.clone().map(|client| {
+                let puuid = shared.state.summoner.as_ref().map(|s| s.puuid.clone());
+                (client, shared.session, puuid)
+            })
+        }) else {
+            return not_connected();
+        };
+        let Some(puuid) = puuid else {
+            return CommandResult::error(ErrorCode::Lcu, "o invocador ainda não carregou");
+        };
+        match crate::players::recent(&client, &puuid).await {
+            Ok(players) => {
+                self.update(|shared| {
+                    if shared.session != session || shared.state.recent_players == players {
+                        return None;
+                    }
+                    shared.state.recent_players = players.clone();
+                    Some(ServerMessage::RecentPlayers {
+                        recent_players: players,
+                    })
+                });
+                CommandResult::Ok
+            }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
+    pub fn set_recent_players(&self, recent_players: Vec<RecentPlayer>) {
+        self.update(|shared| {
+            if shared.state.recent_players == recent_players {
+                return None;
+            }
+            shared.state.recent_players = recent_players.clone();
+            Some(ServerMessage::RecentPlayers { recent_players })
+        });
     }
 }
 
@@ -257,5 +321,31 @@ mod tests {
                 "{result:?}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn convidar_por_nome_e_recentes_sem_lol() {
+        let hub = Hub::new();
+        assert!(matches!(
+            hub.invite_by_riot_id("nome", " # ").await,
+            CommandResult::Error {
+                code: ErrorCode::InvalidCommand,
+                ..
+            }
+        ));
+        assert!(matches!(
+            hub.invite_by_riot_id("nome", "BR1").await,
+            CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            }
+        ));
+        assert!(matches!(
+            hub.load_recent_players().await,
+            CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            }
+        ));
     }
 }

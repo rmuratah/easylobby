@@ -6,6 +6,7 @@ import type { LcuStatus } from '../bindings/LcuStatus';
 import type { Summoner } from '../bindings/Summoner';
 import type { Lobby } from '../bindings/Lobby';
 import type { LobbyMember } from '../bindings/LobbyMember';
+import type { PlayerSlot } from '../bindings/PlayerSlot';
 import type { LobbyInvitation } from '../bindings/LobbyInvitation';
 import type { InvitationState } from '../bindings/InvitationState';
 import type { Position } from '../bindings/Position';
@@ -38,6 +39,7 @@ import type { MatchSummary } from '../bindings/MatchSummary';
 import type { MatchDetails } from '../bindings/MatchDetails';
 import type { MatchPlayer } from '../bindings/MatchPlayer';
 import type { MatchResult } from '../bindings/MatchResult';
+import type { RecentPlayer } from '../bindings/RecentPlayer';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
 const errorCodes = {
@@ -45,6 +47,7 @@ const errorCodes = {
   lcu: true,
   launchFailed: true,
   invalidCommand: true,
+  notFound: true,
 } satisfies Record<ErrorCode, true>;
 
 function errorCode(v: unknown): v is ErrorCode {
@@ -62,10 +65,16 @@ const positions = {
   top: true, jungle: true, middle: true, bottom: true, utility: true, fill: true, unselected: true,
 } satisfies Record<Position, true>;
 const position = (v: unknown): v is Position => typeof v === 'string' && Object.hasOwn(positions, v);
+// Jogo Dinâmico (#218).
+function playerSlot(v: unknown): v is PlayerSlot {
+  return object(v) && position(v.position) &&
+    ['championId', 'skinId', 'spell1Id', 'spell2Id', 'runeStyleId', 'runeSubStyleId', 'keystoneId'].every(k => uint(v[k]));
+}
 function lobbyMember(v: unknown): v is LobbyMember {
   return object(v) && typeof v.puuid === 'string' &&
     ['summonerId', 'summonerIconId', 'summonerLevel'].every(k => uint(v[k])) &&
-    typeof v.isLeader === 'boolean' && position(v.firstPosition) && position(v.secondPosition);
+    typeof v.isLeader === 'boolean' && position(v.firstPosition) && position(v.secondPosition) &&
+    Array.isArray(v.playerSlots) && v.playerSlots.every(playerSlot);
 }
 const invitationStates = {
   Requested: true, Pending: true, Accepted: true, Declined: true, Kicked: true, OnHold: true, Error: true, Unknown: true,
@@ -77,7 +86,8 @@ function lobbyInvitation(v: unknown): v is LobbyInvitation {
 function lobby(v: unknown): v is Lobby | null {
   return v === null || (object(v) && uint(v.queueId) && (v.queue === null || isQueue(v.queue)) &&
     uint(v.maxLobbySize) && typeof v.isLeader === 'boolean' && typeof v.canStartActivity === 'boolean' &&
-    typeof v.showPositionSelector === 'boolean' && Array.isArray(v.members) && v.members.every(lobbyMember) &&
+    typeof v.showPositionSelector === 'boolean' && typeof v.showQuickPlaySlots === 'boolean' &&
+    Array.isArray(v.scarcePositions) && v.scarcePositions.every(position) && Array.isArray(v.members) && v.members.every(lobbyMember) &&
     typeof v.canInvite === 'boolean' && Array.isArray(v.invitations) && v.invitations.every(lobbyInvitation));
 }
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -164,6 +174,10 @@ function friend(v: unknown): v is Friend {
 function friendGroup(v: unknown): v is FriendGroup {
   return object(v) && uint(v.id) && typeof v.name === 'string' && Number.isInteger(v.priority) && typeof v.collapsed === 'boolean';
 }
+function recentPlayer(v: unknown): v is RecentPlayer {
+  return object(v) && uint(v.summonerId) && strings(v, ['puuid', 'gameName', 'tagLine', 'summonerName', 'playedAt']) &&
+    (v.championId === null || uint(v.championId));
+}
 // Perfil (#171, #172, #174, #175).
 function rankedEntry(v: unknown): v is RankedEntry {
   return object(v) && nullableString(v.tier) && nullableString(v.division) &&
@@ -207,11 +221,11 @@ function status(v: unknown): v is LcuStatus {
 }
 function state(v: unknown): v is AgentState {
   return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) &&
-    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && lobbyChat(v.lobbyChat) && champSelect(v.champSelect) &&
+    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && lobbyChat(v.lobbyChat) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
-    champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) &&
+    champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) &&
     ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory) &&
     matchDetails(v.matchDetails);
 }
@@ -231,6 +245,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'readyCheck': valid = readyCheck(v.readyCheck); break;
     case 'matchmaking': valid = matchmaking(v.matchmaking); break;
     case 'queues': valid = list(v.queues, gameQueue); break;
+    case 'playableChampions': valid = nullableIds(v.playableChampions); break;
     case 'champSelect': valid = champSelect(v.champSelect); break;
     case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
     case 'lobbyChat': valid = lobbyChat(v.lobbyChat); break;
@@ -244,6 +259,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'champSelectChampions': valid = champSelectChampions(v.champSelectChampions); break;
     case 'friends': valid = list(v.friends, friend); break;
     case 'friendGroups': valid = list(v.friendGroups, friendGroup); break;
+    case 'recentPlayers': valid = list(v.recentPlayers, recentPlayer); break;
     case 'ranked': valid = ranked(v.ranked); break;
     case 'championMasteries': valid = list(v.championMasteries, championMastery); break;
     case 'matchHistory': valid = matchHistory(v.matchHistory); break;

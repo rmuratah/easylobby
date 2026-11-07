@@ -1,13 +1,14 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { ConnectionSnapshot } from '../agent/client';
 import { assetUrl } from '../agent/assets';
 import { friendDisplayName, groupFriends, playerName } from '../agent/friends';
 import { isOpenInvitation } from '../agent/invitations';
-import type { LobbyInvite } from '../agent/lobbyInvite';
+import { friendTarget, type InviteTarget, type LobbyInvite } from '../agent/lobbyInvite';
 import type { Friend } from '../bindings/Friend';
 import type { FriendGroup } from '../bindings/FriendGroup';
 import type { InvitationState } from '../bindings/InvitationState';
+import type { RecentPlayer } from '../bindings/RecentPlayer';
 import { Avatar, Button } from './base';
 import { cx } from './base/cx';
 
@@ -18,6 +19,18 @@ function matchesFilter(friend: Friend, name: string, tag: string): boolean {
   const wantedTag = norm(tag.replace(/^#/, ''));
   const gameName = norm(friend.gameName || friend.name);
   return (!wantedName || gameName.includes(wantedName)) && (!wantedTag || norm(friend.tagLine).includes(wantedTag));
+}
+
+/** Chaves das seções que não são pastas de amigos. */
+const BY_NAME = 'por-nome';
+const RECENT = 'recentes';
+
+/** Base para filtrar um jogador recente com o mesmo filtro dos amigos. */
+const emptyName = { name: '' } as Friend;
+
+function recentName(player: RecentPlayer): string {
+  const name = player.gameName || player.summonerName || 'Jogador';
+  return player.tagLine ? `${name}#${player.tagLine}` : name;
 }
 
 function ChevronIcon({ open }: { open: boolean }) {
@@ -42,7 +55,15 @@ function ClearButton({ label, onClick }: { label: string; onClick: () => void })
  * oficial: filtro por nome de jogo e tagline, os amigos disponíveis nas
  * pastas da lista de amigos (recolhíveis), marcar vários e "Enviar convites".
  */
-export function InvitePicker({ invites, groups, onClose }: { invites: LobbyInvite; groups: FriendGroup[]; onClose: () => void }) {
+export function InvitePicker({ invites, groups, recent, loadRecent, onClose }: {
+  invites: LobbyInvite;
+  groups: FriendGroup[];
+  /** Jogadores das partidas recentes, para a seção "Recentes". */
+  recent: RecentPlayer[];
+  /** Pede ao agente os recentes de novo; chamado ao abrir. */
+  loadRecent: () => void;
+  onClose: () => void;
+}) {
   const titleId = useId();
   const nameId = useId();
   const tagId = useId();
@@ -51,9 +72,13 @@ export function InvitePicker({ invites, groups, onClose }: { invites: LobbyInvit
   const [name, setName] = useState('');
   const [tag, setTag] = useState('');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [toggled, setToggled] = useState<ReadonlySet<number>>(new Set());
+  const [toggled, setToggled] = useState<ReadonlySet<number | string>>(new Set());
+  const [byNameSending, setByNameSending] = useState(false);
+  const [byNameSent, setByNameSent] = useState('');
   const [sending, setSending] = useState(false);
   const mounted = useRef(true);
+
+  useEffect(() => { loadRecent(); }, [loadRecent]);
 
   useEffect(() => {
     mounted.current = true;
@@ -68,9 +93,20 @@ export function InvitePicker({ invites, groups, onClose }: { invites: LobbyInvit
 
   const filtering = name.trim() !== '' || tag.trim() !== '';
   const folders = groupFriends(invites.candidates.filter(f => matchesFilter(f, name, tag)), groups);
-  // Quem saiu da lista (convidado, ficou offline) sai da seleção.
-  const chosen = invites.candidates.filter(f => selected.has(f.puuid));
+  const recentPlayers = recent.filter(p => !invites.taken(p.puuid) && matchesFilter(
+    { ...emptyName, gameName: p.gameName || p.summonerName, tagLine: p.tagLine }, name, tag));
+  // Quem saiu da lista (convidado, ficou offline) sai da seleção; o mesmo jogador pode estar nas duas listas.
+  const targets = new Map<string, InviteTarget>();
+  for (const friend of invites.candidates) if (selected.has(friend.puuid)) targets.set(friend.puuid, friendTarget(friend));
+  for (const player of recent) {
+    if (selected.has(player.puuid) && !targets.has(player.puuid) && !invites.taken(player.puuid)) {
+      targets.set(player.puuid, { puuid: player.puuid, summonerId: player.summonerId, name: recentName(player) });
+    }
+  }
+  const chosen = [...targets.values()];
   const full = chosen.length >= invites.slots;
+  const riotId = name.trim() && tag.trim().replace(/^#/, '') ? `${name.trim()}#${tag.trim().replace(/^#/, '')}` : '';
+  const isOpen = (key: number | string, collapsedByDefault: boolean) => filtering || collapsedByDefault === toggled.has(key);
 
   function toggleFriend(puuid: string) {
     setSelected(current => {
@@ -80,7 +116,7 @@ export function InvitePicker({ invites, groups, onClose }: { invites: LobbyInvit
     });
   }
 
-  function toggleFolder(id: number) {
+  function toggleFolder(id: number | string) {
     setToggled(current => {
       const next = new Set(current);
       if (!next.delete(id)) next.add(id);
@@ -95,6 +131,46 @@ export function InvitePicker({ invites, groups, onClose }: { invites: LobbyInvit
     if (!mounted.current) return;
     setSending(false);
     if (ok) onClose();
+  }
+
+  async function inviteByName() {
+    if (!riotId || byNameSending) return;
+    setByNameSending(true);
+    const ok = await invites.inviteByRiotId(name, tag);
+    if (!mounted.current) return;
+    setByNameSending(false);
+    if (ok) setByNameSent(riotId);
+  }
+
+  function playerRow(key: string, puuid: string, title: string, subtitle: ReactNode, iconName: string, iconSrc: string | undefined, label: string) {
+    const checked = selected.has(puuid);
+    const busy = invites.pending(puuid);
+    return (
+      <li key={key}>
+        <label className={cx('flex items-center gap-3 rounded-control px-2 py-1.5',
+          (checked || !full) && !busy ? 'cursor-pointer hover:bg-raised' : 'opacity-60')}>
+          <input type="checkbox" checked={checked} disabled={busy || (!checked && full)}
+            onChange={() => toggleFriend(puuid)} aria-label={`Convidar ${label}`}
+            className="size-4 shrink-0 accent-accent" />
+          <Avatar name={iconName} size={32} src={iconSrc} />
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-body font-semibold">{title}</span>
+            {subtitle && <span className="truncate text-caption text-muted">{subtitle}</span>}
+          </span>
+        </label>
+      </li>
+    );
+  }
+
+  function sectionHeader(key: number | string, label: string, open: boolean, count?: number) {
+    return (
+      <button type="button" aria-expanded={open} onClick={() => toggleFolder(key)} disabled={filtering}
+        className="flex h-8 items-center gap-2 rounded-control-sm bg-raised px-3 text-left text-caption font-semibold uppercase tracking-wide text-muted hover:text-ink disabled:cursor-default">
+        <ChevronIcon open={open} />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {count !== undefined && <span className="shrink-0 font-normal normal-case">{count}</span>}
+      </button>
+    );
   }
 
   return createPortal(
@@ -122,6 +198,43 @@ export function InvitePicker({ invites, groups, onClose }: { invites: LobbyInvit
         </fieldset>
         <h3 className="px-1 text-caption font-semibold uppercase tracking-wide text-muted">Jogadores disponíveis</h3>
         <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-1">
+          {/* Convidar por nome: qualquer jogador pelo Riot ID digitado no filtro. */}
+          {(() => {
+            const open = isOpen(BY_NAME, true) || !!riotId;
+            return (
+              <section aria-label="Convidar por nome" className="flex flex-col gap-1">
+                {sectionHeader(BY_NAME, 'Convidar por nome', open)}
+                {open && (riotId ? (
+                  <div className="flex items-center gap-3 px-2 py-1.5">
+                    <span className="min-w-0 flex-1 truncate text-body font-semibold">{riotId}</span>
+                    {byNameSent === riotId
+                      ? <span className="shrink-0 text-caption text-muted">Convite enviado</span>
+                      : <Button size="sm" loading={byNameSending} onClick={() => { void inviteByName(); }}
+                          disabled={invites.slots === 0} aria-label={`Convidar ${riotId} pelo nome`}>Convidar</Button>}
+                  </div>
+                ) : <p className="px-2 py-1 text-caption text-muted">Digite o nome de jogo e a tagline acima para convidar qualquer jogador.</p>)}
+              </section>
+            );
+          })()}
+          {(recentPlayers.length > 0 || !filtering) && (() => {
+            const open = isOpen(RECENT, true);
+            return (
+              <section aria-label="Recentes" className="flex flex-col gap-1">
+                {sectionHeader(RECENT, 'Recentes', open, recentPlayers.length)}
+                {open && (recentPlayers.length === 0
+                  ? <p className="px-2 py-1 text-caption text-muted">Nenhum jogador recente para convidar.</p>
+                  : (
+                    <ul className="flex flex-col">
+                      {recentPlayers.map(player => {
+                        const display = recentName(player);
+                        return playerRow(`recente-${player.puuid}`, player.puuid, player.gameName || display, 'Jogou recentemente',
+                          player.gameName || display, player.championId !== null ? assetUrl('champion', player.championId) : undefined, display);
+                      })}
+                    </ul>
+                  ))}
+              </section>
+            );
+          })()}
           {folders.length === 0 && (
             <p className="px-1 text-body text-muted">
               {filtering ? 'Nenhum amigo disponível com esse nome.' : 'Nenhum amigo disponível para convidar agora.'}
@@ -129,37 +242,16 @@ export function InvitePicker({ invites, groups, onClose }: { invites: LobbyInvit
           )}
           {folders.map(folder => {
             // Filtrando, as pastas com resultado abrem; sem filtro, vale o que o jogador deixou no client oficial.
-            const open = filtering || folder.collapsed === toggled.has(folder.id);
+            const open = isOpen(folder.id, folder.collapsed);
             return (
               <section key={folder.id} aria-label={folder.name} className="flex flex-col gap-1">
-                <button type="button" aria-expanded={open} onClick={() => toggleFolder(folder.id)} disabled={filtering}
-                  className="flex h-8 items-center gap-2 rounded-control-sm bg-raised px-3 text-left text-caption font-semibold uppercase tracking-wide text-muted hover:text-ink disabled:cursor-default">
-                  <ChevronIcon open={open} />
-                  <span className="min-w-0 flex-1 truncate">{folder.name}</span>
-                  <span className="shrink-0 font-normal normal-case">{folder.friends.length}</span>
-                </button>
+                {sectionHeader(folder.id, folder.name, open, folder.friends.length)}
                 {open && (
                   <ul className="flex flex-col">
                     {folder.friends.map(friend => {
                       const display = friendDisplayName(friend);
-                      const checked = selected.has(friend.puuid);
-                      const busy = invites.pending(friend.puuid);
-                      return (
-                        <li key={friend.puuid}>
-                          <label className={cx('flex items-center gap-3 rounded-control px-2 py-1.5',
-                            (checked || !full) && !busy ? 'cursor-pointer hover:bg-raised' : 'opacity-60')}>
-                            <input type="checkbox" checked={checked} disabled={busy || (!checked && full)}
-                              onChange={() => toggleFriend(friend.puuid)} aria-label={`Convidar ${display}`}
-                              className="size-4 shrink-0 accent-accent" />
-                            <Avatar name={friend.gameName || display} size={32}
-                              src={friend.profileIconId !== null ? assetUrl('profileIcon', friend.profileIconId) : undefined} />
-                            <span className="flex min-w-0 flex-1 flex-col">
-                              <span className="truncate text-body font-semibold">{friend.gameName || display}</span>
-                              {friend.tagLine && <span className="truncate text-caption text-muted">{display}</span>}
-                            </span>
-                          </label>
-                        </li>
-                      );
+                      return playerRow(friend.puuid, friend.puuid, friend.gameName || display, friend.tagLine ? display : null,
+                        friend.gameName || display, friend.profileIconId !== null ? assetUrl('profileIcon', friend.profileIconId) : undefined, display);
                     })}
                   </ul>
                 )}

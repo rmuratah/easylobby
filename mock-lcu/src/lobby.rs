@@ -1,5 +1,6 @@
 //! Lobby da LCU falsa (#17): `POST` e `DELETE` em `/lol-lobby/v2/lobby`, e
-//! os cargos do jogador (#18) em `PUT` [`POSITION_PREFERENCES`].
+//! os cargos do jogador (#18) em `PUT` [`POSITION_PREFERENCES`] e os slots
+//! do Jogo Dinâmico (#218) em `PUT` [`PLAYER_SLOTS`].
 //!
 //! As fixtures só têm `GET`, então o mock monta o lobby a partir do lobby
 //! gravado (trocando a fila) e manda os mesmos eventos que a LCU manda:
@@ -21,6 +22,9 @@ pub const LOBBY: &str = "/lol-lobby/v2/lobby";
 /// Cargos do jogador logado (#18).
 pub const POSITION_PREFERENCES: &str =
     "/lol-lobby/v2/lobby/members/localMember/position-preferences";
+
+/// Slots do Jogo Dinâmico do jogador logado (#218).
+pub const PLAYER_SLOTS: &str = "/lol-lobby/v1/lobby/members/localMember/player-slots";
 
 /// Cargos que a LCU aceita.
 const POSITIONS: [&str; 7] = [
@@ -96,6 +100,10 @@ pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
         .and_then(|q| q.get("showPositionSelector"))
         .and_then(Value::as_bool)
         .unwrap_or(false);
+    let show_quick_play_slots = queue
+        .and_then(|q| q.get("showQuickPlaySlotSelection"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
 
     let current = state.get(LOBBY);
     let mut lobby = if current.status == 200 {
@@ -107,6 +115,10 @@ pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
         config.insert("queueId".into(), json!(queue_id));
         config.insert("maxLobbySize".into(), json!(max_lobby_size));
         config.insert("showPositionSelector".into(), json!(show_position_selector));
+        config.insert(
+            "showQuickPlaySlotSelection".into(),
+            json!(show_quick_play_slots),
+        );
     }
     let created = current.status != 200;
 
@@ -206,6 +218,61 @@ pub fn set_positions(state: &LcuState, body: &Value) -> (Response, Vec<EventFixt
         if let Some(member) = member.as_object_mut() {
             member.insert("firstPositionPreference".into(), json!(first));
             member.insert("secondPositionPreference".into(), json!(second));
+        }
+    };
+    set(&mut lobby["localMember"]);
+    if let Some(members) = lobby.get_mut("members").and_then(Value::as_array_mut) {
+        for member in members.iter_mut().filter(|m| m["puuid"] == puuid) {
+            set(member);
+        }
+    }
+    (
+        Response {
+            status: 201,
+            body: Value::Null,
+        },
+        vec![event(LOBBY, "Update", lobby)],
+    )
+}
+
+/// `PUT` [`PLAYER_SLOTS`] com a lista de slots (`championId`,
+/// `positionPreference`, `skinId`, `spell1`, `spell2`, `perks`): troca os
+/// `playerSlots` do jogador logado no `localMember` e em `members`. Fora de
+/// lobby responde 404; numa fila sem slots, ou com um slot sem campeão ou
+/// com posição inválida, 400.
+pub fn set_player_slots(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
+    let current = state.get(LOBBY);
+    if current.status != 200 {
+        return (
+            Response::error(404, "mock-lcu: LOBBY_NOT_FOUND"),
+            Vec::new(),
+        );
+    }
+    let valid = body.as_array().is_some_and(|slots| {
+        slots.iter().all(|slot| {
+            slot["championId"].as_u64().is_some_and(|id| id > 0)
+                && slot["positionPreference"]
+                    .as_str()
+                    .is_some_and(|p| POSITIONS[..5].contains(&p))
+        })
+    });
+    if !valid {
+        return (
+            Response::error(400, "mock-lcu: slots inválidos"),
+            Vec::new(),
+        );
+    }
+    let mut lobby = current.body;
+    if lobby["gameConfig"]["showQuickPlaySlotSelection"] != json!(true) {
+        return (
+            Response::error(400, "mock-lcu: esta fila não tem slots"),
+            Vec::new(),
+        );
+    }
+    let puuid = lobby["localMember"]["puuid"].clone();
+    let set = |member: &mut Value| {
+        if let Some(member) = member.as_object_mut() {
+            member.insert("playerSlots".into(), body.clone());
         }
     };
     set(&mut lobby["localMember"]);
@@ -352,6 +419,38 @@ mod tests {
             false
         );
         assert_eq!(set_positions(&s, &cargos).0.status, 400);
+    }
+
+    #[test]
+    fn troca_os_slots_do_jogo_dinamico() {
+        let mut s = state("16.22");
+        let slots = json!([
+            {"championId": 22, "positionPreference": "BOTTOM", "skinId": 22000, "spell1": 4, "spell2": 7, "perks": ""},
+            {"championId": 266, "positionPreference": "TOP", "skinId": 266000, "spell1": 4, "spell2": 12, "perks": ""},
+        ]);
+        assert_eq!(set_player_slots(&s, &slots).0.status, 404);
+
+        // A Solo/Duo não tem slots.
+        let (_, events) = create(&s, &json!({"queueId": 420}));
+        apply(&mut s, &events);
+        assert_eq!(set_player_slots(&s, &slots).0.status, 400);
+
+        let (_, events) = create(&s, &json!({"queueId": 480}));
+        apply(&mut s, &events);
+        assert_eq!(
+            s.get(LOBBY).body["gameConfig"]["showQuickPlaySlotSelection"],
+            true
+        );
+        let (response, events) = set_player_slots(&s, &slots);
+        assert_eq!(response.status, 201);
+        apply(&mut s, &events);
+        let lobby = s.get(LOBBY).body;
+        assert_eq!(lobby["localMember"]["playerSlots"], slots);
+        assert_eq!(lobby["members"][0]["playerSlots"][1]["championId"], 266);
+
+        // Preenchimento não vale num slot.
+        let fill = json!([{"championId": 22, "positionPreference": "FILL"}]);
+        assert_eq!(set_player_slots(&s, &fill).0.status, 400);
     }
 
     #[test]

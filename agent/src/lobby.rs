@@ -22,6 +22,10 @@
 //! `invitations` e, no `localMember`, se o jogador pode convidar
 //! (`allowedInviteOthers`). Veja [`crate::invitations`].
 //!
+//! Jogo Dinâmico (#218): nas filas com slots
+//! ([`Lobby::show_quick_play_slots`]) cada jogador escolhe duas posições e
+//! um campeão para cada uma ainda no lobby. Veja [`crate::quick_play`].
+//!
 //! O [`Lobby`] guarda só o que a tela de lobby usa. Os outros campos da
 //! resposta são ignorados, então um campo novo num patch não quebra a
 //! leitura.
@@ -30,6 +34,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use ts_rs::TS;
 
+use crate::quick_play::PlayerSlot;
 use crate::rest::{LcuClient, LcuError};
 
 /// Endpoint (e URI dos eventos WAMP) do lobby.
@@ -210,6 +215,13 @@ pub struct Lobby {
     /// Se a fila tem escolha de cargos (#18): `true` na normal alternada e
     /// nas ranqueadas, `false` no ARAM e no Jogo Dinâmico.
     pub show_position_selector: bool,
+    /// Se a fila pede as posições e os campeões no lobby (#218): `true` no
+    /// Jogo Dinâmico. Cada membro traz os seus em
+    /// [`LobbyMember::player_slots`].
+    pub show_quick_play_slots: bool,
+    /// Posições que faltam na fila agora (as prioritárias do client
+    /// oficial), na ordem da LCU. Vazia quando a LCU não diz.
+    pub scarce_positions: Vec<Position>,
     /// Quem está no lobby, o jogador logado incluído.
     pub members: Vec<LobbyMember>,
     /// Se o jogador logado pode convidar (#32): o líder sempre pode, e os
@@ -323,6 +335,9 @@ pub struct LobbyMember {
     /// Cargo secundário (#18). `unselected` quando o primário é
     /// preenchimento.
     pub second_position: Position,
+    /// Posições e campeões do Jogo Dinâmico (#218), na ordem dos slots.
+    /// Vazia nas outras filas e antes de o jogador escolher.
+    pub player_slots: Vec<PlayerSlot>,
 }
 
 impl Lobby {
@@ -341,6 +356,7 @@ impl Lobby {
                 is_leader: m.is_leader,
                 first_position: Position::from_lcu(m.first_position_preference.as_deref()),
                 second_position: Position::from_lcu(m.second_position_preference.as_deref()),
+                player_slots: PlayerSlot::list_from_json(&m.player_slots),
             })
             .collect::<Vec<LobbyMember>>();
         // A LCU lista em `invitations` até o próprio jogador logado, como
@@ -365,6 +381,18 @@ impl Lobby {
             is_leader: local_member.is_some_and(|m| m.is_leader),
             can_start_activity: raw.can_start_activity,
             show_position_selector: raw.game_config.show_position_selector,
+            show_quick_play_slots: raw.game_config.show_quick_play_slot_selection,
+            scarce_positions: raw
+                .scarce_positions
+                .as_array()
+                .map(|names| {
+                    names
+                        .iter()
+                        .map(|name| Position::from_lcu(name.as_str()))
+                        .filter(|&p| p != Position::Unselected)
+                        .collect()
+                })
+                .unwrap_or_default(),
             members,
             can_invite: local_member.is_some_and(|m| m.is_leader || m.allowed_invite_others),
             invitations,
@@ -394,6 +422,8 @@ struct RawLobby {
     multi_user_chat_password: String,
     #[serde(default)]
     muc_jwt_dto: Value,
+    #[serde(default)]
+    scarce_positions: Value,
 }
 
 #[derive(Deserialize)]
@@ -415,6 +445,8 @@ struct RawGameConfig {
     max_lobby_size: u32,
     #[serde(default)]
     show_position_selector: bool,
+    #[serde(default)]
+    show_quick_play_slot_selection: bool,
 }
 
 #[derive(Deserialize)]
@@ -436,6 +468,8 @@ struct RawMember {
     first_position_preference: Option<String>,
     #[serde(default)]
     second_position_preference: Option<String>,
+    #[serde(default)]
+    player_slots: Value,
 }
 
 /// Busca o lobby atual. Fora de lobby a LCU responde `404`, que volta como
@@ -624,6 +658,8 @@ mod tests {
             is_leader: true,
             can_start_activity: true,
             show_position_selector: false,
+            show_quick_play_slots: false,
+            scarce_positions: vec![Position::Jungle],
             members: vec![LobbyMember {
                 puuid: "p".into(),
                 summoner_id: 1,
@@ -632,6 +668,7 @@ mod tests {
                 is_leader: true,
                 first_position: Position::Top,
                 second_position: Position::Unselected,
+                player_slots: Vec::new(),
             }],
             can_invite: true,
             invitations: vec![LobbyInvitation {
@@ -653,6 +690,8 @@ mod tests {
                 "isLeader": true,
                 "canStartActivity": true,
                 "showPositionSelector": false,
+                "showQuickPlaySlots": false,
+                "scarcePositions": ["jungle"],
                 "members": [{
                     "puuid": "p",
                     "summonerId": 1,
@@ -661,10 +700,37 @@ mod tests {
                     "isLeader": true,
                     "firstPosition": "top",
                     "secondPosition": "unselected",
+                    "playerSlots": [],
                 }],
                 "canInvite": true,
                 "invitations": [{"puuid": "amigo", "summonerId": 4, "state": "Pending"}],
             })
+        );
+    }
+
+    #[test]
+    fn le_os_slots_do_jogo_dinamico() {
+        let lobby = Lobby::from_json(&json!({
+            "gameConfig": {"queueId": 480, "showQuickPlaySlotSelection": true},
+            "scarcePositions": ["JUNGLE", "BOTTOM", null, "NONE"],
+            "members": [{"puuid": "eu", "playerSlots": [
+                {"championId": 22, "positionPreference": "BOTTOM", "spell1": 4, "spell2": 7, "perks": ""},
+                {"championId": 266, "positionPreference": "TOP", "spell1": 4, "spell2": 12, "perks": ""},
+            ]}],
+        }))
+        .unwrap();
+        assert_eq!(lobby.queue, Some(Queue::Swiftplay));
+        assert!(lobby.show_quick_play_slots);
+        assert_eq!(lobby.scarce_positions, [Position::Jungle, Position::Bottom]);
+        let slots = &lobby.members[0].player_slots;
+        assert_eq!(slots.len(), 2);
+        assert_eq!(
+            (slots[0].champion_id, slots[0].position),
+            (22, Position::Bottom)
+        );
+        assert_eq!(
+            (slots[1].champion_id, slots[1].position),
+            (266, Position::Top)
         );
     }
 
