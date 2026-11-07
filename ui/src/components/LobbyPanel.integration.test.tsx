@@ -509,12 +509,22 @@ describe('cargos pelo /ws', () => {
     expect(positionSelect('Posição primária')).toHaveValue('top');
   });
 
-  it.each(['aram', 'swiftplay', null] as const)('respeita showPositionSelector na fila %s', queue => {
+  it.each(['swiftplay', null] as const)('respeita showPositionSelector na fila %s', queue => {
     render(<App />);
     hello({ lobby: { ...testLobby, queue, showPositionSelector: false }, gameflowPhase: 'Lobby' });
     expect(panel().queryByRole('combobox', { name: 'Posição primária' })).not.toBeInTheDocument();
     expect(panel().getByText('Esta fila não permite escolher posições.')).toBeInTheDocument();
     expect(socket().send).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['ARAM', { queue: 'aram' as const, queueId: 450 }],
+    ['ARAM: Desordem', { queue: null, queueId: 2400 }],
+  ])('não mostra o aviso de posições no lobby do %s', (_, queue) => {
+    render(<App />);
+    hello({ lobby: { ...testLobby, ...queue, showPositionSelector: false }, gameflowPhase: 'Lobby' });
+    expect(panel().queryByRole('combobox', { name: 'Posição primária' })).not.toBeInTheDocument();
+    expect(panel().queryByText('Esta fila não permite escolher posições.')).not.toBeInTheDocument();
   });
 
   it('aguarda puuid local, bloqueia outras fases e acompanha mudanças externas', async () => {

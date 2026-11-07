@@ -8,6 +8,7 @@ import { FRIEND_DRAG_TYPE, useLobbyInvite } from '../agent/lobbyInvite';
 import { InvitePicker } from './LobbyInvites';
 import { isPosition, positionNames, validPositions } from '../agent/positions';
 import { queuePenalty } from '../agent/matchmaking';
+import { isAramQueue } from '../agent/champSelect';
 import type { Position } from '../bindings/Position';
 import { assetUrl } from '../agent/assets';
 import { Avatar } from './base';
@@ -281,6 +282,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
 
   const queueLabel = lobbyQueueName(lobby, state.queues);
   const freeSlots = Math.max(0, lobby.maxLobbySize - lobby.members.length);
+  const hidePositions = !lobby.showPositionSelector && isAramQueue(lobby);
   return (
     <section aria-label="Lobby" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
       className={cx('flex h-full min-h-0 w-full flex-col gap-4 rounded-panel text-ink transition-shadow',
@@ -368,7 +370,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
       {invites.error && picker === null && <p role="alert" className="text-body text-danger">{invites.error}</p>}
       {picker !== null && <InvitePicker invites={invites} groups={state.friendGroups} onClose={closePicker} />}
 
-      <div className={cx('grid items-stretch gap-4', !searching && '@min-[44rem]:grid-cols-2')}>
+      {/* No ARAM e na ARAM: Desordem não há posição, nem no client oficial: sem o aviso, a fila ocupa a largura toda. */}
+      <div className={cx('grid items-stretch gap-4', !searching && !hidePositions && '@min-[44rem]:grid-cols-2')}>
         {lobby.showPositionSelector ? (
           <fieldset className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" disabled={!canSetPositions}>
             <legend className="sr-only">Suas posições</legend>
@@ -407,7 +410,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
               <p className="px-1 text-caption text-muted">Escolha a posição secundária para salvar.</p>
             )}
           </fieldset>
-        ) : <p className="rounded-panel surface p-4 shadow-soft text-body text-muted animate-fade-up">Esta fila não permite escolher posições.</p>}
+        ) : !hidePositions && <p className="rounded-panel surface p-4 shadow-soft text-body text-muted animate-fade-up">Esta fila não permite escolher posições.</p>}
         {/* Na fila e na partida encontrada, a faixa de ação fica com a busca; trocar fila volta depois. A troca é feita ao escolher. */}
         {!searching && (
           <div className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" style={{ animationDelay: '70ms' }}>

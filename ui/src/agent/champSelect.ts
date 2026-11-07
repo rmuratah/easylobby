@@ -98,10 +98,15 @@ export function markedChampion(champSelect: ChampSelect, mine: MyAction): number
 /** `queueId` do ARAM e da ARAM: Desordem, para quando a sessão não liga o banco. */
 const aramQueueIds = new Set([450, 2400]);
 
+/** Fila do ARAM ou da ARAM: Desordem, pela [`Queue`] fixa ou pelo `queueId`. */
+export function isAramQueue(queue: { queueId: number; queue: string | null }): boolean {
+  return queue.queue === 'aram' || aramQueueIds.has(queue.queueId);
+}
+
 /**
  * Seleção no estilo do ARAM (#201): sem ban nem pick, com campeão sorteado,
  * reroll e banco. Vale pelo banco ligado na sessão ou pela fila.
  */
 export function isAramChampSelect(champSelect: ChampSelect): boolean {
-  return champSelect.benchEnabled || champSelect.queue === 'aram' || aramQueueIds.has(champSelect.queueId);
+  return champSelect.benchEnabled || isAramQueue(champSelect);
 }
