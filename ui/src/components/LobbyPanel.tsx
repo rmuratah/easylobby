@@ -1,11 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
-import { isQueue, queueNames } from '../agent/queues';
+import { createLobbyCommand, isQueueKey, lobbyQueueName, queueGroups, queueKey, type QueueKey } from '../agent/queueOptions';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
 import { isPosition, positionNames, validPositions } from '../agent/positions';
 import type { Position } from '../bindings/Position';
-import type { Queue } from '../bindings/Queue';
 import { assetUrl } from '../agent/assets';
 import { Avatar } from './base';
 import { cx } from './base/cx';
@@ -13,7 +12,7 @@ import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
 import { PositionIcon } from './PositionIcon';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
-type LobbyCommand = Extract<Command, { type: 'createLobby' | 'leaveLobby' | 'setPositions' }>;
+type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' }>;
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 const selectClass = `h-10 rounded-tile border border-control bg-raised px-3 text-body text-ink transition-colors disabled:cursor-not-allowed disabled:text-muted ${focusRing}`;
@@ -38,8 +37,12 @@ export function LobbyPanel({ connection, send }: Props) {
 
 /** Espera depois da última escolha antes de enviar, para trocas rápidas (ex.: setas do teclado) virarem um comando só. */
 export const AUTO_SAVE_DELAY_MS = 400;
+
+function commandKey(command: Extract<Command, { type: 'createLobby' | 'createLobbyById' }>): QueueKey {
+  return command.type === 'createLobby' ? command.queue : `fila-${command.queueId}`;
+}
 type Outcome = 'skipped' | 'ok' | 'error' | 'stale';
-type Desired = { positions?: { first: Position; second: Position }; queue?: Queue };
+type Desired = { positions?: { first: Position; second: Position }; queue?: QueueKey };
 
 /** Posições prontas para salvar: só falta esperar quando há uma posição primária de verdade sem a secundária. */
 function positionsComplete(first: Position, second: Position) {
@@ -64,10 +67,12 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     setAcceptedPositions(null);
   }
   const queueId = lobby?.queueId ?? null;
-  const [selection, setSelection] = useState<{ queueId: number | null; queue: Queue }>({ queueId, queue: lobby?.queue ?? 'normalDraft' });
+  const currentKey: QueueKey | null = lobby ? queueKey(lobby) : null;
+  const [selection, setSelection] = useState<{ queueId: number | null; queue: QueueKey }>({ queueId, queue: currentKey ?? 'normalDraft' });
   if (selection.queueId !== queueId) {
-    setSelection({ queueId, queue: syncing.queue && lobby ? selection.queue : lobby?.queue ?? 'normalDraft' });
+    setSelection({ queueId, queue: syncing.queue && lobby ? selection.queue : currentKey ?? 'normalDraft' });
   }
+  const groups = queueGroups(state.queues);
   const [feedback, setFeedback] = useState<Feedback>({ status: 'idle', message: '' });
   const inFlight = useRef(false);
   const mounted = useRef(false);
@@ -114,8 +119,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     : 'Escolha uma fila para criar um lobby.';
 
   async function execute(command: LobbyCommand): Promise<Outcome> {
-    if (inFlight.current || (command.type === 'createLobby'
-      ? !canCreate || command.queue === lobby?.queue
+    if (inFlight.current || (command.type === 'createLobby' || command.type === 'createLobbyById'
+      ? !canCreate || commandKey(command) === currentKey
       : command.type === 'leaveLobby' ? !canLeave
       : !canSetPositions || !validPositions(command.first, command.second)
         || (command.first === saved.first && command.second === saved.second))) return 'skipped';
@@ -172,7 +177,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     if (!kind) return;
     let command: LobbyCommand;
     if (kind === 'queue') {
-      command = { type: 'createLobby', queue: next.queue! };
+      command = createLobbyCommand(next.queue!);
       delete next.queue;
     } else {
       command = { type: 'setPositions', ...next.positions! };
@@ -210,8 +215,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
       disabled={!canCreate || (!lobby && pending)}
       aria-describedby={descriptionId}
       onChange={event => {
-        if (!isQueue(event.target.value)) return;
         const queue = event.target.value;
+        if (!isQueueKey(queue, groups)) return;
         setSelection({ queueId, queue });
         // Sem lobby, criar continua sendo um clique em "Criar lobby"; com lobby, a fila troca sozinha.
         if (!lobby || !canCreate) return;
@@ -221,7 +226,15 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
       }}
       className={className}
     >
-      {(Object.keys(queueNames) as Queue[]).map(queue => <option key={queue} value={queue}>{queueNames[queue]}</option>)}
+      {/* Fila atual fora da lista (personalizada, evento que acabou...): aparece só para o seletor mostrar a verdade. */}
+      {lobby && !isQueueKey(selection.queue, groups) && <option value={selection.queue} disabled>{lobbyQueueName(lobby, state.queues)}</option>}
+      {groups.length === 1
+        ? groups[0].options.map(option => <option key={option.key} value={option.key}>{option.label}</option>)
+        : groups.map(group => (
+          <optgroup key={group.label} label={group.label}>
+            {group.options.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
+          </optgroup>
+        ))}
     </select>
   );
 
@@ -247,7 +260,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
             {queueSelect(`h-11 min-w-0 flex-1 rounded-full glass px-4 text-body font-semibold text-ink disabled:cursor-not-allowed disabled:text-muted ${focusRing}`)}
             <button type="button" className={primaryPill} aria-describedby={descriptionId} aria-busy={pending}
               disabled={!canCreate || pending}
-              onClick={() => { void execute({ type: 'createLobby', queue: selection.queue }); }}>Criar lobby</button>
+              onClick={() => { void execute(createLobbyCommand(selection.queue)); }}>Criar lobby</button>
           </div>
           <p id={descriptionId} className="text-caption text-muted">{restriction}</p>
           {feedbackLine}
@@ -256,7 +269,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     );
   }
 
-  const queueLabel = lobby.queue ? queueNames[lobby.queue] : `Outra fila (ID ${lobby.queueId})`;
+  const queueLabel = lobbyQueueName(lobby, state.queues);
   const freeSlots = Math.max(0, lobby.maxLobbySize - lobby.members.length);
   return (
     <section aria-label="Lobby" className="flex h-full min-h-0 w-full flex-col gap-4 text-ink">

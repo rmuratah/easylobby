@@ -7,6 +7,7 @@ import { queueNames } from '../agent/queues';
 import type { AgentState } from '../bindings/AgentState';
 import type { ClientMessage } from '../bindings/ClientMessage';
 import type { GameflowPhase } from '../bindings/GameflowPhase';
+import type { GameQueue } from '../bindings/GameQueue';
 import type { Queue } from '../bindings/Queue';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { testLobby, testState } from '../test/lobby';
@@ -46,6 +47,13 @@ beforeEach(() => { configure({ defaultHidden: true }); vi.useFakeTimers(); Socke
 afterEach(() => { configure({ defaultHidden: false }); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 const queueSelect = () => panel().getByRole('combobox', { name: 'Fila' });
+const gameQueue = (queueId: number, name: string, gameMode: string, versusAi = false): GameQueue => ({
+  queueId, queue: null, name, description: name, gameMode, modeGroup: gameMode === 'KIWI' ? 'kARAM' : 'kOther', mapId: 12,
+  versusAi, ranked: false, showPositionSelector: false, limitedTime: false,
+});
+const desordem = gameQueue(2400, 'ARAM: Desordem', 'KIWI');
+const jade = gameQueue(4310, 'Jade', 'JADE');
+const coop = gameQueue(870, 'Introdução', 'CLASSIC', true);
 
 describe('lobby pelo único /ws do App', () => {
   it.each(Object.keys(queueNames) as Queue[])('cria %s sem duplicar e aguarda estado e resposta do agente', async queue => {
@@ -110,12 +118,12 @@ describe('lobby pelo único /ws do App', () => {
     await ok();
     expect(queueSelect()).toHaveValue('aram');
     act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, queue: null, queueId: 999 } }));
-    expect(panel().getByText('Outra fila (ID 999)')).toBeInTheDocument();
+    expect(panel().getByText('Outra fila (ID 999)', { selector: 'strong' })).toBeInTheDocument();
     fireEvent.click(button('Sair do lobby'));
     fireEvent.click(button('Sair do lobby'));
     expect(socket().send).toHaveBeenCalledTimes(2);
     expect(request().command).toEqual({ type: 'leaveLobby' });
-    expect(panel().getByText('Outra fila (ID 999)')).toBeInTheDocument();
+    expect(panel().getByText('Outra fila (ID 999)', { selector: 'strong' })).toBeInTheDocument();
     act(() => {
       socket().receive({ type: 'lobby', lobby: null });
       socket().receive({ type: 'gameflowPhase', phase: 'None' });
@@ -254,6 +262,34 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByRole('status')).toHaveTextContent('Criando');
     await ok();
     expect(panel().getByRole('status')).toHaveTextContent('atualizado');
+  });
+
+  it('oferece a ARAM: Desordem e as outras filas da LCU, cria pelo id e troca de volta para uma fixa', async () => {
+    render(<App />);
+    hello({ queues: [desordem, jade, coop] });
+    expect(panel().getAllByRole('option')).toHaveLength(8);
+    expect(panel().getByRole('group', { name: 'Mais modos' })).toHaveTextContent('ARAM: DesordemJade');
+    expect(panel().getByRole('group', { name: 'Contra IA' })).toHaveTextContent('Introdução');
+    fireEvent.change(queueSelect(), { target: { value: 'fila-2400' } });
+    await settle();
+    expect(socket().send).not.toHaveBeenCalled();
+    fireEvent.click(button('Criar lobby'));
+    expect(request().command).toEqual({ type: 'createLobbyById', queueId: 2400 });
+    act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, queue: null, queueId: 2400, maxLobbySize: 5, showPositionSelector: false } }));
+    await ok();
+    expect(panel().getByText('ARAM: Desordem', { selector: 'strong' })).toBeInTheDocument();
+    expect(queueSelect()).toHaveValue('fila-2400');
+    // Escolher a mesma fila não manda nada; outra fila troca sozinha.
+    fireEvent.change(queueSelect(), { target: { value: 'aram' } });
+    await settle();
+    expect(request().command).toEqual({ type: 'createLobby', queue: 'aram' });
+  });
+
+  it('mostra a fila atual mesmo quando ela não está na lista', () => {
+    render(<App />);
+    hello({ lobby: { ...testLobby, queue: null, queueId: 999 }, gameflowPhase: 'Lobby', queues: [desordem] });
+    expect(queueSelect()).toHaveValue('fila-999');
+    expect(panel().getByRole('option', { name: 'Outra fila (ID 999)' })).toBeDisabled();
   });
 
   it.each(['agente', 'LoL', 'sessão'] as const)('descarta resultado antigo após mudança de %s e não reenvia', async source => {
