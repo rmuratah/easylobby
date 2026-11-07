@@ -6,7 +6,9 @@ import { Button } from './base';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
 import { ChampionIcon, Countdown, TeamList, type ContentProps } from './ChampSelectPanel';
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
+import { RuneQuickPick } from './RuneQuickPick';
 import { SummonerSpellsPicker } from './SummonerSpellsPicker';
+import { champSelectGameMode } from '../agent/summonerSpells';
 
 /**
  * Tela da seleção do ARAM e da ARAM: Desordem (#201), com as cartas de
@@ -15,10 +17,10 @@ import { SummonerSpellsPicker } from './SummonerSpellsPicker';
  * escolher a carta é confirmar esse pick. As cartas que sobram vão para o
  * banco do time, de onde qualquer um pega um campeão (o dele vai para o
  * banco no lugar). As trocas com aliados (#25), os feitiços e o chat
- * continuam como no draft; as runas não aparecem. O reroll antigo só aparece
+ * continuam como no draft, e as runas também, menos na ARAM: Desordem. O reroll antigo só aparece
  * se a LCU mandar reroll sobrando.
  */
-export function AramChampSelectContent({ state, champSelect, send }: ContentProps) {
+export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentProps) {
   const catalog = state.championCatalog;
   const me = champSelect.myTeam.find(p => p.isLocalPlayer) ?? null;
   const reroll = useCommand(send);
@@ -28,6 +30,8 @@ export function AramChampSelectContent({ state, champSelect, send }: ContentProp
   const starting = champSelect.timer.phase === 'GAME_STARTING';
   // Nome da fila no idioma do client (ARAM, ARAM: Desordem), como na lista de filas.
   const mode = state.queues.find(q => q.queueId === champSelect.queueId)?.name || 'ARAM';
+  // No ARAM dá para trocar as runas; na ARAM: Desordem (`KIWI`), não (#197).
+  const runes = champSelectGameMode(champSelect, state.queues) !== 'KIWI';
   const busy = reroll.pending || bench.pending || pick.pending || starting;
   // A escolha da carta é o pick em andamento do jogador.
   const choice = champSelect.pendingAction?.type === 'pick' ? champSelect.pendingAction : null;
@@ -67,6 +71,7 @@ export function AramChampSelectContent({ state, champSelect, send }: ContentProp
               : <SwapOffers champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
           <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
             summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} send={send} />
+          {runes && <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />}
         </div>
         <div className="champ-select-center">
           {choice ? (
