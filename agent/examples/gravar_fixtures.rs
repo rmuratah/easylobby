@@ -74,9 +74,22 @@ const STARTUP_ONLY_PATHS: [&str; 5] = [
     "/lol-game-data/assets/v1/champion-summary.json",
 ];
 
+/// Sessão da seleção: quando ela abre, o gravador tira a foto das cartas.
+const CHAMP_SELECT_SESSION: &str = "/lol-champ-select/v1/session";
+
+/// Caminhos prováveis das cartas de campeão do ARAM (#201).
+const CHAMPION_OFFER_PATHS: [&str; 4] = [
+    "/lol-champ-select/v1/session/subset-champion-list",
+    "/lol-champ-select/v1/subset-champion-list",
+    "/lol-lobby-team-builder/champ-select/v1/subset-champion-list",
+    "/lol-lobby-team-builder/champ-select/v1/session",
+];
+
 /// Prefixos de URI dos eventos WAMP que interessam ao easylobby.
-const EVENT_PREFIXES: [&str; 8] = [
+const EVENT_PREFIXES: [&str; 9] = [
     "/lol-gameflow/v1/",
+    // Cartas de campeão do ARAM (#201): as opções podem vir do team builder.
+    "/lol-lobby-team-builder/champ-select/v1/",
     "/lol-lobby/v2/",
     "/lol-matchmaking/v1/",
     "/lol-champ-select/v1/",
@@ -232,6 +245,40 @@ impl Recorder {
         }
     }
 
+    /// Na abertura da seleção, as cartas de campeão do ARAM (#201): as
+    /// opções de cada jogador não vêm na sessão, então tenta os caminhos
+    /// prováveis e anota os nomes das funções da LCU sobre a seleção.
+    async fn snapshot_champion_offers(&mut self) {
+        for path in CHAMPION_OFFER_PATHS {
+            self.snapshot(path).await;
+        }
+        let Ok(help) = self.lcu.request(Method::GET, "/help", None).await else {
+            return;
+        };
+        let mut names: Vec<String> = ["functions", "events"]
+            .iter()
+            .filter_map(|k| help.body[*k].as_object())
+            .flat_map(|m| m.keys().cloned())
+            .filter(|name| {
+                let lower = name.to_lowercase();
+                lower.contains("champselect") || lower.contains("teambuilder")
+            })
+            .collect();
+        names.sort();
+        println!(
+            "[{}] {} funções da LCU sobre a seleção",
+            self.elapsed_ms(),
+            names.len()
+        );
+        self.rest.push(RestFixture {
+            method: "GET".into(),
+            path: "/help#champ-select".into(),
+            phase: self.phase.clone(),
+            status: help.status,
+            body: Value::from(names),
+        });
+    }
+
     fn elapsed_ms(&self) -> u64 {
         self.started.elapsed().as_millis() as u64
     }
@@ -334,6 +381,10 @@ async fn run() -> Result<(), String> {
     let deadline = args
         .seconds
         .map(|s| tokio::time::Instant::now() + Duration::from_secs(s));
+    // O Ctrl+C fica registrado desde já: no Windows, sem o handler ativo
+    // (durante uma foto REST, por exemplo), ele mata o processo sem salvar.
+    let ctrl_c = tokio::signal::ctrl_c();
+    tokio::pin!(ctrl_c);
     loop {
         let sleep = async {
             match deadline {
@@ -342,7 +393,7 @@ async fn run() -> Result<(), String> {
             }
         };
         tokio::select! {
-            _ = tokio::signal::ctrl_c() => break,
+            _ = &mut ctrl_c => break,
             _ = sleep => break,
             msg = ws.next() => {
                 let Some(msg) = msg else {
@@ -357,6 +408,11 @@ async fn run() -> Result<(), String> {
                     continue;
                 }
                 let Some(payload) = frame.get(2) else { continue };
+                let champ_select_opened = payload["uri"] == CHAMP_SELECT_SESSION
+                    && payload["eventType"] == "Create";
+                if champ_select_opened {
+                    rec.snapshot_champion_offers().await;
+                }
                 if let Some(phase) = rec.on_event(payload) {
                     if phase != rec.phase {
                         rec.phase = phase;

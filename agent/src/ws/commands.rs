@@ -57,6 +57,8 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
             hub.champ_select_swap(kind, swap_id, SwapIntent::Cancel)
                 .await
         }
+        Command::RerollChampion => hub.reroll_champion().await,
+        Command::SwapBenchChampion { champion_id } => hub.swap_bench_champion(champion_id).await,
         Command::SendChampSelectMessage { body } => hub.send_champ_select_message(&body).await,
 
         // Runas

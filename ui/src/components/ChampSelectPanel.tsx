@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { assetUrl } from '../agent/assets';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import {
-  actingCells, champSelectPhaseLabels, championName, gridChampions, gridPurpose, markedChampion, myAction, playerName,
+  actingCells, champSelectPhaseLabels, championName, gridChampions, gridPurpose, isAramChampSelect, markedChampion, myAction, playerName,
   remainingMs, searchChampions, type GridChampion, type MyAction,
 } from '../agent/champSelect';
 import { useCommand, type CommandFeedback } from '../agent/useCommand';
@@ -10,6 +10,7 @@ import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
 import { RuneQuickPick } from './RuneQuickPick';
+import { AramChampSelectContent } from './AramChampSelect';
 import { positionNames } from '../agent/positions';
 import type { AgentState } from '../bindings/AgentState';
 import type { ChampSelect } from '../bindings/ChampSelect';
@@ -49,10 +50,12 @@ export function ChampSelectPanel({ connection, send, onOpenRunes }: Props) {
     );
   }
   // Cada seleção (e cada conexão) começa do zero: busca e escolha locais não passam para a próxima.
-  return <ChampSelectContent key={`${state.lcu.session}:${state.champSelect.id}`} state={state} champSelect={state.champSelect} send={send} onOpenRunes={onOpenRunes} />;
+  // O ARAM tem tela própria (#201): campeão sorteado, reroll e banco, sem ban nem pick.
+  const Content = isAramChampSelect(state.champSelect) ? AramChampSelectContent : ChampSelectContent;
+  return <Content key={`${state.lcu.session}:${state.champSelect.id}`} state={state} champSelect={state.champSelect} send={send} onOpenRunes={onOpenRunes} />;
 }
 
-type ContentProps = { state: AgentState; champSelect: ChampSelect; send: AgentClient['send']; onOpenRunes?: () => void };
+export type ContentProps = { state: AgentState; champSelect: ChampSelect; send: AgentClient['send']; onOpenRunes?: () => void };
 
 function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentProps) {
   const catalog = state.championCatalog;
@@ -107,7 +110,7 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
   );
 }
 
-function Countdown({ champSelect }: { champSelect: ChampSelect }) {
+export function Countdown({ champSelect }: { champSelect: ChampSelect }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 250);
@@ -153,7 +156,7 @@ type TeamProps = {
   renderActions?: (player: ChampSelectPlayer) => ReactNode;
 };
 
-function TeamList({ label, players, ally, acting, catalog, renderActions }: TeamProps) {
+export function TeamList({ label, players, ally, acting, catalog, renderActions }: TeamProps) {
   return (
     <section aria-label={label} className="flex min-w-0 flex-col gap-2">
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">{label}</h3>

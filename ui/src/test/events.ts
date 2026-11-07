@@ -26,6 +26,10 @@ export const testChampSelect: ChampSelect = {
   trades: [],
   pickOrderSwaps: [],
   positionSwaps: [],
+  benchEnabled: false,
+  benchChampions: [],
+  allowRerolling: false,
+  rerollsRemaining: 0,
 };
 export const testInvitation: ReceivedInvitation = {
   invitationId: 'convite-1', fromSummonerId: 2, fromSummonerName: '', queueId: 420, queue: 'rankedSolo', canAccept: true,

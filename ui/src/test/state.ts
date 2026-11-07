@@ -16,7 +16,7 @@ export const emptyState: AgentState = {
   champSelectChat: null,
   summonerSpellCatalog: null,
   championCatalog: null,
-  champSelectChampions: { pickable: null, bannable: null },
+  champSelectChampions: { pickable: null, bannable: null, subset: null },
   runePages: null,
   runeCatalog: null,
   friends: [],

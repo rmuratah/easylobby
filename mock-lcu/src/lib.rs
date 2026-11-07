@@ -30,6 +30,7 @@
 //!
 //! [`Credentials::from_lockfile_path`]: easylobby_agent::lockfile::Credentials::from_lockfile_path
 
+pub mod bench;
 pub mod champ_select;
 pub mod champions;
 pub mod chat;
@@ -780,6 +781,18 @@ async fn handle_request(
         (&Method::PATCH, summoner_spells::MY_SELECTION) => {
             let body = read_json(request).await;
             let (response, events) = summoner_spells::select(&shared.state(), &body);
+            emit_all(&shared, events);
+            response
+        }
+        // Reroll e banco do ARAM (#201).
+        (&Method::POST, bench::REROLL) => {
+            let (response, events) = bench::reroll(&shared.state());
+            emit_all(&shared, events);
+            response
+        }
+        (&Method::POST, p) if bench::bench_swap_route(p).is_some() => {
+            let id = bench::bench_swap_route(p).unwrap_or_default();
+            let (response, events) = bench::swap(&shared.state(), id);
             emit_all(&shared, events);
             response
         }
