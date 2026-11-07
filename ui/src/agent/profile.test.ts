@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { match } from '../test/profile';
 import {
-  formatDuration, kda, matchesFilter, matchStats, queueLabel, rankLabel, timeAgo, winRate,
+  formatDuration, kda, matchesFilter, matchStats, queueLabel, rankLabel, tierEmblemId, timeAgo, winRate,
 } from './profile';
 
 const entry = { tier: null, division: null, leaguePoints: 0, wins: 0, losses: 0, provisional: false };
@@ -13,6 +13,14 @@ describe('perfil', () => {
     expect(rankLabel(entry)).toBe('Sem classificação');
     expect(winRate(3, 1)).toBe(75);
     expect(winRate(0, 0)).toBeNull();
+  });
+
+  it('acha o emblema de cada tier', () => {
+    expect(tierEmblemId('IRON')).toBe(1);
+    expect(tierEmblemId('EMERALD')).toBe(6);
+    expect(tierEmblemId('DIAMOND')).toBe(7);
+    expect(tierEmblemId('CHALLENGER')).toBe(10);
+    expect(tierEmblemId('UNRANKED')).toBeNull();
   });
 
   it('formata tempo, duração e KDA', () => {
