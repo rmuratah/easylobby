@@ -10,6 +10,7 @@
 mod champ_select;
 mod champ_select_chat;
 mod chat;
+mod exit;
 mod friends;
 mod invitations;
 mod lobby;
@@ -40,6 +41,8 @@ use crate::summoner::{self, Summoner, CURRENT_SUMMONER_PATH};
 use crate::summoner_spells::{self};
 use crate::ux;
 use crate::wamp::{EventType, LcuEvent};
+
+pub use exit::ExitAction;
 
 use super::protocol::{AgentState, CommandResult, ErrorCode, LcuStatus, ServerMessage};
 

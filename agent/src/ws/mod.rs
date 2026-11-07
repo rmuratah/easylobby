@@ -57,7 +57,7 @@ use crate::assets::{AssetCache, AssetConfig, AssetError, AssetKind, ASSETS_PATH}
 use crate::connection::LcuConnection;
 use crate::launcher::LaunchOptions;
 
-pub use hub::{drive, Hub};
+pub use hub::{drive, ExitAction, Hub};
 use protocol::{ClientMessage, Command, CommandResult, ServerMessage, PROTOCOL_VERSION};
 
 /// Caminho do WebSocket.
@@ -160,7 +160,7 @@ pub async fn run(
 
 /// O mesmo que [`run`], mas com um [`Hub`] de quem chama. Com um clone do
 /// `hub`, o app desktop lê o estado e manda comandos de fora do canal, como o
-/// [`Hub::launch_ux`] ao sair pela bandeja (#89).
+/// [`Hub::close_league_on_exit`] ao sair pela bandeja (#89).
 pub async fn run_with_hub(
     connection: LcuConnection,
     listener: TcpListener,
