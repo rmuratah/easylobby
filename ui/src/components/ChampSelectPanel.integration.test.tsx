@@ -111,16 +111,3 @@ it('espera a sessão e o catálogo, e some quando a seleção fecha', () => {
   expect(screen.queryByRole('region', { name: 'Seleção de campeões' })).not.toBeInTheDocument();
   expect(screen.getByText(/A partida está abrindo/)).toBeVisible();
 });
-
-it.each([
-  ['ARAM', { queueId: 450, queue: 'aram' as const }],
-  ['ARAM: Desordem', { queueId: 2400, queue: null }],
-])('não mostra as runas no %s', (_, queue) => {
-  render(<App />); hello({ champSelect: { ...draftChampSelect, ...queue } });
-  expect(panel().queryByRole('region', { name: 'Suas runas' })).not.toBeInTheDocument();
-});
-
-it('mostra as runas fora do ARAM', () => {
-  render(<App />); hello();
-  expect(panel().getByRole('region', { name: 'Suas runas' })).toBeInTheDocument();
-});

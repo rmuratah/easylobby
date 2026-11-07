@@ -1,8 +1,11 @@
 //! Seleção de campeões: sessão, ações, trocas e feitiços de invocador.
 
 use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
-use crate::champ_select::{self, ActionIntent, ChampSelect};
-use crate::champions::{self, ChampSelectChampions, ChampionCatalog, PICKABLE_CHAMPIONS_PATH};
+use crate::bench;
+use crate::champ_select::{self, ActionIntent, ChampSelect, ChampSelectActionType};
+use crate::champions::{
+    self, ChampSelectChampions, ChampionCatalog, PICKABLE_CHAMPIONS_PATH, SUBSET_CHAMPIONS_PATH,
+};
 use crate::summoner_spells::{self, SummonerSpellCatalog};
 use crate::swaps::{self, SwapIntent, SwapKind};
 use crate::wamp::{EventType, LcuEvent};
@@ -89,6 +92,12 @@ impl Hub {
             let mut champions = shared.state.champ_select_champions.clone();
             if event.uri == PICKABLE_CHAMPIONS_PATH {
                 champions.pickable = ids;
+            } else if event.uri == SUBSET_CHAMPIONS_PATH {
+                // As cartas na ordem da LCU (e `Delete` esvazia).
+                champions.subset = match event.event_type {
+                    EventType::Delete => Some(Vec::new()),
+                    _ => champions::offers_from_json(&event.data),
+                };
             } else {
                 champions.bannable = ids;
             }
@@ -201,6 +210,97 @@ impl Hub {
         CommandResult::Ok
     }
 
+    /// Rola de novo o campeão do jogador no ARAM (comando `rerollChampion`,
+    /// #201). Confere o pedido contra a seleção atual, e relê a sessão pelo
+    /// REST e a publica antes de devolver.
+    pub async fn reroll_champion(&self) -> CommandResult {
+        let (client, champ_select) = {
+            let shared = self.lock();
+            (shared.client.clone(), shared.state.champ_select.clone())
+        };
+        let Some(client) = client else {
+            return not_connected();
+        };
+        if let Err(invalid) = bench::check_reroll(champ_select.as_ref()) {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        if let Err(error) = bench::reroll(&client).await {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        self.refresh_champ_select().await;
+        CommandResult::Ok
+    }
+
+    /// Troca o campeão do jogador por um do banco do ARAM (comando
+    /// `swapBenchChampion`, #201). Como [`Hub::reroll_champion`].
+    pub async fn swap_bench_champion(&self, champion_id: u32) -> CommandResult {
+        let (client, champ_select) = {
+            let shared = self.lock();
+            (shared.client.clone(), shared.state.champ_select.clone())
+        };
+        let Some(client) = client else {
+            return not_connected();
+        };
+        if let Err(invalid) = bench::check_bench_swap(champ_select.as_ref(), champion_id) {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        if let Err(error) = bench::swap_with_bench(&client, champion_id).await {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        self.refresh_champ_select().await;
+        CommandResult::Ok
+    }
+
+    /// Busca as cartas de campeão do ARAM (#201) quando o jogador ainda vai
+    /// escolher uma e o agente não sabe quais são. Fora disso não faz nada;
+    /// com a seleção fechada, esquece as cartas.
+    pub(super) async fn refresh_champion_offers(&self) {
+        let (client, session) = {
+            let shared = self.lock();
+            let state = &shared.state;
+            let Some(cs) = state.champ_select.as_ref() else {
+                let had = state.champ_select_champions.subset.is_some();
+                drop(shared);
+                if had {
+                    self.update(|shared| {
+                        let mut champions = shared.state.champ_select_champions.clone();
+                        champions.subset = None;
+                        write_champ_select_champions(shared, champions)
+                    });
+                }
+                return;
+            };
+            let choosing = cs.bench_enabled
+                && cs
+                    .pending_action
+                    .as_ref()
+                    .is_some_and(|a| a.action_type == ChampSelectActionType::Pick);
+            let known = state
+                .champ_select_champions
+                .subset
+                .as_ref()
+                .is_some_and(|s| !s.is_empty());
+            if !choosing || known {
+                return;
+            }
+            (shared.client.clone(), shared.session)
+        };
+        let Some(client) = client else {
+            return;
+        };
+        let Some(offers) = champions::champion_offers(&client).await else {
+            return;
+        };
+        self.update(|shared| {
+            if shared.session != session {
+                return None;
+            }
+            let mut champions = shared.state.champ_select_champions.clone();
+            champions.subset = Some(offers);
+            write_champ_select_champions(shared, champions)
+        });
+    }
+
     /// Relê a sessão da seleção depois de um comando; como
     /// [`Hub::refresh_lobby`] (#87). Um `Delete` ou uma queda durante a
     /// espera descartam a resposta, e a seleção encerrada não volta. Sem
@@ -307,6 +407,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn segue_as_cartas_do_aram() {
+        let hub = Hub::new();
+        hub.apply(event(
+            SUBSET_CHAMPIONS_PATH,
+            EventType::Create,
+            json!([77, 432, 126]),
+        ))
+        .await;
+        assert_eq!(
+            hub.state().champ_select_champions.subset,
+            Some(vec![77, 432, 126])
+        );
+        hub.apply(event(SUBSET_CHAMPIONS_PATH, EventType::Delete, json!(null)))
+            .await;
+        assert_eq!(hub.state().champ_select_champions.subset, Some(vec![]));
+    }
+
+    #[tokio::test]
     async fn queda_fecha_a_selecao_de_campeoes() {
         let hub = Hub::new();
         hub.apply(event(
@@ -365,14 +483,17 @@ mod tests {
                 ChampSelectChampions {
                     pickable: Some(vec![1, 266]),
                     bannable: None,
+                    subset: None,
                 },
                 ChampSelectChampions {
                     pickable: Some(vec![1, 266]),
                     bannable: Some(vec![1, 2, 266]),
+                    subset: None,
                 },
                 ChampSelectChampions {
                     pickable: None,
                     bannable: Some(vec![1, 2, 266]),
+                    subset: None,
                 },
             ]
         );

@@ -8,6 +8,7 @@ import type { AgentState } from '../bindings/AgentState';
 import type { ClientMessage } from '../bindings/ClientMessage';
 import type { GameflowPhase } from '../bindings/GameflowPhase';
 import type { GameQueue } from '../bindings/GameQueue';
+import type { Matchmaking } from '../bindings/Matchmaking';
 import type { Queue } from '../bindings/Queue';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { testFriend } from '../test/events';
@@ -213,6 +214,27 @@ describe('lobby pelo único /ws do App', () => {
     expect(socket().send).not.toHaveBeenCalled();
     act(() => socket().receive({ type: 'gameflowPhase', phase: 'Lobby' }));
     expect(button('Sair do lobby')).toBeEnabled();
+  });
+
+  const dodge: Matchmaking = {
+    searchState: 'Error', queueId: 420, timeInQueue: 0, estimatedQueueTime: 0, lowPriorityTimeRemaining: 0,
+    errors: [{ errorType: 'QUEUE_DODGER', message: '', penaltyTimeRemaining: 300 }],
+  };
+  it.each(['Matchmaking', 'Lobby'] as const)('deixa sair do lobby com a busca parada por punição na fase %s', async phase => {
+    render(<App />);
+    hello({ gameflowPhase: phase, lobby: testLobby, matchmaking: dodge });
+    fireEvent.click(button('Sair do lobby'));
+    expect(request().command).toEqual({ type: 'leaveLobby' });
+    await ok();
+    expect(panel().getByRole('status')).toHaveTextContent('Saída do lobby confirmada.');
+  });
+
+  it('esconde sair do lobby na busca sem punição e na partida encontrada', () => {
+    render(<App />);
+    hello({ gameflowPhase: 'Matchmaking', lobby: testLobby, matchmaking: { ...dodge, searchState: 'Searching', errors: [] } });
+    expect(panel().queryByRole('button', { name: 'Sair do lobby' })).not.toBeInTheDocument();
+    hello({ gameflowPhase: 'ReadyCheck', lobby: testLobby, matchmaking: { ...dodge, searchState: 'Found' } });
+    expect(panel().queryByRole('button', { name: 'Sair do lobby' })).not.toBeInTheDocument();
   });
 
   it('não confunde canStartActivity com permissão para trocar fila e aguarda login', async () => {

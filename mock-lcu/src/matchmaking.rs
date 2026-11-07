@@ -62,7 +62,8 @@ pub fn start(state: &LcuState) -> (Response, Vec<EventFixture>) {
 
 /// `DELETE /lol-lobby/v2/lobby/matchmaking/search`: sai da fila.
 pub fn stop(state: &LcuState) -> (Response, Vec<EventFixture>) {
-    if !searching(state) {
+    // Uma busca parada por punição (`Error`) também sai.
+    if state.get(SEARCH).status != 200 {
         return (no_content(), Vec::new());
     }
     let lobby = state.get(LOBBY);
@@ -166,6 +167,46 @@ mod tests {
         let (response, events) = stop(&s);
         assert_eq!(response.status, 204);
         assert!(events.is_empty());
+    }
+
+    /// Busca parada pela punição de dodge, como a LCU manda.
+    fn penalty(s: &mut LcuState) {
+        let (_, events) = lobby::create(s, &json!({"queueId": 420}));
+        apply(s, &events);
+        let (_, events) = start(s);
+        apply(s, &events);
+        let mut search = s.get(SEARCH).body;
+        search["searchState"] = json!("Error");
+        search["errors"] = json!([{
+            "errorType": "QUEUE_DODGER", "message": "", "penaltyTimeRemaining": 300.0,
+        }]);
+        s.apply(&event(SEARCH, "Update", search));
+    }
+
+    #[test]
+    fn sai_da_busca_parada_por_punicao() {
+        let mut s = state();
+        penalty(&mut s);
+        assert!(tick(&s).is_none());
+
+        let (response, events) = stop(&s);
+        assert_eq!(response.status, 204);
+        apply(&mut s, &events);
+        assert_eq!(s.phase(), "Lobby");
+        assert_eq!(s.get(SEARCH).status, 404);
+    }
+
+    #[test]
+    fn sair_do_lobby_apaga_a_busca_parada_por_punicao() {
+        let mut s = state();
+        penalty(&mut s);
+
+        let (response, events) = lobby::leave(&s);
+        assert_eq!(response.status, 204);
+        apply(&mut s, &events);
+        assert_eq!(s.get(LOBBY).status, 404);
+        assert_eq!(s.get(SEARCH).status, 404);
+        assert_eq!(s.phase(), "None");
     }
 
     #[test]

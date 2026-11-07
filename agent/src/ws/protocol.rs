@@ -449,6 +449,25 @@ pub enum Command {
         #[ts(type = "number")]
         swap_id: u64,
     },
+    /// Rola de novo o campeão do jogador no ARAM (#201): `POST
+    /// /lol-champ-select/v1/session/my-selection/reroll`. A LCU sorteia
+    /// outro campeão e o antigo vai para o banco. Responde `invalidCommand`
+    /// sem falar com a LCU fora da seleção (ou com a partida abrindo), em
+    /// fila sem reroll (`champSelect.allowRerolling`) ou sem reroll sobrando
+    /// (`champSelect.rerollsRemaining`). A seleção nova chega numa mensagem
+    /// `champSelect` antes da resposta. Responde `notConnected` com o LoL
+    /// fechado e `lcu` se a LCU recusar.
+    RerollChampion,
+    /// Troca o campeão do jogador pelo `championId` do banco do ARAM
+    /// (#201): `POST /lol-champ-select/v1/session/bench/swap/{championId}`.
+    /// O campeão do jogador vai para o banco. Responde `invalidCommand` sem
+    /// falar com a LCU fora da seleção (ou com a partida abrindo), sem banco
+    /// (`champSelect.benchEnabled`) ou com campeão fora de
+    /// `champSelect.benchChampions`. A seleção nova chega numa mensagem
+    /// `champSelect` antes da resposta. Responde `notConnected` com o LoL
+    /// fechado e `lcu` se a LCU recusar (por exemplo, na espera entre duas
+    /// trocas).
+    SwapBenchChampion { champion_id: u32 },
     /// Manda `body` na sala de chat do time na seleção de campeões (#27).
     /// Não precisa dizer a sala: vai para a que está aberta. A mensagem
     /// chega numa `champSelectChat` antes da resposta quando a LCU devolve a
@@ -620,7 +639,7 @@ mod tests {
                     "runeCatalog": null,
                     "summonerSpellCatalog": null,
                     "championCatalog": null,
-                    "champSelectChampions": {"pickable": null, "bannable": null},
+                    "champSelectChampions": {"pickable": null, "bannable": null, "subset": null},
                     "friends": [],
                     "friendGroups": [],
                     "ranked": null,
@@ -861,6 +880,18 @@ mod tests {
                 swap_id: 28
             }
         );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 16,
+            "command": {"type": "rerollChampion"},
+        }))
+        .unwrap();
+        assert_eq!(msg.command, Command::RerollChampion);
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 17,
+            "command": {"type": "swapBenchChampion", "championId": 266},
+        }))
+        .unwrap();
+        assert_eq!(msg.command, Command::SwapBenchChampion { champion_id: 266 });
         for (name, kind) in [
             ("acceptSwap", SwapKind::Champion),
             ("declineSwap", SwapKind::Position),

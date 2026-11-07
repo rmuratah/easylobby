@@ -98,6 +98,16 @@ describe('matchmaking pelo /ws', () => {
     expect(within(panel().getByRole('list', { name: 'Erros da busca' })).getByText(/QUEUE_DODGER.*5:00/)).toBeInTheDocument();
   });
 
+  it('cancela a busca parada por punição mesmo fora da fase Matchmaking', async () => {
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Lobby', matchmaking: {
+      ...testMatchmaking, searchState: 'Error', errors: [{ errorType: 'QUEUE_DODGER', message: '', penaltyTimeRemaining: 300 }],
+    } });
+    fireEvent.click(button('Cancelar busca'));
+    expect(request().command).toEqual({ type: 'stopQueue' });
+    await respond();
+  });
+
   it('respeita lobby, liderança, prontidão e fase', () => {
     render(<App />);
     hello({ gameflowPhase: 'Lobby' });

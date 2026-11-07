@@ -229,8 +229,8 @@ describe('eventos de estado do agente', () => {
     [{ type: 'runeCatalog', runeCatalog: testRuneCatalog }, { runeCatalog: testRuneCatalog }],
     [{ type: 'summonerSpellCatalog', summonerSpellCatalog: testSummonerSpellCatalog }, { summonerSpellCatalog: testSummonerSpellCatalog }],
     [{ type: 'championCatalog', championCatalog: testChampionCatalog }, { championCatalog: testChampionCatalog }],
-    [{ type: 'champSelectChampions', champSelectChampions: { pickable: [1, 266], bannable: null } },
-      { champSelectChampions: { pickable: [1, 266], bannable: null } }],
+    [{ type: 'champSelectChampions', champSelectChampions: { pickable: [1, 266], bannable: null, subset: null } },
+      { champSelectChampions: { pickable: [1, 266], bannable: null, subset: null } }],
     [{ type: 'friends', friends: [testFriend] }, { friends: [testFriend] }],
     [{ type: 'queues', queues: [testQueue] }, { queues: [testQueue] }],
     [{ type: 'ranked', ranked: { soloDuo: { ...unranked, tier: 'GOLD', division: 'II' }, flex: unranked } },
@@ -255,8 +255,8 @@ describe('eventos de estado do agente', () => {
     [{ type: 'runeCatalog', runeCatalog: null }, { runeCatalog: null }],
     [{ type: 'summonerSpellCatalog', summonerSpellCatalog: null }, { summonerSpellCatalog: null }],
     [{ type: 'championCatalog', championCatalog: null }, { championCatalog: null }],
-    [{ type: 'champSelectChampions', champSelectChampions: { pickable: null, bannable: null } },
-      { champSelectChampions: { pickable: null, bannable: null } }],
+    [{ type: 'champSelectChampions', champSelectChampions: { pickable: null, bannable: null, subset: null } },
+      { champSelectChampions: { pickable: null, bannable: null, subset: null } }],
     [{ type: 'friends', friends: [] }, { friends: [] }],
     [{ type: 'champSelectChat', champSelectChat: null }, { champSelectChat: null }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('limpa o campo com %j', (message, change) => {
@@ -264,7 +264,7 @@ describe('eventos de estado do agente', () => {
       readyCheck: testReadyCheck, matchmaking: testMatchmaking, champSelect: testChampSelect, receivedInvitations: [testInvitation],
       runePages: testRunePages, runeCatalog: testRuneCatalog, summonerSpellCatalog: testSummonerSpellCatalog, friends: [testFriend],
       champSelectChat: testChampSelectChat, championCatalog: testChampionCatalog,
-      champSelectChampions: { pickable: [1], bannable: [1, 2] },
+      champSelectChampions: { pickable: [1], bannable: [1, 2], subset: null },
     };
     socket().receive(hello(full));
     socket().receive(message);

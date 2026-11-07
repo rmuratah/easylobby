@@ -72,7 +72,7 @@ const WAMP_EVENT: u64 = 8;
 /// invocador logado e os ranks dele (#171), e os pedidos do LoL para
 /// mostrar a UI oficial (#188). Os da LCU são os mesmos que o gravador de
 /// fixtures (#5) grava.
-pub const EASYLOBBY_EVENT_PREFIXES: [&str; 9] = [
+pub const EASYLOBBY_EVENT_PREFIXES: [&str; 10] = [
     "/lol-gameflow/v1/",
     "/lol-lobby/v2/",
     "/lol-matchmaking/v1/",
@@ -82,6 +82,8 @@ pub const EASYLOBBY_EVENT_PREFIXES: [&str; 9] = [
     "/lol-summoner/v1/current-summoner",
     "/lol-ranked/v1/current-ranked-stats",
     crate::ux::UX_STATE_REQUEST_PATH,
+    // Cartas de campeão do ARAM (#201).
+    crate::champions::SUBSET_CHAMPIONS_PATH,
 ];
 
 /// URIs dentro dos prefixos que o easylobby não usa e que carregam

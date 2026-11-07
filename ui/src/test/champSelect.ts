@@ -31,6 +31,10 @@ export const draftChampSelect: ChampSelect = {
   trades: [],
   pickOrderSwaps: [],
   positionSwaps: [],
+  benchEnabled: false,
+  benchChampions: [],
+  allowRerolling: false,
+  rerollsRemaining: 0,
 };
 
 /** Estado do agente durante a seleção, com o catálogo de campeões. */
@@ -39,7 +43,7 @@ export const champSelectState: AgentState = {
   gameflowPhase: 'ChampSelect',
   champSelect: draftChampSelect,
   championCatalog: testChampionCatalog,
-  champSelectChampions: { pickable: [20, 62, 103, 266], bannable: [20, 62, 103, 145, 266] },
+  champSelectChampions: { pickable: [20, 62, 103, 266], bannable: [20, 62, 103, 145, 266], subset: null },
 };
 
 /** Feitiços para os testes da seleção: Marcar só no ARAM, Golpear no nível 9. */
@@ -51,4 +55,23 @@ export const spellCatalog: SummonerSpellCatalog = {
     { id: 32, name: 'Marcar', description: '', summonerLevel: 7, gameModes: ['ARAM'], queues: ['aram'] },
     { id: 21, name: 'Barreira', description: '', summonerLevel: 4, gameModes: ['CLASSIC', 'ARAM'], queues: ['rankedSolo', 'aram'] },
   ],
+};
+
+/** Seleção de ARAM: o jogador logado (célula 0) com Aatrox, um reroll e Ahri e Kai'Sa no banco. */
+export const aramChampSelect: ChampSelect = {
+  ...draftChampSelect,
+  id: 'sessao-aram', queueId: 450, queue: 'aram', hasSimultaneousBans: false,
+  timer: { ...draftChampSelect.timer, phase: 'BAN_PICK' },
+  myTeam: [
+    player(0, { isLocalPlayer: true, gameName: 'Victor', tagLine: 'BR1', championId: 266, spell1Id: 4, spell2Id: 32 }),
+    player(1, { gameName: 'Amigo', tagLine: 'BR1', championId: 62 }),
+  ],
+  theirTeam: [],
+  actions: [],
+  pendingAction: null,
+  trades: [{ id: 30, cellId: 1, state: 'AVAILABLE' }],
+  benchEnabled: true,
+  benchChampions: [{ championId: 103, isPriority: false }, { championId: 145, isPriority: true }],
+  allowRerolling: true,
+  rerollsRemaining: 1,
 };

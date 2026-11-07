@@ -7,6 +7,7 @@ import type { Friend } from '../bindings/Friend';
 import type { LobbyMember } from '../bindings/LobbyMember';
 import { friendDisplayName } from '../agent/friends';
 import { isPosition, positionNames, validPositions } from '../agent/positions';
+import { queuePenalty } from '../agent/matchmaking';
 import type { Position } from '../bindings/Position';
 import { assetUrl } from '../agent/assets';
 import { Avatar } from './base';
@@ -114,7 +115,10 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
 
   const phaseAllowsChange = !state.readyCheck && !matchmaking && (phase === 'None' || phase === 'Lobby');
   const canCreate = !!summoner && phaseAllowsChange && (!lobby || lobby.isLeader);
-  const canLeave = !state.readyCheck && !!summoner && !!lobby && !matchmaking && phase === 'Lobby';
+  // Com a busca parada por punição (dodge, abandono), dá para sair do lobby: o agente sai da busca antes.
+  const penalty = queuePenalty(matchmaking);
+  const canLeave = !state.readyCheck && !!summoner && !!lobby
+    && (matchmaking ? penalty && (phase === 'Lobby' || phase === 'Matchmaking') : phase === 'Lobby');
   const canSetPositions = !state.readyCheck && !!localMember && !!lobby?.showPositionSelector && !matchmaking && phase === 'Lobby';
   // Posições que o LoL tem (ou acabou de aceitar, antes do evento chegar).
   const saved = acceptedPositions?.confirmedKey === confirmedKey ? acceptedPositions : { first, second };
@@ -295,8 +299,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
           <span className="rounded-full surface px-3 py-1.5 shadow-soft text-caption font-medium text-muted">
             {lobby.isLeader ? 'Você é o líder' : 'Você é membro'}
           </span>
-          {/* Na fila e na partida encontrada, a faixa de ação fica com a busca; sair volta depois. */}
-          {!searching && (
+          {/* Na fila e na partida encontrada, a faixa de ação fica com a busca; sair volta depois (ou já, com punição de fila). */}
+          {(!searching || (penalty && !state.readyCheck)) && (
             <button type="button" aria-label="Sair do lobby" title="Sair do lobby" aria-describedby={descriptionId} aria-busy={pending}
               disabled={!canLeave || pending} onClick={() => { void execute({ type: 'leaveLobby' }); }}
               className={`flex size-10 items-center justify-center rounded-tile surface text-muted shadow-soft transition-colors enabled:hover:text-danger disabled:cursor-not-allowed ${focusRing}`}>

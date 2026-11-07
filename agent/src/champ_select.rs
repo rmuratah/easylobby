@@ -20,7 +20,9 @@
 //! - as trocas que o jogador pode pedir ou responder: de campeão, de ordem
 //!   de pick e de cargo (#25, veja [`crate::swaps`]).
 //!
-//! Banco do ARAM e skins ficam para as issues que as usam.
+//! - o banco do ARAM e os rerolls do jogador (#201, veja [`crate::bench`]).
+//!
+//! Skins ficam para a issue que as usa.
 //!
 //! As ações do jogador (#23) usam o `id` de uma ação da sessão:
 //!
@@ -44,6 +46,7 @@ use ts_rs::TS;
 
 use serde_json::json;
 
+use crate::bench::{self, BenchChampion};
 use crate::lobby::{Position, Queue};
 use crate::rest::{LcuClient, LcuError};
 use crate::swaps::{ChampSelectSwap, SwapKind, SwapState};
@@ -95,6 +98,16 @@ pub struct ChampSelect {
     pub pick_order_swaps: Vec<ChampSelectSwap>,
     /// Trocas de cargo com cada aliado (#25).
     pub position_swaps: Vec<ChampSelectSwap>,
+    /// A seleção tem banco de campeões (ARAM e ARAM: Desordem, #201): sem
+    /// ban nem pick, cada jogador recebe um campeão sorteado.
+    pub bench_enabled: bool,
+    /// Campeões no banco do time, que qualquer aliado pode pegar com o
+    /// comando `swapBenchChampion` (#201).
+    pub bench_champions: Vec<BenchChampion>,
+    /// A fila deixa rolar de novo o campeão (comando `rerollChampion`, #201).
+    pub allow_rerolling: bool,
+    /// Rerolls que o jogador logado ainda tem.
+    pub rerolls_remaining: u32,
 }
 
 /// Etapa atual da seleção e o tempo dela.
@@ -405,6 +418,10 @@ impl ChampSelect {
             trades: swaps(raw.trades),
             pick_order_swaps: swaps(raw.pick_order_swaps),
             position_swaps: swaps(raw.position_swaps),
+            bench_enabled: raw.bench_enabled,
+            bench_champions: bench::bench_from_raw(&raw.bench_champions, &raw.bench_champion_ids),
+            allow_rerolling: raw.allow_rerolling,
+            rerolls_remaining: u32::try_from(raw.rerolls_remaining.max(0)).unwrap_or(u32::MAX),
         })
     }
 
@@ -452,6 +469,16 @@ struct RawSession {
     pick_order_swaps: Vec<RawSwap>,
     #[serde(default)]
     position_swaps: Vec<RawSwap>,
+    #[serde(default)]
+    bench_enabled: bool,
+    #[serde(default)]
+    bench_champions: Vec<Value>,
+    #[serde(default)]
+    bench_champion_ids: Vec<Value>,
+    #[serde(default)]
+    allow_rerolling: bool,
+    #[serde(default)]
+    rerolls_remaining: i64,
 }
 
 #[derive(Deserialize)]

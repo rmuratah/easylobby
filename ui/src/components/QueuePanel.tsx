@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
+import { queuePenalty } from '../agent/matchmaking';
 import { cx } from './base/cx';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
@@ -71,7 +72,8 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
   }, [active]);
   const pending = feedback.status === 'pending';
   const canStart = !state.readyCheck && !!summoner && !!lobby && lobby.isLeader && lobby.canStartActivity && phase === 'Lobby' && !matchmaking;
-  const canStop = !state.readyCheck && !!matchmaking && phase === 'Matchmaking';
+  // A busca parada por punição também sai, mesmo se a fase não for `Matchmaking`.
+  const canStop = !state.readyCheck && !!matchmaking && (phase === 'Matchmaking' || queuePenalty(matchmaking));
   const restriction = !summoner ? 'Aguarde o login no League of Legends.'
     : matchmaking ? (canStop ? 'A busca confirmada pelo agente está em andamento.' : 'Aguarde a próxima fase confirmada pelo agente.')
     : !lobby ? 'Crie ou entre em um lobby antes de buscar uma partida.'

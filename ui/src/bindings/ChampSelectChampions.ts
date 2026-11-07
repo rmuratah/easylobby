@@ -15,4 +15,10 @@ export type ChampSelectChampions = {
    * sabe.
    */
   bannable: Array<number> | null,
+  /**
+   * As cartas de campeão do ARAM (#201): os campeões que a LCU sorteou
+   * para o jogador escolher um, na ordem da LCU. `null` quando o agente
+   * ainda não sabe; vazia fora do ARAM.
+   */
+  subset: Array<number> | null,
 };
