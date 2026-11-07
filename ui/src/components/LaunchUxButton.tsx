@@ -3,18 +3,18 @@ import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import { Button } from './base';
 import { cx } from './base/cx';
 
-type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
+type Props = { connection: ConnectionSnapshot; send: AgentClient['send']; compact?: boolean };
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
 
-export function LaunchUxButton({ connection, send }: Props) {
+export function LaunchUxButton({ connection, send, compact = false }: Props) {
   const lcu = connection.state?.lcu;
   const available = connection.status === 'connected' && lcu?.state === 'connected';
   // Uma nova sessão não deve herdar resultados nem requisições da anterior.
   const session = available ? lcu.session : 'unavailable';
-  return <LaunchUxAction key={session} available={available} send={send} />;
+  return <LaunchUxAction key={session} available={available} send={send} compact={compact} />;
 }
 
-function LaunchUxAction({ available, send }: { available: boolean; send: AgentClient['send'] }) {
+function LaunchUxAction({ available, send, compact }: { available: boolean; send: AgentClient['send']; compact: boolean }) {
   const [feedback, setFeedback] = useState<Feedback>({ status: 'idle', message: '' });
   const inFlight = useRef(false);
   const mounted = useRef(false);
@@ -47,8 +47,8 @@ function LaunchUxAction({ available, send }: { available: boolean; send: AgentCl
   }
 
   const busy = feedback.status === 'pending';
-  // Fica na barra de título (#126): a explicação vai para leitores de tela e
-  // para a dica do mouse; o resultado aparece em uma linha ao lado do botão.
+  // Fica nos controles da janela (#126): a explicação vai para leitores de tela
+  // e para a dica do mouse; o resultado aparece em uma linha ao lado do botão.
   const description = available ? 'Use esta opção para voltar à interface oficial do League of Legends.'
     : 'Aguarde a conexão com o agente e o League of Legends. Se havia uma abertura em andamento, confira o client oficial antes de tentar novamente.';
   return (
@@ -60,8 +60,10 @@ function LaunchUxAction({ available, send }: { available: boolean; send: AgentCl
         </p>
       )}
       <Button size="sm" variant="secondary" onClick={() => { void launch(); }} disabled={!available}
-        loading={busy} aria-describedby={descriptionId} title={description}>
-        {busy ? 'Abrindo client oficial…' : 'Abrir client oficial'}
+        loading={busy} aria-label={busy ? 'Abrindo client oficial…' : 'Abrir client oficial'}
+        aria-describedby={descriptionId} title={description} className={compact ? 'w-9 px-0' : undefined}>
+        {!busy && compact && <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 5h5v14h-5M10 17l5-5-5-5M15 12H3" /></svg>}
+        <span className={compact ? 'sr-only' : undefined}>{busy ? 'Abrindo client oficial…' : 'Abrir client oficial'}</span>
       </Button>
       <span id={descriptionId} className="sr-only">{description}</span>
     </div>
