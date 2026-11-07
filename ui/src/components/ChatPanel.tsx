@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import { conversationName, messageTime, sortConversations, totalUnread } from '../agent/chat';
+import { conversationName, messageTime } from '../agent/chat';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import { friendNick } from '../agent/friends';
 import type { Conversation } from '../bindings/Conversation';
@@ -12,8 +12,8 @@ type Props = {
   send: AgentClient['send'];
   /**
    * Conversa aberta (o `id` da conversa, que é o `pid` do amigo), ou `null`
-   * para mostrar a lista. Fica fora do painel porque a lista de amigos também
-   * abre conversas.
+   * para não mostrar nada. Fica fora do painel porque é a lista de amigos que
+   * abre as conversas.
    */
   activeId: string | null;
   onActiveChange: (id: string | null) => void;
@@ -22,8 +22,9 @@ type Props = {
 const noop = () => {};
 
 /**
- * Chat 1:1 com amigos (#31): as conversas abertas, com as não lidas, e a
- * conversa escolhida com o histórico da sessão e o campo para responder.
+ * Chat 1:1 com amigos (#31): a conversa aberta pelo balão do amigo, com o
+ * histórico da sessão e o campo para responder. Não há lista de conversas;
+ * as não lidas aparecem no balão de cada amigo.
  */
 export function ChatPanel({ connection, send, activeId, onActiveChange }: Props) {
   const state = connection.state;
@@ -47,64 +48,15 @@ export function ChatPanel({ connection, send, activeId, onActiveChange }: Props)
     return () => { send({ type: 'setActiveConversation', conversationId: null }).catch(noop); };
   }, [send, connected, session, activeId, exists]);
 
-  if (!connected) {
-    return (
-      <Card as="section" aria-label="Conversas" className="flex w-full flex-col gap-2 p-4 text-ink">
-        <h2 className="text-section font-semibold">Conversas</h2>
-        <p className="text-body text-muted">Aguarde a conexão com o agente e o League of Legends para conversar com os amigos.</p>
-      </Card>
-    );
-  }
+  // Sem lista de conversas (pedido do jogador): o painel só aparece com uma
+  // conversa aberta pelo balão na linha do amigo.
+  if (!connected || !active) return null;
 
-  if (active) {
-    return (
-      <ConversationView
-        key={active.id} conversation={active} name={conversationName(active, friends)} send={send}
-        onBack={() => onActiveChange(null)}
-      />
-    );
-  }
-
-  const unread = totalUnread(conversations);
   return (
-    <Card as="section" aria-label="Conversas" className="flex w-full flex-col gap-3 p-4 text-ink">
-      <h2 className="text-section font-semibold">
-        Conversas{unread > 0 && <span className="text-caption font-normal text-muted"> ({unread} não {unread === 1 ? 'lida' : 'lidas'})</span>}
-      </h2>
-      {conversations.length === 0
-        ? <p className="text-body text-muted">Nenhuma conversa aberta. Use “Conversar” na lista de amigos para começar uma.</p>
-        : (
-          <ul aria-label="Conversas abertas" className="-mx-2 flex flex-col">
-            {sortConversations(conversations, friends).map(conversation => {
-              const name = conversationName(conversation, friends);
-              const last = conversation.messages.at(-1);
-              return (
-                <li key={conversation.id}>
-                  <button
-                    type="button" onClick={() => onActiveChange(conversation.id)}
-                    aria-label={`Abrir conversa com ${name}${conversation.unreadCount > 0 ? `, ${conversation.unreadCount} não ${conversation.unreadCount === 1 ? 'lida' : 'lidas'}` : ''}`}
-                    className="flex w-full items-center gap-3 rounded-control px-2 py-1.5 text-left text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  >
-                    <Avatar name={name} size={32} />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className={cx('truncate text-body', conversation.unreadCount > 0 ? 'font-semibold' : 'font-medium')} title={name}>{name}</span>
-                      {last && (
-                        <span className="truncate text-caption text-muted">{last.fromMe ? 'Você: ' : ''}{last.body}</span>
-                      )}
-                    </span>
-                    {last && <span className="shrink-0 text-caption text-muted">{messageTime(last)}</span>}
-                    {conversation.unreadCount > 0 && (
-                      <span aria-hidden="true" className="shrink-0 rounded-full bg-accent px-2 text-caption font-semibold text-on-accent">
-                        {conversation.unreadCount}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-    </Card>
+    <ConversationView
+      key={active.id} conversation={active} name={conversationName(active, friends)} send={send}
+      onBack={() => onActiveChange(null)}
+    />
   );
 }
 
@@ -157,7 +109,7 @@ function ConversationView({ conversation, name, send, onBack }: {
   return (
     <Card as="section" aria-label={`Conversa com ${name}`} className="flex w-full flex-col gap-3 p-4 text-ink">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack} aria-label="Voltar às conversas" className="px-2">←</Button>
+        <Button variant="ghost" size="sm" onClick={onBack} aria-label="Fechar conversa" title="Fechar conversa" className="px-2">←</Button>
         <Avatar name={name} size={28} />
         <h2 className="min-w-0 truncate text-section font-semibold" title={name}>{name}</h2>
       </div>
@@ -193,14 +145,18 @@ function ConversationView({ conversation, name, send, onBack }: {
   );
 }
 
-/** Botão "Conversar" de cada amigo da lista de amigos: só o ícone, para a coluna estreita caber o status. */
-export function ChatButton({ friend, onOpen }: { friend: Friend; onOpen: (id: string) => void }) {
-  const label = `Conversar com ${friendNick(friend)}`;
+/**
+ * Botão "Conversar" de cada amigo da lista de amigos: só o ícone, para a coluna
+ * estreita caber o status. Com mensagens não lidas, mostra um ponto de destaque.
+ */
+export function ChatButton({ friend, unread = 0, onOpen }: { friend: Friend; unread?: number; onOpen: (id: string) => void }) {
+  const label = `Conversar com ${friendNick(friend)}${unread > 0 ? `, ${unread} não ${unread === 1 ? 'lida' : 'lidas'}` : ''}`;
   return (
-    <Button size="sm" variant="ghost" onClick={() => onOpen(friend.id)} aria-label={label} title={label}>
+    <Button size="sm" variant="ghost" onClick={() => onOpen(friend.id)} aria-label={label} title={label} className="relative">
       <svg aria-hidden="true" className="shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
       </svg>
+      {unread > 0 && <span aria-hidden="true" data-unread className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent" />}
     </Button>
   );
 }
