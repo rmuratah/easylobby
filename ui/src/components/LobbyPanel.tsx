@@ -3,6 +3,9 @@ import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import { createLobbyCommand, isQueueKey, lobbyQueueName, queueGroups, queueKey, type QueueKey } from '../agent/queueOptions';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
+import type { Friend } from '../bindings/Friend';
+import type { LobbyMember } from '../bindings/LobbyMember';
+import { friendDisplayName } from '../agent/friends';
 import { isPosition, positionNames, validPositions } from '../agent/positions';
 import { queuePenalty } from '../agent/matchmaking';
 import type { Position } from '../bindings/Position';
@@ -48,6 +51,13 @@ type Desired = { positions?: { first: Position; second: Position }; queue?: Queu
 /** Posições prontas para salvar: só falta esperar quando há uma posição primária de verdade sem a secundária. */
 function positionsComplete(first: Position, second: Position) {
   return second !== 'unselected' || first === 'fill' || first === 'unselected';
+}
+
+/** Riot ID de quem está no lobby: a LCU não manda o nome, então vem da lista de amigos pelo `puuid`. */
+function memberName(member: LobbyMember, friends: Friend[]): string {
+  const friend = friends.find(f => f.puuid === member.puuid)
+    ?? (member.summonerId ? friends.find(f => f.summonerId === member.summonerId) : undefined);
+  return friend ? friendDisplayName(friend) : 'Jogador';
 }
 
 function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['send'] }) {
@@ -303,7 +313,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
       <ul aria-label="Jogadores no lobby" className="flex min-h-0 flex-1 flex-col gap-3">
         {lobby.members.map((member, index) => {
           const me = member.puuid === summoner?.puuid;
-          const name = me ? localName : `Invocador ${member.summonerId}`;
+          const name = me ? localName : memberName(member, state.friends);
           return (
             <li key={member.puuid} style={{ animationDelay: `${index * 70}ms` }}
               className={cx('relative flex min-h-20 flex-1 items-center gap-4 rounded-panel px-4 py-3 transition-all duration-200 animate-fade-up',

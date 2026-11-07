@@ -139,7 +139,7 @@ describe('InvitationsPanel', () => {
     expect(friends.getAllByRole('listitem').map(item => item.textContent)).toEqual(['Ana#BR1Convidar', 'Bia#BR1Convidar', 'Caio#BR1', 'Davi#BR1']);
     await act(async () => fireEvent.click(friends.getByRole('button', { name: 'Convidar Ana#BR1' })));
     expect(send).toHaveBeenCalledWith({ type: 'inviteToLobby', invitees: [{ summonerId: 2001, puuid: 'ana' }] });
-    expect(screen.getByRole('status')).toHaveTextContent('Convite enviado para Ana#BR1.');
+    expect(screen.queryByText(/Convite enviado/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Convidar Ana#BR1' })).not.toBeInTheDocument();
 
     const pending: Lobby = { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 0, state: 'Pending' }] };
