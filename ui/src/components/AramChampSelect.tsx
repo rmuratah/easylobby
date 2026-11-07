@@ -90,9 +90,10 @@ function MyChampion({ championId, champSelect, catalog, busy, onReroll, feedback
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <p className="text-caption text-muted">Seu campeão</p>
         <p className="text-[1.5rem] font-semibold leading-tight">{championId ? championName(catalog, championId) : 'Sorteando…'}</p>
-        {champSelect.allowRerolling && (
+        {/* Desde o 25.13 o ARAM usa cartas e a LCU manda `allowRerolling` com 0 rerolls: o botão só aparece com reroll sobrando. */}
+        {canReroll && (
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="primary" disabled={!canReroll || busy} onClick={onReroll}>Rolar de novo</Button>
+            <Button variant="primary" disabled={busy} onClick={onReroll}>Rolar de novo</Button>
             <p className="text-body text-muted" aria-label="Rerolls restantes">
               {rerolls === 1 ? '1 reroll restante' : `${rerolls} rerolls restantes`}
             </p>

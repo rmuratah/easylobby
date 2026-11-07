@@ -70,8 +70,7 @@ it('rola de novo e acompanha o campeão novo e o banco', async () => {
   } }));
   await respond();
   expect(mine().getByText('Nunu e Willump')).toBeVisible();
-  expect(mine().getByLabelText('Rerolls restantes')).toHaveTextContent('0 rerolls restantes');
-  expect(mine().getByRole('button', { name: 'Rolar de novo' })).toBeDisabled();
+  expect(mine().queryByRole('button', { name: 'Rolar de novo' })).not.toBeInTheDocument();
   expect(bench().getByRole('button', { name: 'Pegar Aatrox do banco' })).toBeEnabled();
 });
 
