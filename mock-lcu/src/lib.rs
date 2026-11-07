@@ -637,6 +637,14 @@ async fn handle_request(
             }
             response
         }
+        // Modo de Treino (#209).
+        (&Method::POST, lobby::CUSTOM_START_CHAMP_SELECT) => {
+            let (response, events) = lobby::start_custom_champ_select(&shared.state());
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
         (&Method::DELETE, lobby::LOBBY) => {
             let (response, events) = lobby::leave(&shared.state());
             for event in events {

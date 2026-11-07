@@ -12,11 +12,16 @@
 //! - `gameSelectCategory` `kPvP` ou `kVersusAI` (fica de fora o que é
 //!   personalizada, `CreateCustom`, e treino, `kTraining`);
 //! - nem TFT (`TFT`, outro jogo) nem Arena (`CHERRY`, com duplas e seleção
-//!   próprias), que ficam para issues separadas.
+//!   próprias), que ficam para issues separadas. A exceção é a Arena 3x6
+//!   (1750), que tem lugar fixo na tela de escolha de modo (#209).
+//!
+//! As filas fixas da tela de escolha de modo ([`MODE_SCREEN_QUEUES`], #209)
+//! vêm mesmo fechadas, com `available: false`, para a UI acinzentar o modo
+//! em vez de escondê-lo. As outras só vêm abertas.
 //!
 //! Na gravação do patch 16.22 sobram as cinco filas de [`Queue`], a ARAM:
-//! Desordem (2400, modo `KIWI`), a Jade (4310, e 4320 contra IA) e o
-//! cooperativo contra IA (870, 880 e 890).
+//! Desordem (2400, modo `KIWI`), a Jade (4310, e 4320 contra IA), o
+//! cooperativo contra IA (870, 880 e 890) e a Arena 3x6 (1750), fechada.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -32,10 +37,33 @@ pub const GAME_QUEUES_PATH: &str = "/lol-game-queues/v1/queues";
 /// como a ARAM: Desordem).
 pub const ARAM_MODE_GROUP: &str = "kARAM";
 
-/// Modos de jogo que não entram na lista mesmo disponíveis.
+/// Modos de jogo que não entram na lista mesmo disponíveis (menos as filas
+/// de [`MODE_SCREEN_QUEUES`]).
 const EXCLUDED_GAME_MODES: [&str; 2] = ["TFT", "CHERRY"];
 
-/// Uma fila em que dá para criar lobby agora.
+/// `queueId` da Arena 3x6 (`CHERRY`), a única Arena da tela de escolha de
+/// modo (#209).
+pub const ARENA_3X6_QUEUE_ID: u32 = 1750;
+
+/// Filas com lugar fixo na tela de escolha de modo (#209, #210): vêm na
+/// lista mesmo fechadas, com `available: false`. Summoner's Rift (480, 400,
+/// 440, 420), ARAM (450, 2400), Arena 3x6 (1750) e o cooperativo contra IA
+/// (870, 880, 890).
+pub const MODE_SCREEN_QUEUES: [u32; 10] = [
+    480,
+    400,
+    440,
+    420,
+    450,
+    2400,
+    ARENA_3X6_QUEUE_ID,
+    870,
+    880,
+    890,
+];
+
+/// Uma fila da lista do agente: aberta agora, ou uma das filas fixas de
+/// [`MODE_SCREEN_QUEUES`], aberta ou fechada.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct GameQueue {
@@ -65,6 +93,11 @@ pub struct GameQueue {
     pub show_position_selector: bool,
     /// Fila de tempo limitado (evento), segundo a LCU.
     pub limited_time: bool,
+    /// Se a fila está aberta agora (`queueAvailability` `Available`,
+    /// `isEnabled` e `isVisible`). Só as filas fixas de
+    /// [`MODE_SCREEN_QUEUES`] vêm com `false`; `createLobbyById` recusa
+    /// essas (#209).
+    pub available: bool,
 }
 
 /// A fila como a LCU manda, só com os campos usados.
@@ -107,11 +140,15 @@ impl GameQueue {
             "kVersusAI" => true,
             _ => return None,
         };
-        let open = raw.queue_availability == "Available" && raw.is_enabled && raw.is_visible;
-        if !open || raw.is_custom || raw.id == 0 {
+        if raw.is_custom || raw.id == 0 {
             return None;
         }
-        if EXCLUDED_GAME_MODES.contains(&raw.game_mode.as_str()) {
+        let fixed = MODE_SCREEN_QUEUES.contains(&raw.id);
+        if !fixed && EXCLUDED_GAME_MODES.contains(&raw.game_mode.as_str()) {
+            return None;
+        }
+        let open = raw.queue_availability == "Available" && raw.is_enabled && raw.is_visible;
+        if !open && !fixed {
             return None;
         }
         let name = if raw.name.trim().is_empty() {
@@ -131,6 +168,7 @@ impl GameQueue {
             ranked: raw.is_ranked,
             show_position_selector: raw.show_position_selector,
             limited_time: raw.is_limited_time_queue,
+            available: open,
         })
     }
 
@@ -140,7 +178,7 @@ impl GameQueue {
     }
 }
 
-/// Lê as filas disponíveis do JSON da LCU (resposta do `GET` ou `data` de
+/// Lê as filas do JSON da LCU (resposta do `GET` ou `data` de
 /// um evento), na ordem do `queueId`. `None` se não for uma lista.
 pub fn from_json(value: &Value) -> Option<Vec<GameQueue>> {
     let mut queues: Vec<GameQueue> = value
@@ -183,12 +221,53 @@ mod tests {
         let ids: Vec<u32> = queues.iter().map(|q| q.queue_id).collect();
         assert_eq!(
             ids,
-            [400, 420, 440, 450, 480, 870, 880, 890, 2400, 4310, 4320]
+            [400, 420, 440, 450, 480, 870, 880, 890, 1750, 2400, 4310, 4320]
         );
         for queue in Queue::ALL {
             let found = queues.iter().find(|q| q.queue_id == queue.id()).unwrap();
             assert_eq!(found.queue, Some(queue));
         }
+        let closed: Vec<u32> = queues
+            .iter()
+            .filter(|q| !q.available)
+            .map(|q| q.queue_id)
+            .collect();
+        assert_eq!(closed, [ARENA_3X6_QUEUE_ID]);
+    }
+
+    #[test]
+    fn arena_3x6_fechada_vem_acinzentada_e_as_outras_arenas_ficam_de_fora() {
+        let queues = from_json(&recorded()).unwrap();
+        let arena = queues
+            .iter()
+            .find(|q| q.queue_id == ARENA_3X6_QUEUE_ID)
+            .unwrap();
+        assert_eq!(arena.name, "Arena 3x6");
+        assert_eq!(arena.game_mode, "CHERRY");
+        assert!(!arena.available);
+        // A Arena da Bravura (1740) estava aberta, mas não é da tela.
+        assert!(!queues
+            .iter()
+            .any(|q| [1700, 1710, 1740].contains(&q.queue_id)));
+    }
+
+    #[test]
+    fn fila_fixa_fechada_vem_e_aberta_fica_disponivel() {
+        let raw = |id: u32, availability: &str, game_mode: &str| {
+            json!({
+                "id": id, "name": "Fila", "gameMode": game_mode, "gameSelectCategory": "kPvP",
+                "queueAvailability": availability, "isEnabled": availability == "Available",
+                "isVisible": true
+            })
+        };
+        let list = json!([
+            raw(420, "PlatformDisabled", "CLASSIC"),
+            raw(ARENA_3X6_QUEUE_ID, "Available", "CHERRY"),
+            raw(4310, "PlatformDisabled", "JADE"),
+        ]);
+        let queues = from_json(&list).unwrap();
+        let summary: Vec<(u32, bool)> = queues.iter().map(|q| (q.queue_id, q.available)).collect();
+        assert_eq!(summary, [(420, false), (ARENA_3X6_QUEUE_ID, true)]);
     }
 
     #[test]
@@ -261,6 +340,7 @@ mod tests {
         let queues = from_json(&list).unwrap();
         assert_eq!(queues.len(), 1);
         assert_eq!(queues[0].queue_id, 1);
+        assert!(queues[0].available);
         assert!(from_json(&json!({"não": "é lista"})).is_none());
     }
 

@@ -21,6 +21,8 @@ export type Command =
   | { "type": "createLobbyById", queueId: number, }
   | { "type": "acceptReadyCheck" }
   | { "type": "declineReadyCheck" }
+  | { "type": "startTutorial" }
+  | { "type": "startPracticeTool" }
   | { "type": "hoverChampion", actionId: number, championId: number, }
   | { "type": "confirmAction", actionId: number, championId: number, }
   | { "type": "setSummonerSpells", spell1Id: number, spell2Id: number, }

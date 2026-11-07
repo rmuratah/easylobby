@@ -91,7 +91,7 @@ describe('InvitationsPanel', () => {
   it('mostra o nick do amigo que convidou e o nome da fila da LCU', () => {
     const desordem = {
       queueId: 2400, queue: null, name: 'ARAM: Desordem', description: 'ARAM: Desordem', gameMode: 'KIWI', modeGroup: '',
-      mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: true,
+      mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: true, available: true,
     };
     const invitation = { ...testInvitation, fromSummonerId: 2001, fromSummonerName: '', queue: null, queueId: 2400 };
     render(panel(connected({ receivedInvitations: [invitation], queues: [desordem] }), vi.fn()));

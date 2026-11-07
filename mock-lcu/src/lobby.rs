@@ -40,10 +40,37 @@ const QUEUES: &str = "/lol-game-queues/v1/queues";
 /// modelo.
 const CURRENT_SUMMONER: &str = "/lol-summoner/v1/current-summoner";
 
+/// Inicia a seleção de campeões de uma personalizada (Modo de Treino, #209).
+pub const CUSTOM_START_CHAMP_SELECT: &str = "/lol-lobby/v1/lobby/custom/start-champ-select";
+
+/// `queueId` da personalizada pelo `gameMode` de `customGameLobby`: a fila
+/// personalizada (`isCustom`) da lista gravada com esse modo, como a 3140
+/// do Modo de Treino (#209).
+fn custom_queue_id(state: &LcuState, body: &Value) -> Option<u64> {
+    let mode = body
+        .pointer("/customGameLobby/configuration/gameMode")
+        .and_then(Value::as_str)?;
+    state
+        .recorded_body(QUEUES)?
+        .as_array()?
+        .iter()
+        .find(|q| {
+            q.get("isCustom").and_then(Value::as_bool) == Some(true)
+                && q.get("gameMode").and_then(Value::as_str) == Some(mode)
+        })?
+        .get("id")?
+        .as_u64()
+}
+
 /// `POST /lol-lobby/v2/lobby` com `{"queueId": N}`: cria o lobby, ou troca a
-/// fila do lobby atual.
+/// fila do lobby atual. Com `customGameLobby` (o Modo de Treino, #209), cria
+/// a personalizada na fila personalizada do mesmo modo.
 pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
-    let Some(queue_id) = body.get("queueId").and_then(Value::as_u64) else {
+    let queue_id = body
+        .get("queueId")
+        .and_then(Value::as_u64)
+        .or_else(|| custom_queue_id(state, body));
+    let Some(queue_id) = queue_id else {
         return (
             Response::error(400, "mock-lcu: o corpo precisa de \"queueId\""),
             Vec::new(),
@@ -98,6 +125,21 @@ pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
             body: lobby,
         },
         events,
+    )
+}
+
+/// `POST` [`CUSTOM_START_CHAMP_SELECT`]: o mock aceita sem mudar nada (não
+/// tem uma seleção de personalizada gravada); fora de lobby responde 404.
+pub fn start_custom_champ_select(state: &LcuState) -> (Response, Vec<EventFixture>) {
+    if state.get(LOBBY).status != 200 {
+        return (Response::error(404, "mock-lcu: fora de lobby"), Vec::new());
+    }
+    (
+        Response {
+            status: 204,
+            body: Value::Null,
+        },
+        Vec::new(),
     )
 }
 
@@ -320,5 +362,20 @@ mod tests {
         assert!(events.is_empty());
         let (response, _) = create(&s, &json!({}));
         assert_eq!(response.status, 400);
+    }
+
+    #[test]
+    fn modo_de_treino_cria_a_personalizada_e_inicia() {
+        let mut s = state("16.22");
+        assert_eq!(start_custom_champ_select(&s).0.status, 404);
+        let body = json!({
+            "customGameLobby": {"configuration": {"gameMode": "PRACTICETOOL", "mapId": 11}},
+            "isCustom": true
+        });
+        let (response, events) = create(&s, &body);
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["gameConfig"]["queueId"], 3140);
+        apply(&mut s, &events);
+        assert_eq!(start_custom_champ_select(&s).0.status, 204);
     }
 }

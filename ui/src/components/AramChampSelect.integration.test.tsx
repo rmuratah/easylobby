@@ -96,7 +96,7 @@ it('a ARAM: Desordem também usa a tela do ARAM, com o nome da fila', () => {
   act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: {
     ...champSelectState, runePages: testRunePages, runeCatalog: testRuneCatalog,
     queues: [{ queueId: 2400, queue: null, name: 'ARAM: Desordem', description: '', gameMode: 'KIWI', modeGroup: 'kARAM',
-      mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: false }],
+      mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: false, available: true }],
     champSelect: { ...aramChampSelect, queueId: 2400, queue: null, benchEnabled: false },
   } }));
   expect(mine().getByText('Aatrox')).toBeVisible();

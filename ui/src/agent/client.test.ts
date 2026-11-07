@@ -31,7 +31,7 @@ const testChampSelectChat: ChampSelectChat = {
 };
 const testQueue: GameQueue = {
   queueId: 2400, queue: null, name: 'ARAM: Desordem', description: 'ARAM: Desordem', gameMode: 'KIWI', modeGroup: 'kARAM',
-  mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: false,
+  mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: false, available: true,
 };
 const testMatch: MatchSummary = {
   gameId: 2001, queueId: 420, gameMode: 'CLASSIC', mapId: 11, createdAt: 1794326400000, durationSecs: 1800, result: 'win',

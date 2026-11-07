@@ -114,7 +114,9 @@ pub enum ServerMessage {
     /// Mudou a lista de filas em que dá para criar lobby agora (#146): chega
     /// logo depois de conectar e quando uma fila entra ou sai de rotação.
     /// Sempre a lista inteira, na ordem do `queueId`. Vazia com o LoL
-    /// fechado ou se a LCU não mandou a lista.
+    /// fechado ou se a LCU não mandou a lista. As filas fixas da tela de
+    /// escolha de modo vêm mesmo fechadas, com `available: false` (#209).
+    /// Mudar só a disponibilidade de uma fila também manda a lista.
     Queues { queues: Vec<GameQueue> },
 
     // Seleção de campeões
@@ -231,8 +233,9 @@ pub struct AgentState {
     pub matchmaking: Option<Matchmaking>,
     /// Ready check aberto (partida encontrada, #20), ou `null`.
     pub ready_check: Option<ReadyCheck>,
-    /// Filas em que dá para criar lobby agora (#146), lidas da LCU. Vazia
-    /// com o LoL fechado.
+    /// Filas em que dá para criar lobby agora (#146), lidas da LCU, mais as
+    /// fixas da tela de escolha de modo que estão fechadas, com `available:
+    /// false` (#209). Vazia com o LoL fechado.
     pub queues: Vec<GameQueue>,
     /// Sala de chat do grupo no lobby (#206), ou `null` sem lobby.
     pub lobby_chat: Option<LobbyChat>,
@@ -379,7 +382,8 @@ pub enum Command {
     /// `queues` (#146): serve também para as filas que não são uma das
     /// [`Queue`] fixas (ARAM: Desordem, Jade, contra IA...). Responde
     /// `invalidCommand` sem falar com a LCU se a fila não está na lista, e
-    /// os mesmos erros do `createLobby` no resto.
+    /// os mesmos erros do `createLobby` no resto. Também responde
+    /// `invalidCommand` numa fila da lista com `available: false` (#209).
     CreateLobbyById { queue_id: u32 },
     /// Aceita a partida encontrada (`POST
     /// /lol-matchmaking/v1/ready-check/accept`, #20). Responde
@@ -391,6 +395,20 @@ pub enum Command {
     /// /lol-matchmaking/v1/ready-check/decline`, #20). Mesmos erros do
     /// `acceptReadyCheck`.
     DeclineReadyCheck,
+    /// Inicia a próxima parte do Tutorial que o jogador ainda não terminou
+    /// (filas 2000, 2010 e 2020, #209): cria o lobby na fila da parte e
+    /// entra na busca. A parte sai de `GET
+    /// /lol-npe-tutorial-path/v1/tutorials`; sem essa informação, ou com as
+    /// três feitas, começa pela Parte 1. O lobby e a busca chegam nas
+    /// mensagens `lobby` e `matchmaking` antes da resposta. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
+    StartTutorial,
+    /// Inicia o Modo de Treino (#209): cria uma personalizada `PRACTICETOOL`
+    /// no Summoner's Rift, com senha, e já vai para a seleção de campeões,
+    /// sem o jogador passar pelo lobby da personalizada. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar criar ou
+    /// iniciar.
+    StartPracticeTool,
 
     // Seleção de campeões
     /// Marca o campeão `championId` na ação `actionId` da seleção (#23), sem
@@ -746,6 +764,8 @@ mod tests {
         for (name, command) in [
             ("acceptReadyCheck", Command::AcceptReadyCheck),
             ("declineReadyCheck", Command::DeclineReadyCheck),
+            ("startTutorial", Command::StartTutorial),
+            ("startPracticeTool", Command::StartPracticeTool),
         ] {
             let msg: ClientMessage =
                 serde_json::from_value(json!({"id": 9, "command": {"type": name}})).unwrap();
