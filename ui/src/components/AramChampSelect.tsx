@@ -66,7 +66,7 @@ export function AramChampSelectContent({ state, champSelect, send }: ContentProp
             renderActions={player => player.isLocalPlayer ? null
               : <SwapOffers champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
           <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
-            summonerLevel={state.summoner?.summonerLevel ?? null} send={send} />
+            summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} send={send} />
         </div>
         <div className="champ-select-center">
           {choice ? (
