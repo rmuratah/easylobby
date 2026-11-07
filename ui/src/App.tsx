@@ -63,9 +63,11 @@ export default function App() {
   return (
     <div className="app-shell">
       <TitleBar connection={connection} send={connection.send} />
-      <div className={sidebar.open ? 'app-body' : 'app-body sidebar-collapsed'}>
-        <SideNavigation active={activePage} flowLabel="Lobby" flowButtonRef={flowButtonRef} theme={theme}
-          onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference} />
+      <div className={sidebar.open || !ready ? 'app-body' : 'app-body sidebar-collapsed'}>
+        <div hidden={!ready} className="contents">
+          <SideNavigation active={activePage} flowLabel="Lobby" flowButtonRef={flowButtonRef} theme={theme}
+            onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference} />
+        </div>
         <div className="app-main-column">
           <main ref={contentRef} className="app-content">
           {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error} />}
@@ -122,7 +124,7 @@ export default function App() {
           </div>
           </main>
         </div>
-        <div className={sidebar.open ? 'app-social-region' : 'app-social-region is-collapsed'}>
+        <div hidden={!ready} className={sidebar.open ? 'app-social-region' : 'app-social-region is-collapsed'}>
           {!sidebar.open && <SidebarToggle open={false} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
           {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento. */}
           <aside id="coluna-amigos" aria-label="Amigos e conversas" hidden={!sidebar.open} className="app-sidebar">

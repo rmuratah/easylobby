@@ -15,13 +15,17 @@ describe('App', () => {
   it('mostra o título e a espera pelo agente', () => {
     vi.mocked(useAgent).mockReturnValue({ status: 'connecting', error: null, state: null, send: vi.fn() });
     render(<App />);
-    expect(screen.getByRole('heading', { name: 'easylobby' })).toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Navegação do aplicativo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Amigos e conversas' })).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Conectando ao agente');
   });
   it('distingue agente conectado de LoL fechado', () => {
     connected({ state: 'retrying', attempt: 1, retryInMs: 1000, clientNotRunning: true, error: 'fechado' });
     render(<App />);
     expect(screen.getByRole('status')).toHaveTextContent('Abra o League of Legends');
+    expect(screen.getByRole('button', { name: 'Abrir o League of Legends' })).toBeVisible();
+    expect(screen.queryByRole('complementary', { name: 'Navegação do aplicativo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Amigos e conversas' })).not.toBeInTheDocument();
   });
   it('mostra conexão com o LoL após receber estado', () => {
     connected({ state: 'connected', session: 1 });
@@ -41,6 +45,12 @@ describe('invocador logado', () => {
   function loggedIn() {
     vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: makeState({ summoner }), send: vi.fn() });
   }
+  it('mostra as barras laterais somente depois do login', () => {
+    loggedIn();
+    render(<App />);
+    expect(screen.getByRole('complementary', { name: 'Navegação do aplicativo' })).toBeVisible();
+    expect(screen.getByRole('complementary', { name: 'Amigos e conversas' })).toBeVisible();
+  });
   it('mostra Riot ID e nível e remove os dados ao perder a conexão', () => {
     loggedIn();
     const { rerender } = render(<App />);
