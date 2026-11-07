@@ -17,10 +17,15 @@ impl Hub {
 
     /// Aceita a partida encontrada (comando `acceptReadyCheck`, #20).
     pub async fn accept_ready_check(&self) -> CommandResult {
-        match self.client() {
-            Some(client) => command_result(ready_check::accept(&client).await),
-            None => not_connected(),
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        let result = ready_check::accept(&client).await;
+        // Aceitar faz o LoL reabrir a UI oficial (#188).
+        if result.is_ok() {
+            self.guard_ux();
         }
+        command_result(result)
     }
 
     /// Recusa a partida encontrada (comando `declineReadyCheck`, #20).

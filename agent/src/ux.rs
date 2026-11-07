@@ -22,6 +22,10 @@ pub const KILL_UX: &str = "/riotclient/kill-ux";
 /// Reabre a UI oficial.
 pub const LAUNCH_UX: &str = "/riotclient/launch-ux";
 
+/// Evento em que o LoL pede para mostrar (ou esconder) a UI oficial. Com a
+/// UI fechada, um pedido para mostrar a abre de novo (#188).
+pub const UX_STATE_REQUEST_PATH: &str = "/riotclient/ux-state/request";
+
 /// Fecha a UI oficial (`POST /riotclient/kill-ux`). A LCU continua
 /// respondendo. Chamar com a UI já fechada não faz mal.
 pub async fn kill_ux(client: &LcuClient) -> Result<(), LcuError> {

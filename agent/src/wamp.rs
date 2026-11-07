@@ -69,9 +69,10 @@ const WAMP_EVENT: u64 = 8;
 
 /// Prefixos de URI dos recursos que o easylobby acompanha: gameflow (fase e
 /// sessão), lobby, fila e ready check, champ select, runas, chat, o
-/// invocador logado e os ranks dele (#171). Os mesmos que o gravador de
+/// invocador logado e os ranks dele (#171), e os pedidos do LoL para
+/// mostrar a UI oficial (#188). Os da LCU são os mesmos que o gravador de
 /// fixtures (#5) grava.
-pub const EASYLOBBY_EVENT_PREFIXES: [&str; 8] = [
+pub const EASYLOBBY_EVENT_PREFIXES: [&str; 9] = [
     "/lol-gameflow/v1/",
     "/lol-lobby/v2/",
     "/lol-matchmaking/v1/",
@@ -80,6 +81,7 @@ pub const EASYLOBBY_EVENT_PREFIXES: [&str; 8] = [
     "/lol-chat/v1/",
     "/lol-summoner/v1/current-summoner",
     "/lol-ranked/v1/current-ranked-stats",
+    crate::ux::UX_STATE_REQUEST_PATH,
 ];
 
 /// URIs dentro dos prefixos que o easylobby não usa e que carregam
@@ -514,6 +516,7 @@ mod tests {
             "/lol-perks/v1/currentpage",
             "/lol-chat/v1/conversations/fake-pid-0002/messages",
             "/lol-summoner/v1/current-summoner",
+            "/riotclient/ux-state/request",
         ] {
             assert!(filter.matches(uri), "{uri}");
         }
