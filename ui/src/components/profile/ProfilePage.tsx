@@ -172,8 +172,8 @@ function TierEmblem({ tier }: { tier: string | null }) {
   const id = tier ? tierEmblemId(tier) : null;
   const src = id ? assetUrl('rankedEmblem', id) : null;
   if (tier && src && failed !== src) {
-    return <img src={src} alt="" width={64} height={64} onError={() => setFailed(src)}
-      className="size-16 shrink-0 object-contain" />;
+    return <img src={src} alt="" width={112} height={112} onError={() => setFailed(src)}
+      className="-my-3 size-28 shrink-0 object-contain" />;
   }
   return (
     <span aria-hidden="true"
