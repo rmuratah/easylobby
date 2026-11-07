@@ -122,7 +122,6 @@ function FriendItem({ friend, now, actions }: { friend: Friend; now: number; act
   const name = friendNick(friend);
   const riotId = friendRiotId(friend);
   const activity = describeActivity(friend, now);
-  const league = friend.activity?.type === 'league' ? friend.activity : null;
   const offline = !isOnline(friend);
   return (
     <li className={cx('flex items-center gap-3 rounded-control px-2 py-1.5 hover:bg-raised', offline && 'opacity-60')}>
@@ -138,17 +137,7 @@ function FriendItem({ friend, now, actions }: { friend: Friend; now: number; act
         <span className="truncate text-caption text-muted">{activity}</span>
         {friend.statusMessage && <span className="truncate text-caption text-muted italic" title={friend.statusMessage}>{friend.statusMessage}</span>}
       </span>
-      {league?.championId != null && league.status === 'inGame' && (
-        <Icon src={assetUrl('champion', league.championId)} className="h-7 w-7 shrink-0 rounded-control-sm" label="Campeão da partida" />
-      )}
       {actions && <span className="flex shrink-0 gap-1">{actions}</span>}
     </li>
   );
-}
-
-/** Imagem do agente que vira um quadrado vazio quando não carrega. */
-function Icon({ src, className, label }: { src: string | null; className: string; label?: string }) {
-  const [failed, setFailed] = useState<string | null>(null);
-  if (!src || failed === src) return <span aria-hidden="true" className={`block bg-raised ${className}`} />;
-  return <img src={src} alt={label ?? ''} className={className} onError={() => setFailed(src)} />;
 }

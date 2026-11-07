@@ -86,6 +86,17 @@ describe('telas confirmadas pelo agente', () => {
     vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null,
       state: makeState({ ...testState, ...overrides }), send });
   }
+  it('chama o destino do fluxo de Jogar sem lobby e de Grupo com lobby', () => {
+    snapshot();
+    const { rerender } = render(<App />);
+    const navigation = screen.getByRole('navigation', { name: 'Funcionalidades' });
+    expect(navigation).toHaveTextContent('Jogar');
+    expect(navigation).not.toHaveTextContent('Grupo');
+    snapshot({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    rerender(<App />);
+    expect(navigation).toHaveTextContent('Grupo');
+    expect(navigation).not.toHaveTextContent('Jogar');
+  });
   it('preserva criar lobby pendente ao receber o lobby', () => {
     send.mockClear();
     snapshot();

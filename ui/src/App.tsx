@@ -68,7 +68,7 @@ export default function App() {
       <TitleBar connection={connection} send={connection.send} />
       <div className={sidebar.open || !ready ? 'app-body' : 'app-body sidebar-collapsed'}>
         <div hidden={!ready} className="contents">
-          <SideNavigation active={activePage === 'runes' ? 'flow' : activePage} flowLabel="Lobby" flowButtonRef={flowButtonRef} theme={theme}
+          <SideNavigation active={activePage === 'runes' ? 'flow' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'} flowButtonRef={flowButtonRef} theme={theme}
             onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference} />
         </div>
         <div className="app-main-column">
