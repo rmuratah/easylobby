@@ -22,6 +22,10 @@ pub const KILL_UX: &str = "/riotclient/kill-ux";
 /// Reabre a UI oficial.
 pub const LAUNCH_UX: &str = "/riotclient/launch-ux";
 
+/// Encerra o LoL inteiro (o `LeagueClient` e, se estiver aberta, a UI
+/// oficial), do jeito que o próprio client faz ao clicar em fechar.
+pub const QUIT_CLIENT: &str = "/process-control/v1/process/quit";
+
 /// Evento em que o LoL pede para mostrar (ou esconder) a UI oficial. Com a
 /// UI fechada, um pedido para mostrar a abre de novo (#188).
 pub const UX_STATE_REQUEST_PATH: &str = "/riotclient/ux-state/request";
@@ -35,6 +39,12 @@ pub async fn kill_ux(client: &LcuClient) -> Result<(), LcuError> {
 /// Reabre a UI oficial (`POST /riotclient/launch-ux`).
 pub async fn launch_ux(client: &LcuClient) -> Result<(), LcuError> {
     client.send::<()>(Method::POST, LAUNCH_UX, None).await
+}
+
+/// Encerra o LoL (`POST /process-control/v1/process/quit`). A LCU responde
+/// antes de o processo fechar, e a conexão cai logo depois.
+pub async fn quit_client(client: &LcuClient) -> Result<(), LcuError> {
+    client.send::<()>(Method::POST, QUIT_CLIENT, None).await
 }
 
 /// O que aconteceu com a UI oficial quando a conexão abriu.

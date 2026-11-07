@@ -58,6 +58,8 @@ pub struct LcuState {
     overlay: HashMap<String, Option<Value>>,
     /// Se a UI oficial está aberta (`kill-ux` fecha, `launch-ux` abre).
     ux_open: bool,
+    /// Se o LoL recebeu o pedido para encerrar (`/process-control/v1/process/quit`).
+    quit_requested: bool,
     /// Pedidos ao `/product-launcher` do Riot Client, como
     /// `league_of_legends/live`.
     launches: Vec<String>,
@@ -89,6 +91,7 @@ impl LcuState {
             initial_phase,
             overlay: HashMap::new(),
             ux_open: true,
+            quit_requested: false,
             launches: Vec::new(),
         }
     }
@@ -104,6 +107,14 @@ impl LcuState {
 
     pub fn set_ux_open(&mut self, open: bool) {
         self.ux_open = open;
+    }
+
+    pub fn quit_requested(&self) -> bool {
+        self.quit_requested
+    }
+
+    pub fn request_quit(&mut self) {
+        self.quit_requested = true;
     }
 
     /// Pedidos ao `/product-launcher`, do primeiro ao último.

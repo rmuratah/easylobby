@@ -371,6 +371,12 @@ impl MockLcu {
         self.shared.state().ux_open()
     }
 
+    /// Se o LoL recebeu o pedido para encerrar (`/process-control/v1/process/quit`).
+    /// O mock só anota o pedido e continua de pé.
+    pub fn quit_requested(&self) -> bool {
+        self.shared.state().quit_requested()
+    }
+
     /// Pedidos ao `/product-launcher` do Riot Client recebidos até agora, como
     /// `league_of_legends/live`.
     pub fn launches(&self) -> Vec<String> {
@@ -840,6 +846,14 @@ async fn handle_request(
         (&Method::POST, "/riotclient/launch-ux") => {
             println!("launch-ux: UI oficial aberta (de mentira)");
             shared.state().set_ux_open(true);
+            Response {
+                status: 204,
+                body: Value::Null,
+            }
+        }
+        (&Method::POST, "/process-control/v1/process/quit") => {
+            println!("process quit: o LoL encerraria agora (de mentira)");
+            shared.state().request_quit();
             Response {
                 status: 204,
                 body: Value::Null,
