@@ -29,6 +29,7 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::DeclineReadyCheck => hub.decline_ready_check().await,
         Command::StartTutorial => hub.start_tutorial().await,
         Command::StartPracticeTool => hub.start_practice_tool().await,
+        Command::SetPlayerSlots { slots } => hub.set_player_slots(slots).await,
 
         // Seleção de campeões
         Command::HoverChampion {

@@ -61,6 +61,7 @@ use crate::match_history::{MatchDetails, MatchHistory};
 use crate::matchmaking::Matchmaking;
 use crate::players::RecentPlayer;
 use crate::queues::GameQueue;
+use crate::quick_play::PlayerSlotInput;
 use crate::ranked::RankedStats;
 use crate::ready_check::ReadyCheck;
 use crate::runes::{RuneCatalog, RunePageInput, RunePages};
@@ -119,6 +120,13 @@ pub enum ServerMessage {
     /// escolha de modo vêm mesmo fechadas, com `available: false` (#209).
     /// Mudar só a disponibilidade de uma fila também manda a lista.
     Queues { queues: Vec<GameQueue> },
+    /// Mudaram os campeões que o jogador pode pôr nos slots do Jogo
+    /// Dinâmico (#218): os dele, os alugados e os da rotação gratuita, em
+    /// ordem de id. Chega logo depois de conectar e a cada volta ao lobby.
+    /// `null` com o LoL fechado ou enquanto a LCU não respondeu.
+    PlayableChampions {
+        playable_champions: Option<Vec<u32>>,
+    },
 
     // Seleção de campeões
     /// A seleção de campeões (#22) abriu ou mudou: hover, ban, pick, troca
@@ -242,6 +250,9 @@ pub struct AgentState {
     /// fixas da tela de escolha de modo que estão fechadas, com `available:
     /// false` (#209). Vazia com o LoL fechado.
     pub queues: Vec<GameQueue>,
+    /// Campeões que o jogador pode pôr nos slots do Jogo Dinâmico (#218),
+    /// ou `null`.
+    pub playable_champions: Option<Vec<u32>>,
     /// Sala de chat do grupo no lobby (#206), ou `null` sem lobby.
     pub lobby_chat: Option<LobbyChat>,
 
@@ -418,6 +429,18 @@ pub enum Command {
     /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar criar ou
     /// iniciar.
     StartPracticeTool,
+    /// Escolhe as duas posições e os dois campeões do jogador logado no Jogo
+    /// Dinâmico (#218), num lobby com `showQuickPlaySlots`: `PUT
+    /// /lol-lobby/v1/lobby/members/localMember/player-slots`. Sempre os dois
+    /// slots, na ordem. Cada slot tem uma das 5 posições (sem `fill`), e as
+    /// posições e os campeões são diferentes entre os slots. Feitiços e
+    /// página de runas em `null` mantêm os do slot quando o campeão e a
+    /// posição não mudam e senão usam os que a LCU recomenda. Fora das regras
+    /// responde `invalidCommand` sem falar com a LCU. O lobby novo chega numa
+    /// mensagem `lobby` antes da resposta. Responde `notConnected` com o LoL
+    /// fechado e `lcu` se a LCU recusar (fora de lobby, fila sem slots,
+    /// campeão que o jogador não tem...).
+    SetPlayerSlots { slots: Vec<PlayerSlotInput> },
 
     // Seleção de campeões
     /// Marca o campeão `championId` na ação `actionId` da seleção (#23), sem
@@ -684,6 +707,7 @@ mod tests {
                     "lobby": null,
                     "matchmaking": null,
                     "queues": [],
+                    "playableChampions": null,
                     "lobbyChat": null,
                     "champSelect": null,
                     "receivedInvitations": [],

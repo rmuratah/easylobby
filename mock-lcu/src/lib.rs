@@ -665,6 +665,19 @@ async fn handle_request(
             }
             response
         }
+        // Slots do Jogo Dinâmico (#218).
+        (&Method::PUT, lobby::PLAYER_SLOTS) => {
+            let body = axum::body::to_bytes(request.into_body(), 64 * 1024)
+                .await
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .unwrap_or(Value::Null);
+            let (response, events) = lobby::set_player_slots(&shared.state(), &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
         // Convites (#32).
         (&Method::GET, invitations::RECEIVED) => invitations::received(&shared.state()),
         (&Method::POST, invitations::SIMULATE) => {
@@ -782,6 +795,7 @@ async fn handle_request(
         }
         // Campeões para a grade da seleção (#28).
         (&Method::GET, champions::CHAMPION_SUMMARY) => champions::game_data(&shared.state()),
+        (&Method::GET, champions::OWNED_CHAMPIONS) => champions::owned(&shared.state()),
         // Feitiços de invocador (#24).
         (&Method::GET, summoner_spells::SUMMONER_SPELLS) => {
             summoner_spells::game_data(&shared.state())
