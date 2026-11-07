@@ -12,7 +12,7 @@ describe('SideNavigation', () => {
     expect(screen.getByRole('heading', { name: 'easylobby' })).toHaveAttribute('data-tauri-drag-region');
     const buttons = Array.from(navigation.querySelectorAll('button'));
     expect(buttons.map(button => button.getAttribute('aria-label') ?? button.textContent)).toEqual([
-      'Início', 'Grupo', 'Tema claro', 'Tema escuro', 'Configurações — em breve',
+      'Início', 'Grupo', 'Perfil', 'Tema claro', 'Tema escuro', 'Configurações — em breve',
     ]);
     expect(screen.getByRole('button', { name: 'Início' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Configurações — em breve' })).toBeDisabled();
@@ -21,7 +21,9 @@ describe('SideNavigation', () => {
     expect(onNavigate).toHaveBeenCalledWith('flow');
     const nav = container.querySelector('nav')!;
     expect(Array.from(nav.children).map(child => child.tagName === 'BUTTON' ? child.getAttribute('aria-label') : 'divisor'))
-      .toEqual(['Início', 'Grupo', 'divisor']);
+      .toEqual(['Início', 'Grupo', 'divisor', 'Perfil']);
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
+    expect(onNavigate).toHaveBeenCalledWith('profile');
   });
 
   it('não tem botão de recolher: fica estreita e expande pelo CSS ao passar o mouse', () => {

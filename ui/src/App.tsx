@@ -18,6 +18,7 @@ import { SidebarToggle } from './layout/SidebarToggle';
 import { connectionView } from './screens/connection';
 import { ConnectionScreen } from './components/connection/ConnectionScreen';
 import { SummonerHeader } from './components/home/SummonerHeader';
+import { ProfilePage } from './components/profile/ProfilePage';
 import { EmptyState } from './components/base';
 import { totalUnread } from './agent/chat';
 
@@ -82,7 +83,7 @@ export default function App() {
             {ready && connection.error && <p role="alert" className="col-span-full text-warn">{connection.error}</p>}
             <section hidden={activePage !== 'home'} aria-label="Início"
               className={homeLayout ? 'home-secondary' : 'flex max-w-[22rem] flex-col gap-4'}>
-              {summoner && <SummonerHeader summoner={summoner} />}
+              {summoner && <SummonerHeader summoner={summoner} ranked={connection.state?.ranked ?? null} />}
               {homeLayout && <div className="home-placeholders">
                 <article aria-label="Área reservada" className="flex min-h-32 flex-col justify-end rounded-panel surface p-5 shadow-soft animate-fade-up" style={{ animationDelay: '140ms' }}>
                   <h2 className="text-section font-semibold text-ink">Área reservada</h2>
@@ -95,6 +96,7 @@ export default function App() {
               </div>}
               {screen !== 'home' && !playable && <button type="button" className="nav-button self-start" onClick={() => setNavigation({ screen, page: 'flow' })}>Voltar para {title}</button>}
             </section>
+            {activePage === 'profile' && <section aria-label="Perfil"><ProfilePage connection={connection} send={connection.send} /></section>}
             {activePage === 'flow' && screen === 'champSelect' && <h2 className="text-title font-semibold tracking-[-0.015em]">{title}</h2>}
             {activePage === 'flow' && screen === 'other' && <EmptyState title={phaseLabel(connection.state?.gameflowPhase)}
               description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />}
