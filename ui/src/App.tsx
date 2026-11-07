@@ -21,6 +21,9 @@ import { SummonerHeader } from './components/home/SummonerHeader';
 import { EmptyState } from './components/base';
 import { totalUnread } from './agent/chat';
 
+/** Runas não é destino da navegação lateral: o editor só abre pela seleção de campeões (#165). */
+type Page = NavigationPage | 'runes';
+
 export default function App() {
   const connection = useAgent();
   const { theme, setPreference } = useTheme();
@@ -40,11 +43,11 @@ export default function App() {
     if (contentRef.current) contentRef.current.scrollTop = 0;
     if (document.activeElement?.closest('[hidden]')) flowButtonRef.current?.focus();
   }, [screen, ready]);
-  const [navigation, setNavigation] = useState<{ screen: typeof screen; page: 'main' | NavigationPage }>({ screen, page: 'main' });
+  const [navigation, setNavigation] = useState<{ screen: typeof screen; page: 'main' | Page }>({ screen, page: 'main' });
   // Uma nova fase confirmada traz o fluxo principal de volta ao primeiro plano.
   if (navigation.screen !== screen) setNavigation({ screen, page: 'main' });
   const page = navigation.screen === screen ? navigation.page : 'main';
-  const activePage: NavigationPage = page === 'main' ? (screen === 'home' ? 'home' : 'flow') : page;
+  const activePage: Page = page === 'main' ? (screen === 'home' ? 'home' : 'flow') : page;
   // Quem trocou de página por um botão que agora ficou escondido não perde o foco.
   useEffect(() => {
     if (!document.activeElement?.closest('[hidden]')) return;
@@ -65,7 +68,7 @@ export default function App() {
       <TitleBar connection={connection} send={connection.send} />
       <div className={sidebar.open || !ready ? 'app-body' : 'app-body sidebar-collapsed'}>
         <div hidden={!ready} className="contents">
-          <SideNavigation active={activePage} flowLabel="Lobby" flowButtonRef={flowButtonRef} theme={theme}
+          <SideNavigation active={activePage === 'runes' ? 'flow' : activePage} flowLabel="Lobby" flowButtonRef={flowButtonRef} theme={theme}
             onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference} />
         </div>
         <div className="app-main-column">
@@ -115,12 +118,13 @@ export default function App() {
               <ChampSelectPanel connection={connection} send={connection.send}
                 onOpenRunes={() => setNavigation({ screen, page: 'runes' })} />
             </div>
-            <div hidden={activePage !== 'runes'} className="flex flex-col gap-4">
-              {/* Na seleção, a volta fica à mão: a seleção continua montada e o timer segue correndo (#131). */}
-              {screen !== 'home' && <button ref={runesBackRef} type="button" className="nav-button self-start"
-                onClick={() => setNavigation({ screen, page: 'flow' })}>Voltar para {title}</button>}
+            {/* O editor de runas só abre pelo "Editar runas" da seleção, e só fica montado nela. */}
+            {screen === 'champSelect' && <div hidden={activePage !== 'runes'} className="flex flex-col gap-4">
+              {/* A volta fica à mão: a seleção continua montada e o timer segue correndo (#131). */}
+              <button ref={runesBackRef} type="button" className="nav-button self-start"
+                onClick={() => setNavigation({ screen, page: 'flow' })}>Voltar para {title}</button>
               <RunePagesPanel connection={connection} send={connection.send} />
-            </div>
+            </div>}
           </div>
           </main>
         </div>
@@ -129,8 +133,12 @@ export default function App() {
           {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento. */}
           <aside id="coluna-amigos" aria-label="Amigos e conversas" hidden={!sidebar.open} className="app-sidebar">
             {sidebar.open && <SidebarToggle open onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
-            <InvitationsPanel connection={connection} send={connection.send} />
-            <FriendsList connection={connection} renderActions={friend => <ChatButton friend={friend} onOpen={setChatWith} />} />
+            {/* Convites recebidos e o "Convidar" de cada amigo ficam aqui, sem seção própria. */}
+            <InvitationsPanel connection={connection} send={connection.send}>
+              {inviteAction => <FriendsList connection={connection} renderActions={friend => (
+                <>{inviteAction(friend)}<ChatButton friend={friend} onOpen={setChatWith} /></>
+              )} />}
+            </InvitationsPanel>
             <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
           </aside>
         </div>

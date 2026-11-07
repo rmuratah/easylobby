@@ -3,7 +3,7 @@ import type { Theme } from '../theme/theme';
 import { Segmented } from '../components/base';
 import { cx } from '../components/base/cx';
 
-export type NavigationPage = 'flow' | 'home' | 'runes';
+export type NavigationPage = 'flow' | 'home';
 
 type Props = {
   active: NavigationPage;
@@ -30,8 +30,6 @@ export function SideNavigation({ active, flowLabel, flowButtonRef, theme, onNavi
         <div aria-hidden="true" className="mx-2 my-1 border-t border-line" />
         <NavigationButton active={active === 'home'} label="Início" icon={<HomeIcon />}
           onClick={() => onNavigate('home')} />
-        <NavigationButton active={active === 'runes'} label="Runas" icon={<RunesIcon />}
-          onClick={() => onNavigate('runes')} />
       </nav>
       <div className="mt-auto flex flex-col items-center gap-3">
         <Segmented label="Tema" value={theme} onChange={onThemeChange} options={themeOptions}
@@ -73,7 +71,6 @@ function BaseIcon({ children }: { children: ReactNode }) {
 
 const GroupIcon = () => <BaseIcon><circle cx="9" cy="8" r="3" /><path d="M3 20c.5-4 2.5-6 6-6s5.5 2 6 6M16 5a3 3 0 0 1 0 6M17 14c2.2.5 3.5 2.5 4 5" /></BaseIcon>;
 const HomeIcon = () => <BaseIcon><path d="m3 11 9-8 9 8M5 10v10h14V10M9 20v-6h6v6" /></BaseIcon>;
-const RunesIcon = () => <BaseIcon><path d="M12 3 5 7v8l7 6 7-6V7l-7-4Z" /><path d="m9 8 6 8M15 8l-6 8" /></BaseIcon>;
 const SettingsIcon = () => <BaseIcon><circle cx="12" cy="12" r="3.5" /><circle cx="12" cy="12" r="7" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" /></BaseIcon>;
 
 function SunIcon() {

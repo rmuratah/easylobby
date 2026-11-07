@@ -4,7 +4,7 @@ import App from '../App';
 import type { ClientMessage } from '../bindings/ClientMessage';
 import type { RunePages } from '../bindings/RunePages';
 import type { ServerMessage } from '../bindings/ServerMessage';
-import { testState } from '../test/lobby';
+import { champSelectState } from '../test/champSelect';
 import { testFullRuneCatalog, testRunePage } from '../test/runes';
 
 class Socket {
@@ -34,14 +34,14 @@ describe('páginas de runas pelo /ws', () => {
     render(<App />);
     act(() => socket().receive({
       type: 'hello', protocol: 1, agentVersion: '0.1.0',
-      state: { ...testState, runePages: pages, runeCatalog: testFullRuneCatalog },
+      state: { ...champSelectState, runePages: pages, runeCatalog: testFullRuneCatalog },
     }));
-    fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Editar runas' }));
     expect(panel().getByRole('listitem', { name: 'Mid' })).toHaveAttribute('aria-current', 'true');
     act(() => { fireEvent.click(panel().getByRole('button', { name: 'Usar Top' })); });
     expect(request().command).toEqual({ type: 'selectRunePage', pageId: 11 });
-    fireEvent.click(screen.getByRole('button', { name: 'Início' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Runas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar para Seleção de campeões' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Editar runas' }));
     expect(panel().getByRole('button', { name: 'Usar Top' })).toBeDisabled();
     fireEvent.click(panel().getByRole('button', { name: 'Usar Top' }));
     expect(socket().send).toHaveBeenCalledTimes(1);

@@ -147,7 +147,7 @@ it('substitui a espera pelas ações e preserva resposta pendente durante navega
   expect(button('Aceitar')).toBeDisabled();
   act(() => socket().receive({ type: 'gameflowPhase', phase: 'ReadyCheck' }));
   fireEvent.click(button('Aceitar'));
-  for (const name of ['Runas', 'Início', 'Lobby']) {
+  for (const name of ['Início', 'Lobby']) {
     fireEvent.click(screen.getByRole('button', { name }));
     expect(button('Aceitar')).toBeVisible();
     expect(button('Aceitar')).toBeDisabled();

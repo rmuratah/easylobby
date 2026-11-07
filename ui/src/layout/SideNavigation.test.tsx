@@ -12,7 +12,7 @@ describe('SideNavigation', () => {
     expect(screen.getByRole('heading', { name: 'easylobby' })).toHaveAttribute('data-tauri-drag-region');
     const buttons = Array.from(navigation.querySelectorAll('button'));
     expect(buttons.map(button => button.getAttribute('aria-label') ?? button.textContent)).toEqual([
-      'Lobby', 'Início', 'Runas', 'Tema claro', 'Tema escuro', 'Configurações — em breve',
+      'Lobby', 'Início', 'Tema claro', 'Tema escuro', 'Configurações — em breve',
     ]);
     expect(screen.getByRole('button', { name: 'Início' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Configurações — em breve' })).toBeDisabled();
