@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type DragEvent } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
-import { createLobbyCommand, isQueueKey, lobbyQueueName, queueGroups, queueKey, type QueueKey } from '../agent/queueOptions';
+import { lobbyQueueName, queueKey, type QueueKey } from '../agent/queueOptions';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
 import { playerName } from '../agent/friends';
@@ -46,7 +46,7 @@ function commandKey(command: Extract<Command, { type: 'createLobby' | 'createLob
   return command.type === 'createLobby' ? command.queue : `fila-${command.queueId}`;
 }
 type Outcome = 'skipped' | 'ok' | 'error' | 'stale';
-type Desired = { positions?: { first: Position; second: Position }; queue?: QueueKey };
+type Desired = { positions?: { first: Position; second: Position } };
 
 /** Posições prontas para salvar: só falta esperar quando há uma posição primária de verdade sem a secundária. */
 function positionsComplete(first: Position, second: Position) {
@@ -61,7 +61,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   const contextKey = `${lobby?.queueId}:${lobby?.showPositionSelector}:${localMember?.puuid}`;
   const confirmedKey = `${contextKey}:${first}:${second}`;
   // Escolha ainda não confirmada pelo agente (agendada ou em envio): um evento do lobby não a apaga da tela.
-  const [syncing, setSyncing] = useState({ positions: false, queue: false });
+  const [syncing, setSyncing] = useState({ positions: false });
   const [positions, setPositions] = useState({ contextKey, confirmedKey, first, second });
   const [acceptedPositions, setAcceptedPositions] = useState<{ confirmedKey: string; first: Position; second: Position } | null>(null);
   if (positions.confirmedKey !== confirmedKey) {
@@ -72,11 +72,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   }
   const queueId = lobby?.queueId ?? null;
   const currentKey: QueueKey | null = lobby ? queueKey(lobby) : null;
-  const [selection, setSelection] = useState<{ queueId: number | null; queue: QueueKey }>({ queueId, queue: currentKey ?? 'normalDraft' });
-  if (selection.queueId !== queueId) {
-    setSelection({ queueId, queue: syncing.queue && lobby ? selection.queue : currentKey ?? 'normalDraft' });
-  }
-  const groups = queueGroups(state.queues);
+  // Tela de escolha de modo aberta por cima do lobby para trocar a fila (#231).
+  const [changingMode, setChangingMode] = useState(false);
   const invites = useLobbyInvite(state, send);
   const [picker, setPicker] = useState<number | null>(null);
   // Avisos dos slots do Jogo Dinâmico (#218), no quadro abaixo da lista.
@@ -91,7 +88,6 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   const desired = useRef<Desired>({});
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const descriptionId = useId();
-  const selectId = useId();
   const firstId = useId();
   const secondId = useId();
   const positionContext = useRef(0);
@@ -102,10 +98,6 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     // Posições escolhidas para outra fila ou outro membro não valem mais.
     delete desired.current.positions;
   }, [queueId, lobby?.showPositionSelector, localMember?.puuid]);
-  const inLobby = !!lobby;
-  useEffect(() => {
-    if (!inLobby) delete desired.current.queue;
-  }, [inLobby]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -132,7 +124,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   const restriction = !summoner ? 'Aguarde o login no League of Legends.'
     : !phaseAllowsChange ? 'Criar, trocar fila e sair do lobby só estão disponíveis fora da busca e da partida. Aguarde a fase de lobby.'
     : lobby && !lobby.isLeader ? 'Somente o líder pode trocar a fila. Você pode sair do lobby.'
-    : lobby ? 'A fila muda assim que você escolhe outra.'
+    : lobby ? 'Para trocar a fila, use Trocar modo.'
     : 'Escolha um modo para criar um lobby.';
 
   async function execute(command: LobbyCommand): Promise<Outcome> {
@@ -177,7 +169,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     } finally {
       inFlight.current = false;
       // Uma escolha feita durante o envio sai logo depois, sem esperar outra mudança.
-      if (mounted.current && (desired.current.positions || desired.current.queue)) schedule(0);
+      if (mounted.current && desired.current.positions) schedule(0);
     }
   }
   const executeRef = useRef(execute);
@@ -192,32 +184,22 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   async function flush() {
     timer.current = undefined;
     if (inFlight.current) return;
-    const next = desired.current;
-    const kind = next.queue ? 'queue' : next.positions ? 'positions' : null;
-    if (!kind) return;
-    let command: LobbyCommand;
-    if (kind === 'queue') {
-      command = createLobbyCommand(next.queue!);
-      delete next.queue;
-    } else {
-      command = { type: 'setPositions', ...next.positions! };
-      delete next.positions;
-    }
-    const outcome = await executeRef.current(command);
-    if (!mounted.current || desired.current[kind]) return;
-    setSyncing(current => ({ ...current, [kind]: false }));
-    if (outcome === 'ok') return;
-    // Recusado, falhou ou não pôde mais ser enviado: força a tela a reler o valor confirmado.
-    // Posições iguais às já salvas também caem aqui ('skipped'), e aí a tela já mostra o valor certo.
-    if (kind === 'queue') setSelection(current => ({ ...current, queueId: -1 }));
-    else if (outcome === 'error') setPositions(current => ({ ...current, confirmedKey: '' }));
+    const next = desired.current.positions;
+    if (!next) return;
+    delete desired.current.positions;
+    const outcome = await executeRef.current({ type: 'setPositions', ...next });
+    if (!mounted.current || desired.current.positions) return;
+    setSyncing({ positions: false });
+    // Recusado ou falhou: força a tela a reler o valor confirmado. Posições iguais às já salvas
+    // ('skipped') já mostram o valor certo.
+    if (outcome === 'error') setPositions(current => ({ ...current, confirmedKey: '' }));
   }
 
   function choosePositions(next: { first: Position; second: Position }) {
     setPositions({ ...positions, ...next });
     if (positionsComplete(next.first, next.second)) {
       desired.current.positions = next;
-      setSyncing(current => ({ ...current, positions: true }));
+      setSyncing({ positions: true });
       schedule();
     } else {
       // Falta a posição secundária: nada é enviado até ela ser escolhida.
@@ -228,42 +210,25 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   const searching = !!matchmaking || !!state.readyCheck;
   const feedbackLine = feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}
     className={feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{feedback.message}</p>;
-  const queueSelect = (className: string) => (
-    <select
-      id={selectId}
-      value={selection.queue}
-      disabled={!canCreate || (!lobby && pending)}
-      aria-describedby={descriptionId}
-      onChange={event => {
-        const queue = event.target.value;
-        if (!isQueueKey(queue, groups)) return;
-        setSelection({ queueId, queue });
-        // Sem lobby, criar continua sendo um clique em "Criar lobby"; com lobby, a fila troca sozinha.
-        if (!lobby || !canCreate) return;
-        desired.current.queue = queue;
-        setSyncing(current => ({ ...current, queue: true }));
-        schedule();
-      }}
-      className={className}
-    >
-      {/* Fila atual fora da lista (personalizada, evento que acabou...): aparece só para o seletor mostrar a verdade. */}
-      {lobby && !isQueueKey(selection.queue, groups) && <option value={selection.queue} disabled>{lobbyQueueName(lobby, state.queues)}</option>}
-      {groups.length === 1
-        ? groups[0].options.map(option => <option key={option.key} value={option.key}>{option.label}</option>)
-        : groups.map(group => (
-          <optgroup key={group.label} label={group.label}>
-            {group.options.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
-          </optgroup>
-        ))}
-    </select>
-  );
-
   // Sem lobby, o painel vira a tela de escolha de modo de jogo (#210).
   if (!lobby) {
     return (
       <ModeSelect queues={state.queues} canCreate={canCreate} pending={pending} restriction={restriction}
         descriptionId={descriptionId} feedback={feedbackLine}
         onCreate={command => { void execute(command); }} onStart={command => { void execute(command); }} />
+    );
+  }
+  // No lobby, "Trocar modo" abre a mesma tela para trocar a fila (#231); na busca ou na partida, volta ao lobby.
+  if (changingMode && !searching) {
+    return (
+      <ModeSelect queues={state.queues} canCreate={canCreate} pending={pending}
+        restriction={canCreate ? 'Escolha outra fila e confirme em Trocar fila.' : restriction}
+        descriptionId={descriptionId} feedback={feedbackLine}
+        lobby={{ queueId: lobby.queueId, queueName: lobbyQueueName(lobby, state.queues), onBack: () => setChangingMode(false) }}
+        onCreate={command => {
+          void execute(command).then(outcome => { if (outcome === 'ok' && mounted.current) setChangingMode(false); });
+        }}
+        onStart={() => {}} />
     );
   }
 
@@ -304,6 +269,13 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
           <span className="rounded-full surface px-3 py-1.5 shadow-soft text-caption font-medium text-muted">
             {lobby.isLeader ? 'Você é o líder' : 'Você é membro'}
           </span>
+          {!searching && (
+            <button type="button" aria-describedby={descriptionId} disabled={!canCreate || pending}
+              onClick={() => { setFeedback({ status: 'idle', message: '' }); setChangingMode(true); }}
+              className={`inline-flex h-10 items-center rounded-full surface px-4 text-body font-semibold shadow-soft transition-colors enabled:hover:text-accent-ink disabled:cursor-not-allowed disabled:text-muted ${focusRing}`}>
+              Trocar modo
+            </button>
+          )}
           {/* Na fila e na partida encontrada, a faixa de ação fica com a busca; sair volta depois (ou já, com punição de fila). */}
           {(!searching || (penalty && !state.readyCheck)) && (
             <button type="button" aria-label="Sair do lobby" title="Sair do lobby" aria-describedby={descriptionId} aria-busy={pending}
@@ -381,8 +353,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
       {picker !== null && <InvitePicker invites={invites} groups={state.friendGroups} recent={state.recentPlayers}
         loadRecent={loadRecent} onClose={closePicker} />}
 
-      {/* Fila sem posições (ARAM, Arena, Co-op, eventos): nada no lugar, como no client oficial, e a fila ocupa a largura toda. */}
-      <div className={cx('grid items-stretch gap-4', !searching && (lobby.showPositionSelector || lobby.showQuickPlaySlots) && '@min-[44rem]:grid-cols-2')}>
+      {/* Fila sem posições (ARAM, Arena, Co-op, eventos): nada no lugar, como no client oficial. A fila troca pelo "Trocar modo" (#231). */}
+      <div className="grid items-stretch gap-4">
         {lobby.showPositionSelector ? (
           <fieldset className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" disabled={!canSetPositions}>
             <legend className="sr-only">Suas posições</legend>
@@ -428,15 +400,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
             <div ref={setSlotNotes} className="flex flex-col gap-1 px-1" />
           </div>
         ) : null}
-        {/* Na fila e na partida encontrada, a faixa de ação fica com a busca; trocar fila volta depois. A troca é feita ao escolher. */}
-        {!searching && (
-          <div className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" style={{ animationDelay: '70ms' }}>
-            <label className="px-1 text-section font-semibold" htmlFor={selectId}>Fila</label>
-            {queueSelect(selectClass)}
-            <p id={descriptionId} className="px-1 text-caption text-muted">{restriction}</p>
-          </div>
-        )}
       </div>
+      <p id={descriptionId} className="text-caption text-muted">{restriction}</p>
       {feedbackLine}
     </section>
   );

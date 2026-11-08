@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
-import { buildModeTabs, firstAvailable, type CreateLobby, type GameMode, type ModeTabId, type Submode, type TrainingCommand } from '../agent/gameModes';
+import { buildModeTabs, firstAvailable, type CreateLobby, type GameMode, type ModeTab, type ModeTabId, type Submode, type TrainingCommand } from '../agent/gameModes';
 import type { GameQueue } from '../bindings/GameQueue';
 import { cx } from './base/cx';
 
@@ -14,6 +14,11 @@ type Props = {
   feedback: ReactNode;
   onCreate: (command: CreateLobby) => void;
   onStart: (command: TrainingCommand) => void;
+  /**
+   * Já em lobby (#231): a tela troca a fila em vez de criar o lobby. Abre na
+   * fila atual, sem a aba Treinamento, e tem um botão para voltar ao lobby.
+   */
+  lobby?: { queueId: number; queueName: string; onBack: () => void };
 };
 type Selection = { tab: ModeTabId; mode: GameMode['id'] | null; queueId: number | null };
 
@@ -37,10 +42,21 @@ function ModeIcon({ mode, size = 'md' }: { mode: GameMode; size?: 'md' | 'lg' })
  * Treinamento; cards de modo com os submodos em botões de rádio; rodapé com a
  * fila escolhida e o botão de criar o lobby (ou de iniciar, no Treinamento).
  */
-export function ModeSelect({ queues, canCreate, pending, restriction, descriptionId, feedback, onCreate, onStart }: Props) {
-  const tabs = buildModeTabs(queues);
+/** Aba, modo e submodo da fila atual do lobby, para a tela abrir com ela marcada. */
+function selectionOf(tabs: ModeTab[], queueId: number | undefined): Selection {
+  for (const tab of tabs) {
+    const mode = tab.modes.find(m => m.submodes.some(s => s.queueId === queueId));
+    if (mode) return { tab: tab.id, mode: mode.id, queueId: queueId ?? null };
+  }
+  return { tab: 'pvp', mode: null, queueId: null };
+}
+
+export function ModeSelect({ queues, canCreate, pending, restriction, descriptionId, feedback, onCreate, onStart, lobby }: Props) {
+  const allTabs = buildModeTabs(queues);
+  // Tutorial e Modo de Treino não trocam a fila de um lobby.
+  const tabs = lobby ? allTabs.filter(t => t.id !== 'training') : allTabs;
   const baseId = useId();
-  const [selection, setSelection] = useState<Selection>({ tab: 'pvp', mode: null, queueId: null });
+  const [selection, setSelection] = useState<Selection>(() => selectionOf(tabs, lobby?.queueId));
   const tab = tabs.find(t => t.id === selection.tab) ?? tabs[0];
 
   // A escolha vale enquanto o modo (e o submodo) continuarem abertos; senão, o primeiro aberto da aba.
@@ -51,6 +67,8 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
     : firstAvailable(tab);
   const locked = !canCreate || pending;
   const isTraining = tab.id === 'training';
+  // Escolher a fila atual não troca nada.
+  const unchanged = !!lobby && current?.submode?.queueId === lobby.queueId;
 
   function chooseTab(id: ModeTabId) {
     setSelection({ tab: id, mode: null, queueId: null });
@@ -69,9 +87,9 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
     <section aria-label="Lobby" className="flex h-full min-h-[24rem] flex-col gap-5 rounded-panel bg-surface p-6 text-ink shadow-lift animate-fade-up @min-[44rem]:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <span className="text-caption font-semibold uppercase tracking-wider text-accent-ink">Jogar</span>
-          <h2 className="text-title font-semibold">Escolha o modo de jogo</h2>
-          <p className="text-body text-muted">Você não está em um lobby.</p>
+          <span className="text-caption font-semibold uppercase tracking-wider text-accent-ink">{lobby ? 'Lobby' : 'Jogar'}</span>
+          <h2 className="text-title font-semibold">{lobby ? 'Trocar modo de jogo' : 'Escolha o modo de jogo'}</h2>
+          <p className="text-body text-muted">{lobby ? `Você está no lobby de ${lobby.queueName}.` : 'Você não está em um lobby.'}</p>
         </div>
         <div role="tablist" aria-label="Tipo de partida" className="inline-flex gap-0.5 rounded-control bg-raised p-[3px]">
           {tabs.map(t => (
@@ -153,9 +171,15 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
             </div>
           </div>
         ) : <p className="min-w-0 flex-1 text-body text-muted">Nenhum modo aberto nesta aba agora.</p>}
+        {lobby && (
+          <button type="button" onClick={lobby.onBack}
+            className={`inline-flex h-11 shrink-0 items-center justify-center rounded-full px-5 text-body font-semibold text-muted transition-colors hover:text-ink ${focusRing}`}>
+            Voltar ao lobby
+          </button>
+        )}
         <button type="button" className={primaryPill} aria-describedby={descriptionId} aria-busy={pending}
-          disabled={!current || locked} onClick={confirm}>
-          {isTraining ? 'Iniciar' : 'Criar lobby'}
+          disabled={!current || locked || unchanged} onClick={confirm}>
+          {isTraining ? 'Iniciar' : lobby ? 'Trocar fila' : 'Criar lobby'}
         </button>
       </footer>
       <p id={descriptionId} className="text-caption text-muted">{restriction}</p>
