@@ -23,6 +23,7 @@ import type { RuneCatalog } from "./RuneCatalog";
 import type { RunePages } from "./RunePages";
 import type { Summoner } from "./Summoner";
 import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
+import type { TutorialPart } from "./TutorialPart";
 
 /**
  * Tudo o que a UI precisa para desenhar a tela do zero.
@@ -48,6 +49,10 @@ export type AgentState = {
    * ou `null`.
    */
   playableChampions: Array<number> | null,
+  /**
+   * As partes do Tutorial (#228), ou `null` sem o progresso.
+   */
+  tutorial: Array<TutorialPart> | null,
   /**
    * Sala de chat do grupo no lobby (#206), ou `null` sem lobby.
    */

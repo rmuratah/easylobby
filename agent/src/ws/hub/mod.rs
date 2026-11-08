@@ -352,6 +352,8 @@ impl Hub {
                 if let Ok(Some(champions)) = playable_champions {
                     self.set_playable_champions(Some(champions));
                 }
+                // Os cards do Tutorial (#228).
+                self.spawn_refresh_tutorial();
                 // Com o chat ainda conectando a LCU pode responder erro ou
                 // lista vazia; os eventos de cada amigo completam a lista.
                 // Nenhum comando mexe nos amigos e os eventos só são
@@ -425,6 +427,7 @@ impl Hub {
                 self.set_summoner_spell_catalog(None);
                 self.set_champion_catalog(None);
                 self.set_playable_champions(None);
+                self.set_tutorial(None);
                 self.set_champ_select_champions(ChampSelectChampions::default());
                 self.set_friends(Vec::new());
                 self.set_friend_groups(Vec::new());
@@ -462,6 +465,7 @@ impl Hub {
                     if logged_in {
                         self.spawn_refresh_queues();
                         self.spawn_refresh_playable_champions();
+                        self.spawn_refresh_tutorial();
                     }
                 }
             }
@@ -487,6 +491,8 @@ impl Hub {
                         self.spawn_refresh_queues();
                         // Campeão comprado ou rotação nova (#218).
                         self.spawn_refresh_playable_champions();
+                        // Uma parte do Tutorial concluída (#228).
+                        self.spawn_refresh_tutorial();
                     }
                 }
             }

@@ -264,7 +264,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   if (!lobby) {
     return (
       <ModeSelect queues={state.queues} canCreate={canCreate} pending={pending} restriction={restriction}
-        descriptionId={descriptionId} feedback={feedbackLine}
+        descriptionId={descriptionId} feedback={feedbackLine} tutorial={state.tutorial}
         onCreate={command => { void execute(command); }} onStart={command => { void execute(command); }} />
     );
   }

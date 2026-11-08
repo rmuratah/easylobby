@@ -5,7 +5,8 @@
 //!   parte: 2000, 2010 e 2020. O agente lê o progresso do jogador em
 //!   [`TUTORIALS_PATH`] (o caminho de iniciante do client oficial), cria o
 //!   lobby na fila da próxima parte que falta e entra na busca, como o client
-//!   faz.
+//!   faz. Com a escolha de parte (#228), a UI mostra as três partes em
+//!   cards ([`TutorialPart`]) e o comando de iniciar recebe a fila da parte.
 //! - **Modo de Treino:** é uma personalizada (`PRACTICETOOL`, fila 3140 na
 //!   lista da LCU, com `isCustom`). O agente cria a personalizada no
 //!   Summoner's Rift, com uma senha para ninguém de fora entrar, e já inicia a
@@ -13,7 +14,9 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use ts_rs::TS;
 
 use crate::lobby::{Lobby, LOBBY_PATH};
 use crate::rest::{LcuClient, LcuError};
@@ -30,6 +33,73 @@ pub const CUSTOM_START_CHAMP_SELECT_PATH: &str = "/lol-lobby/v1/lobby/custom/sta
 /// Modo de jogo do Modo de Treino.
 pub const PRACTICE_TOOL_GAME_MODE: &str = "PRACTICETOOL";
 
+/// Uma parte do Tutorial, como os cards do client oficial mostram (#228).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TutorialPart {
+    /// Fila da parte: 2000, 2010 ou 2020.
+    pub queue_id: u32,
+    /// Número da parte: 1, 2 ou 3.
+    pub part: u32,
+    /// Se o jogador já terminou a parte. Dá para jogar de novo.
+    pub completed: bool,
+    /// Se dá para jogar a parte: a Parte 1 sempre, e as outras depois que a
+    /// anterior foi concluída (o cadeado do client oficial).
+    pub available: bool,
+}
+
+/// Se a fila `queue_id` está `COMPLETED` na resposta de [`TUTORIALS_PATH`].
+///
+/// Cada item da lista traz a fila em `queueId` (número ou texto) e o
+/// progresso em `status`; o agente aceita os dois formatos porque o
+/// endpoint não está documentado.
+fn is_completed(items: &[Value], queue_id: u32) -> bool {
+    items.iter().any(|item| {
+        let id = match item.get("queueId") {
+            Some(Value::Number(n)) => n.as_u64(),
+            Some(Value::String(s)) => s.trim().parse().ok(),
+            _ => None,
+        };
+        let done = item
+            .get("status")
+            .and_then(Value::as_str)
+            .is_some_and(|s| s.eq_ignore_ascii_case("COMPLETED"));
+        id == Some(u64::from(queue_id)) && done
+    })
+}
+
+/// As três partes do Tutorial a partir da resposta de [`TUTORIALS_PATH`].
+/// `None` quando a resposta não é uma lista: sem saber o progresso, a UI
+/// deixa escolher qualquer parte e a LCU decide.
+pub fn tutorial_parts(value: &Value) -> Option<Vec<TutorialPart>> {
+    let items = value.as_array()?;
+    let mut previous_done = true;
+    Some(
+        TUTORIAL_QUEUES
+            .into_iter()
+            .zip(1..)
+            .map(|(queue_id, part)| {
+                let completed = is_completed(items, queue_id);
+                let available = previous_done;
+                previous_done = completed;
+                TutorialPart {
+                    queue_id,
+                    part,
+                    completed,
+                    available,
+                }
+            })
+            .collect(),
+    )
+}
+
+/// Lê o progresso do Tutorial (#228). `None` se a LCU não responder ou
+/// responder num formato desconhecido.
+pub async fn tutorial_progress(lcu: &LcuClient) -> Option<Vec<TutorialPart>> {
+    let body = lcu.get::<Value>(TUTORIALS_PATH).await.ok()?;
+    tutorial_parts(&body)
+}
+
 /// Fila da próxima parte do Tutorial, a partir da resposta de
 /// [`TUTORIALS_PATH`]: a primeira parte de [`TUTORIAL_QUEUES`] que não está
 /// `COMPLETED`. Sem informação que dê para usar, ou com as três feitas, a
@@ -42,23 +112,9 @@ pub fn next_tutorial_queue(value: &Value) -> u32 {
     let Some(items) = value.as_array() else {
         return TUTORIAL_QUEUES[0];
     };
-    let completed = |queue_id: u32| {
-        items.iter().any(|item| {
-            let id = match item.get("queueId") {
-                Some(Value::Number(n)) => n.as_u64(),
-                Some(Value::String(s)) => s.trim().parse().ok(),
-                _ => None,
-            };
-            let done = item
-                .get("status")
-                .and_then(Value::as_str)
-                .is_some_and(|s| s.eq_ignore_ascii_case("COMPLETED"));
-            id == Some(u64::from(queue_id)) && done
-        })
-    };
     TUTORIAL_QUEUES
         .into_iter()
-        .find(|&queue_id| !completed(queue_id))
+        .find(|&queue_id| !is_completed(items, queue_id))
         .unwrap_or(TUTORIAL_QUEUES[0])
 }
 
@@ -147,6 +203,46 @@ mod tests {
             .map(|id| json!({"queueId": id, "status": "COMPLETED"}))
             .collect::<Vec<_>>());
         assert_eq!(next_tutorial_queue(&all), 2000);
+    }
+
+    #[test]
+    fn partes_com_cadeado_ate_a_anterior_ser_concluida() {
+        let progress = json!([
+            {"queueId": 2000, "status": "COMPLETED"},
+            {"queueId": "2010", "status": "UNLOCKED"},
+            {"queueId": 2020, "status": "LOCKED"},
+        ]);
+        let parts = tutorial_parts(&progress).unwrap();
+        let seen: Vec<(u32, u32, bool, bool)> = parts
+            .iter()
+            .map(|p| (p.queue_id, p.part, p.completed, p.available))
+            .collect();
+        assert_eq!(
+            seen,
+            [
+                (2000, 1, true, true),
+                (2010, 2, false, true),
+                (2020, 3, false, false)
+            ]
+        );
+        let none = tutorial_parts(&json!([])).unwrap();
+        assert_eq!(
+            none.iter().map(|p| p.available).collect::<Vec<_>>(),
+            [true, false, false]
+        );
+        let all = json!(TUTORIAL_QUEUES
+            .iter()
+            .map(|id| json!({"queueId": id, "status": "COMPLETED"}))
+            .collect::<Vec<_>>());
+        assert!(tutorial_parts(&all)
+            .unwrap()
+            .iter()
+            .all(|p| p.completed && p.available));
+        assert_eq!(tutorial_parts(&json!({"erro": 1})), None);
+        assert_eq!(
+            serde_json::to_value(parts[0]).unwrap(),
+            json!({"queueId": 2000, "part": 1, "completed": true, "available": true})
+        );
     }
 
     #[test]

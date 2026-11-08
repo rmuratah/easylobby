@@ -5,7 +5,7 @@ use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError};
 use crate::matchmaking::{self, Matchmaking};
 use crate::queues::{GameQueue, MODE_SCREEN_QUEUES};
 use crate::quick_play::{self, PlayerSlotInput, SetSlotsError};
-use crate::training;
+use crate::training::{self, TutorialPart};
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 
 impl Hub {
@@ -51,14 +51,25 @@ impl Hub {
         }
     }
 
-    /// Inicia a próxima parte do Tutorial (comando `startTutorial`, #209):
-    /// cria o lobby na fila da parte e entra na busca. O lobby e a busca
-    /// são publicados antes de devolver.
-    pub async fn start_tutorial(&self) -> CommandResult {
+    /// Inicia uma parte do Tutorial (comando `startTutorial`, #209 e #228):
+    /// a de `queue_id`, ou a próxima que falta. Cria o lobby na fila da parte
+    /// e entra na busca. O lobby e a busca são publicados antes de devolver.
+    pub async fn start_tutorial(&self, queue_id: Option<u32>) -> CommandResult {
+        if let Some(queue_id) = queue_id {
+            if !training::TUTORIAL_QUEUES.contains(&queue_id) {
+                return CommandResult::error(
+                    ErrorCode::InvalidCommand,
+                    format!("a fila {queue_id} não é uma parte do Tutorial"),
+                );
+            }
+        }
         let Some(client) = self.client() else {
             return not_connected();
         };
-        let queue_id = training::next_tutorial(&client).await;
+        let queue_id = match queue_id {
+            Some(queue_id) => queue_id,
+            None => training::next_tutorial(&client).await,
+        };
         if let error @ CommandResult::Error { .. } = self.create_lobby_in(queue_id).await {
             return error;
         }
@@ -220,6 +231,36 @@ impl Hub {
             }
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
         }
+    }
+
+    /// Publica o progresso do Tutorial (#228).
+    pub fn set_tutorial(&self, tutorial: Option<Vec<TutorialPart>>) {
+        self.update(|shared| {
+            if shared.state.tutorial == tutorial {
+                return None;
+            }
+            shared.state.tutorial = tutorial.clone();
+            Some(ServerMessage::Tutorial { tutorial })
+        });
+    }
+
+    /// Relê em segundo plano o progresso do Tutorial (#228): uma parte
+    /// concluída muda o progresso, e a LCU não manda evento dele.
+    pub(super) fn spawn_refresh_tutorial(&self) {
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let Some(client) = self.client() else {
+            return;
+        };
+        let session = self.lock().session;
+        let hub = self.clone();
+        runtime.spawn(async move {
+            let tutorial = training::tutorial_progress(&client).await;
+            if hub.lock().session == session {
+                hub.set_tutorial(tutorial);
+            }
+        });
     }
 
     /// Publica os campeões que dá para pôr nos slots do Jogo Dinâmico (#218).
@@ -458,7 +499,8 @@ mod tests {
             hub.create_lobby(Queue::RankedSolo).await,
             hub.leave_lobby().await,
             hub.set_positions(Position::Top, Position::Jungle).await,
-            hub.start_tutorial().await,
+            hub.start_tutorial(None).await,
+            hub.start_tutorial(Some(2010)).await,
             hub.start_practice_tool().await,
             hub.set_player_slots(vec![slot(22, Position::Bottom), slot(266, Position::Top)])
                 .await,
@@ -609,6 +651,35 @@ mod tests {
             ),
             "{result:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn tutorial_so_com_fila_de_parte() {
+        let hub = Hub::new();
+        assert!(matches!(
+            hub.start_tutorial(Some(420)).await,
+            CommandResult::Error {
+                code: ErrorCode::InvalidCommand,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn publica_o_progresso_do_tutorial() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        let parts = training::tutorial_parts(&json!([])).unwrap();
+        hub.set_tutorial(Some(parts.clone()));
+        hub.set_tutorial(Some(parts.clone()));
+        let messages: Vec<ServerMessage> = std::iter::from_fn(|| rx.try_recv().ok()).collect();
+        assert_eq!(
+            messages,
+            [ServerMessage::Tutorial {
+                tutorial: Some(parts.clone())
+            }]
+        );
+        assert_eq!(hub.state().tutorial, Some(parts));
     }
 
     #[tokio::test]

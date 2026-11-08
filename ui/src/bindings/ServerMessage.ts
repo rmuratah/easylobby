@@ -25,6 +25,7 @@ import type { RuneCatalog } from "./RuneCatalog";
 import type { RunePages } from "./RunePages";
 import type { Summoner } from "./Summoner";
 import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
+import type { TutorialPart } from "./TutorialPart";
 
 /**
  * Mensagem do agente para a UI.
@@ -47,6 +48,7 @@ export type ServerMessage =
   | { "type": "readyCheck", readyCheck: ReadyCheck | null, }
   | { "type": "queues", queues: Array<GameQueue>, }
   | { "type": "playableChampions", playableChampions: Array<number> | null, }
+  | { "type": "tutorial", tutorial: Array<TutorialPart> | null, }
   | { "type": "champSelect", champSelect: ChampSelect | null, }
   | { "type": "champSelectChat", champSelectChat: ChampSelectChat | null, }
   | { "type": "lobbyChat", lobbyChat: LobbyChat | null, }

@@ -324,7 +324,7 @@ describe('lobby pelo único /ws do App', () => {
     fireEvent.click(panel().getByRole('tab', { name: 'Treinamento' }));
     expect(radio('Tutorial')).toBeChecked();
     fireEvent.click(button('Iniciar'));
-    expect(request().command).toEqual({ type: 'startTutorial' });
+    expect(request().command).toEqual({ type: 'startTutorial', queueId: 2000 });
     expect(panel().getByRole('status')).toHaveTextContent('Iniciando o Tutorial');
     await ok();
     fireEvent.click(radio('Modo de Treino'));

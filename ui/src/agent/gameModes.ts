@@ -76,7 +76,7 @@ const coopModes: FixedMode[] = [
 const trainingModes: GameMode[] = [
   {
     id: 'tutorial', name: 'Tutorial', icon: 'TU', available: true, submodes: [], start: { type: 'startTutorial' },
-    description: 'Aprenda o básico em três partes. Começa pela parte que você ainda não fez.',
+    description: 'Aprenda o básico em três partes. Escolha a parte para jogar.',
   },
   {
     id: 'practiceTool', name: 'Modo de Treino', icon: 'MT', available: true, submodes: [], start: { type: 'startPracticeTool' },

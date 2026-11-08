@@ -22,7 +22,7 @@ export type Command =
   | { "type": "createLobbyById", queueId: number, }
   | { "type": "acceptReadyCheck" }
   | { "type": "declineReadyCheck" }
-  | { "type": "startTutorial" }
+  | { "type": "startTutorial", queueId?: number, }
   | { "type": "startPracticeTool" }
   | { "type": "setPlayerSlots", slots: Array<PlayerSlotInput>, }
   | { "type": "setLobbyOpen", open: boolean, }

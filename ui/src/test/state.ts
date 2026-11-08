@@ -13,6 +13,7 @@ export const emptyState: AgentState = {
   readyCheck: null,
   queues: [],
   playableChampions: null,
+  tutorial: null,
   champSelect: null,
   champSelectChat: null,
   lobbyChat: null,

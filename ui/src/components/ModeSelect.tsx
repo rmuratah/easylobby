@@ -1,6 +1,9 @@
 import { useId, useState, type ReactNode } from 'react';
 import { buildModeTabs, firstAvailable, type CreateLobby, type GameMode, type ModeTabId, type Submode, type TrainingCommand } from '../agent/gameModes';
 import type { GameQueue } from '../bindings/GameQueue';
+import type { TutorialPart } from '../bindings/TutorialPart';
+import { defaultTutorialPart, tutorialCards } from '../agent/training';
+import { TutorialParts } from './TutorialParts';
 import { cx } from './base/cx';
 
 type Props = {
@@ -14,6 +17,8 @@ type Props = {
   feedback: ReactNode;
   onCreate: (command: CreateLobby) => void;
   onStart: (command: TrainingCommand) => void;
+  /** Progresso do Tutorial (#228), para os cards das partes. */
+  tutorial?: TutorialPart[] | null;
 };
 type Selection = { tab: ModeTabId; mode: GameMode['id'] | null; queueId: number | null };
 
@@ -37,7 +42,7 @@ function ModeIcon({ mode, size = 'md' }: { mode: GameMode; size?: 'md' | 'lg' })
  * Treinamento; cards de modo com os submodos em botões de rádio; rodapé com a
  * fila escolhida e o botão de criar o lobby (ou de iniciar, no Treinamento).
  */
-export function ModeSelect({ queues, canCreate, pending, restriction, descriptionId, feedback, onCreate, onStart }: Props) {
+export function ModeSelect({ queues, canCreate, pending, restriction, descriptionId, feedback, onCreate, onStart, tutorial = null }: Props) {
   const tabs = buildModeTabs(queues);
   const baseId = useId();
   const [selection, setSelection] = useState<Selection>({ tab: 'pvp', mode: null, queueId: null });
@@ -51,6 +56,12 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
     : firstAvailable(tab);
   const locked = !canCreate || pending;
   const isTraining = tab.id === 'training';
+  // Tutorial (#228): a parte escolhida nos cards; sem escolha, a primeira liberada que falta.
+  const [tutorialChoice, setTutorialChoice] = useState<number | null>(null);
+  const parts = tutorialCards(tutorial);
+  const choice = parts.find(p => p.queueId === tutorialChoice && p.available);
+  const tutorialPart = choice ?? parts.find(p => p.queueId === defaultTutorialPart(parts))!;
+  const isTutorial = current?.mode.id === 'tutorial';
 
   function chooseTab(id: ModeTabId) {
     setSelection({ tab: id, mode: null, queueId: null });
@@ -60,7 +71,8 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
   }
   function confirm() {
     if (!current) return;
-    if (current.mode.start) onStart(current.mode.start);
+    if (isTutorial) onStart({ type: 'startTutorial', queueId: tutorialPart.queueId });
+    else if (current.mode.start) onStart(current.mode.start);
     else if (current.submode) onCreate(current.submode.command);
   }
 
@@ -140,6 +152,11 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
         })}
       </div>
 
+      {isTutorial && (
+        <TutorialParts cards={parts} selected={tutorialPart.queueId} locked={locked} name={`${baseId}-tutorial`}
+          onSelect={setTutorialChoice} />
+      )}
+
       <footer className="flex flex-wrap items-center gap-4 rounded-panel surface p-4 shadow-soft">
         {current ? (
           <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -147,9 +164,10 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
             <div className="min-w-0">
               <p className="text-caption font-semibold uppercase tracking-wider text-muted">{isTraining ? 'Treino selecionado' : 'Fila selecionada'}</p>
               <p className="truncate text-body font-semibold" aria-live="polite">
-                {current.submode ? `${current.mode.name} — ${current.submode.name}` : current.mode.name}
+                {current.submode ? `${current.mode.name} — ${current.submode.name}`
+                  : isTutorial ? `${current.mode.name} — Parte ${tutorialPart.part}` : current.mode.name}
               </p>
-              <p className="truncate text-caption text-muted">{current.submode?.description ?? current.mode.description}</p>
+              <p className="truncate text-caption text-muted">{current.submode?.description ?? (isTutorial ? tutorialPart.name : current.mode.description)}</p>
             </div>
           </div>
         ) : <p className="min-w-0 flex-1 text-body text-muted">Nenhum modo aberto nesta aba agora.</p>}

@@ -8,6 +8,7 @@ import type { Lobby } from '../bindings/Lobby';
 import type { LobbyMember } from '../bindings/LobbyMember';
 import type { PlayerSlot } from '../bindings/PlayerSlot';
 import type { LobbyRestriction } from '../bindings/LobbyRestriction';
+import type { TutorialPart } from '../bindings/TutorialPart';
 import type { LobbyInvitation } from '../bindings/LobbyInvitation';
 import type { InvitationState } from '../bindings/InvitationState';
 import type { Position } from '../bindings/Position';
@@ -169,6 +170,10 @@ function championCatalog(v: unknown): v is ChampionCatalog | null {
   return v === null || (object(v) && list(v.champions, object));
 }
 const nullableIds = (v: unknown) => v === null || list(v, uint);
+function tutorialPart(v: unknown): v is TutorialPart {
+  return object(v) && uint(v.queueId) && uint(v.part) && typeof v.completed === 'boolean' && typeof v.available === 'boolean';
+}
+const tutorial = (v: unknown) => v === null || list(v, tutorialPart);
 function champSelectChampions(v: unknown): v is ChampSelectChampions {
   return object(v) && nullableIds(v.pickable) && nullableIds(v.bannable);
 }
@@ -227,7 +232,7 @@ function status(v: unknown): v is LcuStatus {
 }
 function state(v: unknown): v is AgentState {
   return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) &&
-    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && lobbyChat(v.lobbyChat) && champSelect(v.champSelect) &&
+    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && lobbyChat(v.lobbyChat) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
@@ -252,6 +257,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'matchmaking': valid = matchmaking(v.matchmaking); break;
     case 'queues': valid = list(v.queues, gameQueue); break;
     case 'playableChampions': valid = nullableIds(v.playableChampions); break;
+    case 'tutorial': valid = tutorial(v.tutorial); break;
     case 'champSelect': valid = champSelect(v.champSelect); break;
     case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
     case 'lobbyChat': valid = lobbyChat(v.lobbyChat); break;

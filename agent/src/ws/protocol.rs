@@ -68,6 +68,7 @@ use crate::runes::{RuneCatalog, RunePageInput, RunePages};
 use crate::summoner::Summoner;
 use crate::summoner_spells::SummonerSpellCatalog;
 use crate::swaps::SwapKind;
+use crate::training::TutorialPart;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -127,6 +128,12 @@ pub enum ServerMessage {
     PlayableChampions {
         playable_champions: Option<Vec<u32>>,
     },
+    /// Mudou o progresso do Tutorial (#228): as três partes, cada uma
+    /// concluída ou não e liberada ou com cadeado. Chega logo depois de
+    /// conectar e a cada volta à escolha de modo. `null` com o LoL fechado
+    /// ou quando a LCU não diz o progresso (a UI deixa escolher qualquer
+    /// parte).
+    Tutorial { tutorial: Option<Vec<TutorialPart>> },
 
     // Seleção de campeões
     /// A seleção de campeões (#22) abriu ou mudou: hover, ban, pick, troca
@@ -253,6 +260,8 @@ pub struct AgentState {
     /// Campeões que o jogador pode pôr nos slots do Jogo Dinâmico (#218),
     /// ou `null`.
     pub playable_champions: Option<Vec<u32>>,
+    /// As partes do Tutorial (#228), ou `null` sem o progresso.
+    pub tutorial: Option<Vec<TutorialPart>>,
     /// Sala de chat do grupo no lobby (#206), ou `null` sem lobby.
     pub lobby_chat: Option<LobbyChat>,
 
@@ -415,14 +424,20 @@ pub enum Command {
     /// /lol-matchmaking/v1/ready-check/decline`, #20). Mesmos erros do
     /// `acceptReadyCheck`.
     DeclineReadyCheck,
-    /// Inicia a próxima parte do Tutorial que o jogador ainda não terminou
-    /// (filas 2000, 2010 e 2020, #209): cria o lobby na fila da parte e
-    /// entra na busca. A parte sai de `GET
-    /// /lol-npe-tutorial-path/v1/tutorials`; sem essa informação, ou com as
-    /// três feitas, começa pela Parte 1. O lobby e a busca chegam nas
-    /// mensagens `lobby` e `matchmaking` antes da resposta. Responde
-    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
-    StartTutorial,
+    /// Inicia uma parte do Tutorial (filas 2000, 2010 e 2020, #209 e #228):
+    /// cria o lobby na fila da parte e entra na busca. Com `queueId`, a parte
+    /// escolhida (fora dessas três filas responde `invalidCommand` sem falar
+    /// com a LCU); sem ele, a próxima que o jogador ainda não terminou, pelo
+    /// `GET /lol-npe-tutorial-path/v1/tutorials` (sem essa informação, ou com
+    /// as três feitas, a Parte 1). O lobby e a busca chegam nas mensagens
+    /// `lobby` e `matchmaking` antes da resposta. Responde `notConnected` com
+    /// o LoL fechado e `lcu` se a LCU recusar (parte ainda com cadeado, por
+    /// exemplo).
+    StartTutorial {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        queue_id: Option<u32>,
+    },
     /// Inicia o Modo de Treino (#209): cria uma personalizada `PRACTICETOOL`
     /// no Summoner's Rift, com senha, e já vai para a seleção de campeões,
     /// sem o jogador passar pelo lobby da personalizada. Responde
@@ -715,6 +730,7 @@ mod tests {
                     "matchmaking": null,
                     "queues": [],
                     "playableChampions": null,
+                    "tutorial": null,
                     "lobbyChat": null,
                     "champSelect": null,
                     "receivedInvitations": [],
@@ -818,13 +834,23 @@ mod tests {
         for (name, command) in [
             ("acceptReadyCheck", Command::AcceptReadyCheck),
             ("declineReadyCheck", Command::DeclineReadyCheck),
-            ("startTutorial", Command::StartTutorial),
+            ("startTutorial", Command::StartTutorial { queue_id: None }),
             ("startPracticeTool", Command::StartPracticeTool),
         ] {
             let msg: ClientMessage =
                 serde_json::from_value(json!({"id": 9, "command": {"type": name}})).unwrap();
             assert_eq!(msg.command, command);
         }
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 9, "command": {"type": "startTutorial", "queueId": 2010}}),
+        )
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::StartTutorial {
+                queue_id: Some(2010)
+            }
+        );
         let msg: ClientMessage = serde_json::from_value(
             json!({"id": 9, "command": {"type": "setLobbyOpen", "open": true}}),
         )
