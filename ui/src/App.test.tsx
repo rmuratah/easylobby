@@ -1,5 +1,5 @@
 import { testLobby, testState } from './test/lobby';
-import { testMatchmaking } from './test/events';
+import { testFriend, testMatchmaking } from './test/events';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -154,5 +154,21 @@ describe('telas confirmadas pelo agente', () => {
     rerender(<App />);
     expect(screen.getByText('Carregando a seleção de campeões…')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
+  });
+});
+
+describe('perfil do amigo (#255)', () => {
+  const summoner = { gameName: 'Victor', tagLine: 'BR1', displayName: '', summonerLevel: 122, profileIconId: 1, puuid: 'fake', summonerId: 1 };
+  it('abre ao clicar no amigo da barra lateral e volta para a página de antes', () => {
+    const send = vi.fn(() => Promise.resolve({ status: 'ok' as const }));
+    vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: makeState({ summoner, friends: [testFriend] }), send });
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /^Ver perfil de Amigo/ }));
+    expect(send).toHaveBeenCalledWith({ type: 'openPlayerProfile', puuid: testFriend.puuid });
+    expect(screen.getByRole('region', { name: 'Perfil do amigo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Perfil' })).toHaveAttribute('aria-current', 'page');
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+    expect(screen.queryByRole('region', { name: 'Perfil do amigo' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Início' })).toBeVisible();
   });
 });

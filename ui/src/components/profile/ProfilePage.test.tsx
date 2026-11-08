@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { ProfilePage } from './ProfilePage';
+import { FriendProfilePage, ProfilePage } from './ProfilePage';
+import { testFriend } from '../../test/events';
+import type { PlayerProfile } from '../../bindings/PlayerProfile';
 import { makeState } from '../../test/state';
 import { match } from '../../test/profile';
 import type { AgentState } from '../../bindings/AgentState';
-import type { ConnectionSnapshot } from '../../agent/client';
+import type { AgentClient, ConnectionSnapshot } from '../../agent/client';
 
 const summoner = {
   gameName: 'Jogador', tagLine: 'BR1', displayName: '', summonerLevel: 87, profileIconId: 29,
@@ -82,5 +84,71 @@ describe('ProfilePage', () => {
     expect(screen.getByText('Time vermelho · Derrota')).toBeInTheDocument();
     expect(screen.getAllByRole('row')).toHaveLength(12);
     expect(screen.queryByRole('button', { name: 'Carregar mais' })).not.toBeInTheDocument();
+  });
+});
+
+describe('FriendProfilePage', () => {
+  const amigo = { ...summoner, gameName: 'Amigo', puuid: 'amigo', summonerLevel: 143, summonerId: 1003 };
+  const friend = { ...testFriend, activity: { type: 'league' as const, status: 'inGame' as const, queueId: 420, championId: 103, since: Date.now() } };
+  const profile = (overrides: Partial<PlayerProfile> = {}): PlayerProfile => ({
+    summoner: amigo, privateProfile: false,
+    ranked: { soloDuo: { ...unranked, tier: 'PLATINUM', division: 'IV', leaguePoints: 12, wins: 51, losses: 47 }, flex: unranked },
+    championMasteries: [{ championId: 103, level: 12, points: 184000 }],
+    matchHistory: { matches: [match(1, {}, { puuid: 'amigo', gameName: 'Amigo' })], hasMore: true },
+    ...overrides,
+  });
+
+  function setupFriend(playerProfile: PlayerProfile | null, send: AgentClient['send'] = vi.fn(() => Promise.resolve({ status: 'ok' as const }))) {
+    const onBack = vi.fn();
+    const onChat = vi.fn();
+    const state = (p: PlayerProfile | null) => makeState({ summoner, friends: [friend], playerProfile: p });
+    const view = render(<FriendProfilePage connection={{ status: 'connected', error: null, state: state(playerProfile) }} send={send}
+      puuid="amigo" onBack={onBack} onChat={onChat} />);
+    const rerender = (p: PlayerProfile | null) => view.rerender(<FriendProfilePage connection={{ status: 'connected', error: null, state: state(p) }}
+      send={send} puuid="amigo" onBack={onBack} onChat={onChat} />);
+    return { send, onBack, onChat, rerender };
+  }
+
+  it('pede o perfil ao abrir e mostra carregando até ele chegar', () => {
+    const { send, rerender } = setupFriend(null);
+    expect(send).toHaveBeenCalledWith({ type: 'openPlayerProfile', puuid: 'amigo' });
+    expect(screen.getByText('Carregando o perfil…')).toBeInTheDocument();
+    // O perfil de outro jogador que ainda está no estado não aparece.
+    rerender(profile({ summoner: { ...amigo, puuid: 'outro', gameName: 'Outro' } }));
+    expect(screen.getByText('Carregando o perfil…')).toBeInTheDocument();
+    rerender(profile());
+    expect(screen.getByRole('heading', { name: 'Amigo#BR1' })).toBeInTheDocument();
+    expect(screen.getByText('Nível 143')).toBeInTheDocument();
+    expect(screen.getByRole('article', { name: 'Ranqueada Solo/Duo' })).toHaveTextContent('Platina IV · 12 PDL');
+    expect(screen.getByText('Últimas 1 partidas')).toBeInTheDocument();
+  });
+
+  it('mostra o status, conversa, volta e carrega mais partidas do amigo', () => {
+    const { send, onBack, onChat } = setupFriend(profile());
+    expect(screen.getByText(/^Em partida/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Conversar' }));
+    expect(onChat).toHaveBeenCalledWith(friend.id);
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+    expect(onBack).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('tab', { name: 'Histórico' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
+    expect(send).toHaveBeenCalledWith({ type: 'loadMorePlayerMatches' });
+  });
+
+  it('avisa quando o perfil é privado ou uma parte não veio', () => {
+    setupFriend(profile({ privateProfile: true, ranked: null, championMasteries: [], matchHistory: { matches: [], hasMore: false } }));
+    expect(screen.getByText('Perfil privado')).toBeInTheDocument();
+    expect(screen.getByRole('article', { name: 'Ranqueada Flex' })).toHaveTextContent('Indisponível');
+    // No resumo da Visão geral e na aba Histórico.
+    expect(screen.getAllByText('O histórico deste jogador é privado.')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Carregar mais' })).toBeNull();
+  });
+
+  it('mostra o erro e tenta de novo', async () => {
+    const send = vi.fn(() => Promise.resolve({ status: 'error' as const, code: 'notFound' as const, message: 'jogador não encontrado' }));
+    setupFriend(null, send);
+    expect(await screen.findByText('Não foi possível carregar o perfil: jogador não encontrado')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,10 +1,16 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../../agent/client';
 import type { AgentState } from '../../bindings/AgentState';
 import type { RankedEntry } from '../../bindings/RankedEntry';
 import type { MatchSummary } from '../../bindings/MatchSummary';
 import type { MatchDetails } from '../../bindings/MatchDetails';
 import type { MatchPlayer } from '../../bindings/MatchPlayer';
+import type { MatchHistory } from '../../bindings/MatchHistory';
+import type { RankedStats } from '../../bindings/RankedStats';
+import type { ChampionMastery } from '../../bindings/ChampionMastery';
+import type { Summoner } from '../../bindings/Summoner';
+import type { Command } from '../../bindings/Command';
+import { availabilityColors, describeActivity } from '../../agent/friends';
 import { assetUrl } from '../../agent/assets';
 import { useCommand } from '../../agent/useCommand';
 import {
@@ -17,18 +23,109 @@ import { cx } from '../base/cx';
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type Tab = 'overview' | 'history';
 
+/** O que a página mostra de um jogador: o logado ou outro (#255). */
+type ProfileData = {
+  summoner: Summoner;
+  ranked: RankedStats | null;
+  championMasteries: ChampionMastery[];
+  matchHistory: MatchHistory | null;
+  /** Perfil de outro jogador já carregado: o que falta não vai mais chegar. */
+  loaded: boolean;
+  privateProfile: boolean;
+  /** Comando do "Carregar mais" do histórico. */
+  loadMore: Command;
+};
+
+function connectedState(connection: ConnectionSnapshot): AgentState | null {
+  return connection.status === 'connected' && connection.state?.lcu.state === 'connected' ? connection.state : null;
+}
+
 /**
  * Perfil do jogador logado (#173): cabeçalho fixo e as abas Visão geral
  * (ranks, maestria e resumo) e Histórico (partidas, filtro e placar).
  */
 export function ProfilePage({ connection, send }: Props) {
-  const state = connection.status === 'connected' && connection.state?.lcu.state === 'connected' ? connection.state : null;
-  const [tab, setTab] = useState<Tab>('overview');
-  const id = useId();
+  const state = connectedState(connection);
   if (!state?.summoner) {
     return <EmptyState title="Perfil indisponível" description="Abra o LoL e entre na sua conta para ver o perfil." />;
   }
-  const summoner = state.summoner;
+  const data: ProfileData = {
+    summoner: state.summoner, ranked: state.ranked, championMasteries: state.championMasteries,
+    matchHistory: state.matchHistory, loaded: false, privateProfile: false, loadMore: { type: 'loadMoreMatches' },
+  };
+  return <ProfileView state={state} data={data} send={send} />;
+}
+
+/** Intervalo de atualização do "há N min" do status do amigo. */
+const CLOCK_INTERVAL_MS = 30_000;
+
+/**
+ * Perfil de um amigo (#255), no mesmo formato do perfil do jogador logado.
+ * Pede o perfil ao abrir e de novo a cada amigo novo; o cabeçalho mostra o
+ * status dele e o botão de conversar.
+ */
+export function FriendProfilePage({ connection, send, puuid, onBack, onChat }: Props & {
+  puuid: string; onBack: () => void; onChat: (conversationId: string) => void;
+}) {
+  const state = connectedState(connection);
+  const load = useCommand(send);
+  const { run } = load;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), CLOCK_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, []);
+  const connected = state !== null;
+  useEffect(() => {
+    if (!connected) return;
+    void run({ type: 'openPlayerProfile', puuid }, { pending: 'Carregando o perfil…', failure: 'carregar o perfil' });
+    // `run` muda a cada render; o perfil só é pedido de novo para outro amigo ou depois de uma queda.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [puuid, connected]);
+  const back = <button type="button" className="nav-button self-start" onClick={onBack}>Voltar</button>;
+  if (!state) {
+    return <div className="flex flex-col gap-4">{back}<EmptyState title="Perfil indisponível" description="Abra o LoL e entre na sua conta para ver o perfil do amigo." /></div>;
+  }
+  const friend = state.friends.find(f => f.puuid === puuid) ?? null;
+  const profile = state.playerProfile?.summoner.puuid === puuid ? state.playerProfile : null;
+  if (!profile) {
+    return (
+      <div className="flex flex-col gap-4">
+        {back}
+        {load.feedback.status === 'error'
+          ? <EmptyState title="Perfil indisponível" description={load.feedback.message}
+            action={<Button onClick={() => void run({ type: 'openPlayerProfile', puuid }, { pending: 'Carregando o perfil…', failure: 'carregar o perfil' })}>Tentar de novo</Button>} />
+          : <p className="flex items-center gap-2 py-6 text-body text-muted"><Spinner size={18} label={null} /> Carregando o perfil…</p>}
+      </div>
+    );
+  }
+  const data: ProfileData = {
+    summoner: profile.summoner, ranked: profile.ranked, championMasteries: profile.championMasteries,
+    matchHistory: profile.matchHistory, loaded: true, privateProfile: profile.privateProfile, loadMore: { type: 'loadMorePlayerMatches' },
+  };
+  const extra = friend && (
+    <div className="flex flex-wrap items-center gap-3 @min-[44rem]:ml-auto">
+      <p className="flex items-center gap-2 text-caption text-muted">
+        <span aria-hidden="true" className={cx('h-2.5 w-2.5 shrink-0 rounded-full', availabilityColors[friend.availability])} />
+        {describeActivity(friend, now)}
+      </p>
+      <Button size="sm" onClick={() => onChat(friend.id)}>Conversar</Button>
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-4">
+      {back}
+      <ProfileView state={state} data={data} send={send} extra={extra} />
+    </div>
+  );
+}
+
+function ProfileView({ state, data, send, extra }: {
+  state: AgentState; data: ProfileData; send: AgentClient['send']; extra?: ReactNode;
+}) {
+  const [tab, setTab] = useState<Tab>('overview');
+  const id = useId();
+  const summoner = data.summoner;
   const name = summoner.gameName || summoner.displayName || 'Invocador';
   const tabs: { value: Tab; label: string }[] = [
     { value: 'overview', label: 'Visão geral' },
@@ -36,14 +133,18 @@ export function ProfilePage({ connection, send }: Props) {
   ];
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex items-center gap-4 rounded-panel surface p-5 shadow-soft animate-fade-up">
+      <header className="flex flex-wrap items-center gap-4 rounded-panel surface p-5 shadow-soft animate-fade-up">
         <Avatar name={name} src={assetUrl('profileIcon', summoner.profileIconId)} size={72} />
         <div className="min-w-0">
           <h2 className="break-words text-title font-semibold text-ink">
             {name}{summoner.gameName && summoner.tagLine && <span className="font-medium text-muted">#{summoner.tagLine}</span>}
           </h2>
-          <p className="mt-1 w-fit rounded-full bg-raised px-3 py-1 text-caption font-semibold text-muted">Nível {summoner.summonerLevel}</p>
+          <div className="mt-1 flex flex-wrap gap-2">
+            <p className="w-fit rounded-full bg-raised px-3 py-1 text-caption font-semibold text-muted">Nível {summoner.summonerLevel}</p>
+            {data.privateProfile && <p className="w-fit rounded-full bg-raised px-3 py-1 text-caption font-semibold text-muted">Perfil privado</p>}
+          </div>
         </div>
+        {extra}
       </header>
       <div role="tablist" aria-label="Seções do perfil" className="flex gap-1 border-b border-line">
         {tabs.map(t => (
@@ -64,10 +165,10 @@ export function ProfilePage({ connection, send }: Props) {
         ))}
       </div>
       <div role="tabpanel" id={`${id}-overview`} aria-labelledby={`${id}-overview-tab`} hidden={tab !== 'overview'}>
-        <Overview state={state} />
+        <Overview state={state} data={data} />
       </div>
       <div role="tabpanel" id={`${id}-history`} aria-labelledby={`${id}-history-tab`} hidden={tab !== 'history'}>
-        <History state={state} send={send} />
+        <History state={state} data={data} send={send} />
       </div>
     </div>
   );
@@ -77,21 +178,22 @@ function championName(state: AgentState, championId: number): string {
   return state.championCatalog?.champions.find(c => c.id === championId)?.name ?? `Campeão ${championId}`;
 }
 
-function Overview({ state }: { state: AgentState }) {
-  const matches = state.matchHistory?.matches ?? [];
+function Overview({ state, data }: { state: AgentState; data: ProfileData }) {
+  const matches = data.matchHistory?.matches ?? [];
+  const missing = data.loaded ? 'Indisponível' : 'Carregando…';
   const stats = matchStats(matches);
   return (
     <div className="grid gap-4 @min-[44rem]:grid-cols-2">
       <section aria-label="Ranks" className="grid gap-4 @min-[44rem]:col-span-2 @min-[44rem]:grid-cols-2">
-        <RankCard title="Ranqueada Solo/Duo" entry={state.ranked?.soloDuo ?? null} />
-        <RankCard title="Ranqueada Flex" entry={state.ranked?.flex ?? null} />
+        <RankCard title="Ranqueada Solo/Duo" entry={data.ranked?.soloDuo ?? null} missing={missing} />
+        <RankCard title="Ranqueada Flex" entry={data.ranked?.flex ?? null} missing={missing} />
       </section>
       <section aria-labelledby="perfil-maestria" className="rounded-panel surface p-5 shadow-soft">
         <h3 id="perfil-maestria" className="text-section font-semibold text-ink">Maestria</h3>
-        {state.championMasteries.length === 0
+        {data.championMasteries.length === 0
           ? <p className="mt-3 text-body text-muted">Nenhuma maestria para mostrar.</p>
           : <ol className="mt-3 flex flex-col gap-3">
-            {state.championMasteries.map((m, i) => {
+            {data.championMasteries.map((m, i) => {
               const champion = championName(state, m.championId);
               return (
                 <li key={m.championId} className="flex items-center gap-3">
@@ -109,7 +211,7 @@ function Overview({ state }: { state: AgentState }) {
       <section aria-labelledby="perfil-resumo" className="rounded-panel surface p-5 shadow-soft">
         <h3 id="perfil-resumo" className="text-section font-semibold text-ink">Últimas {stats.games} partidas</h3>
         {stats.games === 0
-          ? <p className="mt-3 text-body text-muted">{state.matchHistory ? 'Nenhuma partida no histórico.' : 'Carregando o histórico…'}</p>
+          ? <p className="mt-3 text-body text-muted">{emptyHistory(data)}</p>
           : <>
             <dl className="mt-3 grid grid-cols-3 gap-2">
               <Stat label="Vitórias" value={`${stats.wins}V ${stats.losses}D`} />
@@ -135,6 +237,13 @@ function Overview({ state }: { state: AgentState }) {
   );
 }
 
+/** Texto do histórico sem partidas: carregando, privado, indisponível ou vazio. */
+function emptyHistory(data: ProfileData): string {
+  if (data.privateProfile) return 'O histórico deste jogador é privado.';
+  if (!data.matchHistory) return data.loaded ? 'Histórico indisponível.' : 'Carregando o histórico…';
+  return 'Nenhuma partida no histórico.';
+}
+
 const fmt = (n: number) => n.toFixed(1).replace('.', ',');
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -146,14 +255,14 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function RankCard({ title, entry }: { title: string; entry: RankedEntry | null }) {
+function RankCard({ title, entry, missing }: { title: string; entry: RankedEntry | null; missing: string }) {
   const rate = entry ? winRate(entry.wins, entry.losses) : null;
   return (
     <article aria-label={title} className="flex items-center gap-4 rounded-panel surface p-5 shadow-soft">
       <TierEmblem tier={entry?.tier ?? null} />
       <div className="min-w-0">
         <h3 className="text-caption font-semibold text-muted">{title}</h3>
-        {!entry ? <p className="mt-1 text-body text-muted">Carregando…</p> : <>
+        {!entry ? <p className="mt-1 text-body text-muted">{missing}</p> : <>
           <p className="mt-1 text-section font-semibold text-ink">{rankLabel(entry)}{entry.tier && <span className="text-muted"> · {entry.leaguePoints} PDL</span>}</p>
           <p className="text-caption text-muted">
             {entry.wins + entry.losses === 0 ? 'Nenhuma partida nesta temporada'
@@ -190,14 +299,14 @@ function TierEmblem({ tier }: { tier: string | null }) {
   );
 }
 
-function History({ state, send }: { state: AgentState; send: AgentClient['send'] }) {
+function History({ state, data, send }: { state: AgentState; data: ProfileData; send: AgentClient['send'] }) {
   const [filter, setFilter] = useState<MatchFilter>('all');
   const [open, setOpen] = useState<number | null>(null);
   const [now] = useState(() => Date.now());
   const more = useCommand(send);
   const details = useCommand(send);
-  const history = state.matchHistory;
-  if (!history) return <p className="py-6 text-body text-muted">Carregando o histórico…</p>;
+  const history = data.matchHistory;
+  if (!history || (history.matches.length === 0 && data.privateProfile)) return <p className="py-6 text-body text-muted">{emptyHistory(data)}</p>;
   const shown = history.matches.filter(m => matchesFilter(m, filter));
   function toggle(match: MatchSummary) {
     if (open === match.gameId) {
@@ -224,7 +333,7 @@ function History({ state, send }: { state: AgentState; send: AgentClient['send']
               {open === match.gameId && (
                 <div id={`placar-${match.gameId}`} className="mt-2">
                   {state.matchDetails?.gameId === match.gameId
-                    ? <Scoreboard state={state} details={state.matchDetails} />
+                    ? <Scoreboard state={state} details={state.matchDetails} highlight={data.summoner.puuid} />
                     : details.feedback.status === 'error'
                       ? <p role="alert" className="text-body text-danger">{details.feedback.message}</p>
                       : <p className="flex items-center gap-2 text-body text-muted"><Spinner size={18} label={null} /> Carregando o placar…</p>}
@@ -235,7 +344,7 @@ function History({ state, send }: { state: AgentState; send: AgentClient['send']
         </ul>}
       {history.hasMore && (
         <Button className="self-center" loading={more.pending} disabled={more.pending}
-          onClick={() => void more.run({ type: 'loadMoreMatches' }, { pending: 'Carregando…', failure: 'carregar mais partidas' })}>
+          onClick={() => void more.run(data.loadMore, { pending: 'Carregando…', failure: 'carregar mais partidas' })}>
           Carregar mais
         </Button>
       )}
@@ -298,9 +407,10 @@ function Items({ items, size = 24 }: { items: number[]; size?: number }) {
   );
 }
 
-function Scoreboard({ state, details }: { state: AgentState; details: MatchDetails }) {
+/** Placar com os dois times; a linha de `highlight` (o dono do perfil) fica destacada. */
+function Scoreboard({ state, details, highlight }: { state: AgentState; details: MatchDetails; highlight: string }) {
   const teams = [100, 200].map(teamId => details.players.filter(p => p.teamId === teamId));
-  const me = state.summoner?.puuid;
+  const me = highlight;
   return (
     <div className="grid gap-3 rounded-card bg-raised p-3 @min-[56rem]:grid-cols-2">
       {teams.map((players, i) => {

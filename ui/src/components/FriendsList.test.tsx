@@ -167,4 +167,22 @@ describe('textos dos amigos', () => {
   it('mostra a disponibilidade sem atividade', () => {
     expect(describeActivity(friend({ availability: 'mobile' }), NOW)).toBe('No celular');
   });
+
+  it('abre o perfil ao clicar no amigo, online ou offline, sem tirar as ações da linha', () => {
+    const onOpenProfile = vi.fn();
+    render(<FriendsList connection={connectedWith([bia, caio])} onOpenProfile={onOpenProfile}
+      renderActions={f => <button type="button">Conversar com {f.id}</button>} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Ver perfil de Bia, Ausente/ }));
+    expect(onOpenProfile).toHaveBeenCalledWith(bia);
+    fireEvent.click(screen.getByRole('button', { name: /^Offline/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Ver perfil de CaioAntigo/ }));
+    expect(onOpenProfile).toHaveBeenLastCalledWith(caio);
+    fireEvent.click(screen.getByRole('button', { name: 'Conversar com bia' }));
+    expect(onOpenProfile).toHaveBeenCalledTimes(2);
+  });
+
+  it('sem onOpenProfile, o amigo não vira botão', () => {
+    render(<FriendsList connection={connectedWith([bia])} />);
+    expect(screen.queryByRole('button', { name: /Ver perfil/ })).toBeNull();
+  });
 });
