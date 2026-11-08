@@ -5,6 +5,7 @@ import { playerName } from '../agent/friends';
 import { positionNames } from '../agent/positions';
 import { assetUrl } from '../agent/assets';
 import { useCommand } from '../agent/useCommand';
+import { BOT_POSITIONS, botDifficultyNames } from '../agent/customLobby';
 import type { AgentState } from '../bindings/AgentState';
 import type { BotDifficulty } from '../bindings/BotDifficulty';
 import type { Champion } from '../bindings/Champion';
@@ -32,13 +33,6 @@ type Props = {
   feedback: ReactNode;
 };
 
-/** As 5 rotas de um bot, sem "Recomendados" e "Outras funções" (#229). */
-export const BOT_POSITIONS = ['top', 'jungle', 'middle', 'bottom', 'utility'] as const satisfies readonly Position[];
-export const botDifficultyNames = {
-  intro: 'Introdução',
-  beginner: 'Iniciante',
-  intermediate: 'Intermediário',
-} satisfies Record<Exclude<BotDifficulty, 'unknown'>, string>;
 const DIFFICULTIES = Object.keys(botDifficultyNames) as (keyof typeof botDifficultyNames)[];
 const teamNames: Record<CustomTeam, string> = { team1: 'Equipe 1', team2: 'Equipe 2' };
 
