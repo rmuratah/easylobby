@@ -65,13 +65,14 @@ pnpm --filter easylobby-desktop build   # gera o instalador (formato do instalad
 | Fase | Pronto quando |
 | --- | --- |
 | 0 · Fundação | O agente lê o lockfile e mostra o invocador logado, no LoL real e no mock |
-| 1 · Núcleo do agente e janela Tauri | O app abre o LoL, fecha a UI oficial sozinho e reabre pelo botão |
+| 1 · Núcleo do agente e janela Tauri | O app abre o LoL, fecha a UI oficial sozinho e reabre pelo botão; fechar e reabrir o LoL não derruba o agente |
 | 2 · Fila e partida | Uma normal do início ao fim sem abrir a UI oficial |
-| 3 · Seleção de campeões e runas | Ranqueada solo com ban e troca de runas (MVP) |
+| 3 · Seleção de campeões e runas | Ranqueada solo com ban e troca de runas sem a UI oficial (MVP pronto) |
 | 4 · Social | Duo montada e chat com amigos só pelo app |
 | 5 · Redesign | Todas as telas do app seguem o novo visual |
-| 6 · Refinamento e testes | Todas as telas testadas no LoL real, sem bug aberto de criticidade média ou alta |
-| 7 · Celular e beta | 3 a 5 amigos usam a beta por uma semana |
+| 6 · Pós-jogo | Depois de uma normal e de uma ranqueada, o app mostra o resultado e as estatísticas e volta ao lobby com Jogar de novo, sem abrir a UI oficial |
+| 7 · Refinamento e testes | Todas as telas testadas no LoL real, sem bug aberto de criticidade média ou alta |
+| 8 · Celular e beta | 3 a 5 amigos usam a beta por uma semana |
 
 ## Autores
 

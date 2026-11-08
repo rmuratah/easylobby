@@ -38,12 +38,21 @@ O redesign dá ao app um visual próprio em todas as telas, sem mudar o agente. 
 - **Fonte:** Figtree, embutida no build. Nada é carregado da internet.
 - **Estrutura da janela:** barra de título própria, sem a moldura do Windows, com minimizar, fechar, "Abrir client oficial" e o seletor de tema. A área principal muda sozinha conforme o estado do jogo; amigos, convites e chat ficam numa coluna lateral recolhível.
 - **Lobby unificado:** fila e partida encontrada aparecem dentro da tela do lobby. Ao aceitar a partida, a seleção de campeões ocupa a tela.
-- **Escopo:** visual e melhorias de UX só na UI (atalhos, busca de campeão, estados vazios, de carregamento e de erro). O agente e o contrato do `/ws` não mudam nesta fase; o que precisar do agente vai para a Fase 6.
+- **Escopo:** visual e melhorias de UX só na UI (atalhos, busca de campeão, estados vazios, de carregamento e de erro). O agente e o contrato do `/ws` não mudam nesta fase; o que precisar do agente vai para a Fase 7 (Refinamento e testes).
 - **Limites:** a janela abre em 1100×700 e o mínimo é 960×640; contraste WCAG AA nos dois temas; a RAM no início, no lobby e na seleção pode subir no máximo 10% sobre a referência medida na [issue #121](https://github.com/rmuratah/easylobby/issues/121).
 
 ### Como o redesign convive com o trabalho em andamento
 
 O redesign é feito por rmuratah, em `ui/` e `desktop/`, que são pastas do Victor-Ricco. Combinado entre os dois: o Victor termina e mergeia a parte funcional de cada tela, e o redesign daquela tela só começa depois disso. O Victor revisa todos os PRs da fase. As mudanças entram aos poucos na `main`, um PR por issue: base visual, moldura e depois uma tela por vez.
+
+## Pós-jogo (Fase 6)
+
+Depois da partida, o app mostra o resultado e as estatísticas e volta ao lobby, sem abrir a interface oficial.
+
+- **Dados:** vêm de `/lol-end-of-game/v1/eog-stats-block`, lidos pelo agente e enviados à UI pelo `/ws` com tipos gerados, como nas outras telas ([issue #179](https://github.com/rmuratah/easylobby/issues/179)).
+- **Jogar de novo:** o botão chama `POST /lol-lobby/v2/play-again` e volta ao lobby com o mesmo grupo e a mesma fila ([issue #180](https://github.com/rmuratah/easylobby/issues/180)).
+- **Honra:** opcional. O jogador pode honrar um aliado ou pular, e nenhuma das duas escolhas trava a volta ao lobby ([issue #182](https://github.com/rmuratah/easylobby/issues/182)).
+- **Limites:** nada de loja, de missões pagas ou de ofertas na tela de pós-jogo, seguindo o escopo do produto.
 
 ## Responsabilidades e contribuição
 

@@ -61,8 +61,9 @@ Não reabra sem conversar com os dois devs. Consulte também o [registro de deci
 | 3 · Seleção de campeões e runas | Ranqueada solo com ban e troca de runas sem a UI oficial (MVP pronto) |
 | 4 · Social | Duo montada e chat com amigos só pelo app |
 | 5 · Redesign | Todas as telas do app seguem o novo visual |
-| 6 · Refinamento e testes | Todas as telas testadas no LoL real, sem bug aberto de criticidade média ou alta |
-| 7 · Celular e beta | 3 a 5 amigos usam a beta por uma semana |
+| 6 · Pós-jogo | Depois de uma normal e de uma ranqueada, o app mostra o resultado e as estatísticas e volta ao lobby com Jogar de novo, sem abrir a UI oficial |
+| 7 · Refinamento e testes | Todas as telas testadas no LoL real, sem bug aberto de criticidade média ou alta |
+| 8 · Celular e beta | 3 a 5 amigos usam a beta por uma semana |
 
 ## Divisão de tarefas
 
