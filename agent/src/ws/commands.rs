@@ -54,6 +54,7 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         }
         Command::RemoveBot { bot_uuid } => hub.remove_bot(&bot_uuid).await,
         Command::SwitchTeam { team } => hub.switch_team(team).await,
+        Command::Spectate => hub.spectate().await,
         Command::StartCustomGame => hub.start_custom_game().await,
 
         // Seleção de campeões

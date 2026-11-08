@@ -23,4 +23,12 @@ export type CustomLobby = {
    * Equipe 2, na ordem da LCU.
    */
   team2: Array<CustomMember>,
+  /**
+   * Quem está assistindo (`customSpectators`, #263), na ordem da LCU.
+   */
+  spectators: Array<CustomMember>,
+  /**
+   * Quantos podem assistir (`maxLobbySpectatorCount`; 4 na gravação).
+   */
+  maxSpectators: number,
 };

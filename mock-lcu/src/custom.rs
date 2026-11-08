@@ -83,6 +83,8 @@ pub fn make_custom(lobby: &mut Value, body: &Value) {
         config.insert("customTeam100".into(), json!([me]));
         config.insert("customTeam200".into(), json!([]));
         config.insert("customSpectators".into(), json!([]));
+        // Uma personalizada real tem 4 vagas de espectador (16.22-aram).
+        config.insert("maxLobbySpectatorCount".into(), json!(4));
         config.insert("customMutatorName".into(), json!(mutator));
         for (key, from) in [
             ("customLobbyName", &custom["lobbyName"]),
@@ -278,43 +280,63 @@ pub fn remove_bot(state: &LcuState, path: &str) -> (Response, Vec<EventFixture>)
     }
 }
 
-/// `POST` [`TEAM`]`/{team}`: leva o jogador logado para a equipe.
+/// `POST` [`TEAM`]`/{team}`: leva o jogador logado para a equipe, ou para
+/// os espectadores com `/spectator` (#263).
 pub fn switch_team(state: &LcuState, path: &str) -> (Response, Vec<EventFixture>) {
     let mut lobby = match custom_lobby(state) {
         Ok(lobby) => lobby,
         Err(error) => return error,
     };
-    let Some(key) = path
+    let target = path
         .strip_prefix(TEAM)
-        .and_then(|rest| rest.strip_prefix('/'))
-        .and_then(team_key)
-    else {
+        .and_then(|rest| rest.strip_prefix('/'));
+    let Some(key) = target.and_then(|t| {
+        if t == "spectator" {
+            Some(SPECTATORS)
+        } else {
+            team_key(t)
+        }
+    }) else {
         return error(400, "equipe inválida");
     };
     let puuid = lobby["localMember"]["puuid"].clone();
-    let other = if key == "customTeam100" {
-        "customTeam200"
-    } else {
-        "customTeam100"
-    };
-    let Some(index) = lobby["gameConfig"][other]
-        .as_array()
-        .and_then(|t| t.iter().position(|m| m["puuid"] == puuid))
+    let Some((from, index)) = ["customTeam100", "customTeam200", SPECTATORS]
+        .into_iter()
+        .filter(|&k| k != key)
+        .find_map(|k| {
+            lobby["gameConfig"][k]
+                .as_array()
+                .and_then(|t| t.iter().position(|m| m["puuid"] == puuid))
+                .map(|i| (k, i))
+        })
     else {
         return error(400, "já está nessa equipe");
     };
-    if full(&lobby, key) {
+    if key == SPECTATORS {
+        let config = &lobby["gameConfig"];
+        if config["customSpectatorPolicy"] == "NotAllowed" {
+            return error(400, "a personalizada não aceita espectadores");
+        }
+        let max = config["maxLobbySpectatorCount"].as_u64().unwrap_or(4) as usize;
+        if config[SPECTATORS].as_array().map_or(0, Vec::len) >= max {
+            return error(400, "vagas de espectador cheias");
+        }
+    } else if full(&lobby, key) {
         return error(400, "equipe cheia");
     }
-    let me = lobby["gameConfig"][other]
+    let me = lobby["gameConfig"][from]
         .as_array_mut()
         .map(|t| t.remove(index))
         .unwrap_or_default();
-    if let Some(team) = lobby["gameConfig"][key].as_array_mut() {
-        team.push(me);
+    match lobby["gameConfig"][key].as_array_mut() {
+        Some(team) => team.push(me),
+        None => lobby["gameConfig"][key] = json!([me]),
     }
     updated(lobby)
 }
+
+/// Espectadores da personalizada no `gameConfig`.
+const SPECTATORS: &str = "customSpectators";
 
 #[cfg(test)]
 mod tests {
@@ -393,5 +415,38 @@ mod tests {
         let fill = json!({"botDifficulty": "RSINTRO", "championId": 22, "teamId": "100", "position": "FILL"});
         assert_eq!(add_bot(&s, &fill).0.status, 400);
         assert!(!available_bots(&s).body.as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn vira_espectador_e_volta() {
+        let mut s = state();
+        practice(&mut s);
+        // O Modo de Treino não aceita espectadores.
+        assert_eq!(switch_team(&s, &format!("{TEAM}/spectator")).0.status, 400);
+
+        let body = json!({
+            "customGameLobby": {
+                "configuration": {"gameMode": "CLASSIC", "mapId": 11, "mutators": {"id": 18},
+                                  "spectatorPolicy": "AllAllowed", "teamSize": 5},
+                "lobbyName": "Partida", "lobbyPassword": ""
+            },
+            "isCustom": true
+        });
+        let (_, events) = lobby::create(&s, &body);
+        apply(&mut s, &events);
+        let (response, events) = switch_team(&s, &format!("{TEAM}/spectator"));
+        assert_eq!(response.status, 204);
+        apply(&mut s, &events);
+        let config = s.get(LOBBY).body["gameConfig"].clone();
+        assert!(config["customTeam100"].as_array().unwrap().is_empty());
+        assert_eq!(config["customSpectators"].as_array().unwrap().len(), 1);
+        assert_eq!(switch_team(&s, &format!("{TEAM}/spectator")).0.status, 400);
+
+        let (response, events) = switch_team(&s, &format!("{TEAM}/100"));
+        assert_eq!(response.status, 204);
+        apply(&mut s, &events);
+        let config = s.get(LOBBY).body["gameConfig"].clone();
+        assert_eq!(config["customTeam100"].as_array().unwrap().len(), 1);
+        assert!(config["customSpectators"].as_array().unwrap().is_empty());
     }
 }
