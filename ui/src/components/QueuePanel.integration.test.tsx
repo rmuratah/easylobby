@@ -122,6 +122,25 @@ describe('matchmaking pelo /ws', () => {
     expect(button('Cancelar busca')).toBeDisabled();
   });
 
+  it('mostra o motivo da fila bloqueada que a LCU mandou (#227)', () => {
+    render(<App />);
+    const restrictions = [
+      { code: 'TeamSizeRestriction', message: 'Esta fila não aceita grupos deste tamanho.', puuids: [] },
+      { code: 'RestricaoNova', message: null, puuids: [] },
+    ];
+    hello({ lobby: { ...testLobby, canStartActivity: false, restrictions }, gameflowPhase: 'Lobby' });
+    expect(button('Iniciar busca')).toBeDisabled();
+    const reasons = within(panel().getByRole('list', { name: 'Motivos da fila bloqueada' })).getAllByRole('listitem');
+    expect(reasons.map(r => r.textContent)).toEqual([
+      'Esta fila não aceita grupos deste tamanho.',
+      'O League of Legends não deixa iniciar a busca com este grupo agora.',
+    ]);
+    // Com a fila liberada, motivos que sobraram não aparecem.
+    hello({ lobby: { ...testLobby, canStartActivity: true, restrictions }, gameflowPhase: 'Lobby' });
+    expect(panel().queryByRole('list', { name: 'Motivos da fila bloqueada' })).not.toBeInTheDocument();
+    expect(button('Iniciar busca')).toBeEnabled();
+  });
+
   it('trata erro, falha de envio e timeout sem repetir comandos', async () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });

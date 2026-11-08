@@ -7,6 +7,7 @@ import type { Summoner } from '../bindings/Summoner';
 import type { Lobby } from '../bindings/Lobby';
 import type { LobbyMember } from '../bindings/LobbyMember';
 import type { PlayerSlot } from '../bindings/PlayerSlot';
+import type { LobbyRestriction } from '../bindings/LobbyRestriction';
 import type { LobbyInvitation } from '../bindings/LobbyInvitation';
 import type { InvitationState } from '../bindings/InvitationState';
 import type { Position } from '../bindings/Position';
@@ -83,13 +84,17 @@ function lobbyInvitation(v: unknown): v is LobbyInvitation {
   return object(v) && typeof v.puuid === 'string' && uint(v.summonerId) &&
     typeof v.state === 'string' && Object.hasOwn(invitationStates, v.state);
 }
+function lobbyRestriction(v: unknown): v is LobbyRestriction {
+  return object(v) && typeof v.code === 'string' && (v.message === null || typeof v.message === 'string') &&
+    Array.isArray(v.puuids) && v.puuids.every(p => typeof p === 'string');
+}
 function lobby(v: unknown): v is Lobby | null {
   return v === null || (object(v) && uint(v.queueId) && (v.queue === null || isQueue(v.queue)) &&
     uint(v.maxLobbySize) && typeof v.isLeader === 'boolean' && typeof v.canStartActivity === 'boolean' &&
     typeof v.showPositionSelector === 'boolean' && typeof v.showQuickPlaySlots === 'boolean' &&
     Array.isArray(v.scarcePositions) && v.scarcePositions.every(position) && Array.isArray(v.members) && v.members.every(lobbyMember) &&
     typeof v.canInvite === 'boolean' && Array.isArray(v.invitations) && v.invitations.every(lobbyInvitation) &&
-    typeof v.isOpen === 'boolean');
+    typeof v.isOpen === 'boolean' && Array.isArray(v.restrictions) && v.restrictions.every(lobbyRestriction));
 }
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const nums = (v: Record<string, unknown>, keys: string[]) => keys.every(k => num(v[k]));

@@ -3,6 +3,7 @@ import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
 import { queuePenalty } from '../agent/matchmaking';
+import { restrictionReasons } from '../agent/lobbyRestrictions';
 import { cx } from './base/cx';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
@@ -74,12 +75,14 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
   const canStart = !state.readyCheck && !!summoner && !!lobby && lobby.isLeader && lobby.canStartActivity && phase === 'Lobby' && !matchmaking;
   // A busca parada por punição também sai, mesmo se a fase não for `Matchmaking`.
   const canStop = !state.readyCheck && !!matchmaking && (phase === 'Matchmaking' || queuePenalty(matchmaking));
+  // Motivos da LCU para a fila bloqueada (#227), no lugar do aviso genérico.
+  const reasons = restrictionReasons(lobby);
   const restriction = !summoner ? 'Aguarde o login no League of Legends.'
     : matchmaking ? (canStop ? 'A busca confirmada pelo agente está em andamento.' : 'Aguarde a próxima fase confirmada pelo agente.')
     : !lobby ? 'Crie ou entre em um lobby antes de buscar uma partida.'
     : !lobby.isLeader ? 'Somente o líder do lobby pode iniciar a busca.'
     : phase !== 'Lobby' ? 'A busca só pode ser iniciada na fase de lobby.'
-    : !lobby.canStartActivity ? 'O lobby ainda não está pronto para iniciar a busca.'
+    : !lobby.canStartActivity ? (reasons.length ? 'A busca não pode começar:' : 'O lobby ainda não está pronto para iniciar a busca.')
     : 'O lobby está pronto para buscar uma partida.';
 
   async function execute(command: QueueCommand) {
@@ -144,7 +147,14 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
           ))}
         </ul>
       )}
-      <p className="rounded-tile bg-gold-soft px-4 py-2 text-center text-caption font-medium text-warn">{restriction}</p>
+      <div className="rounded-tile bg-gold-soft px-4 py-2 text-center text-caption font-medium text-warn">
+        <p>{restriction}</p>
+        {!matchmaking && reasons.length > 0 && (
+          <ul aria-label="Motivos da fila bloqueada" className="mt-1 flex flex-col gap-0.5 font-semibold">
+            {reasons.map(reason => <li key={reason}>{reason}</li>)}
+          </ul>
+        )}
+      </div>
       {feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}
         className={cx('px-1', feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted')}>{feedback.message}</p>}
       <div className="mt-auto flex items-center gap-2">

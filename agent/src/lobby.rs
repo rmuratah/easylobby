@@ -38,6 +38,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use ts_rs::TS;
 
+use crate::lobby_restrictions::{self, LobbyRestriction};
 use crate::quick_play::PlayerSlot;
 use crate::rest::{LcuClient, LcuError};
 
@@ -241,6 +242,10 @@ pub struct Lobby {
     /// Se o lobby está aberto (#225): amigos entram sem convite. Vem do
     /// `partyType` da LCU (`open` ou `closed`); só o líder troca.
     pub is_open: bool,
+    /// Por que a fila não pode começar (#227), como a LCU manda em
+    /// `restrictions`. Vazia quando nada bloqueia. A LCU pode mandar itens
+    /// mesmo com `canStartActivity`; a UI só mostra com a fila bloqueada.
+    pub restrictions: Vec<LobbyRestriction>,
     /// `multiUserChatId` da LCU: o começo do `id` da sala de chat do grupo
     /// (#206). A UI não precisa: o chat chega em `lobbyChat`.
     #[serde(skip)]
@@ -407,6 +412,7 @@ impl Lobby {
             can_invite: local_member.is_some_and(|m| m.is_leader || m.allowed_invite_others),
             invitations,
             is_open: raw.party_type == "open",
+            restrictions: lobby_restrictions::from_json(&raw.restrictions),
             chat_id: raw.multi_user_chat_id,
             chat_password: raw.multi_user_chat_password,
             chat_muc_jwt: raw.muc_jwt_dto,
@@ -437,6 +443,8 @@ struct RawLobby {
     scarce_positions: Value,
     #[serde(default)]
     party_type: String,
+    #[serde(default)]
+    restrictions: Value,
 }
 
 #[derive(Deserialize)]
@@ -705,6 +713,7 @@ mod tests {
                 state: InvitationState::Pending,
             }],
             is_open: true,
+            restrictions: Vec::new(),
             // Não vai para a UI.
             chat_id: "grupo".into(),
             chat_password: "senha".into(),
@@ -734,8 +743,23 @@ mod tests {
                 "canInvite": true,
                 "invitations": [{"puuid": "amigo", "summonerId": 4, "state": "Pending"}],
                 "isOpen": true,
+                "restrictions": [],
             })
         );
+    }
+
+    #[test]
+    fn le_o_motivo_da_fila_bloqueada() {
+        let lobby = Lobby::from_json(&json!({
+            "gameConfig": {"queueId": 440},
+            "canStartActivity": false,
+            "restrictions": [{"restrictionCode": "TeamSizeRestriction", "puuids": []}],
+        }))
+        .unwrap();
+        assert!(!lobby.can_start_activity);
+        assert_eq!(lobby.restrictions.len(), 1);
+        assert_eq!(lobby.restrictions[0].code, "TeamSizeRestriction");
+        assert!(lobby.restrictions[0].message.is_some());
     }
 
     #[test]
