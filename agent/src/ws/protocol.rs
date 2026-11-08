@@ -470,6 +470,14 @@ pub enum Command {
     /// chega numa mensagem `lobby` antes da resposta. Responde
     /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
     SetLobbyOpen { open: bool },
+    /// Põe o jogador logado na equipe `team`, vaga `position`, do lobby da
+    /// Arena (#224): `PUT /lol-lobby/v2/lobby/subteamData`. Os índices são
+    /// os de [`crate::lobby::SubteamSlot`], como a LCU manda. Fora de lobby
+    /// ou num lobby sem `subteams` responde `invalidCommand` sem falar com a
+    /// LCU. O lobby novo chega numa mensagem `lobby` antes da resposta.
+    /// Responde `notConnected` com o LoL fechado e `lcu` se a LCU recusar
+    /// (vaga que não existe, ocupada...).
+    SetSubteamSlot { team: u32, position: u32 },
     /// Adiciona um bot na equipe `team` da personalizada (#229): `POST
     /// /lol-lobby/v1/lobby/custom/bots`. O campeão é um de `availableBots`,
     /// a posição uma das 5 rotas (sem `fill` nem `unselected`) e a
@@ -927,6 +935,17 @@ mod tests {
         )
         .unwrap();
         assert_eq!(msg.command, Command::SetLobbyOpen { open: true });
+        let msg: ClientMessage = serde_json::from_value(json!(
+            {"id": 9, "command": {"type": "setSubteamSlot", "team": 2, "position": 1}}
+        ))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::SetSubteamSlot {
+                team: 2,
+                position: 1
+            }
+        );
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 8, "command": {"type": "launchLeague"}})).unwrap();
         assert_eq!(msg.command, Command::LaunchLeague);

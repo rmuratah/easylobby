@@ -4,6 +4,7 @@
 //! comando novo entra no bloco do assunto dele, não no fim.
 
 use crate::launcher::{self, LaunchOptions};
+use crate::lobby::SubteamSlot;
 use crate::swaps::SwapIntent;
 
 use super::protocol::{Command, CommandResult, ErrorCode};
@@ -31,6 +32,9 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::StartPracticeTool => hub.start_practice_tool().await,
         Command::SetPlayerSlots { slots } => hub.set_player_slots(slots).await,
         Command::SetLobbyOpen { open } => hub.set_lobby_open(open).await,
+        Command::SetSubteamSlot { team, position } => {
+            hub.set_subteam_slot(SubteamSlot { team, position }).await
+        }
         Command::AddBot {
             team,
             champion_id,

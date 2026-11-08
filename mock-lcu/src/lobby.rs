@@ -2,6 +2,13 @@
 //! os cargos do jogador (#18) em `PUT` [`POSITION_PREFERENCES`] e os slots
 //! do Jogo Dinâmico (#218) em `PUT` [`PLAYER_SLOTS`].
 //!
+//! Arena (#224): o lobby de uma fila `CHERRY` ganha equipes de 3
+//! (`maxTeamSize`) até caber o `maxLobbySize` (6 na Arena 3x6), e cada
+//! membro uma vaga em `subteamIndex` e `intraSubteamPosition`. O jogador
+//! troca de vaga em `PUT` [`SUBTEAM_DATA`]. A gravação não tem um lobby da
+//! Arena: os índices começando em 1 e a recusa de uma vaga ocupada são
+//! suposições do mock, ainda não conferidas no LoL real.
+//!
 //! As fixtures só têm `GET`, então o mock monta o lobby a partir do lobby
 //! gravado (trocando a fila) e manda os mesmos eventos que a LCU manda:
 //! a fase do gameflow vira `Lobby` e o lobby é criado ou atualizado. Sair do
@@ -28,6 +35,15 @@ pub const PLAYER_SLOTS: &str = "/lol-lobby/v1/lobby/members/localMember/player-s
 
 /// Lobby aberto ou fechado (#225).
 pub const PARTY_TYPE: &str = "/lol-lobby/v2/lobby/partyType";
+
+/// Equipe e vaga do jogador logado na Arena (#224).
+pub const SUBTEAM_DATA: &str = "/lol-lobby/v2/lobby/subteamData";
+
+/// `gameMode` da Arena.
+const ARENA_GAME_MODE: &str = "CHERRY";
+
+/// Vagas de cada equipe na Arena 3x6.
+const ARENA_TEAM_SIZE: u64 = 3;
 
 /// Cargos que a LCU aceita.
 const POSITIONS: [&str; 7] = [
@@ -107,6 +123,9 @@ pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
         .and_then(|q| q.get("showQuickPlaySlotSelection"))
         .and_then(Value::as_bool)
         .unwrap_or(false);
+    let game_mode = queue
+        .and_then(|q| q.get("gameMode"))
+        .and_then(Value::as_str);
 
     let current = state.get(LOBBY);
     let mut lobby = if current.status == 200 {
@@ -124,11 +143,23 @@ pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
         );
     }
     // Personalizada (#229): as equipes no `gameConfig`; numa fila comum, sem.
+    if let (Some(mode), Some(config)) = (
+        game_mode,
+        lobby.get_mut("gameConfig").and_then(Value::as_object_mut),
+    ) {
+        config.insert("gameMode".into(), json!(mode));
+    }
     if body.get("customGameLobby").is_some() {
         crate::custom::make_custom(&mut lobby);
     } else {
         crate::custom::make_queue(&mut lobby);
     }
+    // Equipes da Arena (#224); as outras filas ficam sem.
+    make_subteams(
+        &mut lobby,
+        game_mode == Some(ARENA_GAME_MODE),
+        max_lobby_size,
+    );
     let created = current.status != 200;
 
     let mut events = Vec::new();
@@ -333,6 +364,136 @@ pub fn set_party_type(state: &LcuState, body: &Value) -> (Response, Vec<EventFix
     )
 }
 
+/// Monta as equipes da Arena no lobby (`arena`), ou tira as equipes. Na
+/// Arena, cada membro sem vaga vai para a primeira vaga livre.
+fn make_subteams(lobby: &mut Value, arena: bool, max_lobby_size: u64) {
+    let teams = if arena {
+        max_lobby_size.div_ceil(ARENA_TEAM_SIZE).max(1)
+    } else {
+        1
+    };
+    if let Some(config) = lobby.get_mut("gameConfig").and_then(Value::as_object_mut) {
+        config.insert("numberOfTeamsInLobby".into(), json!(teams));
+        if arena {
+            config.insert("maxTeamSize".into(), json!(ARENA_TEAM_SIZE));
+        } else if config.get("maxTeamSize").and_then(Value::as_u64) == Some(ARENA_TEAM_SIZE) {
+            config.insert("maxTeamSize".into(), json!(5));
+        }
+    }
+    let Some(members) = lobby.get_mut("members").and_then(Value::as_array_mut) else {
+        return;
+    };
+    if !arena {
+        for member in members.iter_mut() {
+            member["subteamIndex"] = Value::Null;
+            member["intraSubteamPosition"] = Value::Null;
+        }
+    } else {
+        let mut taken: Vec<(u64, u64)> = members.iter().filter_map(subteam_of).collect();
+        for member in members.iter_mut().filter(|m| subteam_of(m).is_none()) {
+            let free = (1..=teams)
+                .flat_map(|team| (1..=ARENA_TEAM_SIZE).map(move |position| (team, position)))
+                .find(|slot| !taken.contains(slot));
+            if let Some((team, position)) = free {
+                member["subteamIndex"] = json!(team);
+                member["intraSubteamPosition"] = json!(position);
+                taken.push((team, position));
+            }
+        }
+    }
+    let puuid = lobby["localMember"]["puuid"].clone();
+    let me = lobby["members"]
+        .as_array()
+        .and_then(|members| members.iter().find(|m| m["puuid"] == puuid))
+        .cloned();
+    if let (Some(me), Some(local)) = (me, lobby["localMember"].as_object_mut()) {
+        local.insert("subteamIndex".into(), me["subteamIndex"].clone());
+        local.insert(
+            "intraSubteamPosition".into(),
+            me["intraSubteamPosition"].clone(),
+        );
+    }
+}
+
+/// A equipe e a vaga de um membro, se ele tem.
+fn subteam_of(member: &Value) -> Option<(u64, u64)> {
+    Some((
+        member["subteamIndex"].as_u64()?,
+        member["intraSubteamPosition"].as_u64()?,
+    ))
+}
+
+/// `PUT` [`SUBTEAM_DATA`] com `{"subteamIndex": N, "intraSubteamPosition":
+/// M}` (#224): põe o jogador logado na vaga, no `localMember` e em
+/// `members`. Fora de lobby responde 404; fora da Arena, com outro corpo ou
+/// com uma vaga que não existe, 400; com a vaga de outro jogador, 409.
+pub fn set_subteam_data(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
+    let current = state.get(LOBBY);
+    if current.status != 200 {
+        return (
+            Response::error(404, "mock-lcu: LOBBY_NOT_FOUND"),
+            Vec::new(),
+        );
+    }
+    let mut lobby = current.body;
+    let Some(slot) = subteam_of(body) else {
+        return (
+            Response::error(
+                400,
+                "mock-lcu: o corpo precisa de \"subteamIndex\" e \"intraSubteamPosition\"",
+            ),
+            Vec::new(),
+        );
+    };
+    if lobby["gameConfig"]["gameMode"] != json!(ARENA_GAME_MODE) {
+        return (
+            Response::error(400, "mock-lcu: esta fila não tem equipes"),
+            Vec::new(),
+        );
+    }
+    let teams = lobby["gameConfig"]["numberOfTeamsInLobby"]
+        .as_u64()
+        .unwrap_or(1);
+    let size = lobby["gameConfig"]["maxTeamSize"].as_u64().unwrap_or(0);
+    if !(1..=teams).contains(&slot.0) || !(1..=size).contains(&slot.1) {
+        return (
+            Response::error(400, "mock-lcu: essa vaga não existe"),
+            Vec::new(),
+        );
+    }
+    let puuid = lobby["localMember"]["puuid"].clone();
+    let taken = lobby["members"].as_array().is_some_and(|members| {
+        members
+            .iter()
+            .any(|m| m["puuid"] != puuid && subteam_of(m) == Some(slot))
+    });
+    if taken {
+        return (
+            Response::error(409, "mock-lcu: a vaga está ocupada"),
+            Vec::new(),
+        );
+    }
+    let set = |member: &mut Value| {
+        if let Some(member) = member.as_object_mut() {
+            member.insert("subteamIndex".into(), json!(slot.0));
+            member.insert("intraSubteamPosition".into(), json!(slot.1));
+        }
+    };
+    set(&mut lobby["localMember"]);
+    if let Some(members) = lobby.get_mut("members").and_then(Value::as_array_mut) {
+        for member in members.iter_mut().filter(|m| m["puuid"] == puuid) {
+            set(member);
+        }
+    }
+    (
+        Response {
+            status: 204,
+            body: Value::Null,
+        },
+        vec![event(LOBBY, "Update", lobby)],
+    )
+}
+
 /// Lobby novo: o gravado, ou um mínimo com o invocador logado de líder.
 pub fn template(state: &LcuState) -> Value {
     if let Some(recorded) = state.recorded_body(LOBBY) {
@@ -380,6 +541,67 @@ mod tests {
         for e in events {
             state.apply(e);
         }
+    }
+
+    #[test]
+    fn equipes_e_vagas_da_arena() {
+        fn slot(s: &LcuState, team: u64, position: u64) -> (Response, Vec<EventFixture>) {
+            set_subteam_data(
+                s,
+                &json!({"subteamIndex": team, "intraSubteamPosition": position}),
+            )
+        }
+
+        let mut s = state("16.22");
+        assert_eq!(
+            set_subteam_data(&s, &json!({"subteamIndex": 1, "intraSubteamPosition": 1}))
+                .0
+                .status,
+            404
+        );
+
+        let (response, events) = create(&s, &json!({"queueId": 1750}));
+        assert_eq!(response.status, 200);
+        let config = &response.body["gameConfig"];
+        assert_eq!(config["gameMode"], "CHERRY");
+        assert_eq!(config["maxLobbySize"], 18);
+        assert_eq!(config["numberOfTeamsInLobby"], 6);
+        assert_eq!(config["maxTeamSize"], 3);
+        assert_eq!(response.body["localMember"]["subteamIndex"], 1);
+        assert_eq!(response.body["members"][0]["intraSubteamPosition"], 1);
+        apply(&mut s, &events);
+
+        assert_eq!(slot(&s, 7, 1).0.status, 400, "só 6 equipes");
+        assert_eq!(slot(&s, 1, 4).0.status, 400, "só 3 vagas");
+        assert_eq!(slot(&s, 0, 1).0.status, 400, "começa em 1");
+        assert_eq!(set_subteam_data(&s, &json!({})).0.status, 400);
+        let (response, events) = slot(&s, 3, 2);
+        assert_eq!(response.status, 204);
+        apply(&mut s, &events);
+        let lobby = s.get(LOBBY).body;
+        assert_eq!(lobby["localMember"]["subteamIndex"], 3);
+        assert_eq!(lobby["members"][0]["intraSubteamPosition"], 2);
+
+        // Vaga de outro jogador.
+        let mut cheio = lobby.clone();
+        cheio["members"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"puuid": "amigo", "subteamIndex": 5, "intraSubteamPosition": 1}));
+        apply(&mut s, &[event(LOBBY, "Update", cheio)]);
+        assert_eq!(slot(&s, 5, 1).0.status, 409);
+
+        // Voltar para uma fila comum tira as equipes.
+        let (response, _) = create(&s, &json!({"queueId": 400}));
+        assert_eq!(response.body["gameConfig"]["numberOfTeamsInLobby"], 1);
+        assert_eq!(response.body["gameConfig"]["maxTeamSize"], 5);
+        assert!(response.body["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|m| m["subteamIndex"].is_null()));
+        apply(&mut s, &[event(LOBBY, "Update", response.body)]);
+        assert_eq!(slot(&s, 1, 1).0.status, 400, "fora da Arena");
     }
 
     #[test]

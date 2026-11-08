@@ -478,3 +478,97 @@ async fn sem_lol_responde_not_connected() {
         }
     ));
 }
+
+#[tokio::test]
+async fn troca_de_vaga_no_lobby_da_arena() {
+    use easylobby_agent::lobby::{self, SubteamLayout, SubteamSlot};
+    use easylobby_agent::lockfile::Credentials;
+    use easylobby_agent::rest::LcuClient;
+    let dir = temp_dir("arena");
+    let mock = start_mock(&dir).await;
+    let url = start_agent(&dir).await;
+    let mut ui = tokio_tungstenite::connect_async(&url).await.unwrap().0;
+    wait_summoner(&mut ui).await;
+
+    // A Arena 3x6 vem fechada na gravação, então o agente não cria o lobby
+    // nela; o teste cria direto na LCU falsa, como o client oficial faria.
+    let creds = Credentials::from_lockfile_path(&dir.join("lockfile")).unwrap();
+    let ca_pem = std::fs::read_to_string(dir.join("mock-lcu-ca.pem")).unwrap();
+    let lcu = LcuClient::with_root_certificate(&creds, ca_pem.as_bytes()).unwrap();
+    lobby::create_lobby_by_id(&lcu, 1750).await.unwrap();
+    let arena = loop {
+        if let ServerMessage::Lobby { lobby: Some(lobby) } = recv(&mut ui).await {
+            break lobby;
+        }
+    };
+    assert_eq!(arena.subteams, Some(SubteamLayout { count: 6, size: 3 }));
+    assert_eq!(arena.max_lobby_size, 18);
+    assert_eq!(
+        arena.members[0].subteam,
+        Some(SubteamSlot {
+            team: 1,
+            position: 1
+        })
+    );
+
+    send(
+        &mut ui,
+        1,
+        Command::SetSubteamSlot {
+            team: 4,
+            position: 2,
+        },
+    )
+    .await;
+    let (before, result) = until_response(&mut ui, 1).await;
+    assert_eq!(result, CommandResult::Ok);
+    assert_eq!(
+        last_lobby(&before).members[0].subteam,
+        Some(SubteamSlot {
+            team: 4,
+            position: 2
+        })
+    );
+
+    // Uma vaga que não existe: a LCU recusa.
+    send(
+        &mut ui,
+        2,
+        Command::SetSubteamSlot {
+            team: 7,
+            position: 1,
+        },
+    )
+    .await;
+    let (_, result) = until_response(&mut ui, 2).await;
+    assert!(is_error(&result, ErrorCode::Lcu), "{result:?}");
+
+    // Numa fila sem equipes o agente recusa sem falar com a LCU.
+    send(
+        &mut ui,
+        3,
+        Command::CreateLobby {
+            queue: Queue::NormalDraft,
+        },
+    )
+    .await;
+    let (before, result) = until_response(&mut ui, 3).await;
+    assert_eq!(result, CommandResult::Ok);
+    let normal = last_lobby(&before);
+    assert_eq!(normal.subteams, None);
+    assert!(normal.members.iter().all(|m| m.subteam.is_none()));
+    send(
+        &mut ui,
+        4,
+        Command::SetSubteamSlot {
+            team: 1,
+            position: 1,
+        },
+    )
+    .await;
+    let (_, result) = until_response(&mut ui, 4).await;
+    assert!(is_error(&result, ErrorCode::InvalidCommand), "{result:?}");
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -1,7 +1,7 @@
 //! Lobby e fila: criar, sair, cargos e busca de partida.
 
 use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
-use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError};
+use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError, SubteamSlot};
 use crate::matchmaking::{self, Matchmaking};
 use crate::queues::{GameQueue, MODE_SCREEN_QUEUES};
 use crate::quick_play::{self, PlayerSlotInput, SetSlotsError};
@@ -224,6 +224,34 @@ impl Hub {
             return not_connected();
         };
         match lobby::set_lobby_open(&client, open).await {
+            Ok(()) => {
+                self.refresh_lobby().await;
+                CommandResult::Ok
+            }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
+    /// Troca o jogador logado de equipe ou de vaga no lobby da Arena (comando
+    /// `setSubteamSlot`, #224). Fora de lobby ou num lobby sem equipes,
+    /// recusa sem falar com a LCU. Relê o lobby pelo REST e publica antes de
+    /// devolver.
+    pub async fn set_subteam_slot(&self, slot: SubteamSlot) -> CommandResult {
+        let subteams = self.lock().state.lobby.as_ref().map(|l| l.subteams);
+        match subteams {
+            None => return CommandResult::error(ErrorCode::InvalidCommand, "fora de lobby"),
+            Some(None) => {
+                return CommandResult::error(
+                    ErrorCode::InvalidCommand,
+                    "este lobby não tem equipes",
+                )
+            }
+            Some(Some(_)) => {}
+        }
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        match lobby::set_subteam_slot(&client, slot).await {
             Ok(()) => {
                 self.refresh_lobby().await;
                 CommandResult::Ok
@@ -714,6 +742,48 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[tokio::test]
+    async fn trocar_de_vaga_so_no_lobby_com_equipes() {
+        let hub = Hub::new();
+        let slot = SubteamSlot {
+            team: 2,
+            position: 1,
+        };
+        let code = |result: CommandResult| match result {
+            CommandResult::Error { code, .. } => Some(code),
+            CommandResult::Ok => None,
+        };
+        assert_eq!(
+            code(hub.set_subteam_slot(slot).await),
+            Some(ErrorCode::InvalidCommand),
+            "fora de lobby"
+        );
+        hub.apply(event(
+            LOBBY_PATH,
+            EventType::Create,
+            json!({"gameConfig": {"queueId": 400, "gameMode": "CLASSIC", "maxTeamSize": 5}}),
+        ))
+        .await;
+        assert_eq!(
+            code(hub.set_subteam_slot(slot).await),
+            Some(ErrorCode::InvalidCommand),
+            "lobby sem equipes"
+        );
+        hub.apply(event(
+            LOBBY_PATH,
+            EventType::Update,
+            json!({"gameConfig": {
+                "queueId": 1750, "gameMode": "CHERRY",
+                "maxLobbySize": 18, "maxTeamSize": 3, "numberOfTeamsInLobby": 6,
+            }}),
+        ))
+        .await;
+        assert_eq!(
+            code(hub.set_subteam_slot(slot).await),
+            Some(ErrorCode::NotConnected)
+        );
     }
 
     #[tokio::test]

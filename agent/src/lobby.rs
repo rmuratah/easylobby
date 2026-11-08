@@ -30,6 +30,17 @@
 //! amigos entram sem convite. O líder troca com
 //! `PUT /lol-lobby/v2/lobby/partyType`, mandando `"open"` ou `"closed"`.
 //!
+//! Equipes da Arena (#224): na Arena 3x6 o lobby tem até 18 jogadores em 6
+//! equipes de 3, e cada jogador escolhe a equipe e a vaga dentro dela. A
+//! LCU manda o tamanho em `gameConfig` (`numberOfTeamsInLobby` e
+//! `maxTeamSize`) e a vaga de cada membro em `subteamIndex` e
+//! `intraSubteamPosition`; o agente passa em [`Lobby::subteams`] e
+//! [`LobbyMember::subteam`]. O jogador troca de vaga com
+//! `PUT /lol-lobby/v2/lobby/subteamData`, mandando
+//! `{"subteamIndex": N, "intraSubteamPosition": M}`. Os índices vão para a
+//! UI como a LCU manda; a gravação 16.22 não tem um lobby da Arena, então
+//! ainda falta confirmar no LoL real se começam em 0 ou em 1.
+//!
 //! O [`Lobby`] guarda só o que a tela de lobby usa. Os outros campos da
 //! resposta são ignorados, então um campo novo num patch não quebra a
 //! leitura.
@@ -52,6 +63,12 @@ pub const POSITION_PREFERENCES_PATH: &str =
 
 /// Endpoint do lobby aberto ou fechado (#225).
 pub const PARTY_TYPE_PATH: &str = "/lol-lobby/v2/lobby/partyType";
+
+/// Endpoint da equipe e da vaga do jogador logado na Arena (#224).
+pub const SUBTEAM_DATA_PATH: &str = "/lol-lobby/v2/lobby/subteamData";
+
+/// `gameMode` da Arena na LCU.
+const ARENA_GAME_MODE: &str = "CHERRY";
 
 /// Um cargo (posição) no lobby. Na LCU são as strings em maiúsculas de
 /// [`Position::lcu_name`]; para a UI vão em camelCase (`"top"`,
@@ -214,8 +231,9 @@ pub struct Lobby {
     pub queue_id: u32,
     /// A fila do lobby, ou `null` quando não é uma das [`Queue`].
     pub queue: Option<Queue>,
-    /// Quantos jogadores cabem no grupo nesta fila (2 na Solo/Duo, 5 nas
-    /// outras).
+    /// Quantos jogadores cabem no grupo nesta fila (2 na Solo/Duo, 18 na
+    /// Arena 3x6, 5 nas outras). No lobby com equipes, nunca menos que
+    /// `subteams.count * subteams.size`.
     pub max_lobby_size: u32,
     /// Se o jogador logado é o líder: só o líder troca a fila.
     pub is_leader: bool,
@@ -250,6 +268,10 @@ pub struct Lobby {
     /// As duas equipes, numa personalizada como o Modo de Treino (#229), ou
     /// `null` nas filas comuns. Veja [`crate::custom_lobby`].
     pub custom: Option<CustomLobby>,
+    /// As equipes do lobby da Arena (#224): quantas são e quantas vagas tem
+    /// cada uma. `null` nas filas sem equipes no lobby. A vaga de cada
+    /// jogador vem em [`LobbyMember::subteam`].
+    pub subteams: Option<SubteamLayout>,
     /// `multiUserChatId` da LCU: o começo do `id` da sala de chat do grupo
     /// (#206). A UI não precisa: o chat chega em `lobbyChat`.
     #[serde(skip)]
@@ -263,6 +285,27 @@ pub struct Lobby {
     #[serde(skip)]
     #[ts(skip)]
     pub chat_muc_jwt: Value,
+}
+
+/// As equipes de um lobby da Arena (#224).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct SubteamLayout {
+    /// Quantas equipes cabem no lobby (6 na Arena 3x6).
+    pub count: u32,
+    /// Quantas vagas tem cada equipe (3 na Arena 3x6).
+    pub size: u32,
+}
+
+/// A equipe e a vaga de um jogador no lobby da Arena (#224), com os índices
+/// como a LCU manda (`subteamIndex` e `intraSubteamPosition`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct SubteamSlot {
+    /// A equipe (`subteamIndex`).
+    pub team: u32,
+    /// A vaga dentro da equipe (`intraSubteamPosition`).
+    pub position: u32,
 }
 
 /// Um convite que o grupo mandou (#32).
@@ -357,6 +400,9 @@ pub struct LobbyMember {
     /// Posições e campeões do Jogo Dinâmico (#218), na ordem dos slots.
     /// Vazia nas outras filas e antes de o jogador escolher.
     pub player_slots: Vec<PlayerSlot>,
+    /// Equipe e vaga no lobby da Arena (#224). `null` nas filas sem equipes
+    /// e enquanto a LCU não põe o jogador numa vaga.
+    pub subteam: Option<SubteamSlot>,
 }
 
 impl Lobby {
@@ -376,6 +422,10 @@ impl Lobby {
                 first_position: Position::from_lcu(m.first_position_preference.as_deref()),
                 second_position: Position::from_lcu(m.second_position_preference.as_deref()),
                 player_slots: PlayerSlot::list_from_json(&m.player_slots),
+                subteam: match (m.subteam_index, m.intra_subteam_position) {
+                    (Some(team), Some(position)) => Some(SubteamSlot { team, position }),
+                    _ => None,
+                },
             })
             .collect::<Vec<LobbyMember>>();
         // A LCU lista em `invitations` até o próprio jogador logado, como
@@ -393,10 +443,18 @@ impl Lobby {
             })
             .collect();
         let local_member = raw.local_member.as_ref();
+        let subteams = subteam_layout(&raw.game_config, &members);
+        let max_lobby_size = match subteams {
+            Some(layout) => raw
+                .game_config
+                .max_lobby_size
+                .max(layout.count * layout.size),
+            None => raw.game_config.max_lobby_size,
+        };
         Some(Lobby {
             queue_id: raw.game_config.queue_id,
             queue: Queue::from_id(raw.game_config.queue_id),
-            max_lobby_size: raw.game_config.max_lobby_size,
+            max_lobby_size,
             is_leader: local_member.is_some_and(|m| m.is_leader),
             can_start_activity: raw.can_start_activity,
             show_position_selector: raw.game_config.show_position_selector,
@@ -420,11 +478,38 @@ impl Lobby {
             custom: value
                 .get("gameConfig")
                 .and_then(CustomLobby::from_game_config),
+            subteams,
             chat_id: raw.multi_user_chat_id,
             chat_password: raw.multi_user_chat_password,
             chat_muc_jwt: raw.muc_jwt_dto,
         })
     }
+}
+
+/// As equipes do lobby (#224), ou `None` numa fila sem equipes no lobby.
+///
+/// Têm equipes a Arena (`gameMode` `CHERRY`), o lobby que a LCU diz ter mais
+/// de uma equipe (`numberOfTeamsInLobby`) e o que já tem alguém numa vaga.
+/// A personalizada fica de fora: as equipes dela vêm em [`Lobby::custom`].
+/// Com `numberOfTeamsInLobby` em 1 (como a lista de filas manda a Arena), o
+/// número de equipes sai de `maxLobbySize / maxTeamSize`.
+fn subteam_layout(config: &RawGameConfig, members: &[LobbyMember]) -> Option<SubteamLayout> {
+    if config.is_custom {
+        return None;
+    }
+    let has_subteams = config.game_mode == ARENA_GAME_MODE
+        || config.number_of_teams_in_lobby > 1
+        || members.iter().any(|m| m.subteam.is_some());
+    let size = config.max_team_size;
+    if !has_subteams || size == 0 {
+        return None;
+    }
+    let count = if config.number_of_teams_in_lobby > 1 {
+        config.number_of_teams_in_lobby
+    } else {
+        config.max_lobby_size.div_ceil(size)
+    };
+    (count > 0).then_some(SubteamLayout { count, size })
 }
 
 /// O lobby como a LCU manda, só com os campos usados.
@@ -475,6 +560,14 @@ struct RawGameConfig {
     show_position_selector: bool,
     #[serde(default)]
     show_quick_play_slot_selection: bool,
+    #[serde(default)]
+    game_mode: String,
+    #[serde(default)]
+    is_custom: bool,
+    #[serde(default)]
+    number_of_teams_in_lobby: u32,
+    #[serde(default)]
+    max_team_size: u32,
 }
 
 #[derive(Deserialize)]
@@ -498,6 +591,10 @@ struct RawMember {
     second_position_preference: Option<String>,
     #[serde(default)]
     player_slots: Value,
+    #[serde(default)]
+    subteam_index: Option<u32>,
+    #[serde(default)]
+    intra_subteam_position: Option<u32>,
 }
 
 /// Busca o lobby atual. Fora de lobby a LCU responde `404`, que volta como
@@ -556,6 +653,20 @@ pub async fn set_positions(
 pub async fn set_lobby_open(lcu: &LcuClient, open: bool) -> Result<(), LcuError> {
     let party_type = if open { "open" } else { "closed" };
     lcu.put::<_, Option<Value>>(PARTY_TYPE_PATH, &json!(party_type))
+        .await
+        .map(|_| ())
+}
+
+/// Põe o jogador logado na vaga `slot` do lobby da Arena
+/// (`PUT /lol-lobby/v2/lobby/subteamData`, #224). A LCU recusa fora de
+/// lobby e numa fila sem equipes. O lobby novo chega pelo WAMP (ou por
+/// [`current_lobby`]).
+pub async fn set_subteam_slot(lcu: &LcuClient, slot: SubteamSlot) -> Result<(), LcuError> {
+    let body = json!({
+        "subteamIndex": slot.team,
+        "intraSubteamPosition": slot.position,
+    });
+    lcu.put::<_, Option<Value>>(SUBTEAM_DATA_PATH, &body)
         .await
         .map(|_| ())
 }
@@ -713,6 +824,7 @@ mod tests {
                 first_position: Position::Top,
                 second_position: Position::Unselected,
                 player_slots: Vec::new(),
+                subteam: None,
             }],
             can_invite: true,
             invitations: vec![LobbyInvitation {
@@ -723,6 +835,7 @@ mod tests {
             is_open: true,
             restrictions: Vec::new(),
             custom: None,
+            subteams: None,
             // Não vai para a UI.
             chat_id: "grupo".into(),
             chat_password: "senha".into(),
@@ -748,14 +861,111 @@ mod tests {
                     "firstPosition": "top",
                     "secondPosition": "unselected",
                     "playerSlots": [],
+                    "subteam": null,
                 }],
                 "canInvite": true,
                 "invitations": [{"puuid": "amigo", "summonerId": 4, "state": "Pending"}],
                 "isOpen": true,
                 "restrictions": [],
                 "custom": null,
+                "subteams": null,
             })
         );
+    }
+
+    #[test]
+    fn le_as_equipes_da_arena() {
+        let lobby = Lobby::from_json(&json!({
+            "gameConfig": {
+                "queueId": 1750, "gameMode": "CHERRY", "isCustom": false,
+                "maxLobbySize": 18, "maxTeamSize": 3, "numberOfTeamsInLobby": 6,
+            },
+            "members": [
+                {"puuid": "eu", "subteamIndex": 1, "intraSubteamPosition": 0},
+                {"puuid": "amigo", "subteamIndex": 4, "intraSubteamPosition": 2},
+                {"puuid": "chegando", "subteamIndex": null, "intraSubteamPosition": null},
+            ],
+        }))
+        .unwrap();
+        assert_eq!(lobby.subteams, Some(SubteamLayout { count: 6, size: 3 }));
+        assert_eq!(lobby.max_lobby_size, 18);
+        let slots: Vec<Option<SubteamSlot>> = lobby.members.iter().map(|m| m.subteam).collect();
+        assert_eq!(
+            slots,
+            [
+                Some(SubteamSlot {
+                    team: 1,
+                    position: 0
+                }),
+                Some(SubteamSlot {
+                    team: 4,
+                    position: 2
+                }),
+                None,
+            ]
+        );
+        assert_eq!(
+            serde_json::to_value(lobby.members[1].subteam).unwrap(),
+            json!({"team": 4, "position": 2})
+        );
+        assert_eq!(
+            serde_json::to_value(lobby.subteams).unwrap(),
+            json!({"count": 6, "size": 3})
+        );
+    }
+
+    #[test]
+    fn equipes_da_arena_sem_o_numero_de_equipes() {
+        // Como a lista de filas manda a Arena: uma equipe só no lobby. O
+        // número sai do tamanho do lobby.
+        let lobby = Lobby::from_json(&json!({
+            "gameConfig": {
+                "queueId": 1750, "gameMode": "CHERRY",
+                "maxLobbySize": 18, "maxTeamSize": 3, "numberOfTeamsInLobby": 1,
+            },
+        }))
+        .unwrap();
+        assert_eq!(lobby.subteams, Some(SubteamLayout { count: 6, size: 3 }));
+
+        // O lobby nunca diz caber menos gente que as equipes.
+        let pequeno = Lobby::from_json(&json!({
+            "gameConfig": {
+                "queueId": 1750, "gameMode": "CHERRY",
+                "maxLobbySize": 5, "maxTeamSize": 3, "numberOfTeamsInLobby": 6,
+            },
+        }))
+        .unwrap();
+        assert_eq!(pequeno.max_lobby_size, 18);
+    }
+
+    #[test]
+    fn filas_sem_equipes_no_lobby() {
+        // A gravação 16.22 (Solo/Duo) manda `maxTeamSize` 5 e
+        // `numberOfTeamsInLobby` 1, com `subteamIndex` em `null`.
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/16.22/rest.json");
+        let rest: Vec<Value> =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        for record in rest
+            .iter()
+            .filter(|r| r["path"] == LOBBY_PATH && r["status"] == 200)
+        {
+            let lobby = Lobby::from_json(&record["body"]).unwrap();
+            assert_eq!(lobby.subteams, None);
+            assert_eq!(lobby.max_lobby_size, 2);
+            assert!(lobby.members.iter().all(|m| m.subteam.is_none()));
+        }
+
+        // A personalizada tem as equipes em `custom`, não em `subteams`.
+        let custom = Lobby::from_json(&json!({
+            "gameConfig": {
+                "queueId": 3140, "gameMode": "PRACTICETOOL", "isCustom": true,
+                "maxLobbySize": 10, "maxTeamSize": 5, "numberOfTeamsInLobby": 2,
+            },
+        }))
+        .unwrap();
+        assert_eq!(custom.subteams, None);
+        assert_eq!(custom.max_lobby_size, 10);
     }
 
     #[test]
