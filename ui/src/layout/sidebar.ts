@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 export const SIDEBAR_STORAGE_KEY = "easylobby.amigos";
 /** Abaixo dessa largura, a seleção de campeões precisa da janela inteira. */
-export const NARROW_QUERY = "(max-width: 1279px)";
+const NARROW_QUERY = "(max-width: 1279px)";
 
 type Stored = "aberta" | "recolhida";
 

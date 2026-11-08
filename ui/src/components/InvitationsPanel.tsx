@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import { assetUrl } from '../agent/assets';
-import { friendRiotId } from '../agent/friends';
+import { friendDisplayName } from '../agent/friends';
 import { invitationQueueName, invitationSender, inviterName } from '../agent/invitations';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
@@ -118,7 +118,7 @@ function ReceivedItem({ invitation, friends, queues, busy, onAccept, onDecline }
       <span className="flex items-start gap-2">
         <Avatar name={name} size={32} src={icon} />
         <span className="min-w-0 break-words text-body">
-          <strong title={sender ? friendRiotId(sender) : undefined}>{name}</strong> chamou você
+          <strong title={sender ? friendDisplayName(sender) : undefined}>{name}</strong> chamou você
           para <strong>{invitationQueueName(invitation, queues)}</strong>.
         </span>
       </span>

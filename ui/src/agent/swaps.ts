@@ -2,7 +2,7 @@ import type { ChampSelect } from '../bindings/ChampSelect';
 import type { ChampSelectSwap } from '../bindings/ChampSelectSwap';
 import type { SwapKind } from '../bindings/SwapKind';
 
-export const swapKinds = ['champion', 'pickOrder', 'position'] as const satisfies readonly SwapKind[];
+const swapKinds = ['champion', 'pickOrder', 'position'] as const satisfies readonly SwapKind[];
 
 /** O que se troca, para os textos ("troca de campeão"). */
 export const swapKindNames = {

@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import type { ConnectionSnapshot } from '../agent/client';
 import { assetUrl } from '../agent/assets';
-import { availabilityColors, availabilityNames, describeActivity, friendNick, friendRiotId, groupFriends, isOnline } from '../agent/friends';
+import { availabilityColors, availabilityNames, describeActivity, friendNick, friendDisplayName, groupFriends, isOnline } from '../agent/friends';
 import type { Friend } from '../bindings/Friend';
 import { Avatar, Card, SearchField } from './base';
 import { FRIEND_DRAG_TYPE } from '../agent/lobbyInvite';
@@ -56,7 +56,7 @@ export function FriendsList({ connection, renderActions }: Props) {
 
   const query = filter.trim().toLowerCase();
   const visible = query
-    ? friends.filter(friend => `${friendRiotId(friend)} ${friend.name}`.toLowerCase().includes(query))
+    ? friends.filter(friend => `${friendDisplayName(friend)} ${friend.name}`.toLowerCase().includes(query))
     : friends;
   const offline = visible.filter(friend => !isOnline(friend));
   const onlineTotal = friends.filter(isOnline).length;
@@ -121,7 +121,7 @@ function Folder({ id, title, count, open, onToggle, children }: {
 
 function FriendItem({ friend, now, actions }: { friend: Friend; now: number; actions?: ReactNode }) {
   const name = friendNick(friend);
-  const riotId = friendRiotId(friend);
+  const riotId = friendDisplayName(friend);
   const activity = describeActivity(friend, now);
   const offline = !isOnline(friend);
   return (
