@@ -216,15 +216,8 @@ async fn quem_chega_no_meio_recebe_a_selecao_no_hello() {
     // O mock anda até a vez do jogador antes de o agente existir: o agente
     // tem que ler a seleção pelo REST ao conectar.
     let mock = start_mock(&dir, fixtures_until_local_turn(), ReplayStart::Immediately).await;
-    for _ in 0..200 {
-        if mock.phase() == "ChampSelect" {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(25)).await;
-    }
+    mock.replay_finished().await;
     assert_eq!(mock.phase(), "ChampSelect");
-    // O último evento (a vez do jogador) sai logo depois da fase.
-    tokio::time::sleep(Duration::from_millis(500)).await;
 
     let url = start_agent(&dir).await;
     let mut ui = connect(&url).await;

@@ -165,6 +165,9 @@ struct Shared {
     state: Mutex<LcuState>,
     events: broadcast::Sender<EventFixture>,
     start: Notify,
+    /// Vira `true` quando a gravação termina de ser reproduzida (ou quando
+    /// não há reprodução), para os testes começarem com o mock parado (#241).
+    replayed: watch::Sender<bool>,
     /// Vira `true` quando o servidor para; derruba os WebSockets abertos,
     /// como o LoL fechando.
     stopped: watch::Sender<bool>,
@@ -287,6 +290,7 @@ impl MockLcu {
             state: Mutex::new(LcuState::new(&config.fixtures)),
             events,
             start: Notify::new(),
+            replayed: watch::Sender::new(false),
             stopped: watch::Sender::new(false),
             authorization: format!(
                 "Basic {}",
@@ -389,6 +393,18 @@ impl MockLcu {
     /// conferir que o agente não deixou conexões para trás (#58).
     pub fn wamp_clients(&self) -> usize {
         self.shared.wamp_clients.load(Ordering::SeqCst)
+    }
+
+    /// Espera a reprodução da gravação terminar. Com [`Config::repeat`] ela
+    /// nunca termina, e isto espera para sempre.
+    ///
+    /// Com [`ReplayStart::Immediately`], quem conecta no meio da reprodução
+    /// recebe pelo WAMP eventos mais velhos que a leitura que acabou de fazer
+    /// pelo REST. Os testes que querem o mock parado esperam aqui antes de
+    /// subir o agente (#241).
+    pub async fn replay_finished(&self) {
+        let mut replayed = self.shared.replayed.subscribe();
+        let _ = replayed.wait_for(|done| *done).await;
     }
 
     /// Começa a reprodução agora, sem esperar uma inscrição WAMP.
@@ -496,11 +512,15 @@ async fn replay(
     repeat: bool,
 ) {
     match start {
-        ReplayStart::Never => return,
+        ReplayStart::Never => {
+            shared.replayed.send_replace(true);
+            return;
+        }
         ReplayStart::OnFirstSubscribe => shared.start.notified().await,
         ReplayStart::Immediately => {}
     }
     if events.is_empty() {
+        shared.replayed.send_replace(true);
         return;
     }
     loop {
@@ -513,6 +533,7 @@ async fn replay(
         }
         println!("fim da gravação");
         if !repeat {
+            shared.replayed.send_replace(true);
             return;
         }
         tokio::time::sleep(Duration::from_secs_f64(1.0 / speed)).await;
