@@ -1,5 +1,6 @@
 //! Releituras atrasadas da seleção de campeões e das runas não trazem de
-//! volta um estado que já acabou (#87).
+//! volta um estado que já acabou (#87), nem os eventos que chegam durante a
+//! releitura da conexão (#245).
 //!
 //! Como em `resposta_atrasada.rs` (#73): cada teste segura no mock-lcu a
 //! releitura que o comando faz depois de dar certo, muda o estado por fora
@@ -16,6 +17,7 @@ use easylobby_agent::champ_select::{
 use easylobby_agent::connection::{CredentialSource, LcuConnection, ReconnectConfig};
 use easylobby_agent::fixtures::{EventFixture, FixtureSet};
 use easylobby_agent::runes::PAGES_PATH;
+use easylobby_agent::summoner::CURRENT_SUMMONER_PATH;
 use easylobby_agent::ws::protocol::{
     AgentState, ClientMessage, Command, CommandResult, LcuStatus, ServerMessage,
 };
@@ -367,5 +369,70 @@ async fn releitura_das_runas_da_sessao_antiga_nao_entra_na_nova() {
 
     new.shutdown().await;
     drop(old);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A sessão parada da gravação com o campeão do jogador trocado por
+/// `champion`, para marcar a ordem dos eventos.
+fn session_with(base: &Value, champion: u64) -> Value {
+    let mut session = base.clone();
+    let local = session["localPlayerCellId"].clone();
+    for player in session["myTeam"].as_array_mut().unwrap() {
+        if player["cellId"] == local {
+            player["championId"] = json!(champion);
+        }
+    }
+    session
+}
+
+fn local_champion(m: &ServerMessage) -> Option<u32> {
+    match m {
+        ServerMessage::ChampSelect {
+            champ_select: Some(cs),
+        } => cs.local_player().and_then(|p| p.champion_id),
+        _ => None,
+    }
+}
+
+#[tokio::test]
+async fn eventos_durante_a_releitura_da_conexao_nao_voltam_a_selecao() {
+    let dir = temp_dir("releitura-conexao");
+    let set = fixtures_until_local_pick();
+    let base = set.events.last().unwrap().data.clone();
+    let mock = start_mock_pick(&dir).await;
+    // A releitura da conexão fica presa no invocador enquanto a seleção muda
+    // pelo WAMP.
+    let mut hold = mock.hold(Method::GET, CURRENT_SUMMONER_PATH);
+    let (_ui, mut observer) = start_agent(&dir).await;
+    hold.arrived().await;
+    mock.emit(event(
+        CHAMP_SELECT_SESSION_PATH,
+        "Update",
+        session_with(&base, 1),
+    ));
+    mock.emit(event(
+        CHAMP_SELECT_SESSION_PATH,
+        "Update",
+        session_with(&base, 2),
+    ));
+    // Os eventos dos retratos completos entram mesmo com a releitura presa.
+    let mut seen = until(&mut observer, |m| local_champion(m) == Some(2)).await;
+    hold.release();
+    // Um evento depois de tudo marca o fim.
+    mock.emit(event(
+        CHAMP_SELECT_SESSION_PATH,
+        "Update",
+        session_with(&base, 3),
+    ));
+    seen.extend(until(&mut observer, |m| local_champion(m) == Some(3)).await);
+    let champions: Vec<u32> = seen.iter().filter_map(local_champion).collect();
+    // Nada mais velho que a seleção já publicada: nem a leitura de antes dos
+    // eventos, nem os eventos aplicados de novo depois dela.
+    assert!(
+        champions.windows(2).all(|w| w[0] < w[1]),
+        "a seleção voltou para trás: {champions:?}"
+    );
+
+    mock.shutdown().await;
     let _ = std::fs::remove_dir_all(&dir);
 }
