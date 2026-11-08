@@ -7,9 +7,9 @@ describe('motivos da fila bloqueada (#227)', () => {
     const lobby = { ...testLobby, canStartActivity: false, restrictions: [
       { code: 'TeamSizeRestriction', message: 'Esta fila não aceita grupos deste tamanho.', puuids: [] },
       { code: 'Novo', message: null, puuids: ['a'] },
-      { code: 'OutroNovo', message: null, puuids: ['b'] },
+      { code: 'Novo', message: null, puuids: ['b'] },
     ] };
-    expect(restrictionReasons(lobby)).toEqual(['Esta fila não aceita grupos deste tamanho.', GENERIC_RESTRICTION]);
+    expect(restrictionReasons(lobby)).toEqual(['Esta fila não aceita grupos deste tamanho.', `${GENERIC_RESTRICTION} (Novo)`]);
   });
 
   it('ignora os motivos com a fila liberada ou sem lobby', () => {

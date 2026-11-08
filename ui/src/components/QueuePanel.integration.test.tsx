@@ -133,7 +133,7 @@ describe('matchmaking pelo /ws', () => {
     const reasons = within(panel().getByRole('list', { name: 'Motivos da fila bloqueada' })).getAllByRole('listitem');
     expect(reasons.map(r => r.textContent)).toEqual([
       'Esta fila não aceita grupos deste tamanho.',
-      'O League of Legends não deixa iniciar a busca com este grupo agora.',
+      'O League of Legends não deixa iniciar a busca com este grupo agora. (RestricaoNova)',
     ]);
     // Com a fila liberada, motivos que sobraram não aparecem.
     hello({ lobby: { ...testLobby, canStartActivity: true, restrictions }, gameflowPhase: 'Lobby' });

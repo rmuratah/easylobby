@@ -10,5 +10,6 @@ export const GENERIC_RESTRICTION = 'O League of Legends não deixa iniciar a bus
  */
 export function restrictionReasons(lobby: Lobby | null): string[] {
   if (!lobby || lobby.canStartActivity) return [];
-  return [...new Set(lobby.restrictions.map(r => r.message ?? GENERIC_RESTRICTION))];
+  // O código vai junto no genérico, para dar para traduzir depois.
+  return [...new Set(lobby.restrictions.map(r => r.message ?? `${GENERIC_RESTRICTION} (${r.code})`))];
 }
