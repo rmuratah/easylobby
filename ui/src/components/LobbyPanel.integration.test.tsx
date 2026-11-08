@@ -37,8 +37,11 @@ async function ok() {
   const id = request().id;
   await act(async () => socket().receive({ type: 'response', id, result: { status: 'ok' } }));
 }
-function choose(queue: Queue) {
-  fireEvent.change(panel().getByRole('combobox', { name: 'Fila' }), { target: { value: queue } });
+/** No lobby, troca a fila pela tela de escolha de modo (#231). */
+function changeQueue(submode: string) {
+  fireEvent.click(button('Trocar modo'));
+  fireEvent.click(radio(submode));
+  fireEvent.click(button('Trocar fila'));
 }
 /** Espera o atraso da gravação automática (e o envio seguinte, se houver um na espera). */
 async function settle(ms = AUTO_SAVE_DELAY_MS) {
@@ -48,7 +51,6 @@ async function settle(ms = AUTO_SAVE_DELAY_MS) {
 beforeEach(() => { configure({ defaultHidden: true }); vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal('WebSocket', Socket); });
 afterEach(() => { configure({ defaultHidden: false }); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-const queueSelect = () => panel().getByRole('combobox', { name: 'Fila' });
 /** Nomes dos submodos na tela de escolha de modo (#210). */
 const modeNames: Record<Queue, string> = {
   swiftplay: 'Partida Dinâmica', normalDraft: 'Partida Alternada', rankedFlex: 'Ranqueada Flex', rankedSolo: 'Ranqueada Solo/Duo', aram: 'ARAM Normal',
@@ -90,8 +92,8 @@ describe('lobby pelo único /ws do App', () => {
     await ok();
     expect(panel().getByRole('status')).toHaveTextContent('atualizado pelo agente');
     expect(panel().queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
-    expect(queueSelect()).toHaveValue(queue);
-    expect(queueSelect()).toBeEnabled();
+    expect(panel().queryByRole('combobox', { name: 'Fila' })).not.toBeInTheDocument();
+    expect(button('Trocar modo')).toBeEnabled();
     expect(button('Sair do lobby')).toBeEnabled();
   });
 
@@ -108,23 +110,29 @@ describe('lobby pelo único /ws do App', () => {
     expect(Socket.instances).toHaveLength(1);
   });
 
-  it('recebe lobby no hello, troca fila ao escolher, segue eventos externos e sai sem estado otimista', async () => {
+  it('recebe lobby no hello, troca a fila pela tela de modos, segue eventos externos e sai sem estado otimista', async () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
     expect(panel().getByRole('heading', { name: 'Victor#BR1' })).toBeInTheDocument();
     expect(panel().getByText('Nível 122')).toBeInTheDocument();
     expect(panel().getByRole('img', { name: 'Líder do grupo' })).toBeInTheDocument();
     expect(panel().getByText(/1 \/ 2 jogadores/)).toBeInTheDocument();
-    expect(queueSelect()).toHaveValue('rankedSolo');
-    choose('aram');
+    fireEvent.click(button('Trocar modo'));
+    // A tela abre na fila atual, sem a aba Treinamento, e escolher a mesma fila não troca nada.
+    expect(panel().getByText('Você está no lobby de Ranqueada Solo/Duo.')).toBeInTheDocument();
+    expect(radio('Ranqueada Solo/Duo')).toBeChecked();
+    expect(button('Trocar fila')).toBeDisabled();
+    expect(panel().queryByRole('tab', { name: 'Treinamento' })).not.toBeInTheDocument();
+    fireEvent.click(radio('ARAM Normal'));
     expect(socket().send).not.toHaveBeenCalled();
-    await settle();
+    act(() => { fireEvent.click(button('Trocar fila')); fireEvent.click(button('Trocar fila')); });
+    expect(socket().send).toHaveBeenCalledTimes(1);
     expect(request().command).toEqual({ type: 'createLobby', queue: 'aram' });
-    expect(queueSelect()).toHaveValue('aram');
-    expect(panel().getByText(queueNames.rankedSolo, { selector: 'strong' })).toBeInTheDocument();
+    expect(panel().getByRole('status')).toHaveTextContent('Trocando fila');
     act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, queue: 'aram', queueId: 450, maxLobbySize: 5 } }));
     await ok();
-    expect(queueSelect()).toHaveValue('aram');
+    // Deu certo: volta ao lobby, já na fila nova.
+    expect(panel().getByText(queueNames.aram, { selector: 'strong' })).toBeInTheDocument();
     act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, queue: null, queueId: 999 } }));
     expect(panel().getByText('Outra fila (ID 999)', { selector: 'strong' })).toBeInTheDocument();
     fireEvent.click(button('Sair do lobby'));
@@ -142,66 +150,49 @@ describe('lobby pelo único /ws do App', () => {
     expect(button('Criar lobby')).toBeEnabled();
   });
 
-  it('envia só a última fila de uma troca rápida, inclusive escolhida durante o envio', async () => {
+  it('voltar ao lobby fecha a tela de modos sem trocar a fila', () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
-    choose('aram');
-    choose('rankedFlex');
-    choose('normalDraft');
-    await settle();
-    expect(socket().send).toHaveBeenCalledTimes(1);
-    expect(request().command).toEqual({ type: 'createLobby', queue: 'normalDraft' });
-    // Durante o envio, o seletor continua livre; a nova escolha espera a resposta.
-    expect(queueSelect()).toBeEnabled();
-    choose('aram');
-    await settle();
-    expect(socket().send).toHaveBeenCalledTimes(1);
-    act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, queue: 'normalDraft', queueId: 400, maxLobbySize: 5 } }));
-    // O evento da fila anterior não apaga a escolha que ainda vai sair.
-    expect(queueSelect()).toHaveValue('aram');
-    await ok();
-    await settle(0);
-    expect(socket().send).toHaveBeenCalledTimes(2);
-    expect(request().command).toEqual({ type: 'createLobby', queue: 'aram' });
-    act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, queue: 'aram', queueId: 450, maxLobbySize: 5 } }));
-    await ok();
-    expect(queueSelect()).toHaveValue('aram');
+    fireEvent.click(button('Trocar modo'));
+    fireEvent.click(radio('ARAM Normal'));
+    fireEvent.click(button('Voltar ao lobby'));
+    expect(socket().send).not.toHaveBeenCalled();
+    expect(panel().getByText(queueNames.rankedSolo, { selector: 'strong' })).toBeInTheDocument();
+    // Reabrir começa de novo pela fila atual.
+    fireEvent.click(button('Trocar modo'));
+    expect(radio('Ranqueada Solo/Duo')).toBeChecked();
   });
 
-  it('voltar para a fila atual antes do envio cancela a troca', async () => {
+  it('volta ao lobby quando a busca começa com a tela de modos aberta', () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
-    choose('aram');
-    choose('rankedSolo');
-    await settle();
-    expect(socket().send).not.toHaveBeenCalled();
-    expect(queueSelect()).toHaveValue('rankedSolo');
+    fireEvent.click(button('Trocar modo'));
+    act(() => socket().receive({ type: 'matchmaking', matchmaking: { searchState: 'Searching', queueId: 420, timeInQueue: 0, estimatedQueueTime: 0, lowPriorityTimeRemaining: 0, errors: [] } }));
+    expect(panel().getByText(queueNames.rankedSolo, { selector: 'strong' })).toBeInTheDocument();
+    expect(panel().queryByRole('button', { name: 'Trocar modo' })).not.toBeInTheDocument();
   });
 
   it('impede troca por membro, mas permite sair; reflete mudança de liderança', async () => {
     render(<App />);
     hello({ gameflowPhase: 'Lobby', lobby: { ...testLobby, isLeader: false } });
-    expect(queueSelect()).toBeDisabled();
+    expect(button('Trocar modo')).toBeDisabled();
     expect(panel().getByText(/Somente o líder/)).toBeInTheDocument();
-    choose('aram');
-    await settle();
-    expect(socket().send).not.toHaveBeenCalled();
     expect(button('Sair do lobby')).toBeEnabled();
     act(() => socket().receive({ type: 'lobby', lobby: testLobby }));
-    expect(queueSelect()).toBeEnabled();
-    choose('aram');
-    await settle();
+    changeQueue('ARAM Normal');
     expect(request().command).toEqual({ type: 'createLobby', queue: 'aram' });
   });
 
-  it('descarta a troca agendada se a liderança mudar antes do envio', async () => {
+  it('não troca a fila se a liderança mudar com a tela de modos aberta', () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
-    choose('aram');
+    fireEvent.click(button('Trocar modo'));
+    fireEvent.click(radio('ARAM Normal'));
     act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, isLeader: false } }));
-    await settle();
+    expect(button('Trocar fila')).toBeDisabled();
+    fireEvent.click(button('Trocar fila'));
     expect(socket().send).not.toHaveBeenCalled();
-    expect(queueSelect()).toHaveValue('rankedSolo');
+    expect(panel().getByText(/Somente o líder/)).toBeInTheDocument();
   });
 
   const blockedPhases: (GameflowPhase | null)[] = [null, 'Unknown', 'Matchmaking', 'ReadyCheck', 'ChampSelect',
@@ -213,9 +204,7 @@ describe('lobby pelo único /ws do App', () => {
     expect(button('Criar lobby')).toBeDisabled();
     fireEvent.click(button('Criar lobby'));
     hello({ gameflowPhase: phase, lobby: testLobby });
-    expect(queueSelect()).toBeDisabled();
-    choose('aram');
-    await settle();
+    expect(button('Trocar modo')).toBeDisabled();
     expect(button('Sair do lobby')).toBeDisabled();
     expect(socket().send).not.toHaveBeenCalled();
     act(() => socket().receive({ type: 'gameflowPhase', phase: 'Lobby' }));
@@ -249,27 +238,24 @@ describe('lobby pelo único /ws do App', () => {
     expect(button('Criar lobby')).toBeDisabled();
     expect(panel().getByText(/Aguarde o login/)).toBeInTheDocument();
     hello({ lobby: { ...testLobby, canStartActivity: false }, gameflowPhase: 'Lobby' });
-    expect(queueSelect()).toBeEnabled();
-    choose('aram');
-    await settle();
+    changeQueue('ARAM Normal');
     expect(request().command).toEqual({ type: 'createLobby', queue: 'aram' });
-    expect(button('Sair do lobby')).toBeDisabled();
+    await ok();
+    expect(button('Sair do lobby')).toBeEnabled();
   });
 
-  it.each(['notConnected', 'lcu', 'invalidCommand', 'launchFailed'] as const)('exibe erro %s, volta o seletor e permite escolher de novo', async code => {
+  it.each(['notConnected', 'lcu', 'invalidCommand', 'launchFailed'] as const)('exibe erro %s, mantém a tela de modos e permite tentar de novo', async code => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
-    choose('aram');
-    await settle();
+    changeQueue('ARAM Normal');
     await act(async () => socket().receive({ type: 'response', id: request().id, result: { status: 'error', code, message: 'Fila indisponível' } }));
     expect(panel().getByRole('alert')).toHaveTextContent(code === 'notConnected' ? 'desconectou' : 'Fila indisponível');
-    expect(panel().getByText(queueNames.rankedSolo, { selector: 'strong' })).toBeInTheDocument();
-    expect(queueSelect()).toHaveValue('rankedSolo');
+    expect(panel().getByText('Você está no lobby de Ranqueada Solo/Duo.')).toBeInTheDocument();
+    expect(radio('ARAM Normal')).toBeChecked();
     expect(socket().close).not.toHaveBeenCalled();
     expect(Socket.instances).toHaveLength(1);
     expect(socket().send).toHaveBeenCalledTimes(1);
-    choose('aram');
-    await settle();
+    fireEvent.click(button('Trocar fila'));
     expect(socket().send).toHaveBeenCalledTimes(2);
     expect(panel().queryByRole('alert')).not.toBeInTheDocument();
     await ok();
@@ -306,10 +292,12 @@ describe('lobby pelo único /ws do App', () => {
     act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, queue: null, queueId: 2400, maxLobbySize: 5, showPositionSelector: false } }));
     await ok();
     expect(panel().getByText('ARAM: Desordem', { selector: 'strong' })).toBeInTheDocument();
-    expect(queueSelect()).toHaveValue('fila-2400');
-    // Escolher a mesma fila não manda nada; outra fila troca sozinha.
-    fireEvent.change(queueSelect(), { target: { value: 'aram' } });
-    await settle();
+    // A tela de modos abre na Desordem; outra fila troca pelo botão.
+    fireEvent.click(button('Trocar modo'));
+    expect(radio('ARAM Desordem')).toBeChecked();
+    expect(button('Trocar fila')).toBeDisabled();
+    fireEvent.click(radio('ARAM Normal'));
+    fireEvent.click(button('Trocar fila'));
     expect(request().command).toEqual({ type: 'createLobby', queue: 'aram' });
   });
 
@@ -342,11 +330,14 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByRole('group', { name: 'Arena' })).toHaveTextContent('Fechado agora.');
   });
 
-  it('mostra a fila atual mesmo quando ela não está na lista', () => {
+  it('troca uma fila fora da lista pela primeira aberta', () => {
     render(<App />);
     hello({ lobby: { ...testLobby, queue: null, queueId: 999 }, gameflowPhase: 'Lobby', queues: [desordem] });
-    expect(queueSelect()).toHaveValue('fila-999');
-    expect(panel().getByRole('option', { name: 'Outra fila (ID 999)' })).toBeDisabled();
+    fireEvent.click(button('Trocar modo'));
+    expect(panel().getByText('Você está no lobby de Outra fila (ID 999).')).toBeInTheDocument();
+    expect(radio('Partida Dinâmica')).toBeChecked();
+    fireEvent.click(button('Trocar fila'));
+    expect(request().command).toEqual({ type: 'createLobby', queue: 'swiftplay' });
   });
 
   it.each(['agente', 'LoL', 'sessão'] as const)('descarta resultado antigo após mudança de %s e não reenvia', async source => {
@@ -374,12 +365,13 @@ describe('lobby pelo único /ws do App', () => {
     expect(socket().send).toHaveBeenCalledTimes(source === 'agente' ? 0 : 1);
   });
 
-  it('não envia troca agendada depois que o LoL desconecta', async () => {
+  it('não troca a fila depois que o LoL desconecta', () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
-    choose('aram');
+    fireEvent.click(button('Trocar modo'));
+    fireEvent.click(radio('ARAM Normal'));
     act(() => socket().receive({ type: 'lcu', status: { state: 'disconnected', reason: 'fechado' } }));
-    await settle();
+    expect(panel().queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
     expect(socket().send).not.toHaveBeenCalled();
   });
 });
@@ -509,11 +501,17 @@ describe('cargos pelo /ws', () => {
     expect(positionSelect('Posição primária')).toHaveValue('top');
   });
 
-  it.each(['aram', 'swiftplay', null] as const)('respeita showPositionSelector na fila %s', queue => {
+  it.each([
+    ['ARAM', { queue: 'aram' as const, queueId: 450 }],
+    ['ARAM: Desordem', { queue: null, queueId: 2400 }],
+    ['Arena 3x6', { queue: null, queueId: 1750 }],
+    ['Co-op Introdução', { queue: null, queueId: 870 }],
+    ['Jogo Dinâmico', { queue: 'swiftplay' as const, queueId: 480 }],
+  ])('sem showPositionSelector, não mostra posições nem aviso no lobby do %s', (_, queue) => {
     render(<App />);
-    hello({ lobby: { ...testLobby, queue, showPositionSelector: false }, gameflowPhase: 'Lobby' });
+    hello({ lobby: { ...testLobby, ...queue, showPositionSelector: false }, gameflowPhase: 'Lobby' });
     expect(panel().queryByRole('combobox', { name: 'Posição primária' })).not.toBeInTheDocument();
-    expect(panel().getByText('Esta fila não permite escolher posições.')).toBeInTheDocument();
+    expect(panel().queryByText('Esta fila não permite escolher posições.')).not.toBeInTheDocument();
     expect(socket().send).not.toHaveBeenCalled();
   });
 
