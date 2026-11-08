@@ -35,7 +35,7 @@ describe("coluna de amigos", () => {
   it("começa aberta, recolhe pelo botão e lembra a escolha", () => {
     snapshot();
     const { unmount } = render(<App />);
-    expect(screen.getByRole("complementary", { name: "Amigos e conversas" })).toBe(column());
+    expect(screen.getByRole("complementary", { name: "Amigos e convites" })).toBe(column());
     const toggle = screen.getByRole("button", { name: "Recolher amigos" });
     expect(toggle.closest('.app-social-region')).not.toBeNull();
     expect(toggle.parentElement).toBe(column());

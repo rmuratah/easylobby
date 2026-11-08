@@ -12,7 +12,7 @@ describe('SideNavigation', () => {
     expect(screen.getByRole('heading', { name: 'easylobby' })).toHaveAttribute('data-tauri-drag-region');
     const buttons = Array.from(navigation.querySelectorAll('button'));
     expect(buttons.map(button => button.getAttribute('aria-label') ?? button.textContent)).toEqual([
-      'Início', 'Grupo', 'Perfil', 'Tema claro', 'Tema escuro', 'Configurações — em breve',
+      'Início', 'Grupo', 'Perfil', 'Conversas', 'Tema claro', 'Tema escuro', 'Configurações — em breve',
     ]);
     expect(screen.getByRole('button', { name: 'Início' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Configurações — em breve' })).toBeDisabled();
@@ -21,9 +21,20 @@ describe('SideNavigation', () => {
     expect(onNavigate).toHaveBeenCalledWith('flow');
     const nav = container.querySelector('nav')!;
     expect(Array.from(nav.children).map(child => child.tagName === 'BUTTON' ? child.getAttribute('aria-label') : 'divisor'))
-      .toEqual(['Início', 'Grupo', 'divisor', 'Perfil']);
+      .toEqual(['Início', 'Grupo', 'divisor', 'Perfil', 'Conversas']);
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
     expect(onNavigate).toHaveBeenCalledWith('profile');
+    fireEvent.click(screen.getByRole('button', { name: 'Conversas' }));
+    expect(onNavigate).toHaveBeenCalledWith('conversations');
+  });
+
+  it('marca as não lidas no botão Conversas', () => {
+    const { rerender } = render(<SideNavigation active="home" flowLabel="Jogar" flowButtonRef={createRef()}
+      theme="claro" onNavigate={vi.fn()} onThemeChange={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Conversas' }).querySelector('[data-unread]')).toBeNull();
+    rerender(<SideNavigation active="home" flowLabel="Jogar" flowButtonRef={createRef()}
+      theme="claro" unread={3} onNavigate={vi.fn()} onThemeChange={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Conversas, 3 não lidas' }).querySelector('[data-unread]')).not.toBeNull();
   });
 
   it('não tem botão de recolher: fica estreita e expande pelo CSS ao passar o mouse', () => {

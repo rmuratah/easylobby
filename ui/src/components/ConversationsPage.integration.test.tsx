@@ -40,3 +40,19 @@ it('abre o chat pela lista de amigos, manda a mensagem e mostra a conversa do ag
   expect(view.getByRole('log')).toHaveTextContent('Você: bora?');
   expect(sent().at(-1)!.command).toEqual({ type: 'setActiveConversation', conversationId: testFriend.id });
 });
+
+it('o balão do amigo leva à tela de Conversas, e o botão da barra volta à última conversa', () => {
+  render(<App />);
+  act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: makeState({ ...testState, friends: [testFriend], conversations: [testConversation] }) }));
+  const sidebar = screen.getByRole('complementary', { name: 'Amigos e convites' });
+  fireEvent.click(within(sidebar).getByRole('button', { name: /Conversar com Amigo/ }));
+  expect(within(sidebar).queryByRole('region', { name: 'Conversa com Amigo' })).toBeNull();
+  expect(screen.getByRole('button', { name: /^Conversas/ })).toHaveAttribute('aria-current', 'page');
+  expect(within(screen.getByRole('region', { name: 'Conversas' })).getByRole('region', { name: 'Conversa com Amigo' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Início' }));
+  expect(screen.queryByRole('region', { name: 'Conversa com Amigo' })).toBeNull();
+  expect(sent().at(-1)!.command).toEqual({ type: 'setActiveConversation', conversationId: null });
+  fireEvent.click(screen.getByRole('button', { name: /^Conversas/ }));
+  expect(screen.getByRole('region', { name: 'Conversa com Amigo' })).toBeVisible();
+  expect(sent().at(-1)!.command).toEqual({ type: 'setActiveConversation', conversationId: testConversation.id });
+});
