@@ -38,8 +38,11 @@ mod commands;
 pub mod hub;
 pub mod protocol;
 
+use std::collections::VecDeque;
+use std::future::Future;
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -226,30 +229,85 @@ async fn asset(
     }
 }
 
+/// Um comando em andamento: o `id` da UI e a execução.
+type Running = (u32, Pin<Box<dyn Future<Output = CommandResult> + Send>>);
+
 /// Uma UI conectada: manda o `hello`, repassa as mudanças e responde os
 /// comandos, até a UI fechar.
+///
+/// Os comandos de uma UI rodam um por vez e na ordem em que chegaram (um
+/// hover e a confirmação logo depois não podem chegar trocados na LCU), mas
+/// enquanto um espera a LCU as mudanças continuam sendo repassadas (#244).
 async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
     let (state, mut changes) = hub.subscribe();
     if send(&mut socket, &hello(state)).await.is_err() {
         return;
     }
+    let mut running: Option<Running> = None;
+    let mut queued: VecDeque<ClientMessage> = VecDeque::new();
     loop {
-        tokio::select! {
-            change = changes.recv() => {
-                let message = match change {
-                    Ok(message) => message,
-                    // A UI ficou para trás: em vez das mudanças perdidas, o
-                    // estado inteiro de novo.
-                    Err(RecvError::Lagged(_)) => {
-                        let (state, fresh) = hub.subscribe();
-                        changes = fresh;
-                        hello(state)
+        // Começa o próximo comando da fila, se nenhum está rodando.
+        while running.is_none() {
+            let Some(ClientMessage { id, command }) = queued.pop_front() else {
+                break;
+            };
+            if let Command::GetState = command {
+                // Assina de novo para não entregar, depois do estado novo,
+                // mudanças mais velhas que ele.
+                let (state, fresh) = hub.subscribe();
+                changes = fresh;
+                let replies = [
+                    hello(state),
+                    ServerMessage::Response {
+                        id,
+                        result: CommandResult::Ok,
+                    },
+                ];
+                for reply in &replies {
+                    if send(&mut socket, reply).await.is_err() {
+                        return;
                     }
-                    Err(RecvError::Closed) => break,
-                };
-                if send(&mut socket, &message).await.is_err() {
-                    break;
                 }
+                continue;
+            }
+            let (hub, config) = (hub.clone(), config.clone());
+            running = Some((
+                id,
+                Box::pin(async move { commands::run(&hub, &config.launch, command).await }),
+            ));
+        }
+        let replies = tokio::select! {
+            change = changes.recv() => match change {
+                Ok(message) => vec![message],
+                // A UI ficou para trás: em vez das mudanças perdidas, o
+                // estado inteiro de novo.
+                Err(RecvError::Lagged(_)) => {
+                    let (state, fresh) = hub.subscribe();
+                    changes = fresh;
+                    vec![hello(state)]
+                }
+                Err(RecvError::Closed) => break,
+            },
+            result = async { running.as_mut().expect("só com comando rodando").1.as_mut().await },
+                if running.is_some() =>
+            {
+                let (id, _) = running.take().expect("o comando acabou de terminar");
+                // As mudanças que o comando publicou (como o lobby novo)
+                // chegam antes da resposta.
+                let mut replies = Vec::new();
+                loop {
+                    match changes.try_recv() {
+                        Ok(change) => replies.push(change),
+                        Err(TryRecvError::Lagged(_)) => {
+                            let (state, fresh) = hub.subscribe();
+                            changes = fresh;
+                            replies.push(hello(state));
+                        }
+                        Err(TryRecvError::Empty | TryRecvError::Closed) => break,
+                    }
+                }
+                replies.push(ServerMessage::Response { id, result });
+                replies
             }
             incoming = socket.recv() => {
                 let text = match incoming {
@@ -258,45 +316,20 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                     // Ping e pong o axum responde sozinho; binário não é usado.
                     Some(Ok(_)) => continue,
                 };
-                let replies = match serde_json::from_str::<ClientMessage>(text.as_str()) {
-                    Ok(ClientMessage { id, command }) => {
-                        let mut replies = Vec::new();
-                        let result = match command {
-                            Command::GetState => {
-                                // Assina de novo para não entregar, depois do
-                                // estado novo, mudanças mais velhas que ele.
-                                let (state, fresh) = hub.subscribe();
-                                changes = fresh;
-                                replies.push(hello(state));
-                                CommandResult::Ok
-                            }
-                            command => commands::run(&hub, &config.launch, command).await,
-                        };
-                        // As mudanças que o comando publicou (como o lobby
-                        // novo) chegam antes da resposta.
-                        loop {
-                            match changes.try_recv() {
-                                Ok(change) => replies.push(change),
-                                Err(TryRecvError::Lagged(_)) => {
-                                    let (state, fresh) = hub.subscribe();
-                                    changes = fresh;
-                                    replies.push(hello(state));
-                                }
-                                Err(TryRecvError::Empty | TryRecvError::Closed) => break,
-                            }
-                        }
-                        replies.push(ServerMessage::Response { id, result });
-                        replies
+                match serde_json::from_str::<ClientMessage>(text.as_str()) {
+                    Ok(message) => {
+                        queued.push_back(message);
+                        continue;
                     }
                     Err(error) => vec![ServerMessage::InvalidMessage {
                         message: error.to_string(),
                     }],
-                };
-                for reply in &replies {
-                    if send(&mut socket, reply).await.is_err() {
-                        return;
-                    }
                 }
+            }
+        };
+        for reply in &replies {
+            if send(&mut socket, reply).await.is_err() {
+                return;
             }
         }
     }
