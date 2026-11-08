@@ -328,6 +328,40 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByRole('status')).toHaveTextContent('Modo de Treino iniciado');
   });
 
+  it('cria a partida personalizada pelo formulário da aba Personalizada (#262)', async () => {
+    render(<App />);
+    hello();
+    fireEvent.click(panel().getByRole('tab', { name: 'Personalizada' }));
+    const name = panel().getByRole('textbox', { name: 'Nome da partida' });
+    expect(name).toHaveValue('Partida de Victor');
+    expect(panel().getByText("Summoner's Rift · 5v5 · Escolha às cegas")).toBeInTheDocument();
+    // Nome vazio não sai.
+    fireEvent.change(name, { target: { value: '   ' } });
+    expect(button('Criar partida')).toBeDisabled();
+    expect(panel().getByText('Dê um nome para a partida.')).toBeInTheDocument();
+    fireEvent.change(name, { target: { value: '  Treino da firma ' } });
+    fireEvent.change(panel().getByRole('textbox', { name: 'Senha (opcional)' }), { target: { value: 'segredo' } });
+    fireEvent.click(radio('Abismo Uivante'));
+    fireEvent.change(panel().getByRole('combobox', { name: 'Tipo de seleção' }), { target: { value: 'allRandom' } });
+    fireEvent.change(panel().getByRole('combobox', { name: 'Tamanho' }), { target: { value: '3' } });
+    fireEvent.change(panel().getByRole('combobox', { name: 'Espectadores' }), { target: { value: 'all' } });
+    expect(panel().getByText('Abismo Uivante · 3v3 · Todos aleatórios · Com senha')).toBeInTheDocument();
+    fireEvent.click(button('Criar partida'));
+    expect(request().command).toEqual({ type: 'createCustomGame', options: {
+      name: 'Treino da firma', password: 'segredo', map: 'howlingAbyss', pickType: 'allRandom', teamSize: 3, spectators: 'all',
+    } });
+    expect(panel().getByRole('status')).toHaveTextContent('Criando a partida personalizada');
+    await ok();
+    expect(panel().getByRole('status')).toHaveTextContent('Partida personalizada criada');
+  });
+
+  it('não mostra a aba Personalizada ao trocar a fila de um lobby', () => {
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    fireEvent.click(button('Trocar modo'));
+    expect(panel().queryByRole('tab', { name: 'Personalizada' })).not.toBeInTheDocument();
+  });
+
   it('acinzenta o modo fechado e não deixa escolher', () => {
     render(<App />);
     hello({ queues: [{ ...gameQueue(1750, 'Arena 3x6', 'CHERRY'), available: false }] });

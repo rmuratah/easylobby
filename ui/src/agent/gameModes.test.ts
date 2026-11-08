@@ -28,7 +28,7 @@ const summary = (t: ModeTab) => t.modes.map(m => [m.name, m.available, m.submode
 describe('abas da tela de escolha de modo', () => {
   it('monta PvP, Co-op e Treinamento com os modos e submodos do mapa', () => {
     const tabs = buildModeTabs(recorded);
-    expect(tabs.map(t => t.label)).toEqual(['PvP', 'Co-op versus IA', 'Treinamento']);
+    expect(tabs.map(t => t.label)).toEqual(['PvP', 'Co-op versus IA', 'Treinamento', 'Personalizada']);
     expect(summary(tab(tabs, 'pvp'))).toEqual([
       ["Summoner's Rift", true, [[480, true], [400, true], [440, true], [420, true]]],
       ['ARAM', true, [[450, true], [2400, true]]],

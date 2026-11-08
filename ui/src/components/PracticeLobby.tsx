@@ -6,6 +6,7 @@ import { positionNames } from '../agent/positions';
 import { assetUrl } from '../agent/assets';
 import { useCommand } from '../agent/useCommand';
 import { BOT_POSITIONS, botDifficultyNames } from '../agent/customLobby';
+import { customLobbySummary, customLobbyTitle, spectatorNames } from '../agent/customGame';
 import type { AgentState } from '../bindings/AgentState';
 import type { BotDifficulty } from '../bindings/BotDifficulty';
 import type { Champion } from '../bindings/Champion';
@@ -44,10 +45,12 @@ const pill = `inline-flex h-9 items-center justify-center gap-1.5 rounded-full p
 type Picking = { team: CustomTeam } | { bot: CustomBot };
 
 /**
- * Lobby do Modo de Treino (#229): Equipe 1 e Equipe 2 com as vagas, os bots
- * (campeão, posição, dificuldade e um X para tirar), "Juntar-se" na equipe do
- * outro lado e o botão de iniciar a partida. O campeão do bot sai de um
- * pop-up com busca e grade, no lugar da lista suspensa do client.
+ * Lobby de personalizada, do Modo de Treino (#229) e da partida criada na aba
+ * Personalizada (#262): Equipe 1 e Equipe 2 com as vagas, os bots (campeão,
+ * posição, dificuldade e um X para tirar), "Juntar-se" na equipe do outro
+ * lado, os espectadores com o botão Assistir (#263) e o botão de iniciar a
+ * partida. O campeão do bot sai de um pop-up com busca e grade, no lugar da
+ * lista suspensa do client.
  */
 export function PracticeLobby({ lobby, state, send, canLeave, leaving, onLeave, feedback }: Props) {
   const { custom } = lobby;
@@ -59,6 +62,12 @@ export function PracticeLobby({ lobby, state, send, canLeave, leaving, onLeave, 
   const phaseOk = state.gameflowPhase === 'Lobby' && !state.matchmaking && !state.readyCheck;
   const canEditBots = lobby.isLeader && phaseOk && !command.pending;
   const canStart = lobby.isLeader && phaseOk && !command.pending;
+  const spectating = custom.spectators.some(m => m.puuid === me);
+  const spectatorPolicy = custom.settings.spectators;
+  // Sem saber a política, deixa tentar: o agente confere e a LCU decide.
+  const canWatch = spectatorPolicy !== 'none' && !spectating && phaseOk && !command.pending
+    && custom.spectators.length < custom.maxSpectators;
+  const showSpectators = spectatorPolicy !== 'none' || custom.spectators.length > 0;
 
   function addBot(team: CustomTeam, championId: number) {
     const taken = new Set(custom[team].map(m => m.bot?.position));
@@ -79,8 +88,8 @@ export function PracticeLobby({ lobby, state, send, canLeave, leaving, onLeave, 
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Lobby</h2>
-          <p className="text-title font-semibold"><span className="sr-only">Fila atual: </span><strong className="font-semibold">Modo de Treino</strong></p>
-          <p className="text-caption text-muted">Summoner's Rift · 5v5 · Escolha às cegas · Modo de Treino</p>
+          <p className="text-title font-semibold"><span className="sr-only">Fila atual: </span><strong className="font-semibold">{customLobbyTitle(custom.settings)}</strong></p>
+          <p className="text-caption text-muted">{customLobbySummary(custom.settings, custom.teamSize)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full surface px-3 py-1.5 shadow-soft text-caption font-medium text-muted">
@@ -140,6 +149,35 @@ export function PracticeLobby({ lobby, state, send, canLeave, leaving, onLeave, 
           );
         })}
       </div>
+
+      {showSpectators && (
+        <section aria-label="Espectadores" className="flex flex-col gap-2 rounded-panel surface p-3 shadow-soft">
+          <header className="flex flex-wrap items-center justify-between gap-2 px-1">
+            <div className="min-w-0">
+              <h3 className="text-section font-semibold">Espectadores</h3>
+              {spectatorPolicy && <p className="text-caption text-muted">Quem pode assistir: {spectatorNames[spectatorPolicy]}</p>}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-caption text-muted">{custom.spectators.length} / {custom.maxSpectators}</span>
+              {!spectating && spectatorPolicy !== 'none' && (
+                <button type="button" disabled={!canWatch}
+                  onClick={() => { void command.run({ type: 'spectate' }, { pending: 'Indo para os espectadores…', failure: 'assistir' }); }}
+                  className={cx(pill, 'surface text-accent-ink shadow-soft enabled:hover:bg-accent-soft')}>
+                  Assistir
+                </button>
+              )}
+            </div>
+          </header>
+          {custom.spectators.length > 0 ? (
+            <ul aria-label="Jogadores assistindo" className="grid gap-2 @min-[44rem]:grid-cols-2">
+              {custom.spectators.map((member, index) => (
+                <li key={member.puuid || index}><PlayerRow member={member} me={member.puuid === me} state={state} /></li>
+              ))}
+            </ul>
+          ) : <p className="px-1 text-caption text-muted">Ninguém assistindo.</p>}
+          {spectating && <p className="px-1 text-caption text-muted">Você está assistindo. Use Juntar-se para voltar a uma equipe.</p>}
+        </section>
+      )}
 
       <footer className="flex flex-wrap items-center justify-between gap-3 rounded-panel surface p-4 shadow-soft">
         <p className="min-w-0 flex-1 text-caption text-muted">
