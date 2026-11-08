@@ -70,7 +70,12 @@ async fn start_mock_pick(dir: &Path) -> MockLcu {
     config.replay_start = ReplayStart::Immediately;
     config.lockfile = Some(dir.join("lockfile"));
     config.ca_file = Some(dir.join("mock-lcu-ca.pem"));
-    MockLcu::start(config).await.unwrap()
+    let mock = MockLcu::start(config).await.unwrap();
+    // O agente só conecta com a gravação já reproduzida: no meio dela, os
+    // eventos atrasados do WAMP chegam depois da leitura pelo REST e voltam
+    // a seleção para um estado mais velho (#241).
+    mock.replay_finished().await;
+    mock
 }
 
 /// Mock sem reprodução: as runas só mudam pelos comandos.

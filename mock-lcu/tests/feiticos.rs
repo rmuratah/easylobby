@@ -139,6 +139,9 @@ async fn troca_os_feiticos_pelo_ws() {
     let mock = MockLcu::start(config(&dir, ReplayStart::Immediately))
         .await
         .unwrap();
+    // Com a gravação ainda tocando, eventos velhos chegam depois da leitura
+    // pelo REST e podem desfazer a troca (#241).
+    mock.replay_finished().await;
     let url = start_agent(&dir).await;
     let mut ui = connect(&url).await;
 
