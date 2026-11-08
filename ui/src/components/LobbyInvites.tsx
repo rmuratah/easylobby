@@ -187,12 +187,12 @@ export function InvitePicker({ invites, groups, recent, loadRecent, onClose }: {
           <div className="flex h-10 items-center gap-2 rounded-control border border-control bg-surface px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
             <label htmlFor={nameId} className="sr-only">Nome de jogo</label>
             <input id={nameId} ref={nameRef} value={name} onChange={event => setName(event.target.value)} placeholder="Nome de jogo"
-              autoComplete="off" className="min-w-0 flex-[3] bg-transparent text-body outline-none placeholder:text-muted" />
+              autoComplete="off" className="min-w-0 flex-[3] input-bare bg-transparent text-body outline-none placeholder:text-muted" />
             {name && <ClearButton label="Limpar nome de jogo" onClick={() => setName('')} />}
             <span aria-hidden="true" className="text-muted">#</span>
             <label htmlFor={tagId} className="sr-only">Tagline</label>
             <input id={tagId} value={tag} onChange={event => setTag(event.target.value)} placeholder="Tagline"
-              autoComplete="off" className="min-w-0 flex-[2] bg-transparent text-body outline-none placeholder:text-muted" />
+              autoComplete="off" className="min-w-0 flex-[2] input-bare bg-transparent text-body outline-none placeholder:text-muted" />
             {tag && <ClearButton label="Limpar tagline" onClick={() => setTag('')} />}
           </div>
         </fieldset>
