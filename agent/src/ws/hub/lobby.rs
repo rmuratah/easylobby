@@ -5,7 +5,7 @@ use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError};
 use crate::matchmaking::{self, Matchmaking};
 use crate::queues::{GameQueue, MODE_SCREEN_QUEUES};
 use crate::quick_play::{self, PlayerSlotInput, SetSlotsError};
-use crate::training;
+use crate::training::{self, TutorialPart};
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 
 impl Hub {
@@ -51,23 +51,35 @@ impl Hub {
         }
     }
 
-    /// Inicia a próxima parte do Tutorial (comando `startTutorial`, #209):
-    /// cria o lobby na fila da parte e entra na busca. O lobby e a busca
-    /// são publicados antes de devolver.
-    pub async fn start_tutorial(&self) -> CommandResult {
+    /// Inicia uma parte do Tutorial (comando `startTutorial`, #209 e #228):
+    /// a de `queue_id`, ou a próxima que falta. Cria o lobby na fila da parte
+    /// e entra na busca. O lobby e a busca são publicados antes de devolver.
+    pub async fn start_tutorial(&self, queue_id: Option<u32>) -> CommandResult {
+        if let Some(queue_id) = queue_id {
+            if !training::TUTORIAL_QUEUES.contains(&queue_id) {
+                return CommandResult::error(
+                    ErrorCode::InvalidCommand,
+                    format!("a fila {queue_id} não é uma parte do Tutorial"),
+                );
+            }
+        }
         let Some(client) = self.client() else {
             return not_connected();
         };
-        let queue_id = training::next_tutorial(&client).await;
+        let queue_id = match queue_id {
+            Some(queue_id) => queue_id,
+            None => training::next_tutorial(&client).await,
+        };
         if let error @ CommandResult::Error { .. } = self.create_lobby_in(queue_id).await {
             return error;
         }
         self.start_queue().await
     }
 
-    /// Inicia o Modo de Treino (comando `startPracticeTool`, #209): cria a
-    /// personalizada e já inicia a seleção de campeões. Publica o lobby
-    /// antes de devolver; a seleção chega pelo WAMP.
+    /// Abre o Modo de Treino (comando `startPracticeTool`, #209 e #229): cria
+    /// a personalizada e deixa o jogador no lobby dela, com as equipes e os
+    /// bots. Publica o lobby antes de devolver; a partida começa com
+    /// `startCustomGame`.
     pub async fn start_practice_tool(&self) -> CommandResult {
         let Some((client, stamp)) = self.begin(Resource::Lobby) else {
             return not_connected();
@@ -77,11 +89,9 @@ impl Hub {
                 if !(lobby.is_some() && self.set_lobby_if(stamp, lobby)) {
                     self.refresh_lobby().await;
                 }
+                self.spawn_refresh_available_bots();
+                CommandResult::Ok
             }
-            Err(error) => return CommandResult::error(ErrorCode::Lcu, error.to_string()),
-        }
-        match training::start_custom_champ_select(&client).await {
-            Ok(()) => CommandResult::Ok,
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
         }
     }
@@ -193,6 +203,63 @@ impl Hub {
                 CommandResult::error(ErrorCode::Lcu, error.to_string())
             }
         }
+    }
+
+    /// Abre ou fecha o lobby (comando `setLobbyOpen`, #225). Só o líder pode:
+    /// fora de lobby ou sem ser o líder, recusa sem falar com a LCU. Relê o
+    /// lobby pelo REST e publica antes de devolver.
+    pub async fn set_lobby_open(&self, open: bool) -> CommandResult {
+        let leader = self.lock().state.lobby.as_ref().map(|l| l.is_leader);
+        match leader {
+            None => return CommandResult::error(ErrorCode::InvalidCommand, "fora de lobby"),
+            Some(false) => {
+                return CommandResult::error(
+                    ErrorCode::InvalidCommand,
+                    "só o líder abre ou fecha o lobby",
+                )
+            }
+            Some(true) => {}
+        }
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        match lobby::set_lobby_open(&client, open).await {
+            Ok(()) => {
+                self.refresh_lobby().await;
+                CommandResult::Ok
+            }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
+    /// Publica o progresso do Tutorial (#228).
+    pub fn set_tutorial(&self, tutorial: Option<Vec<TutorialPart>>) {
+        self.update(|shared| {
+            if shared.state.tutorial == tutorial {
+                return None;
+            }
+            shared.state.tutorial = tutorial.clone();
+            Some(ServerMessage::Tutorial { tutorial })
+        });
+    }
+
+    /// Relê em segundo plano o progresso do Tutorial (#228): uma parte
+    /// concluída muda o progresso, e a LCU não manda evento dele.
+    pub(super) fn spawn_refresh_tutorial(&self) {
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let Some(client) = self.client() else {
+            return;
+        };
+        let session = self.lock().session;
+        let hub = self.clone();
+        runtime.spawn(async move {
+            let tutorial = training::tutorial_progress(&client).await;
+            if hub.lock().session == session {
+                hub.set_tutorial(tutorial);
+            }
+        });
     }
 
     /// Publica os campeões que dá para pôr nos slots do Jogo Dinâmico (#218).
@@ -431,7 +498,8 @@ mod tests {
             hub.create_lobby(Queue::RankedSolo).await,
             hub.leave_lobby().await,
             hub.set_positions(Position::Top, Position::Jungle).await,
-            hub.start_tutorial().await,
+            hub.start_tutorial(None).await,
+            hub.start_tutorial(Some(2010)).await,
             hub.start_practice_tool().await,
             hub.set_player_slots(vec![slot(22, Position::Bottom), slot(266, Position::Top)])
                 .await,
@@ -582,6 +650,70 @@ mod tests {
             ),
             "{result:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn tutorial_so_com_fila_de_parte() {
+        let hub = Hub::new();
+        assert!(matches!(
+            hub.start_tutorial(Some(420)).await,
+            CommandResult::Error {
+                code: ErrorCode::InvalidCommand,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn publica_o_progresso_do_tutorial() {
+        let hub = Hub::new();
+        let (_, mut rx) = hub.subscribe();
+        let parts = training::tutorial_parts(&json!([])).unwrap();
+        hub.set_tutorial(Some(parts.clone()));
+        hub.set_tutorial(Some(parts.clone()));
+        let messages: Vec<ServerMessage> = std::iter::from_fn(|| rx.try_recv().ok()).collect();
+        assert_eq!(
+            messages,
+            [ServerMessage::Tutorial {
+                tutorial: Some(parts.clone())
+            }]
+        );
+        assert_eq!(hub.state().tutorial, Some(parts));
+    }
+
+    #[tokio::test]
+    async fn abrir_o_lobby_so_para_o_lider() {
+        let hub = Hub::new();
+        let invalid = |result: CommandResult| {
+            matches!(
+                result,
+                CommandResult::Error {
+                    code: ErrorCode::InvalidCommand,
+                    ..
+                }
+            )
+        };
+        assert!(invalid(hub.set_lobby_open(true).await), "fora de lobby");
+        let lobby = |leader: bool| {
+            json!({
+                "gameConfig": {"queueId": 400},
+                "localMember": {"puuid": "p", "isLeader": leader},
+                "members": [{"puuid": "p", "isLeader": leader}],
+                "partyType": "closed",
+            })
+        };
+        hub.apply(event(LOBBY_PATH, EventType::Create, lobby(false)))
+            .await;
+        assert!(invalid(hub.set_lobby_open(true).await), "não é o líder");
+        hub.apply(event(LOBBY_PATH, EventType::Update, lobby(true)))
+            .await;
+        assert!(matches!(
+            hub.set_lobby_open(true).await,
+            CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            }
+        ));
     }
 
     #[tokio::test]

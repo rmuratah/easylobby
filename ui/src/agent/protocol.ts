@@ -7,6 +7,12 @@ import type { Summoner } from '../bindings/Summoner';
 import type { Lobby } from '../bindings/Lobby';
 import type { LobbyMember } from '../bindings/LobbyMember';
 import type { PlayerSlot } from '../bindings/PlayerSlot';
+import type { LobbyRestriction } from '../bindings/LobbyRestriction';
+import type { BotDifficulty } from '../bindings/BotDifficulty';
+import type { CustomBot } from '../bindings/CustomBot';
+import type { CustomLobby } from '../bindings/CustomLobby';
+import type { CustomMember } from '../bindings/CustomMember';
+import type { TutorialPart } from '../bindings/TutorialPart';
 import type { LobbyInvitation } from '../bindings/LobbyInvitation';
 import type { InvitationState } from '../bindings/InvitationState';
 import type { Position } from '../bindings/Position';
@@ -83,12 +89,31 @@ function lobbyInvitation(v: unknown): v is LobbyInvitation {
   return object(v) && typeof v.puuid === 'string' && uint(v.summonerId) &&
     typeof v.state === 'string' && Object.hasOwn(invitationStates, v.state);
 }
+function lobbyRestriction(v: unknown): v is LobbyRestriction {
+  return object(v) && typeof v.code === 'string' && (v.message === null || typeof v.message === 'string') &&
+    Array.isArray(v.puuids) && v.puuids.every(p => typeof p === 'string');
+}
+const botDifficulties = { intro: true, beginner: true, intermediate: true, unknown: true } satisfies Record<BotDifficulty, true>;
+function customBot(v: unknown): v is CustomBot {
+  return object(v) && typeof v.uuid === 'string' && uint(v.championId) && position(v.position) &&
+    typeof v.difficulty === 'string' && Object.hasOwn(botDifficulties, v.difficulty);
+}
+function customMember(v: unknown): v is CustomMember {
+  return object(v) && typeof v.puuid === 'string' && uint(v.summonerId) && uint(v.summonerIconId) &&
+    typeof v.isLeader === 'boolean' && (v.bot === null || customBot(v.bot));
+}
+function customLobby(v: unknown): v is CustomLobby {
+  return object(v) && uint(v.teamSize) && Array.isArray(v.team1) && v.team1.every(customMember) &&
+    Array.isArray(v.team2) && v.team2.every(customMember);
+}
 function lobby(v: unknown): v is Lobby | null {
   return v === null || (object(v) && uint(v.queueId) && (v.queue === null || isQueue(v.queue)) &&
     uint(v.maxLobbySize) && typeof v.isLeader === 'boolean' && typeof v.canStartActivity === 'boolean' &&
     typeof v.showPositionSelector === 'boolean' && typeof v.showQuickPlaySlots === 'boolean' &&
     Array.isArray(v.scarcePositions) && v.scarcePositions.every(position) && Array.isArray(v.members) && v.members.every(lobbyMember) &&
-    typeof v.canInvite === 'boolean' && Array.isArray(v.invitations) && v.invitations.every(lobbyInvitation));
+    typeof v.canInvite === 'boolean' && Array.isArray(v.invitations) && v.invitations.every(lobbyInvitation) &&
+    typeof v.isOpen === 'boolean' && Array.isArray(v.restrictions) && v.restrictions.every(lobbyRestriction) &&
+    (v.custom === null || customLobby(v.custom)));
 }
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const nums = (v: Record<string, unknown>, keys: string[]) => keys.every(k => num(v[k]));
@@ -163,6 +188,10 @@ function championCatalog(v: unknown): v is ChampionCatalog | null {
   return v === null || (object(v) && list(v.champions, object));
 }
 const nullableIds = (v: unknown) => v === null || list(v, uint);
+function tutorialPart(v: unknown): v is TutorialPart {
+  return object(v) && uint(v.queueId) && uint(v.part) && typeof v.completed === 'boolean' && typeof v.available === 'boolean';
+}
+const tutorial = (v: unknown) => v === null || list(v, tutorialPart);
 function champSelectChampions(v: unknown): v is ChampSelectChampions {
   return object(v) && nullableIds(v.pickable) && nullableIds(v.bannable);
 }
@@ -221,7 +250,7 @@ function status(v: unknown): v is LcuStatus {
 }
 function state(v: unknown): v is AgentState {
   return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) &&
-    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && lobbyChat(v.lobbyChat) && champSelect(v.champSelect) &&
+    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && nullableIds(v.availableBots) && lobbyChat(v.lobbyChat) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
@@ -246,6 +275,8 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'matchmaking': valid = matchmaking(v.matchmaking); break;
     case 'queues': valid = list(v.queues, gameQueue); break;
     case 'playableChampions': valid = nullableIds(v.playableChampions); break;
+    case 'tutorial': valid = tutorial(v.tutorial); break;
+    case 'availableBots': valid = nullableIds(v.availableBots); break;
     case 'champSelect': valid = champSelect(v.champSelect); break;
     case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
     case 'lobbyChat': valid = lobbyChat(v.lobbyChat); break;

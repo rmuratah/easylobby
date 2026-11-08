@@ -26,6 +26,9 @@ pub const POSITION_PREFERENCES: &str =
 /// Slots do Jogo Dinâmico do jogador logado (#218).
 pub const PLAYER_SLOTS: &str = "/lol-lobby/v1/lobby/members/localMember/player-slots";
 
+/// Lobby aberto ou fechado (#225).
+pub const PARTY_TYPE: &str = "/lol-lobby/v2/lobby/partyType";
+
 /// Cargos que a LCU aceita.
 const POSITIONS: [&str; 7] = [
     "TOP",
@@ -119,6 +122,12 @@ pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
             "showQuickPlaySlotSelection".into(),
             json!(show_quick_play_slots),
         );
+    }
+    // Personalizada (#229): as equipes no `gameConfig`; numa fila comum, sem.
+    if body.get("customGameLobby").is_some() {
+        crate::custom::make_custom(&mut lobby);
+    } else {
+        crate::custom::make_queue(&mut lobby);
     }
     let created = current.status != 200;
 
@@ -290,6 +299,40 @@ pub fn set_player_slots(state: &LcuState, body: &Value) -> (Response, Vec<EventF
     )
 }
 
+/// `PUT` [`PARTY_TYPE`] com `"open"` ou `"closed"` (#225): troca o
+/// `partyType` do lobby. Fora de lobby responde 404; sem ser o líder, 403; com
+/// outro corpo, 400.
+pub fn set_party_type(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
+    let current = state.get(LOBBY);
+    if current.status != 200 {
+        return (
+            Response::error(404, "mock-lcu: LOBBY_NOT_FOUND"),
+            Vec::new(),
+        );
+    }
+    let Some(party_type) = body.as_str().filter(|t| *t == "open" || *t == "closed") else {
+        return (
+            Response::error(400, "mock-lcu: o corpo precisa ser \"open\" ou \"closed\""),
+            Vec::new(),
+        );
+    };
+    let mut lobby = current.body;
+    if lobby["localMember"]["isLeader"] != json!(true) {
+        return (
+            Response::error(403, "mock-lcu: só o líder troca"),
+            Vec::new(),
+        );
+    }
+    lobby["partyType"] = json!(party_type);
+    (
+        Response {
+            status: 204,
+            body: Value::Null,
+        },
+        vec![event(LOBBY, "Update", lobby)],
+    )
+}
+
 /// Lobby novo: o gravado, ou um mínimo com o invocador logado de líder.
 pub fn template(state: &LcuState) -> Value {
     if let Some(recorded) = state.recorded_body(LOBBY) {
@@ -451,6 +494,20 @@ mod tests {
         // Preenchimento não vale num slot.
         let fill = json!([{"championId": 22, "positionPreference": "FILL"}]);
         assert_eq!(set_player_slots(&s, &fill).0.status, 400);
+    }
+
+    #[test]
+    fn abre_e_fecha_o_lobby() {
+        let mut s = state("16.22");
+        assert_eq!(set_party_type(&s, &json!("open")).0.status, 404);
+        let (_, events) = create(&s, &json!({"queueId": 400}));
+        apply(&mut s, &events);
+        assert_eq!(s.get(LOBBY).body["partyType"], "closed");
+        let (response, events) = set_party_type(&s, &json!("open"));
+        assert_eq!(response.status, 204);
+        apply(&mut s, &events);
+        assert_eq!(s.get(LOBBY).body["partyType"], "open");
+        assert_eq!(set_party_type(&s, &json!("aberto")).0.status, 400);
     }
 
     #[test]

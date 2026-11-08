@@ -34,6 +34,7 @@ pub mod bench;
 pub mod champ_select;
 pub mod champions;
 pub mod chat;
+pub mod custom;
 pub mod invitations;
 pub mod lobby;
 pub mod matchmaking;
@@ -660,6 +661,60 @@ async fn handle_request(
                 .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
                 .unwrap_or(Value::Null);
             let (response, events) = lobby::set_positions(&shared.state(), &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        // Personalizada (#229): bots e troca de equipe.
+        (&Method::GET, custom::AVAILABLE_BOTS) => custom::available_bots(&shared.state()),
+        (&Method::POST, custom::BOTS) => {
+            let body = axum::body::to_bytes(request.into_body(), 64 * 1024)
+                .await
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .unwrap_or(Value::Null);
+            let (response, events) = custom::add_bot(&shared.state(), &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::POST, p) if custom::is_bot_path(p) => {
+            let p = p.to_owned();
+            let body = axum::body::to_bytes(request.into_body(), 64 * 1024)
+                .await
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .unwrap_or(Value::Null);
+            let (response, events) = custom::update_bot(&shared.state(), &p, &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::DELETE, p) if custom::is_bot_path(p) => {
+            let (response, events) = custom::remove_bot(&shared.state(), p);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::POST, p) if p.starts_with(custom::TEAM) => {
+            let (response, events) = custom::switch_team(&shared.state(), p);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        // Lobby aberto ou fechado (#225).
+        (&Method::PUT, lobby::PARTY_TYPE) => {
+            let body = axum::body::to_bytes(request.into_body(), 64 * 1024)
+                .await
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .unwrap_or(Value::Null);
+            let (response, events) = lobby::set_party_type(&shared.state(), &body);
             for event in events {
                 emit(&shared, event);
             }

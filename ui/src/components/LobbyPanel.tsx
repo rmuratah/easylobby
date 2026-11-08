@@ -16,6 +16,9 @@ import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
 import { PositionIcon } from './PositionIcon';
 import { ModeSelect } from './ModeSelect';
 import { QuickPlaySlots } from './QuickPlaySlots';
+import { LobbyOpenToggle } from './LobbyOpenToggle';
+import { PracticeLobby } from './PracticeLobby';
+import { isTutorialQueue } from '../agent/training';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' | 'startTutorial' | 'startPracticeTool' }>;
@@ -214,7 +217,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   if (!lobby) {
     return (
       <ModeSelect queues={state.queues} canCreate={canCreate} pending={pending} restriction={restriction}
-        descriptionId={descriptionId} feedback={feedbackLine}
+        descriptionId={descriptionId} feedback={feedbackLine} tutorial={state.tutorial}
         onCreate={command => { void execute(command); }} onStart={command => { void execute(command); }} />
     );
   }
@@ -230,6 +233,12 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
         }}
         onStart={() => {}} />
     );
+  }
+
+  // Personalizada, como o Modo de Treino (#229): duas equipes com bots.
+  if (lobby.custom) {
+    return <PracticeLobby lobby={{ ...lobby, custom: lobby.custom }} state={state} send={send} canLeave={canLeave}
+      leaving={pending} onLeave={() => { void execute({ type: 'leaveLobby' }); }} feedback={feedbackLine} />;
   }
 
   // Amigo arrastado da lista de amigos (#206): solto em qualquer ponto do lobby, vira convite.
@@ -269,6 +278,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
           <span className="rounded-full surface px-3 py-1.5 shadow-soft text-caption font-medium text-muted">
             {lobby.isLeader ? 'Você é o líder' : 'Você é membro'}
           </span>
+          {/* Lobby aberto ou fechado (#225): todos os modos, menos o Tutorial. */}
+          {!isTutorialQueue(lobby.queueId) && <LobbyOpenToggle lobby={lobby} send={send} disabled={phase !== 'Lobby'} />}
           {!searching && (
             <button type="button" aria-describedby={descriptionId} disabled={!canCreate || pending}
               onClick={() => { setFeedback({ status: 'idle', message: '' }); setChangingMode(true); }}
