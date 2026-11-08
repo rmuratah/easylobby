@@ -9,8 +9,9 @@
 //!   cards ([`TutorialPart`]) e o comando de iniciar recebe a fila da parte.
 //! - **Modo de Treino:** é uma personalizada (`PRACTICETOOL`, fila 3140 na
 //!   lista da LCU, com `isCustom`). O agente cria a personalizada no
-//!   Summoner's Rift, com uma senha para ninguém de fora entrar, e já inicia a
-//!   seleção de campeões, sem o jogador ver o lobby da personalizada.
+//!   Summoner's Rift, com uma senha para ninguém de fora entrar, e deixa o
+//!   jogador no lobby da personalizada, com as equipes e os bots (#229, veja
+//!   [`crate::custom_lobby`]). A partida começa pelo comando de iniciar.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 

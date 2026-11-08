@@ -54,6 +54,10 @@ export type AgentState = {
    */
   tutorial: Array<TutorialPart> | null,
   /**
+   * Campeões que podem ser bots na personalizada (#229), ou `null`.
+   */
+  availableBots: Array<number> | null,
+  /**
    * Sala de chat do grupo no lobby (#206), ou `null` sem lobby.
    */
   lobbyChat: LobbyChat | null,

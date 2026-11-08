@@ -31,6 +31,24 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::StartPracticeTool => hub.start_practice_tool().await,
         Command::SetPlayerSlots { slots } => hub.set_player_slots(slots).await,
         Command::SetLobbyOpen { open } => hub.set_lobby_open(open).await,
+        Command::AddBot {
+            team,
+            champion_id,
+            difficulty,
+            position,
+        } => hub.add_bot(team, champion_id, difficulty, position).await,
+        Command::UpdateBot {
+            bot_uuid,
+            champion_id,
+            difficulty,
+            position,
+        } => {
+            hub.update_bot(&bot_uuid, champion_id, difficulty, position)
+                .await
+        }
+        Command::RemoveBot { bot_uuid } => hub.remove_bot(&bot_uuid).await,
+        Command::SwitchTeam { team } => hub.switch_team(team).await,
+        Command::StartCustomGame => hub.start_custom_game().await,
 
         // Seleção de campeões
         Command::HoverChampion {

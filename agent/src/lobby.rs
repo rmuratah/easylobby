@@ -38,6 +38,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use ts_rs::TS;
 
+use crate::custom_lobby::CustomLobby;
 use crate::lobby_restrictions::{self, LobbyRestriction};
 use crate::quick_play::PlayerSlot;
 use crate::rest::{LcuClient, LcuError};
@@ -246,6 +247,9 @@ pub struct Lobby {
     /// `restrictions`. Vazia quando nada bloqueia. A LCU pode mandar itens
     /// mesmo com `canStartActivity`; a UI só mostra com a fila bloqueada.
     pub restrictions: Vec<LobbyRestriction>,
+    /// As duas equipes, numa personalizada como o Modo de Treino (#229), ou
+    /// `null` nas filas comuns. Veja [`crate::custom_lobby`].
+    pub custom: Option<CustomLobby>,
     /// `multiUserChatId` da LCU: o começo do `id` da sala de chat do grupo
     /// (#206). A UI não precisa: o chat chega em `lobbyChat`.
     #[serde(skip)]
@@ -413,6 +417,9 @@ impl Lobby {
             invitations,
             is_open: raw.party_type == "open",
             restrictions: lobby_restrictions::from_json(&raw.restrictions),
+            custom: value
+                .get("gameConfig")
+                .and_then(CustomLobby::from_game_config),
             chat_id: raw.multi_user_chat_id,
             chat_password: raw.multi_user_chat_password,
             chat_muc_jwt: raw.muc_jwt_dto,
@@ -677,6 +684,7 @@ mod tests {
         assert!(!lobby.can_invite);
         assert!(lobby.invitations.is_empty());
         assert!(!lobby.is_open);
+        assert_eq!(lobby.custom, None);
         let aberto =
             Lobby::from_json(&json!({"gameConfig": {"queueId": 400}, "partyType": "open"}));
         assert!(aberto.unwrap().is_open);
@@ -714,6 +722,7 @@ mod tests {
             }],
             is_open: true,
             restrictions: Vec::new(),
+            custom: None,
             // Não vai para a UI.
             chat_id: "grupo".into(),
             chat_password: "senha".into(),
@@ -744,6 +753,7 @@ mod tests {
                 "invitations": [{"puuid": "amigo", "summonerId": 4, "state": "Pending"}],
                 "isOpen": true,
                 "restrictions": [],
+                "custom": null,
             })
         );
     }

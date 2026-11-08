@@ -335,6 +335,118 @@ async fn abre_e_fecha_o_lobby() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// O último lobby antes da resposta.
+fn last_lobby(messages: &[ServerMessage]) -> easylobby_agent::lobby::Lobby {
+    messages
+        .iter()
+        .rev()
+        .find_map(|m| match m {
+            ServerMessage::Lobby { lobby } => lobby.clone(),
+            _ => None,
+        })
+        .expect("o lobby novo chega antes da resposta")
+}
+
+#[tokio::test]
+async fn modo_de_treino_com_equipes_e_bots() {
+    use easylobby_agent::custom_lobby::{BotDifficulty, CustomTeam};
+    let dir = temp_dir("treino");
+    let mock = start_mock(&dir).await;
+    let url = start_agent(&dir).await;
+    let mut ui = tokio_tungstenite::connect_async(&url).await.unwrap().0;
+    wait_summoner(&mut ui).await;
+
+    // Abre o Modo de Treino: fica no lobby, com o jogador na Equipe 1.
+    send(&mut ui, 1, Command::StartPracticeTool).await;
+    let (before, result) = until_response(&mut ui, 1).await;
+    assert_eq!(result, CommandResult::Ok);
+    let custom = last_lobby(&before).custom.expect("personalizada");
+    assert_eq!(custom.team_size, 5);
+    assert_eq!(custom.team1.len(), 1);
+    assert!(custom.team2.is_empty());
+    assert_eq!(mock.phase(), "Lobby");
+
+    // Adiciona um bot na Equipe 2.
+    send(
+        &mut ui,
+        2,
+        Command::AddBot {
+            team: CustomTeam::Team2,
+            champion_id: 22,
+            difficulty: BotDifficulty::Beginner,
+            position: Position::Bottom,
+        },
+    )
+    .await;
+    let (before, result) = until_response(&mut ui, 2).await;
+    assert_eq!(result, CommandResult::Ok);
+    let custom = last_lobby(&before).custom.unwrap();
+    let bot = custom.team2[0].bot.clone().unwrap();
+    assert_eq!(
+        (bot.champion_id, bot.position, bot.difficulty),
+        (22, Position::Bottom, BotDifficulty::Beginner)
+    );
+
+    // Muda o bot.
+    send(
+        &mut ui,
+        3,
+        Command::UpdateBot {
+            bot_uuid: bot.uuid.clone(),
+            champion_id: 1,
+            difficulty: BotDifficulty::Intermediate,
+            position: Position::Middle,
+        },
+    )
+    .await;
+    let (before, result) = until_response(&mut ui, 3).await;
+    assert_eq!(result, CommandResult::Ok);
+    let changed = last_lobby(&before).custom.unwrap().team2[0]
+        .bot
+        .clone()
+        .unwrap();
+    assert_eq!(
+        (changed.champion_id, changed.position),
+        (1, Position::Middle)
+    );
+
+    // "Juntar-se" à Equipe 2.
+    send(
+        &mut ui,
+        4,
+        Command::SwitchTeam {
+            team: CustomTeam::Team2,
+        },
+    )
+    .await;
+    let (before, result) = until_response(&mut ui, 4).await;
+    assert_eq!(result, CommandResult::Ok);
+    let custom = last_lobby(&before).custom.unwrap();
+    assert!(custom.team1.is_empty());
+    assert_eq!(custom.team2.len(), 2);
+
+    // Tira o bot.
+    send(
+        &mut ui,
+        5,
+        Command::RemoveBot {
+            bot_uuid: bot.uuid.clone(),
+        },
+    )
+    .await;
+    let (before, result) = until_response(&mut ui, 5).await;
+    assert_eq!(result, CommandResult::Ok);
+    assert_eq!(last_lobby(&before).custom.unwrap().team2.len(), 1);
+
+    // Inicia a partida.
+    send(&mut ui, 6, Command::StartCustomGame).await;
+    let (_, result) = until_response(&mut ui, 6).await;
+    assert_eq!(result, CommandResult::Ok);
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// O lobby que uma UI nova recebe no `hello`.
 async fn mock_lobby(url: &str) -> easylobby_agent::lobby::Lobby {
     let mut ui = tokio_tungstenite::connect_async(url).await.unwrap().0;

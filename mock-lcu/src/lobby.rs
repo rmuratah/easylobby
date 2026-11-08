@@ -123,6 +123,12 @@ pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
             json!(show_quick_play_slots),
         );
     }
+    // Personalizada (#229): as equipes no `gameConfig`; numa fila comum, sem.
+    if body.get("customGameLobby").is_some() {
+        crate::custom::make_custom(&mut lobby);
+    } else {
+        crate::custom::make_queue(&mut lobby);
+    }
     let created = current.status != 200;
 
     let mut events = Vec::new();

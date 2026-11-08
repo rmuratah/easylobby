@@ -10,6 +10,7 @@
 mod champ_select;
 mod champ_select_chat;
 mod chat;
+mod custom_lobby;
 mod exit;
 mod friends;
 mod invitations;
@@ -354,6 +355,9 @@ impl Hub {
                 }
                 // Os cards do Tutorial (#228).
                 self.spawn_refresh_tutorial();
+                // Os campeões que podem ser bots, se já estiver numa
+                // personalizada (#229).
+                self.spawn_refresh_available_bots();
                 // Com o chat ainda conectando a LCU pode responder erro ou
                 // lista vazia; os eventos de cada amigo completam a lista.
                 // Nenhum comando mexe nos amigos e os eventos só são
@@ -400,6 +404,8 @@ impl Hub {
                 }
                 // Com a UI oficial fechada, o agente entra na sala do grupo.
                 if event.uri == LOBBY_PATH {
+                    // Os campeões que podem ser bots numa personalizada (#229).
+                    self.spawn_refresh_available_bots();
                     self.ensure_lobby_chat().await;
                 }
             }
@@ -428,6 +434,7 @@ impl Hub {
                 self.set_champion_catalog(None);
                 self.set_playable_champions(None);
                 self.set_tutorial(None);
+                self.set_available_bots(None);
                 self.set_champ_select_champions(ChampSelectChampions::default());
                 self.set_friends(Vec::new());
                 self.set_friend_groups(Vec::new());

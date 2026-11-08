@@ -49,6 +49,7 @@ export type ServerMessage =
   | { "type": "queues", queues: Array<GameQueue>, }
   | { "type": "playableChampions", playableChampions: Array<number> | null, }
   | { "type": "tutorial", tutorial: Array<TutorialPart> | null, }
+  | { "type": "availableBots", availableBots: Array<number> | null, }
   | { "type": "champSelect", champSelect: ChampSelect | null, }
   | { "type": "champSelectChat", champSelectChat: ChampSelectChat | null, }
   | { "type": "lobbyChat", lobbyChat: LobbyChat | null, }

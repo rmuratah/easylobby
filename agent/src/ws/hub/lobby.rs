@@ -76,9 +76,10 @@ impl Hub {
         self.start_queue().await
     }
 
-    /// Inicia o Modo de Treino (comando `startPracticeTool`, #209): cria a
-    /// personalizada e já inicia a seleção de campeões. Publica o lobby
-    /// antes de devolver; a seleção chega pelo WAMP.
+    /// Abre o Modo de Treino (comando `startPracticeTool`, #209 e #229): cria
+    /// a personalizada e deixa o jogador no lobby dela, com as equipes e os
+    /// bots. Publica o lobby antes de devolver; a partida começa com
+    /// `startCustomGame`.
     pub async fn start_practice_tool(&self) -> CommandResult {
         let Some((client, stamp)) = self.begin(Resource::Lobby) else {
             return not_connected();
@@ -88,11 +89,9 @@ impl Hub {
                 if !(lobby.is_some() && self.set_lobby_if(stamp, lobby)) {
                     self.refresh_lobby().await;
                 }
+                self.spawn_refresh_available_bots();
+                CommandResult::Ok
             }
-            Err(error) => return CommandResult::error(ErrorCode::Lcu, error.to_string()),
-        }
-        match training::start_custom_champ_select(&client).await {
-            Ok(()) => CommandResult::Ok,
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
         }
     }

@@ -51,6 +51,7 @@ use crate::champ_select::ChampSelect;
 use crate::champ_select_chat::ChampSelectChat;
 use crate::champions::{ChampSelectChampions, ChampionCatalog};
 use crate::chat::Conversation;
+use crate::custom_lobby::{BotDifficulty, CustomTeam};
 use crate::friends::{Friend, FriendGroup};
 use crate::gameflow::GameflowPhase;
 use crate::invitations::{Invitee, ReceivedInvitation};
@@ -134,6 +135,10 @@ pub enum ServerMessage {
     /// ou quando a LCU não diz o progresso (a UI deixa escolher qualquer
     /// parte).
     Tutorial { tutorial: Option<Vec<TutorialPart>> },
+    /// Mudaram os campeões que podem ser bots na personalizada (#229), em
+    /// ordem de id. Chega quando o jogador entra numa personalizada pela
+    /// primeira vez na conexão. `null` com o LoL fechado ou antes disso.
+    AvailableBots { available_bots: Option<Vec<u32>> },
 
     // Seleção de campeões
     /// A seleção de campeões (#22) abriu ou mudou: hover, ban, pick, troca
@@ -262,6 +267,8 @@ pub struct AgentState {
     pub playable_champions: Option<Vec<u32>>,
     /// As partes do Tutorial (#228), ou `null` sem o progresso.
     pub tutorial: Option<Vec<TutorialPart>>,
+    /// Campeões que podem ser bots na personalizada (#229), ou `null`.
+    pub available_bots: Option<Vec<u32>>,
     /// Sala de chat do grupo no lobby (#206), ou `null` sem lobby.
     pub lobby_chat: Option<LobbyChat>,
 
@@ -438,11 +445,11 @@ pub enum Command {
         #[ts(optional)]
         queue_id: Option<u32>,
     },
-    /// Inicia o Modo de Treino (#209): cria uma personalizada `PRACTICETOOL`
-    /// no Summoner's Rift, com senha, e já vai para a seleção de campeões,
-    /// sem o jogador passar pelo lobby da personalizada. Responde
-    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar criar ou
-    /// iniciar.
+    /// Abre o Modo de Treino (#209 e #229): cria uma personalizada
+    /// `PRACTICETOOL` no Summoner's Rift, com senha, e deixa o jogador no
+    /// lobby dela, com as equipes em `lobby.custom`. A partida começa com
+    /// `startCustomGame`. Responde `notConnected` com o LoL fechado e `lcu` se
+    /// a LCU recusar criar.
     StartPracticeTool,
     /// Escolhe as duas posições e os dois campeões do jogador logado no Jogo
     /// Dinâmico (#218), num lobby com `showQuickPlaySlots`: `PUT
@@ -463,6 +470,44 @@ pub enum Command {
     /// chega numa mensagem `lobby` antes da resposta. Responde
     /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
     SetLobbyOpen { open: bool },
+    /// Adiciona um bot na equipe `team` da personalizada (#229): `POST
+    /// /lol-lobby/v1/lobby/custom/bots`. O campeão é um de `availableBots`,
+    /// a posição uma das 5 rotas (sem `fill` nem `unselected`) e a
+    /// dificuldade não pode ser `unknown`. Só o líder pode, fora de
+    /// personalizada ou com a equipe cheia responde `invalidCommand` sem
+    /// falar com a LCU. O lobby novo chega numa mensagem `lobby` antes da
+    /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
+    /// recusar.
+    AddBot {
+        team: CustomTeam,
+        champion_id: u32,
+        difficulty: BotDifficulty,
+        position: Position,
+    },
+    /// Muda o campeão, a dificuldade e a posição do bot `botUuid` (#229).
+    /// Mesmas regras e erros do `addBot`; um bot que não está no lobby
+    /// responde `invalidCommand`.
+    UpdateBot {
+        bot_uuid: String,
+        champion_id: u32,
+        difficulty: BotDifficulty,
+        position: Position,
+    },
+    /// Tira o bot `botUuid` da personalizada (#229). Mesmos erros do
+    /// `updateBot`.
+    RemoveBot { bot_uuid: String },
+    /// Leva o jogador logado para a equipe `team` da personalizada (#229),
+    /// o "Juntar-se": `POST /lol-lobby/v2/lobby/team/{team}`. Qualquer
+    /// membro pode. Fora de personalizada, já na equipe ou com ela cheia
+    /// responde `invalidCommand` sem falar com a LCU. O lobby novo chega numa
+    /// mensagem `lobby` antes da resposta.
+    SwitchTeam { team: CustomTeam },
+    /// Inicia a partida da personalizada (#229): `POST
+    /// /lol-lobby/v1/lobby/custom/start-champ-select`. Só o líder; fora de
+    /// personalizada responde `invalidCommand`. A seleção de campeões chega
+    /// pelas mensagens de sempre. Responde `notConnected` com o LoL fechado e
+    /// `lcu` se a LCU recusar.
+    StartCustomGame,
 
     // Seleção de campeões
     /// Marca o campeão `championId` na ação `actionId` da seleção (#23), sem
@@ -731,6 +776,7 @@ mod tests {
                     "queues": [],
                     "playableChampions": null,
                     "tutorial": null,
+                    "availableBots": null,
                     "lobbyChat": null,
                     "champSelect": null,
                     "receivedInvitations": [],
@@ -836,6 +882,7 @@ mod tests {
             ("declineReadyCheck", Command::DeclineReadyCheck),
             ("startTutorial", Command::StartTutorial { queue_id: None }),
             ("startPracticeTool", Command::StartPracticeTool),
+            ("startCustomGame", Command::StartCustomGame),
         ] {
             let msg: ClientMessage =
                 serde_json::from_value(json!({"id": 9, "command": {"type": name}})).unwrap();
@@ -849,6 +896,30 @@ mod tests {
             msg.command,
             Command::StartTutorial {
                 queue_id: Some(2010)
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({"id": 9, "command": {
+            "type": "addBot", "team": "team2", "championId": 22,
+            "difficulty": "beginner", "position": "bottom",
+        }}))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::AddBot {
+                team: CustomTeam::Team2,
+                champion_id: 22,
+                difficulty: BotDifficulty::Beginner,
+                position: Position::Bottom,
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 9, "command": {"type": "removeBot", "botUuid": "b"}}),
+        )
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::RemoveBot {
+                bot_uuid: "b".into()
             }
         );
         let msg: ClientMessage = serde_json::from_value(

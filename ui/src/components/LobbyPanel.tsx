@@ -17,6 +17,7 @@ import { PositionIcon } from './PositionIcon';
 import { ModeSelect } from './ModeSelect';
 import { QuickPlaySlots } from './QuickPlaySlots';
 import { LobbyOpenToggle } from './LobbyOpenToggle';
+import { PracticeLobby } from './PracticeLobby';
 import { isTutorialQueue } from '../agent/training';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
@@ -267,6 +268,12 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
         descriptionId={descriptionId} feedback={feedbackLine} tutorial={state.tutorial}
         onCreate={command => { void execute(command); }} onStart={command => { void execute(command); }} />
     );
+  }
+
+  // Personalizada, como o Modo de Treino (#229): duas equipes com bots.
+  if (lobby.custom) {
+    return <PracticeLobby lobby={{ ...lobby, custom: lobby.custom }} state={state} send={send} canLeave={canLeave}
+      leaving={pending} onLeave={() => { void execute({ type: 'leaveLobby' }); }} feedback={feedbackLine} />;
   }
 
   // Amigo arrastado da lista de amigos (#206): solto em qualquer ponto do lobby, vira convite.
