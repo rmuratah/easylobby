@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
-import { buildModeTabs, firstAvailable, type CreateLobby, type GameMode, type ModeTab, type ModeTabId, type Submode, type TrainingCommand } from '../agent/gameModes';
+import { blockCurrentQueue, buildModeTabs, firstAvailable, type CreateLobby, type GameMode, type ModeTab, type ModeTabId, type Submode, type TrainingCommand } from '../agent/gameModes';
 import type { GameQueue } from '../bindings/GameQueue';
 import type { TutorialPart } from '../bindings/TutorialPart';
 import { defaultTutorialPart, tutorialCards } from '../agent/training';
@@ -21,7 +21,8 @@ type Props = {
   tutorial?: TutorialPart[] | null;
   /**
    * Já em lobby (#231): a tela troca a fila em vez de criar o lobby. Abre na
-   * fila atual, sem a aba Treinamento, e tem um botão para voltar ao lobby.
+   * aba da fila atual, sem a aba Treinamento, e tem um botão para voltar ao
+   * lobby. A fila atual fica bloqueada (#239).
    */
   lobby?: { queueId: number; queueName: string; onBack: () => void };
 };
@@ -47,19 +48,28 @@ function ModeIcon({ mode, size = 'md' }: { mode: GameMode; size?: 'md' | 'lg' })
  * Treinamento; cards de modo com os submodos em botões de rádio; rodapé com a
  * fila escolhida e o botão de criar o lobby (ou de iniciar, no Treinamento).
  */
-/** Aba, modo e submodo da fila atual do lobby, para a tela abrir com ela marcada. */
+/**
+ * Seleção inicial da troca de fila: a aba da fila atual, com outra fila aberta
+ * do mesmo modo marcada (a atual está bloqueada, #239). Sem outra aberta no
+ * modo, fica a primeira aberta da aba.
+ */
 function selectionOf(tabs: ModeTab[], queueId: number | undefined): Selection {
   for (const tab of tabs) {
     const mode = tab.modes.find(m => m.submodes.some(s => s.queueId === queueId));
-    if (mode) return { tab: tab.id, mode: mode.id, queueId: queueId ?? null };
+    if (!mode) continue;
+    const other = mode.submodes.find(s => s.available);
+    return other ? { tab: tab.id, mode: mode.id, queueId: other.queueId } : { tab: tab.id, mode: null, queueId: null };
   }
   return { tab: 'pvp', mode: null, queueId: null };
 }
 
+const currentQueueText = 'Você já está nesta fila.';
+
 export function ModeSelect({ queues, canCreate, pending, restriction, descriptionId, feedback, onCreate, onStart, tutorial = null, lobby }: Props) {
   const allTabs = buildModeTabs(queues);
   // Tutorial e Modo de Treino não trocam a fila de um lobby.
-  const tabs = lobby ? allTabs.filter(t => t.id !== 'training') : allTabs;
+  // A fila atual do lobby não pode ser escolhida (#239).
+  const tabs = lobby ? blockCurrentQueue(allTabs.filter(t => t.id !== 'training'), lobby.queueId) : allTabs;
   const baseId = useId();
   const [selection, setSelection] = useState<Selection>(() => selectionOf(tabs, lobby?.queueId));
   const tab = tabs.find(t => t.id === selection.tab) ?? tabs[0];
@@ -78,7 +88,7 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
   const choice = parts.find(p => p.queueId === tutorialChoice && p.available);
   const tutorialPart = choice ?? parts.find(p => p.queueId === defaultTutorialPart(parts))!;
   const isTutorial = current?.mode.id === 'tutorial';
-  // Escolher a fila atual não troca nada.
+  // A fila atual já vem bloqueada; a guarda fica por segurança.
   const unchanged = !!lobby && current?.submode?.queueId === lobby.queueId;
 
   function chooseTab(id: ModeTabId) {
@@ -144,7 +154,8 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
                 <ModeIcon mode={mode} />
                 <div className="min-w-0">
                   <h3 className="text-section font-semibold">{mode.name}</h3>
-                  <p className="text-caption text-muted">{mode.available ? mode.description : 'Fechado agora.'}</p>
+                  <p className="text-caption text-muted">{mode.available ? mode.description
+                    : mode.submodes.some(s => s.current) ? currentQueueText : 'Fechado agora.'}</p>
                 </div>
               </div>
               <div className={cx('grid gap-1.5', tab.modes.length === 1 && '@min-[40rem]:grid-cols-3')}>
@@ -153,13 +164,15 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
                   return (
                     <label key={submode.queueId} className={cx('flex items-start gap-2.5 rounded-tile px-3 py-2 transition-colors',
                       !submode.available || locked ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-raised',
-                      !submode.available && 'opacity-60', checked && 'bg-surface')}>
+                      !submode.available && 'opacity-60', checked && 'bg-surface')}
+                      title={submode.current ? currentQueueText : undefined}>
                       <input type="radio" name={radioName} value={submode.queueId} checked={checked}
                         disabled={!submode.available || locked} onChange={() => choose(mode, submode)}
                         className="mt-1 size-4 shrink-0 accent-[var(--el-accent)]" />
                       <span className="min-w-0">
                         <span className="block text-body font-semibold">{submode.name}</span>
-                        <span className="block text-caption text-muted">{submode.available ? submode.description : 'Fechada agora.'}</span>
+                        <span className="block text-caption text-muted">{submode.available ? submode.description
+                          : submode.current ? currentQueueText : 'Fechada agora.'}</span>
                       </span>
                     </label>
                   );

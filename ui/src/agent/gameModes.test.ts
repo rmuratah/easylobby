@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GameQueue } from '../bindings/GameQueue';
-import { buildModeTabs, firstAvailable, type ModeTab } from './gameModes';
+import { blockCurrentQueue, buildModeTabs, firstAvailable, type ModeTab } from './gameModes';
 import { lobbyQueueName } from './queueOptions';
 
 const queue = (queueId: number, name: string, extra: Partial<GameQueue> = {}): GameQueue => ({
@@ -97,5 +97,15 @@ describe('abas da tela de escolha de modo', () => {
   it('dá nome ao lobby do Tutorial e do Modo de Treino', () => {
     expect(lobbyQueueName({ queueId: 2010, queue: null }, recorded)).toBe('Tutorial, Parte 2');
     expect(lobbyQueueName({ queueId: 3140, queue: null }, recorded)).toBe('Modo de Treino');
+  });
+
+  it('bloqueia a fila atual do lobby e fecha o modo sem outra fila aberta (#239)', () => {
+    const aram = tab(blockCurrentQueue(buildModeTabs(recorded), 2400), 'pvp').modes.find(m => m.id === 'aram')!;
+    expect(aram.available).toBe(true);
+    expect(aram.submodes.map(s => [s.queueId, s.available, !!s.current])).toEqual([[450, true, false], [2400, false, true]]);
+    const arenaOpen = recorded.map(q => q.queueId === 1750 ? { ...q, available: true } : q);
+    const arena = tab(blockCurrentQueue(buildModeTabs(arenaOpen), 1750), 'pvp').modes.find(m => m.id === 'arena')!;
+    expect(arena.available).toBe(false);
+    expect(arena.submodes[0].current).toBe(true);
   });
 });
