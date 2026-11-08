@@ -12,6 +12,7 @@ import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
 import type { Lobby } from "./Lobby";
 import type { LobbyChat } from "./LobbyChat";
+import type { LobbyLink } from "./LobbyLink";
 import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
@@ -33,6 +34,11 @@ export type AgentState = {
   summoner: Summoner | null,
   gameflowPhase: GameflowPhase | null,
   lobby: Lobby | null,
+  /**
+   * Link para entrar no lobby (#226), depois de um `createLobbyLink`, ou
+   * `null`.
+   */
+  lobbyLink: LobbyLink | null,
   matchmaking: Matchmaking | null,
   /**
    * Ready check aberto (partida encontrada, #20), ou `null`.

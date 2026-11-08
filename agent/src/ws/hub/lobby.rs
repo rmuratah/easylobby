@@ -2,6 +2,7 @@
 
 use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
 use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError, SubteamSlot};
+use crate::lobby_link::{self, LobbyLink};
 use crate::matchmaking::{self, Matchmaking};
 use crate::queues::{GameQueue, MODE_SCREEN_QUEUES};
 use crate::quick_play::{self, PlayerSlotInput, SetSlotsError};
@@ -11,10 +12,64 @@ use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 impl Hub {
     pub fn set_lobby(&self, lobby: Option<Lobby>) {
         self.update(|shared| write_lobby(shared, lobby));
+        self.drop_lobby_link_without_lobby();
     }
 
     pub(super) fn set_lobby_if(&self, stamp: Stamp, lobby: Option<Lobby>) -> bool {
-        self.update_if(Resource::Lobby, stamp, |shared| write_lobby(shared, lobby))
+        let applied = self.update_if(Resource::Lobby, stamp, |shared| write_lobby(shared, lobby));
+        self.drop_lobby_link_without_lobby();
+        applied
+    }
+
+    pub fn set_lobby_link(&self, link: Option<LobbyLink>) {
+        self.update(|shared| write_lobby_link(shared, link));
+    }
+
+    /// O link do lobby (#226) some junto com o lobby.
+    fn drop_lobby_link_without_lobby(&self) {
+        self.update(|shared| {
+            if shared.state.lobby.is_some() {
+                return None;
+            }
+            write_lobby_link(shared, None)
+        });
+    }
+
+    /// Gera (ou reaproveita) o link para outra pessoa entrar no lobby
+    /// (comando `createLobbyLink`, #226). Fora de lobby recusa sem falar com
+    /// a LCU. O link chega numa mensagem `lobbyLink` antes da resposta.
+    pub async fn create_lobby_link(&self) -> CommandResult {
+        let (client, session) = {
+            let shared = self.lock();
+            if shared.state.lobby.is_none() {
+                return CommandResult::error(ErrorCode::InvalidCommand, "fora de lobby");
+            }
+            let Some(client) = shared.client.clone() else {
+                return not_connected();
+            };
+            (client, shared.session)
+        };
+        match lobby_link::create(&client).await {
+            Ok(Some(link)) => {
+                let mut published = false;
+                self.update(|shared| {
+                    // O lobby pode ter fechado, ou o LoL caído, enquanto a
+                    // LCU respondia.
+                    if shared.session != session || shared.state.lobby.is_none() {
+                        return None;
+                    }
+                    published = true;
+                    write_lobby_link(shared, Some(link))
+                });
+                if published {
+                    CommandResult::Ok
+                } else {
+                    CommandResult::error(ErrorCode::InvalidCommand, "o lobby fechou")
+                }
+            }
+            Ok(None) => CommandResult::error(ErrorCode::Lcu, "a LCU não mandou o código do lobby"),
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
     }
 
     /// Cria um lobby na fila `queue` ou troca a fila do lobby atual (comando
@@ -464,6 +519,14 @@ pub(super) fn write_lobby(shared: &mut Shared, lobby: Option<Lobby>) -> Option<S
     Some(ServerMessage::Lobby { lobby })
 }
 
+fn write_lobby_link(shared: &mut Shared, link: Option<LobbyLink>) -> Option<ServerMessage> {
+    if shared.state.lobby_link == link {
+        return None;
+    }
+    shared.state.lobby_link = link.clone();
+    Some(ServerMessage::LobbyLink { lobby_link: link })
+}
+
 /// Troca a busca, contando a escrita mesmo quando nada muda (#73).
 pub(super) fn write_matchmaking(
     shared: &mut Shared,
@@ -742,6 +805,53 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[tokio::test]
+    async fn link_do_lobby_so_dentro_de_lobby_e_some_com_ele() {
+        let hub = Hub::new();
+        let code = |result: CommandResult| match result {
+            CommandResult::Error { code, .. } => Some(code),
+            CommandResult::Ok => None,
+        };
+        assert_eq!(
+            code(hub.create_lobby_link().await),
+            Some(ErrorCode::InvalidCommand),
+            "fora de lobby"
+        );
+        let lobby = json!({"gameConfig": {"queueId": 400, "gameMode": "CLASSIC"}});
+        hub.apply(event(LOBBY_PATH, EventType::Create, lobby.clone()))
+            .await;
+        assert_eq!(
+            code(hub.create_lobby_link().await),
+            Some(ErrorCode::NotConnected)
+        );
+
+        let (_, mut rx) = hub.subscribe();
+        let link = LobbyLink {
+            url: "https://gg.riotgames.com/LOL?joinCode=ABCD".into(),
+            join_code: "ABCD".into(),
+            expires_at: None,
+        };
+        hub.set_lobby_link(Some(link.clone()));
+        // Trocar o lobby não leva o link.
+        hub.apply(event(
+            LOBBY_PATH,
+            EventType::Update,
+            json!({"gameConfig": {"queueId": 430, "gameMode": "CLASSIC"}}),
+        ))
+        .await;
+        assert_eq!(hub.state().lobby_link, Some(link.clone()));
+        hub.apply(event(LOBBY_PATH, EventType::Delete, json!(null)))
+            .await;
+        assert_eq!(hub.state().lobby_link, None);
+        let links: Vec<_> = std::iter::from_fn(|| rx.try_recv().ok())
+            .filter_map(|m| match m {
+                ServerMessage::LobbyLink { lobby_link } => Some(lobby_link),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(links, [Some(link), None]);
     }
 
     #[tokio::test]

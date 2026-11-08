@@ -30,6 +30,7 @@
 //!
 //! [`Credentials::from_lockfile_path`]: easylobby_agent::lockfile::Credentials::from_lockfile_path
 
+pub mod ags;
 pub mod bench;
 pub mod champ_select;
 pub mod champions;
@@ -728,6 +729,9 @@ async fn handle_request(
             }
             response
         }
+        // Link para entrar no lobby (#226).
+        (&Method::GET, ags::ACTIVITY_ID) => ags::activity_id(&shared.state()),
+        (m, p) if ags::is_join_code_path(p) => ags::join_code(&shared.state(), m.as_str(), p),
         // Lobby aberto ou fechado (#225).
         (&Method::PUT, lobby::PARTY_TYPE) => {
             let body = axum::body::to_bytes(request.into_body(), 64 * 1024)

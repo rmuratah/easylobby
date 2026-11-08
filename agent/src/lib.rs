@@ -57,6 +57,7 @@ pub mod invitations;
 pub mod launcher;
 pub mod lobby;
 pub mod lobby_chat;
+pub mod lobby_link;
 pub mod lobby_restrictions;
 pub mod lockfile;
 pub mod mastery;
