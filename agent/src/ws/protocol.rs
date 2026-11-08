@@ -51,6 +51,7 @@ use crate::champ_select::ChampSelect;
 use crate::champ_select_chat::ChampSelectChat;
 use crate::champions::{ChampSelectChampions, ChampionCatalog};
 use crate::chat::Conversation;
+use crate::custom_game::CustomGameOptions;
 use crate::custom_lobby::{BotDifficulty, CustomTeam};
 use crate::friends::{Friend, FriendGroup};
 use crate::gameflow::GameflowPhase;
@@ -470,6 +471,15 @@ pub enum Command {
     /// `startCustomGame`. Responde `notConnected` com o LoL fechado e `lcu` se
     /// a LCU recusar criar.
     StartPracticeTool,
+    /// Cria uma partida personalizada com as opções do formulário (#262): o
+    /// mesmo `POST /lol-lobby/v2/lobby` do Modo de Treino, com
+    /// `customGameLobby`, e deixa o jogador no lobby dela, com as equipes e as
+    /// opções em `lobby.custom`. Qualquer mapa aceita qualquer tipo de
+    /// seleção. Nome vazio ou com mais de 64 caracteres, ou equipe fora de 1 a
+    /// 5, responde `invalidCommand` sem falar com a LCU. A partida começa com
+    /// `startCustomGame`. Responde `notConnected` com o LoL fechado e `lcu` se
+    /// a LCU recusar criar.
+    CreateCustomGame { options: CustomGameOptions },
     /// Escolhe as duas posições e os dois campeões do jogador logado no Jogo
     /// Dinâmico (#218), num lobby com `showQuickPlaySlots`: `PUT
     /// /lol-lobby/v1/lobby/members/localMember/player-slots`. Sempre os dois
@@ -802,6 +812,7 @@ impl CommandResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::custom_game::{CustomMap, CustomPickType, SpectatorPolicy};
     use serde_json::json;
 
     #[test]
@@ -949,6 +960,26 @@ mod tests {
             msg.command,
             Command::StartTutorial {
                 queue_id: Some(2010)
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({"id": 9, "command": {
+            "type": "createCustomGame", "options": {
+                "name": "Partida de Fulano", "password": "", "map": "summonersRift",
+                "pickType": "draftMode", "teamSize": 5, "spectators": "lobbyOnly",
+            },
+        }}))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::CreateCustomGame {
+                options: CustomGameOptions {
+                    name: "Partida de Fulano".into(),
+                    password: String::new(),
+                    map: CustomMap::SummonersRift,
+                    pick_type: CustomPickType::DraftMode,
+                    team_size: 5,
+                    spectators: SpectatorPolicy::LobbyOnly,
+                }
             }
         );
         let msg: ClientMessage = serde_json::from_value(json!({"id": 9, "command": {

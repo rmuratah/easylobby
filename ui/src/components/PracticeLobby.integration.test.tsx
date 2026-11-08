@@ -40,7 +40,7 @@ const ashe: CustomMember = { puuid: '', summonerId: 0, summonerIconId: 0, isLead
   bot: { uuid: 'bot-ashe', championId: 22, position: 'bottom', difficulty: 'beginner' } };
 const practice = (custom: Partial<CustomLobby> = {}, leader = true): Lobby => ({
   ...testLobby, queueId: 3140, queue: null, maxLobbySize: 10, showPositionSelector: false, isLeader: leader,
-  custom: { teamSize: 5, team1: [{ ...me, isLeader: leader }], team2: [], ...custom },
+  custom: { settings: { name: 'Modo de Treino', gameMode: 'PRACTICETOOL', mapId: 11, map: 'summonersRift', pickType: 'blindPick', spectators: 'none' }, teamSize: 5, team1: [{ ...me, isLeader: leader }], team2: [], ...custom },
 });
 const champions = { champions: [
   { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: ['fighter'], positions: [] },

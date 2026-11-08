@@ -49,6 +49,7 @@ pub mod champ_select_chat;
 pub mod champions;
 pub mod chat;
 pub mod connection;
+pub mod custom_game;
 pub mod custom_lobby;
 pub mod fixtures;
 pub mod friends;

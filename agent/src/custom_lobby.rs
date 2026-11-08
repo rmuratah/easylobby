@@ -28,6 +28,7 @@ use serde_json::{json, Value};
 use ts_rs::TS;
 
 use crate::chat::encode;
+use crate::custom_game::CustomGameSettings;
 use crate::lobby::Position;
 use crate::rest::{LcuClient, LcuError};
 
@@ -97,10 +98,13 @@ impl BotDifficulty {
     }
 }
 
-/// O lobby de personalizada: as duas equipes.
+/// O lobby de personalizada: as opções da partida e as duas equipes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomLobby {
+    /// Nome, mapa, tipo de seleção e espectadores da partida (#262), para o
+    /// cabeçalho do lobby.
+    pub settings: CustomGameSettings,
     /// Vagas em cada equipe (5 no Summoner's Rift).
     pub team_size: u32,
     /// Equipe 1, na ordem da LCU.
@@ -160,6 +164,7 @@ impl CustomLobby {
             .filter(|&n| n > 0)
             .unwrap_or(5);
         Some(CustomLobby {
+            settings: CustomGameSettings::from_game_config(config),
             team_size,
             team1: team("customTeam100"),
             team2: team("customTeam200"),

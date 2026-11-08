@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use ts_rs::TS;
 
+use crate::custom_game::{lobby_body, LobbyConfig, SpectatorPolicy};
 use crate::lobby::{Lobby, LOBBY_PATH};
 use crate::rest::{LcuClient, LcuError};
 
@@ -131,21 +132,15 @@ pub async fn next_tutorial(lcu: &LcuClient) -> u32 {
 /// Corpo do `POST /lol-lobby/v2/lobby` que cria a personalizada do Modo de
 /// Treino, com a senha `password`.
 pub fn practice_tool_body(password: &str) -> Value {
-    json!({
-        "customGameLobby": {
-            "configuration": {
-                "gameMode": PRACTICE_TOOL_GAME_MODE,
-                "gameMutator": "",
-                "gameServerRegion": "",
-                "mapId": 11,
-                "mutators": { "id": 1 },
-                "spectatorPolicy": "NotAllowed",
-                "teamSize": 5
-            },
-            "lobbyName": "Modo de Treino",
-            "lobbyPassword": password
-        },
-        "isCustom": true
+    // `mutators.id` 1 é o que o Modo de Treino manda desde o #209.
+    lobby_body(&LobbyConfig {
+        name: "Modo de Treino",
+        password,
+        game_mode: PRACTICE_TOOL_GAME_MODE,
+        map_id: 11,
+        mutator_id: 1,
+        team_size: 5,
+        spectators: SpectatorPolicy::None,
     })
 }
 
