@@ -200,10 +200,12 @@ function ConversationView({ conversation, name, send, onBack }: {
  * Botão "Conversar" de cada amigo da lista de amigos: só o ícone, para a coluna
  * estreita caber o status. Com mensagens não lidas, mostra um ponto de destaque.
  */
-export function ChatButton({ friend, unread = 0, onOpen }: { friend: Friend; unread?: number; onOpen: (id: string) => void }) {
+export function ChatButton({ friend, unread = 0, onOpen, className }: {
+  friend: Friend; unread?: number; onOpen: (id: string) => void; className?: string;
+}) {
   const label = `Conversar com ${friendNick(friend)}${unread > 0 ? `, ${unread} não ${unread === 1 ? 'lida' : 'lidas'}` : ''}`;
   return (
-    <Button size="sm" variant="ghost" onClick={() => onOpen(friend.id)} aria-label={label} title={label} className="relative">
+    <Button size="sm" variant="ghost" onClick={() => onOpen(friend.id)} aria-label={label} title={label} className={cx('relative', className)}>
       <svg aria-hidden="true" className="shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
       </svg>

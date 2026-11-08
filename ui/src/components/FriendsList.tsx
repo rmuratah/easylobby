@@ -14,6 +14,8 @@ type Props = {
    * linha do amigo; a lista não sabe o que elas fazem.
    */
   renderActions?: (friend: Friend) => ReactNode;
+  /** Clique no amigo (ícone e nome): abre o perfil dele (#255). */
+  onOpenProfile?: (friend: Friend) => void;
 };
 
 /** Intervalo de atualização do "há N min" da atividade dos amigos. */
@@ -34,7 +36,7 @@ function useNow(intervalMs: number): number {
  * que cada um está fazendo. Cada amigo aparece só pelo nick; o Riot ID com a
  * tag fica no tooltip.
  */
-export function FriendsList({ connection, renderActions }: Props) {
+export function FriendsList({ connection, renderActions, onOpenProfile }: Props) {
   const state = connection.state;
   const connected = connection.status === 'connected' && state?.lcu.state === 'connected';
   const friends = connected ? state.friends : [];
@@ -62,7 +64,8 @@ export function FriendsList({ connection, renderActions }: Props) {
   const onlineTotal = friends.filter(isOnline).length;
   const totals = new Map(groupFriends(friends, groups).map(folder => [folder.id, folder.friends.length]));
   const folders = groupFriends(visible.filter(isOnline), groups);
-  const item = (friend: Friend) => <FriendItem key={friend.id} friend={friend} now={now} actions={renderActions?.(friend)} />;
+  const item = (friend: Friend) => <FriendItem key={friend.id} friend={friend} now={now} actions={renderActions?.(friend)}
+    onOpen={onOpenProfile && (() => onOpenProfile(friend))} />;
   const isOpen = (key: string, startsOpen: boolean) => !!query || (toggled[key] ?? startsOpen);
   const toggle = (key: string, startsOpen: boolean) =>
     setToggled(current => ({ ...current, [key]: !(current[key] ?? startsOpen) }));
@@ -119,18 +122,13 @@ function Folder({ id, title, count, open, onToggle, children }: {
   );
 }
 
-function FriendItem({ friend, now, actions }: { friend: Friend; now: number; actions?: ReactNode }) {
+function FriendItem({ friend, now, actions, onOpen }: { friend: Friend; now: number; actions?: ReactNode; onOpen?: () => void }) {
   const name = friendNick(friend);
   const riotId = friendDisplayName(friend);
   const activity = describeActivity(friend, now);
   const offline = !isOnline(friend);
-  return (
-    // Arrastar o amigo para o lobby convida (#206); o lobby confere se dá para convidar.
-    <li draggable={!offline} onDragStart={event => {
-      event.dataTransfer.setData(FRIEND_DRAG_TYPE, friend.puuid);
-      event.dataTransfer.effectAllowed = 'copy';
-    }}
-      className={cx('flex items-center gap-3 rounded-control px-2 py-1.5 hover:bg-raised', !offline && 'cursor-grab', offline && 'opacity-60')}>
+  const content = (
+    <>
       <span className="relative shrink-0">
         <Avatar name={name} size={36} src={friend.profileIconId !== null ? assetUrl('profileIcon', friend.profileIconId) : undefined} />
         <span
@@ -143,7 +141,26 @@ function FriendItem({ friend, now, actions }: { friend: Friend; now: number; act
         <span className="truncate text-caption text-muted">{activity}</span>
         {friend.statusMessage && <span className="truncate text-caption text-muted italic" title={friend.statusMessage}>{friend.statusMessage}</span>}
       </span>
-      {actions && <span className="flex shrink-0 gap-1">{actions}</span>}
+    </>
+  );
+  return (
+    // Arrastar o amigo para o lobby convida (#206); o lobby confere se dá para convidar.
+    <li draggable={!offline} onDragStart={event => {
+      event.dataTransfer.setData(FRIEND_DRAG_TYPE, friend.puuid);
+      event.dataTransfer.effectAllowed = 'copy';
+    }}
+      className={cx('flex items-stretch rounded-control hover:bg-raised', !offline && 'cursor-grab', offline && 'opacity-60')}>
+      {/* Duas áreas separadas por uma linha (#255): à esquerda, o ícone e o nome abrem o perfil; à direita, as ações (conversar). */}
+      {onOpen
+        ? <button type="button" onClick={onOpen} aria-label={`Ver perfil de ${name}, ${availabilityNames[friend.availability]}, ${activity}`}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-control px-2 py-1.5 text-left hover:bg-line/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+          {content}
+        </button>
+        : <span className="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5">{content}</span>}
+      {actions && <>
+        <span aria-hidden="true" data-divider className="my-2 w-px shrink-0 bg-line" />
+        <span className="flex shrink-0 items-stretch">{actions}</span>
+      </>}
     </li>
   );
 }
