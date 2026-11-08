@@ -28,6 +28,7 @@ export type Command =
   | { "type": "startPracticeTool" }
   | { "type": "setPlayerSlots", slots: Array<PlayerSlotInput>, }
   | { "type": "setLobbyOpen", open: boolean, }
+  | { "type": "createLobbyLink" }
   | { "type": "setSubteamSlot", team: number, position: number, }
   | { "type": "addBot", team: CustomTeam, championId: number, difficulty: BotDifficulty, position: Position, }
   | { "type": "updateBot", botUuid: string, championId: number, difficulty: BotDifficulty, position: Position, }

@@ -31,7 +31,9 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
       champSelectChat: message.phase === 'ChampSelect' ? state.champSelectChat : null };
     case 'readyCheck': return { ...state, readyCheck: message.readyCheck };
     // Sem lobby não há grupo: o chat dele some junto (#206).
-    case 'lobby': return { ...state, lobby: message.lobby, lobbyChat: message.lobby ? state.lobbyChat : null };
+    case 'lobby': return { ...state, lobby: message.lobby, lobbyChat: message.lobby ? state.lobbyChat : null,
+      lobbyLink: message.lobby ? state.lobbyLink : null };
+    case 'lobbyLink': return { ...state, lobbyLink: state.lobby ? message.lobbyLink : null };
     case 'lobbyChat': return { ...state, lobbyChat: state.lcu.state === 'connected' && state.lobby ? message.lobbyChat : null };
     case 'matchmaking': return { ...state, matchmaking: message.matchmaking };
     case 'queues': return { ...state, queues: message.queues };

@@ -14,6 +14,7 @@ import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
 import type { Lobby } from "./Lobby";
 import type { LobbyChat } from "./LobbyChat";
+import type { LobbyLink } from "./LobbyLink";
 import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
@@ -45,6 +46,7 @@ export type ServerMessage =
   | { "type": "summoner", summoner: Summoner | null, }
   | { "type": "gameflowPhase", phase: GameflowPhase | null, }
   | { "type": "lobby", lobby: Lobby | null, }
+  | { "type": "lobbyLink", lobbyLink: LobbyLink | null, }
   | { "type": "matchmaking", matchmaking: Matchmaking | null, }
   | { "type": "readyCheck", readyCheck: ReadyCheck | null, }
   | { "type": "queues", queues: Array<GameQueue>, }

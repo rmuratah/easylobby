@@ -32,6 +32,7 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::StartPracticeTool => hub.start_practice_tool().await,
         Command::SetPlayerSlots { slots } => hub.set_player_slots(slots).await,
         Command::SetLobbyOpen { open } => hub.set_lobby_open(open).await,
+        Command::CreateLobbyLink => hub.create_lobby_link().await,
         Command::SetSubteamSlot { team, position } => {
             hub.set_subteam_slot(SubteamSlot { team, position }).await
         }

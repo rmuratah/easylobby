@@ -17,6 +17,7 @@ import { PositionIcon } from './PositionIcon';
 import { ModeSelect } from './ModeSelect';
 import { QuickPlaySlots } from './QuickPlaySlots';
 import { LobbyOpenToggle } from './LobbyOpenToggle';
+import { LobbyLinkButton } from './LobbyLinkButton';
 import { PracticeLobby } from './PracticeLobby';
 import { isTutorialQueue } from '../agent/training';
 
@@ -280,6 +281,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
           </span>
           {/* Lobby aberto ou fechado (#225): todos os modos, menos o Tutorial. */}
           {!isTutorialQueue(lobby.queueId) && <LobbyOpenToggle lobby={lobby} send={send} disabled={phase !== 'Lobby'} />}
+          {/* Link para entrar no lobby (#226): todos os modos, menos o Tutorial. */}
+          {!isTutorialQueue(lobby.queueId) && <LobbyLinkButton link={state.lobbyLink} send={send} disabled={phase !== 'Lobby'} />}
           {!searching && (
             <button type="button" aria-describedby={descriptionId} disabled={!canCreate || pending}
               onClick={() => { setFeedback({ status: 'idle', message: '' }); setChangingMode(true); }}

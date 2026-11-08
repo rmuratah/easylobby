@@ -26,6 +26,7 @@ import type { ChampSelect } from '../bindings/ChampSelect';
 import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { ChampSelectChatMessage } from '../bindings/ChampSelectChatMessage';
 import type { LobbyChat } from '../bindings/LobbyChat';
+import type { LobbyLink } from '../bindings/LobbyLink';
 import type { LobbyChatMessage } from '../bindings/LobbyChatMessage';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
 import type { Conversation } from '../bindings/Conversation';
@@ -254,8 +255,12 @@ function status(v: unknown): v is LcuStatus {
     default: return false;
   }
 }
+function lobbyLink(v: unknown): v is LobbyLink | null {
+  return v === null || (object(v) && typeof v.url === 'string' && typeof v.joinCode === 'string' &&
+    (v.expiresAt === null || uint(v.expiresAt)));
+}
 function state(v: unknown): v is AgentState {
-  return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) &&
+  return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) && lobbyLink(v.lobbyLink) &&
     readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && nullableIds(v.availableBots) && lobbyChat(v.lobbyChat) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
@@ -286,6 +291,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'champSelect': valid = champSelect(v.champSelect); break;
     case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
     case 'lobbyChat': valid = lobbyChat(v.lobbyChat); break;
+    case 'lobbyLink': valid = lobbyLink(v.lobbyLink); break;
     case 'receivedInvitations': valid = list(v.invitations, receivedInvitation); break;
     case 'conversation': valid = conversation(v.conversation); break;
     case 'conversationClosed': valid = typeof v.id === 'string'; break;

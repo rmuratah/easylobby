@@ -572,3 +572,58 @@ async fn troca_de_vaga_no_lobby_da_arena() {
     mock.shutdown().await;
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn gera_o_link_do_lobby_e_ele_some_ao_sair() {
+    let dir = temp_dir("link");
+    let mock = start_mock(&dir).await;
+    let url = start_agent(&dir).await;
+    let mut ui = tokio_tungstenite::connect_async(&url).await.unwrap().0;
+    wait_summoner(&mut ui).await;
+
+    // Fora de lobby o agente recusa sem falar com a LCU.
+    send(&mut ui, 1, Command::CreateLobbyLink).await;
+    let (_, result) = until_response(&mut ui, 1).await;
+    assert!(is_error(&result, ErrorCode::InvalidCommand), "{result:?}");
+
+    send(
+        &mut ui,
+        2,
+        Command::CreateLobby {
+            queue: Queue::NormalDraft,
+        },
+    )
+    .await;
+    assert_eq!(until_response(&mut ui, 2).await.1, CommandResult::Ok);
+
+    // O link chega antes da resposta.
+    send(&mut ui, 3, Command::CreateLobbyLink).await;
+    let (before, result) = until_response(&mut ui, 3).await;
+    assert_eq!(result, CommandResult::Ok);
+    let link = before
+        .iter()
+        .find_map(|m| match m {
+            ServerMessage::LobbyLink { lobby_link } => lobby_link.clone(),
+            _ => None,
+        })
+        .expect("o link chega antes da resposta");
+    assert!(
+        link.url
+            .starts_with("https://gg.riotgames.com/LOL?joinCode="),
+        "{link:?}"
+    );
+    assert!(link.url.ends_with(&link.join_code));
+    assert!(link.expires_at.is_some());
+
+    // Sair do lobby leva o link junto.
+    send(&mut ui, 4, Command::LeaveLobby).await;
+    let (mut seen, result) = until_response(&mut ui, 4).await;
+    assert_eq!(result, CommandResult::Ok);
+    let cleared = |m: &ServerMessage| matches!(m, ServerMessage::LobbyLink { lobby_link: None });
+    while !seen.iter().any(cleared) {
+        seen.push(recv(&mut ui).await);
+    }
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}

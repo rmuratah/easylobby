@@ -57,6 +57,7 @@ use crate::gameflow::GameflowPhase;
 use crate::invitations::{Invitee, ReceivedInvitation};
 use crate::lobby::{Lobby, Position, Queue};
 use crate::lobby_chat::LobbyChat;
+use crate::lobby_link::LobbyLink;
 use crate::mastery::ChampionMastery;
 use crate::match_history::{MatchDetails, MatchHistory};
 use crate::matchmaking::Matchmaking;
@@ -108,6 +109,11 @@ pub enum ServerMessage {
     /// O lobby mudou (criado, fila trocada, alguém entrou ou saiu). `null`
     /// fora de lobby e com o LoL fechado.
     Lobby { lobby: Option<Lobby> },
+    /// O link para outra pessoa entrar no lobby (#226), gerado com
+    /// `createLobbyLink`. Fica no estado enquanto o lobby existir (gerar de
+    /// novo pode trazer o mesmo link ou um novo); `null` fora de lobby e com
+    /// o LoL fechado.
+    LobbyLink { lobby_link: Option<LobbyLink> },
     /// A busca de partida mudou: entrou ou saiu da fila, mais um segundo na
     /// fila (chega a cada segundo enquanto procura), partida encontrada.
     /// `null` fora da fila e com o LoL fechado.
@@ -262,6 +268,9 @@ pub struct AgentState {
 
     // Lobby, fila e partida encontrada
     pub lobby: Option<Lobby>,
+    /// Link para entrar no lobby (#226), depois de um `createLobbyLink`, ou
+    /// `null`.
+    pub lobby_link: Option<LobbyLink>,
     pub matchmaking: Option<Matchmaking>,
     /// Ready check aberto (partida encontrada, #20), ou `null`.
     pub ready_check: Option<ReadyCheck>,
@@ -480,6 +489,15 @@ pub enum Command {
     /// chega numa mensagem `lobby` antes da resposta. Responde
     /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
     SetLobbyOpen { open: bool },
+    /// Gera o link para outra pessoa entrar no lobby (#226), o do botão
+    /// "copiar link" do client oficial: `GET
+    /// /lol-lobby/v2/ags/agsActivityId` e o código em `/lol-lobby/v2/ags/
+    /// {id}/joinCode` (reaproveita o ativo que ainda vale por mais de um
+    /// minuto, senão `POST` gera um novo). O link chega numa mensagem
+    /// `lobbyLink` antes da resposta. Fora de lobby responde
+    /// `invalidCommand` sem falar com a LCU; `notConnected` com o LoL
+    /// fechado e `lcu` se a LCU recusar.
+    CreateLobbyLink,
     /// Põe o jogador logado na equipe `team`, vaga `position`, do lobby da
     /// Arena (#224): `PUT /lol-lobby/v2/lobby/subteamData`. Os índices são
     /// os de [`crate::lobby::SubteamSlot`], como a LCU manda. Fora de lobby
@@ -805,6 +823,7 @@ mod tests {
                     "gameflowPhase": null,
                     "readyCheck": null,
                     "lobby": null,
+                    "lobbyLink": null,
                     "matchmaking": null,
                     "queues": [],
                     "playableChampions": null,
@@ -972,6 +991,11 @@ mod tests {
                 position: 1
             }
         );
+        let msg: ClientMessage = serde_json::from_value(json!(
+            {"id": 10, "command": {"type": "createLobbyLink"}}
+        ))
+        .unwrap();
+        assert_eq!(msg.command, Command::CreateLobbyLink);
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 8, "command": {"type": "launchLeague"}})).unwrap();
         assert_eq!(msg.command, Command::LaunchLeague);
