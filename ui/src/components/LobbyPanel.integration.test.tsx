@@ -118,10 +118,15 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByRole('img', { name: 'Líder do grupo' })).toBeInTheDocument();
     expect(panel().getByText(/1 \/ 2 jogadores/)).toBeInTheDocument();
     fireEvent.click(button('Trocar modo'));
-    // A tela abre na fila atual, sem a aba Treinamento, e escolher a mesma fila não troca nada.
+    // A tela abre na aba da fila atual, sem a aba Treinamento; a fila atual fica bloqueada (#239)
+    // e a seleção começa em outra fila aberta do mesmo modo.
     expect(panel().getByText('Você está no lobby de Ranqueada Solo/Duo.')).toBeInTheDocument();
-    expect(radio('Ranqueada Solo/Duo')).toBeChecked();
-    expect(button('Trocar fila')).toBeDisabled();
+    expect(radio('Ranqueada Solo/Duo')).toBeDisabled();
+    expect(radio('Ranqueada Solo/Duo')).not.toBeChecked();
+    expect(radio('Ranqueada Solo/Duo').closest('label')).toHaveClass('cursor-not-allowed');
+    expect(radio('Ranqueada Solo/Duo').closest('label')).toHaveTextContent('Você já está nesta fila.');
+    expect(radio('Partida Dinâmica')).toBeChecked();
+    expect(button('Trocar fila')).toBeEnabled();
     expect(panel().queryByRole('tab', { name: 'Treinamento' })).not.toBeInTheDocument();
     fireEvent.click(radio('ARAM Normal'));
     expect(socket().send).not.toHaveBeenCalled();
@@ -158,9 +163,10 @@ describe('lobby pelo único /ws do App', () => {
     fireEvent.click(button('Voltar ao lobby'));
     expect(socket().send).not.toHaveBeenCalled();
     expect(panel().getByText(queueNames.rankedSolo, { selector: 'strong' })).toBeInTheDocument();
-    // Reabrir começa de novo pela fila atual.
+    // Reabrir começa de novo pela aba da fila atual.
     fireEvent.click(button('Trocar modo'));
-    expect(radio('Ranqueada Solo/Duo')).toBeChecked();
+    expect(radio('Partida Dinâmica')).toBeChecked();
+    expect(radio('ARAM Normal')).not.toBeChecked();
   });
 
   it('volta ao lobby quando a busca começa com a tela de modos aberta', () => {
@@ -292,11 +298,11 @@ describe('lobby pelo único /ws do App', () => {
     act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, queue: null, queueId: 2400, maxLobbySize: 5, showPositionSelector: false } }));
     await ok();
     expect(panel().getByText('ARAM: Desordem', { selector: 'strong' })).toBeInTheDocument();
-    // A tela de modos abre na Desordem; outra fila troca pelo botão.
+    // A Desordem fica bloqueada na tela de modos (#239), que já abre no ARAM Normal.
     fireEvent.click(button('Trocar modo'));
-    expect(radio('ARAM Desordem')).toBeChecked();
-    expect(button('Trocar fila')).toBeDisabled();
-    fireEvent.click(radio('ARAM Normal'));
+    expect(radio('ARAM Desordem')).toBeDisabled();
+    expect(radio('ARAM Desordem')).not.toBeChecked();
+    expect(radio('ARAM Normal')).toBeChecked();
     fireEvent.click(button('Trocar fila'));
     expect(request().command).toEqual({ type: 'createLobby', queue: 'aram' });
   });
@@ -328,6 +334,16 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByRole('group', { name: 'Arena' })).toBeDisabled();
     expect(radio('Arena 3x6')).toBeDisabled();
     expect(panel().getByRole('group', { name: 'Arena' })).toHaveTextContent('Fechado agora.');
+  });
+
+  it('bloqueia o modo inteiro quando a fila atual é a única dele', () => {
+    render(<App />);
+    hello({ lobby: { ...testLobby, queue: null, queueId: 1750 }, gameflowPhase: 'Lobby', queues: [gameQueue(1750, 'Arena 3x6', 'CHERRY')] });
+    fireEvent.click(button('Trocar modo'));
+    expect(panel().getByRole('group', { name: 'Arena' })).toBeDisabled();
+    expect(panel().getByRole('group', { name: 'Arena' })).toHaveTextContent('Você já está nesta fila.');
+    expect(radio('Arena 3x6')).toBeDisabled();
+    expect(radio('Partida Dinâmica')).toBeChecked();
   });
 
   it('troca uma fila fora da lista pela primeira aberta', () => {

@@ -20,6 +20,8 @@ export type Submode = {
   description: string;
   /** Fechada pela Riot: aparece acinzentada e não pode ser escolhida. */
   available: boolean;
+  /** Fila em que o lobby já está (#239): aparece bloqueada na tela de trocar modo. */
+  current?: boolean;
   command: CreateLobby;
 };
 export type GameMode = {
@@ -131,4 +133,20 @@ export function firstAvailable(tab: ModeTab): { mode: GameMode; submode: Submode
     if (submode) return { mode, submode };
   }
   return null;
+}
+
+/**
+ * Na tela de trocar modo (#239), a fila atual do lobby não pode ser escolhida:
+ * o submodo fica fechado e marcado como atual, e o modo só continua aberto se
+ * tiver outra fila aberta.
+ */
+export function blockCurrentQueue(tabs: ModeTab[], queueId: number): ModeTab[] {
+  return tabs.map(tab => ({
+    ...tab,
+    modes: tab.modes.map(mode => {
+      if (!mode.submodes.some(s => s.queueId === queueId)) return mode;
+      const submodes = mode.submodes.map(s => s.queueId === queueId ? { ...s, available: false, current: true } : s);
+      return { ...mode, available: submodes.some(s => s.available), submodes };
+    }),
+  }));
 }
