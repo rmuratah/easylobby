@@ -96,6 +96,9 @@ struct Shared {
     /// Sala do grupo em que o agente já tentou entrar nesta conexão, e
     /// quantas vezes (#206). Evita repetir o `POST` a cada evento do lobby.
     lobby_chat_join: (String, u8),
+    /// `puuid` do último `openPlayerProfile` (#255). Um perfil que chega
+    /// depois de outro ter sido pedido é descartado.
+    player_profile_request: Option<String>,
 }
 
 /// Recurso do estado que um comando relê ou muda pelo REST.
@@ -158,6 +161,7 @@ impl Hub {
                     rune_pages_rev: 0,
                     ux_guard: ux_guard::UxGuard::default(),
                     lobby_chat_join: (String::new(), 0),
+                    player_profile_request: None,
                 }),
                 tx,
             }),
@@ -443,6 +447,7 @@ impl Hub {
                 self.set_champion_masteries(Vec::new());
                 self.set_match_history(None);
                 self.set_match_details(None);
+                self.set_player_profile(None);
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
                 });

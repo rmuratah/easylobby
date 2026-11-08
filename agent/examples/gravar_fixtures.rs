@@ -10,7 +10,7 @@
 //!
 //! Tira uma foto dos endpoints REST de lobby, fila, ready check, champ select,
 //! runas, chat e perfil (ranks, maestria, histórico e o placar das partidas
-//! mais novas), grava os eventos WAMP desses recursos e tira uma nova foto a
+//! mais novas, e o perfil do primeiro amigo da lista), grava os eventos WAMP desses recursos e tira uma nova foto a
 //! cada mudança de fase do gameflow. Pare com Ctrl+C (ou `--segundos`). Tudo
 //! passa pelo `Sanitizer` antes de ir para `agent/tests/fixtures/<patch>/`.
 //!
@@ -199,6 +199,7 @@ impl Recorder {
                 self.snapshot(path).await;
             }
             self.snapshot_second_page().await;
+            self.snapshot_friend_profile().await;
         }
         self.snapshot_match_details().await;
         println!("[{}] foto REST na fase {}", self.elapsed_ms(), self.phase);
@@ -220,6 +221,46 @@ impl Recorder {
             puuid.as_deref(),
         );
         self.snapshot(&path).await;
+    }
+
+    /// Perfil do primeiro amigo da lista que tem `summonerId` (#255): as
+    /// rotas pelo puuid que o `openPlayerProfile` usa, mais a rota antiga
+    /// da maestria. Os caminhos gravados saem com o puuid e o id falsos,
+    /// porque o sanitizer aprendeu os dois na foto da lista de amigos.
+    async fn snapshot_friend_profile(&mut self) {
+        use easylobby_agent::player_profile as pp;
+        let Ok(response) = self
+            .lcu
+            .request(Method::GET, "/lol-chat/v1/friends", None)
+            .await
+        else {
+            return;
+        };
+        let friend = response.body.as_array().and_then(|friends| {
+            friends.iter().find_map(|f| {
+                let puuid = f["puuid"].as_str().filter(|p| pp::valid_puuid(p))?;
+                let summoner_id = f["summonerId"].as_u64().filter(|id| *id != 0)?;
+                Some((puuid.to_owned(), summoner_id))
+            })
+        });
+        let Some((puuid, summoner_id)) = friend else {
+            return;
+        };
+        self.snapshot(&format!("{}/{puuid}", pp::SUMMONER_BY_PUUID_PREFIX))
+            .await;
+        self.snapshot(&format!("{}/{puuid}", pp::RANKED_BY_PUUID_PREFIX))
+            .await;
+        self.snapshot(&format!(
+            "{}/{puuid}/champion-mastery",
+            pp::MASTERY_BY_PUUID_PREFIX
+        ))
+        .await;
+        self.snapshot(&format!(
+            "{}/{summoner_id}/champion-mastery",
+            pp::MASTERY_BY_SUMMONER_PREFIX
+        ))
+        .await;
+        self.snapshot(&pp::page_path(0, &puuid)).await;
     }
 
     /// Placar completo das partidas mais novas do histórico (#174). O

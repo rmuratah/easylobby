@@ -6887,5 +6887,844 @@
         }
       ]
     }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-summoner/v2/summoners/puuid/fake-puuid-0002",
+    "phase": "None",
+    "status": 200,
+    "body": {
+      "accountId": 1004,
+      "displayName": "fake-name-0002",
+      "gameName": "fake-name-0002",
+      "tagLine": "fake-tag-0001",
+      "internalName": "fake-name-0002",
+      "nameChangeFlag": false,
+      "percentCompleteForNextLevel": 42,
+      "privacy": "PUBLIC",
+      "profileIconId": 29,
+      "puuid": "fake-puuid-0002",
+      "rerollPoints": {
+        "currentPoints": 0,
+        "maxRolls": 2,
+        "numberOfRolls": 0,
+        "pointsCostToRoll": 250,
+        "pointsToReroll": 250
+      },
+      "summonerId": 1003,
+      "summonerLevel": 143,
+      "unnamed": false,
+      "xpSinceLastLevel": 1100,
+      "xpUntilNextLevel": 2600
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-ranked/v1/ranked-stats/fake-puuid-0002",
+    "phase": "None",
+    "status": 200,
+    "body": {
+      "queues": [
+        {
+          "queueType": "RANKED_SOLO_5x5",
+          "tier": "PLATINUM",
+          "division": "IV",
+          "leaguePoints": 12,
+          "wins": 51,
+          "losses": 47,
+          "isProvisional": false,
+          "miniSeriesProgress": "",
+          "provisionalGameThreshold": 5,
+          "provisionalGamesRemaining": 0
+        },
+        {
+          "queueType": "RANKED_FLEX_SR",
+          "tier": "",
+          "division": "NA",
+          "leaguePoints": 0,
+          "wins": 0,
+          "losses": 0,
+          "isProvisional": false,
+          "miniSeriesProgress": "",
+          "provisionalGameThreshold": 5,
+          "provisionalGamesRemaining": 0
+        },
+        {
+          "queueType": "RANKED_TFT",
+          "tier": "",
+          "division": "NA",
+          "leaguePoints": 0,
+          "wins": 0,
+          "losses": 0,
+          "isProvisional": true
+        }
+      ],
+      "highestRankedEntry": {
+        "queueType": "RANKED_SOLO_5x5",
+        "tier": "PLATINUM",
+        "division": "IV"
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-champion-mastery/v1/fake-puuid-0002/champion-mastery",
+    "phase": "None",
+    "status": 200,
+    "body": [
+      {
+        "championId": 103,
+        "championLevel": 12,
+        "championPoints": 184000,
+        "puuid": "fake-puuid-0002"
+      },
+      {
+        "championId": 222,
+        "championLevel": 9,
+        "championPoints": 97500,
+        "puuid": "fake-puuid-0002"
+      },
+      {
+        "championId": 412,
+        "championLevel": 7,
+        "championPoints": 61200,
+        "puuid": "fake-puuid-0002"
+      },
+      {
+        "championId": 51,
+        "championLevel": 5,
+        "championPoints": 23000,
+        "puuid": "fake-puuid-0002"
+      }
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/lol-match-history/v1/products/lol/fake-puuid-0002/matches?begIndex=0&endIndex=19",
+    "phase": "None",
+    "status": 200,
+    "body": {
+      "accountId": 1004,
+      "platformId": "BR1",
+      "games": {
+        "gameBeginDate": "",
+        "gameCount": 10,
+        "gameEndDate": "",
+        "gameIndexBegin": 0,
+        "gameIndexEnd": 9,
+        "games": [
+          {
+            "gameId": 2001,
+            "platformId": "BR1",
+            "gameCreation": 1793864940000,
+            "gameDuration": 1993,
+            "queueId": 480,
+            "mapId": 11,
+            "gameMode": "SWIFTPLAY",
+            "gameType": "MATCHED_GAME",
+            "gameVersion": "16.22.1",
+            "seasonId": 16,
+            "participantIdentities": [
+              {
+                "participantId": 1,
+                "player": {
+                  "puuid": "fake-puuid-0002",
+                  "gameName": "fake-name-0002",
+                  "tagLine": "fake-tag-0001",
+                  "summonerName": "fake-name-0002",
+                  "profileIcon": 29,
+                  "platformId": "BR1"
+                }
+              }
+            ],
+            "participants": [
+              {
+                "participantId": 1,
+                "teamId": 100,
+                "championId": 222,
+                "spell1Id": 4,
+                "spell2Id": 11,
+                "stats": {
+                  "win": false,
+                  "gameEndedInEarlySurrender": false,
+                  "champLevel": 18,
+                  "kills": 14,
+                  "deaths": 10,
+                  "assists": 5,
+                  "totalMinionsKilled": 234,
+                  "neutralMinionsKilled": 0,
+                  "goldEarned": 15836,
+                  "totalDamageDealtToChampions": 33243,
+                  "visionScore": 60,
+                  "item0": 3006,
+                  "item1": 3036,
+                  "item2": 3142,
+                  "item3": 3111,
+                  "item4": 0,
+                  "item5": 0,
+                  "item6": 3363,
+                  "perk0": 8437,
+                  "perkPrimaryStyle": 8400,
+                  "perkSubStyle": 8200
+                },
+                "timeline": {
+                  "lane": "NONE",
+                  "role": "NONE"
+                }
+              }
+            ],
+            "teams": [
+              {
+                "teamId": 100,
+                "win": "Fail"
+              },
+              {
+                "teamId": 200,
+                "win": "Win"
+              }
+            ]
+          },
+          {
+            "gameId": 3001,
+            "platformId": "BR1",
+            "gameCreation": 1793853660000,
+            "gameDuration": 1257,
+            "queueId": 420,
+            "mapId": 11,
+            "gameMode": "CLASSIC",
+            "gameType": "MATCHED_GAME",
+            "gameVersion": "16.22.1",
+            "seasonId": 16,
+            "participantIdentities": [
+              {
+                "participantId": 1,
+                "player": {
+                  "puuid": "fake-puuid-0002",
+                  "gameName": "fake-name-0002",
+                  "tagLine": "fake-tag-0001",
+                  "summonerName": "fake-name-0002",
+                  "profileIcon": 29,
+                  "platformId": "BR1"
+                }
+              }
+            ],
+            "participants": [
+              {
+                "participantId": 1,
+                "teamId": 100,
+                "championId": 103,
+                "spell1Id": 4,
+                "spell2Id": 3,
+                "stats": {
+                  "win": true,
+                  "gameEndedInEarlySurrender": false,
+                  "champLevel": 13,
+                  "kills": 12,
+                  "deaths": 8,
+                  "assists": 16,
+                  "totalMinionsKilled": 88,
+                  "neutralMinionsKilled": 0,
+                  "goldEarned": 8092,
+                  "totalDamageDealtToChampions": 11445,
+                  "visionScore": 19,
+                  "item0": 3006,
+                  "item1": 3065,
+                  "item2": 3020,
+                  "item3": 0,
+                  "item4": 0,
+                  "item5": 0,
+                  "item6": 3364,
+                  "perk0": 8214,
+                  "perkPrimaryStyle": 8200,
+                  "perkSubStyle": 8000
+                },
+                "timeline": {
+                  "lane": "NONE",
+                  "role": "NONE"
+                }
+              }
+            ],
+            "teams": [
+              {
+                "teamId": 100,
+                "win": "Fail"
+              },
+              {
+                "teamId": 200,
+                "win": "Win"
+              }
+            ]
+          },
+          {
+            "gameId": 3002,
+            "platformId": "BR1",
+            "gameCreation": 1793841660000,
+            "gameDuration": 2062,
+            "queueId": 420,
+            "mapId": 11,
+            "gameMode": "CLASSIC",
+            "gameType": "MATCHED_GAME",
+            "gameVersion": "16.22.1",
+            "seasonId": 16,
+            "participantIdentities": [
+              {
+                "participantId": 4,
+                "player": {
+                  "puuid": "fake-puuid-0002",
+                  "gameName": "fake-name-0002",
+                  "tagLine": "fake-tag-0001",
+                  "summonerName": "fake-name-0002",
+                  "profileIcon": 29,
+                  "platformId": "BR1"
+                }
+              }
+            ],
+            "participants": [
+              {
+                "participantId": 4,
+                "teamId": 100,
+                "championId": 222,
+                "spell1Id": 32,
+                "spell2Id": 4,
+                "stats": {
+                  "win": false,
+                  "gameEndedInEarlySurrender": false,
+                  "champLevel": 18,
+                  "kills": 13,
+                  "deaths": 1,
+                  "assists": 18,
+                  "totalMinionsKilled": 175,
+                  "neutralMinionsKilled": 0,
+                  "goldEarned": 14595,
+                  "totalDamageDealtToChampions": 28347,
+                  "visionScore": 59,
+                  "item0": 3157,
+                  "item1": 3111,
+                  "item2": 6653,
+                  "item3": 0,
+                  "item4": 0,
+                  "item5": 0,
+                  "item6": 3364,
+                  "perk0": 8010,
+                  "perkPrimaryStyle": 8000,
+                  "perkSubStyle": 8400
+                },
+                "timeline": {
+                  "lane": "NONE",
+                  "role": "NONE"
+                }
+              }
+            ],
+            "teams": [
+              {
+                "teamId": 100,
+                "win": "Win"
+              },
+              {
+                "teamId": 200,
+                "win": "Fail"
+              }
+            ]
+          },
+          {
+            "gameId": 3003,
+            "platformId": "BR1",
+            "gameCreation": 1793823660000,
+            "gameDuration": 1382,
+            "queueId": 420,
+            "mapId": 11,
+            "gameMode": "CLASSIC",
+            "gameType": "MATCHED_GAME",
+            "gameVersion": "16.22.1",
+            "seasonId": 16,
+            "participantIdentities": [
+              {
+                "participantId": 4,
+                "player": {
+                  "puuid": "fake-puuid-0002",
+                  "gameName": "fake-name-0002",
+                  "tagLine": "fake-tag-0001",
+                  "summonerName": "fake-name-0002",
+                  "profileIcon": 29,
+                  "platformId": "BR1"
+                }
+              }
+            ],
+            "participants": [
+              {
+                "participantId": 4,
+                "teamId": 100,
+                "championId": 412,
+                "spell1Id": 4,
+                "spell2Id": 12,
+                "stats": {
+                  "win": true,
+                  "gameEndedInEarlySurrender": false,
+                  "champLevel": 14,
+                  "kills": 6,
+                  "deaths": 6,
+                  "assists": 19,
+                  "totalMinionsKilled": 160,
+                  "neutralMinionsKilled": 0,
+                  "goldEarned": 10630,
+                  "totalDamageDealtToChampions": 18749,
+                  "visionScore": 34,
+                  "item0": 3094,
+                  "item1": 3157,
+                  "item2": 3006,
+                  "item3": 3071,
+                  "item4": 0,
+                  "item5": 0,
+                  "item6": 3363,
+                  "perk0": 8128,
+                  "perkPrimaryStyle": 8100,
+                  "perkSubStyle": 8000
+                },
+                "timeline": {
+                  "lane": "NONE",
+                  "role": "NONE"
+                }
+              }
+            ],
+            "teams": [
+              {
+                "teamId": 100,
+                "win": "Win"
+              },
+              {
+                "teamId": 200,
+                "win": "Fail"
+              }
+            ]
+          },
+          {
+            "gameId": 3004,
+            "platformId": "BR1",
+            "gameCreation": 1793807580000,
+            "gameDuration": 1330,
+            "queueId": 450,
+            "mapId": 12,
+            "gameMode": "ARAM",
+            "gameType": "MATCHED_GAME",
+            "gameVersion": "16.22.1",
+            "seasonId": 16,
+            "participantIdentities": [
+              {
+                "participantId": 6,
+                "player": {
+                  "puuid": "fake-puuid-0002",
+                  "gameName": "fake-name-0002",
+                  "tagLine": "fake-tag-0001",
+                  "summonerName": "fake-name-0002",
+                  "profileIcon": 29,
+                  "platformId": "BR1"
+                }
+              }
+            ],
+            "participants": [
+              {
+                "participantId": 6,
+                "teamId": 200,
+                "championId": 51,
+                "spell1Id": 32,
+                "spell2Id": 4,
+                "stats": {
+                  "win": true,
+                  "gameEndedInEarlySurrender": false,
+                  "champLevel": 14,
+                  "kills": 4,
+                  "deaths": 6,
+                  "assists": 19,
+                  "totalMinionsKilled": 149,
+                  "neutralMinionsKilled": 8,
+                  "goldEarned": 8357,
+                  "totalDamageDealtToChampions": 11747,
+                  "visionScore": 32,
+                  "item0": 3142,
+                  "item1": 3047,
+                  "item2": 3814,
+                  "item3": 0,
+                  "item4": 0,
+                  "item5": 0,
+                  "item6": 3363,
+                  "perk0": 8010,
+                  "perkPrimaryStyle": 8000,
+                  "perkSubStyle": 8400
+                },
+                "timeline": {
+                  "lane": "NONE",
+                  "role": "NONE"
+                }
+              }
+            ],
+            "teams": [
+              {
+                "teamId": 100,
+                "win": "Fail"
+              },
+              {
+                "teamId": 200,
+                "win": "Win"
+              }
+            ]
+          },
+          {
+            "gameId": 3005,
+            "platformId": "BR1",
+            "gameCreation": 1793794080000,
+            "gameDuration": 1796,
+            "queueId": 400,
+            "mapId": 11,
+            "gameMode": "CLASSIC",
+            "gameType": "MATCHED_GAME",
+            "gameVersion": "16.22.1",
+            "seasonId": 16,
+            "participantIdentities": [
+              {
+                "participantId": 5,
+                "player": {
+                  "puuid": "fake-puuid-0002",
+                  "gameName": "fake-name-0002",
+                  "tagLine": "fake-tag-0001",
+                  "summonerName": "fake-name-0002",
+                  "profileIcon": 29,
+                  "platformId": "BR1"
+                }
+              }
+            ],
+            "participants": [
+              {
+                "participantId": 5,
+                "teamId": 100,
+                "championId": 89,
+                "spell1Id": 4,
+                "spell2Id": 3,
+                "stats": {
+                  "win": false,
+                  "gameEndedInEarlySurrender": false,
+                  "champLevel": 17,
+                  "kills": 4,
+                  "deaths": 2,
+                  "assists": 7,
+                  "totalMinionsKilled": 136,
+                  "neutralMinionsKilled": 8,
+                  "goldEarned": 14074,
+                  "totalDamageDealtToChampions": 25321,
+                  "visionScore": 23,
+                  "item0": 6692,
+                  "item1": 3053,
+                  "item2": 0,
+                  "item3": 0,
+                  "item4": 0,
+                  "item5": 0,
+                  "item6": 3363,
+                  "perk0": 8128,
+                  "perkPrimaryStyle": 8100,
+                  "perkSubStyle": 8000
+                },
+                "timeline": {
+                  "lane": "NONE",
+                  "role": "NONE"
+                }
+              }
+            ],
+            "teams": [
+              {
+                "teamId": 100,
+                "win": "Win"
+              },
+              {
+                "teamId": 200,
+                "win": "Fail"
+              }
+            ]
+          },
+          {
+            "gameId": 3006,
+            "platformId": "BR1",
+            "gameCreation": 1793787960000,
+            "gameDuration": 2164,
+            "queueId": 420,
+            "mapId": 11,
+            "gameMode": "CLASSIC",
+            "gameType": "MATCHED_GAME",
+            "gameVersion": "16.22.1",
+            "seasonId": 16,
+            "participantIdentities": [
+              {
+                "participantId": 10,
+                "player": {
+                  "puuid": "fake-puuid-0002",
+                  "gameName": "fake-name-0002",
+                  "tagLine": "fake-tag-0001",
+                  "summonerName": "fake-name-0002",
+                  "profileIcon": 29,
+                  "platformId": "BR1"
+                }
+              }
+            ],
+            "participants": [
+              {
+                "participantId": 10,
+                "teamId": 200,
+                "championId": 25,
+                "spell1Id": 4,
+                "spell2Id": 7,
+                "stats": {
+                  "win": true,
+                  "gameEndedInEarlySurrender": false,
+                  "champLevel": 18,
+                  "kills": 12,
+                  "deaths": 3,
+                  "assists": 1,
+                  "totalMinionsKilled": 270,
+                  "neutralMinionsKilled": 120,
+                  "goldEarned": 15981,
+                  "totalDamageDealtToChampions": 37481,
+                  "visionScore": 49,
+                  "item0": 3089,
+                  "item1": 6672,
+                  "item2": 3071,
+                  "item3": 3142,
+                  "item4": 3020,
+                  "item5": 6653,
+                  "item6": 3340,
+                  "perk0": 8437,
+                  "perkPrimaryStyle": 8400,
+                  "perkSubStyle": 8200
+                },
+                "timeline": {
+                  "lane": "NONE",
+                  "role": "NONE"
+                }
+              }
+            ],
+            "teams": [
+              {
+                "teamId": 100,
+                "win": "Fail"
+              },
+              {
+                "teamId": 200,
+                "win": "Win"
+              }
+            ]
+          },
+          {
+            "gameId": 3007,
+            "platformId": "BR1",
+            "gameCreation": 1793774520000,
+            "gameDuration": 200,
+            "queueId": 420,
+            "mapId": 11,
+            "gameMode": "CLASSIC",
+            "gameType": "MATCHED_GAME",
+            "gameVersion": "16.22.1",
+            "seasonId": 16,
+            "participantIdentities": [
+              {
+                "participantId": 6,
+                "player": {
+                  "puuid": "fake-puuid-0002",
+                  "gameName": "fake-name-0002",
+                  "tagLine": "fake-tag-0001",
+                  "summonerName": "fake-name-0002",
+                  "profileIcon": 29,
+                  "platformId": "BR1"
+                }
+              }
+            ],
+            "participants": [
+              {
+                "participantId": 6,
+                "teamId": 200,
+                "championId": 99,
+                "spell1Id": 4,
+                "spell2Id": 11,
+                "stats": {
+                  "win": true,
+                  "gameEndedInEarlySurrender": true,
+                  "champLevel": 4,
+                  "kills": 0,
+                  "deaths": 0,
+                  "assists": 0,
+                  "totalMinionsKilled": 20,
+                  "neutralMinionsKilled": 8,
+                  "goldEarned": 1336,
+                  "totalDamageDealtToChampions": 3384,
+                  "visionScore": 4,
+                  "item0": 0,
+                  "item1": 0,
+                  "item2": 0,
+                  "item3": 0,
+                  "item4": 0,
+                  "item5": 0,
+                  "item6": 3340,
+                  "perk0": 8010,
+                  "perkPrimaryStyle": 8000,
+                  "perkSubStyle": 8400
+                },
+                "timeline": {
+                  "lane": "NONE",
+                  "role": "NONE"
+                }
+              }
+            ],
+            "teams": [
+              {
+                "teamId": 100,
+                "win": "Fail"
+              },
+              {
+                "teamId": 200,
+                "win": "Win"
+              }
+            ]
+          },
+          {
+            "gameId": 3008,
+            "platformId": "BR1",
+            "gameCreation": 1793769420000,
+            "gameDuration": 1547,
+            "queueId": 400,
+            "mapId": 11,
+            "gameMode": "CLASSIC",
+            "gameType": "MATCHED_GAME",
+            "gameVersion": "16.22.1",
+            "seasonId": 16,
+            "participantIdentities": [
+              {
+                "participantId": 5,
+                "player": {
+                  "puuid": "fake-puuid-0002",
+                  "gameName": "fake-name-0002",
+                  "tagLine": "fake-tag-0001",
+                  "summonerName": "fake-name-0002",
+                  "profileIcon": 29,
+                  "platformId": "BR1"
+                }
+              }
+            ],
+            "participants": [
+              {
+                "participantId": 5,
+                "teamId": 100,
+                "championId": 117,
+                "spell1Id": 32,
+                "spell2Id": 4,
+                "stats": {
+                  "win": false,
+                  "gameEndedInEarlySurrender": false,
+                  "champLevel": 15,
+                  "kills": 2,
+                  "deaths": 7,
+                  "assists": 17,
+                  "totalMinionsKilled": 201,
+                  "neutralMinionsKilled": 8,
+                  "goldEarned": 10853,
+                  "totalDamageDealtToChampions": 28205,
+                  "visionScore": 21,
+                  "item0": 3053,
+                  "item1": 3074,
+                  "item2": 3071,
+                  "item3": 6630,
+                  "item4": 3094,
+                  "item5": 3078,
+                  "item6": 3363,
+                  "perk0": 8005,
+                  "perkPrimaryStyle": 8000,
+                  "perkSubStyle": 8100
+                },
+                "timeline": {
+                  "lane": "NONE",
+                  "role": "NONE"
+                }
+              }
+            ],
+            "teams": [
+              {
+                "teamId": 100,
+                "win": "Fail"
+              },
+              {
+                "teamId": 200,
+                "win": "Win"
+              }
+            ]
+          },
+          {
+            "gameId": 3009,
+            "platformId": "BR1",
+            "gameCreation": 1793752920000,
+            "gameDuration": 1854,
+            "queueId": 420,
+            "mapId": 11,
+            "gameMode": "CLASSIC",
+            "gameType": "MATCHED_GAME",
+            "gameVersion": "16.22.1",
+            "seasonId": 16,
+            "participantIdentities": [
+              {
+                "participantId": 9,
+                "player": {
+                  "puuid": "fake-puuid-0002",
+                  "gameName": "fake-name-0002",
+                  "tagLine": "fake-tag-0001",
+                  "summonerName": "fake-name-0002",
+                  "profileIcon": 29,
+                  "platformId": "BR1"
+                }
+              }
+            ],
+            "participants": [
+              {
+                "participantId": 9,
+                "teamId": 200,
+                "championId": 350,
+                "spell1Id": 4,
+                "spell2Id": 7,
+                "stats": {
+                  "win": true,
+                  "gameEndedInEarlySurrender": false,
+                  "champLevel": 18,
+                  "kills": 7,
+                  "deaths": 5,
+                  "assists": 10,
+                  "totalMinionsKilled": 140,
+                  "neutralMinionsKilled": 8,
+                  "goldEarned": 14315,
+                  "totalDamageDealtToChampions": 26229,
+                  "visionScore": 29,
+                  "item0": 3074,
+                  "item1": 3111,
+                  "item2": 0,
+                  "item3": 0,
+                  "item4": 0,
+                  "item5": 0,
+                  "item6": 3363,
+                  "perk0": 8112,
+                  "perkPrimaryStyle": 8100,
+                  "perkSubStyle": 8300
+                },
+                "timeline": {
+                  "lane": "NONE",
+                  "role": "NONE"
+                }
+              }
+            ],
+            "teams": [
+              {
+                "teamId": 100,
+                "win": "Win"
+              },
+              {
+                "teamId": 200,
+                "win": "Fail"
+              }
+            ]
+          }
+        ]
+      }
+    }
   }
 ]

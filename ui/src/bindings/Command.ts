@@ -56,4 +56,6 @@ export type Command =
   | { "type": "sendChatMessage", conversationId: string, body: string, }
   | { "type": "setActiveConversation", conversationId: string | null, }
   | { "type": "loadMoreMatches" }
-  | { "type": "openMatchDetails", gameId: number, };
+  | { "type": "openMatchDetails", gameId: number, }
+  | { "type": "openPlayerProfile", puuid: string, }
+  | { "type": "loadMorePlayerMatches" };

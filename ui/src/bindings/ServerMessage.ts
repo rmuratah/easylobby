@@ -17,6 +17,7 @@ import type { LobbyChat } from "./LobbyChat";
 import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
+import type { PlayerProfile } from "./PlayerProfile";
 import type { RankedStats } from "./RankedStats";
 import type { ReadyCheck } from "./ReadyCheck";
 import type { ReceivedInvitation } from "./ReceivedInvitation";
@@ -68,5 +69,6 @@ export type ServerMessage =
   | { "type": "championMasteries", championMasteries: Array<ChampionMastery>, }
   | { "type": "matchHistory", matchHistory: MatchHistory | null, }
   | { "type": "matchDetails", matchDetails: MatchDetails | null, }
+  | { "type": "playerProfile", playerProfile: PlayerProfile | null, }
   | { "type": "response", id: number, result: CommandResult, }
   | { "type": "invalidMessage", message: string, };
