@@ -1,6 +1,7 @@
 //! Lobby e fila: criar, sair, cargos e busca de partida.
 
 use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
+use crate::custom_game::{self, CustomGameOptions};
 use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError, SubteamSlot};
 use crate::lobby_link::{self, LobbyLink};
 use crate::matchmaking::{self, Matchmaking};
@@ -140,6 +141,28 @@ impl Hub {
             return not_connected();
         };
         match training::create_practice_tool(&client).await {
+            Ok(lobby) => {
+                if !(lobby.is_some() && self.set_lobby_if(stamp, lobby)) {
+                    self.refresh_lobby().await;
+                }
+                self.spawn_refresh_available_bots();
+                CommandResult::Ok
+            }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
+    /// Cria uma partida personalizada (comando `createCustomGame`, #262) e
+    /// deixa o jogador no lobby dela, como o Modo de Treino. Opções inválidas
+    /// nem chegam na LCU.
+    pub async fn create_custom_game(&self, options: CustomGameOptions) -> CommandResult {
+        if let Err(message) = options.validate() {
+            return CommandResult::error(ErrorCode::InvalidCommand, message);
+        }
+        let Some((client, stamp)) = self.begin(Resource::Lobby) else {
+            return not_connected();
+        };
+        match custom_game::create(&client, &options).await {
             Ok(lobby) => {
                 if !(lobby.is_some() && self.set_lobby_if(stamp, lobby)) {
                     self.refresh_lobby().await;
@@ -544,6 +567,7 @@ pub(super) fn write_matchmaking(
 mod tests {
     use super::super::tests::*;
     use super::*;
+    use crate::custom_game::{CustomMap, CustomPickType, SpectatorPolicy};
     use crate::lobby::LOBBY_PATH;
     use crate::matchmaking::SearchState;
     use crate::matchmaking::SEARCH_PATH;
@@ -592,6 +616,7 @@ mod tests {
             hub.start_tutorial(None).await,
             hub.start_tutorial(Some(2010)).await,
             hub.start_practice_tool().await,
+            hub.create_custom_game(custom_options()).await,
             hub.set_player_slots(vec![slot(22, Position::Bottom), slot(266, Position::Top)])
                 .await,
         ] {
@@ -599,6 +624,40 @@ mod tests {
                 result,
                 CommandResult::Error {
                     code: ErrorCode::NotConnected,
+                    ..
+                }
+            ));
+        }
+    }
+
+    fn custom_options() -> CustomGameOptions {
+        CustomGameOptions {
+            name: "Partida de Fulano".into(),
+            password: String::new(),
+            map: CustomMap::SummonersRift,
+            pick_type: CustomPickType::BlindPick,
+            team_size: 5,
+            spectators: SpectatorPolicy::None,
+        }
+    }
+
+    #[tokio::test]
+    async fn personalizada_invalida_nem_chega_na_lcu() {
+        let hub = Hub::new();
+        for options in [
+            CustomGameOptions {
+                name: " ".into(),
+                ..custom_options()
+            },
+            CustomGameOptions {
+                team_size: 6,
+                ..custom_options()
+            },
+        ] {
+            assert!(matches!(
+                hub.create_custom_game(options).await,
+                CommandResult::Error {
+                    code: ErrorCode::InvalidCommand,
                     ..
                 }
             ));

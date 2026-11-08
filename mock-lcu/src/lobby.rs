@@ -68,19 +68,31 @@ pub const CUSTOM_START_CHAMP_SELECT: &str = "/lol-lobby/v1/lobby/custom/start-ch
 
 /// `queueId` da personalizada pelo `gameMode` de `customGameLobby`: a fila
 /// personalizada (`isCustom`) da lista gravada com esse modo, como a 3140
-/// do Modo de Treino (#209).
+/// do Modo de Treino (#209). Com `mapId` e `mutators.id` (#262), prefere a
+/// fila do mesmo mapa com esse `gameTypeConfig.id` (o tipo de seleção).
 fn custom_queue_id(state: &LcuState, body: &Value) -> Option<u64> {
-    let mode = body
-        .pointer("/customGameLobby/configuration/gameMode")
-        .and_then(Value::as_str)?;
-    state
-        .recorded_body(QUEUES)?
+    let config = body.pointer("/customGameLobby/configuration")?;
+    let mode = config.get("gameMode").and_then(Value::as_str)?;
+    let map_id = config.get("mapId").and_then(Value::as_u64);
+    let mutator = config.pointer("/mutators/id").and_then(Value::as_u64);
+    let recorded = state.recorded_body(QUEUES)?;
+    let customs: Vec<&Value> = recorded
         .as_array()?
         .iter()
-        .find(|q| {
+        .filter(|q| {
             q.get("isCustom").and_then(Value::as_bool) == Some(true)
                 && q.get("gameMode").and_then(Value::as_str) == Some(mode)
-        })?
+        })
+        .collect();
+    customs
+        .iter()
+        .find(|q| {
+            map_id.is_some_and(|m| q.get("mapId").and_then(Value::as_u64) == Some(m))
+                && mutator.is_some_and(|m| {
+                    q.pointer("/gameTypeConfig/id").and_then(Value::as_u64) == Some(m)
+                })
+        })
+        .or_else(|| customs.first())?
         .get("id")?
         .as_u64()
 }
@@ -150,7 +162,7 @@ pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
         config.insert("gameMode".into(), json!(mode));
     }
     if body.get("customGameLobby").is_some() {
-        crate::custom::make_custom(&mut lobby);
+        crate::custom::make_custom(&mut lobby, body);
     } else {
         crate::custom::make_queue(&mut lobby);
     }
@@ -376,7 +388,10 @@ fn make_subteams(lobby: &mut Value, arena: bool, max_lobby_size: u64) {
         config.insert("numberOfTeamsInLobby".into(), json!(teams));
         if arena {
             config.insert("maxTeamSize".into(), json!(ARENA_TEAM_SIZE));
-        } else if config.get("maxTeamSize").and_then(Value::as_u64) == Some(ARENA_TEAM_SIZE) {
+        } else if config.get("isCustom") != Some(&json!(true))
+            && config.get("maxTeamSize").and_then(Value::as_u64) == Some(ARENA_TEAM_SIZE)
+        {
+            // Saindo da Arena; a personalizada (#262) escolhe o tamanho.
             config.insert("maxTeamSize".into(), json!(5));
         }
     }
@@ -755,5 +770,47 @@ mod tests {
         assert_eq!(response.body["gameConfig"]["queueId"], 3140);
         apply(&mut s, &events);
         assert_eq!(start_custom_champ_select(&s).0.status, 204);
+    }
+
+    #[test]
+    fn personalizada_usa_a_fila_do_mapa_e_do_tipo_de_selecao() {
+        use easylobby_agent::custom_game::{
+            CustomGameOptions, CustomMap, CustomPickType, SpectatorPolicy,
+        };
+        use easylobby_agent::lobby::Lobby;
+
+        let s = state("16.22");
+        let options = CustomGameOptions {
+            name: "Partida de Fulano".into(),
+            password: "segredo".into(),
+            map: CustomMap::HowlingAbyss,
+            pick_type: CustomPickType::TournamentDraft,
+            team_size: 3,
+            spectators: SpectatorPolicy::LobbyOnly,
+        };
+        let (response, _) = create(&s, &options.body());
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["gameConfig"]["queueId"], 3230);
+        let custom = Lobby::from_json(&response.body)
+            .and_then(|l| l.custom)
+            .expect("lobby de personalizada");
+        assert_eq!(custom.team_size, 3);
+        assert_eq!(custom.settings.name, "Partida de Fulano");
+        assert_eq!(custom.settings.map, Some(CustomMap::HowlingAbyss));
+        assert_eq!(
+            custom.settings.pick_type,
+            Some(CustomPickType::TournamentDraft)
+        );
+        assert_eq!(custom.settings.spectators, Some(SpectatorPolicy::LobbyOnly));
+
+        let blind = CustomGameOptions {
+            map: CustomMap::SummonersRift,
+            pick_type: CustomPickType::BlindPick,
+            ..options
+        };
+        assert_eq!(
+            create(&s, &blind.body()).0.body["gameConfig"]["queueId"],
+            3100
+        );
     }
 }

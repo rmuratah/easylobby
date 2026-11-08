@@ -66,13 +66,33 @@ fn custom_lobby(state: &LcuState) -> Result<Value, (Response, Vec<EventFixture>)
 }
 
 /// Põe a personalizada no `gameConfig`: o jogador logado na Equipe 1.
-pub fn make_custom(lobby: &mut Value) {
+pub fn make_custom(lobby: &mut Value, body: &Value) {
     let me = lobby["localMember"].clone();
+    let custom = &body["customGameLobby"];
+    let config_in = &custom["configuration"];
+    let team_size = config_in["teamSize"].as_u64().unwrap_or(5);
+    let mutator = match config_in.pointer("/mutators/id").and_then(Value::as_u64) {
+        Some(18) => "DraftModeSinglePickStrategy",
+        Some(21) => "AllRandomPickStrategy",
+        Some(6) => "TournamentPickStrategy",
+        _ => "SimulPickStrategy",
+    };
     if let Some(config) = lobby.get_mut("gameConfig").and_then(Value::as_object_mut) {
         config.insert("isCustom".into(), json!(true));
-        config.insert("maxTeamSize".into(), json!(5));
+        config.insert("maxTeamSize".into(), json!(team_size));
         config.insert("customTeam100".into(), json!([me]));
         config.insert("customTeam200".into(), json!([]));
+        config.insert("customSpectators".into(), json!([]));
+        config.insert("customMutatorName".into(), json!(mutator));
+        for (key, from) in [
+            ("customLobbyName", &custom["lobbyName"]),
+            ("customSpectatorPolicy", &config_in["spectatorPolicy"]),
+            ("mapId", &config_in["mapId"]),
+        ] {
+            if !from.is_null() {
+                config.insert(key.into(), from.clone());
+            }
+        }
     }
 }
 

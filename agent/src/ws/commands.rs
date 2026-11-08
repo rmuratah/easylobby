@@ -30,6 +30,7 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::DeclineReadyCheck => hub.decline_ready_check().await,
         Command::StartTutorial { queue_id } => hub.start_tutorial(queue_id).await,
         Command::StartPracticeTool => hub.start_practice_tool().await,
+        Command::CreateCustomGame { options } => hub.create_custom_game(options).await,
         Command::SetPlayerSlots { slots } => hub.set_player_slots(slots).await,
         Command::SetLobbyOpen { open } => hub.set_lobby_open(open).await,
         Command::CreateLobbyLink => hub.create_lobby_link().await,
