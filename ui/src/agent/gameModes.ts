@@ -87,7 +87,7 @@ const trainingModes: GameMode[] = [
 ];
 
 /** `queueId` com lugar fixo na tela; o resto das filas abertas vai para Eventos. */
-export const fixedQueueIds = new Set([...pvpModes, ...coopModes].flatMap(mode => mode.submodes.map(s => s.queueId)));
+const fixedQueueIds = new Set([...pvpModes, ...coopModes].flatMap(mode => mode.submodes.map(s => s.queueId)));
 
 function fixedMode(mode: FixedMode, queues: GameQueue[]): GameMode {
   const submodes = mode.submodes.map((fixed): Submode => {

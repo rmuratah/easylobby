@@ -7,10 +7,6 @@ export type ThemePreference = "sistema" | Theme;
 export const THEME_STORAGE_KEY = "easylobby.tema";
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
-export function isThemePreference(value: unknown): value is ThemePreference {
-  return value === "sistema" || value === "claro" || value === "escuro";
-}
-
 export function readPreference(): ThemePreference {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
@@ -42,7 +38,7 @@ export function resolveTheme(preference: ThemePreference, systemDark: boolean): 
   return preference;
 }
 
-export function applyTheme(theme: Theme) {
+function applyTheme(theme: Theme) {
   document.documentElement.dataset.theme = theme;
 }
 

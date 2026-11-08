@@ -1,7 +1,7 @@
 import type { TutorialPart } from '../bindings/TutorialPart';
 
 /** Filas das Partes 1, 2 e 3 do Tutorial (#209). */
-export const TUTORIAL_QUEUE_IDS = [2000, 2010, 2020] as const;
+const TUTORIAL_QUEUE_IDS = [2000, 2010, 2020] as const;
 
 /** Se o lobby é de uma parte do Tutorial, que não tem lobby aberto nem link (#225). */
 export function isTutorialQueue(queueId: number): boolean {
@@ -9,7 +9,7 @@ export function isTutorialQueue(queueId: number): boolean {
 }
 
 /** Os cards das partes do Tutorial, como no client oficial (#228). */
-export const tutorialPartTexts: Record<number, { name: string; description: string }> = {
+const tutorialPartTexts: Record<number, { name: string; description: string }> = {
   2000: { name: 'Bem-vindo(a) ao League of Legends', description: 'Aprenda a se mover, atacar e usar as habilidades.' },
   2010: { name: 'Fortalecimento', description: 'Aprenda a subir de nível e a fortalecer as habilidades.' },
   2020: { name: 'Comprando equipamentos', description: 'Aprenda a comprar itens na loja e a usá-los na partida.' },

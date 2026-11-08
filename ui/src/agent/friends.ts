@@ -23,7 +23,7 @@ export const availabilityColors = {
   unknown: 'bg-control',
 } satisfies Record<Availability, string>;
 
-export const leagueStatusNames = {
+const leagueStatusNames = {
   outOfGame: 'No client',
   inLobby: 'No lobby',
   inQueue: 'Na fila',
@@ -58,17 +58,14 @@ export function friendDisplayName(friend: Friend): string {
 
 /**
  * Nick do amigo, sem a tag (`Ana`, e não `Ana#BR1`), como a lista de amigos e
- * o chat mostram. A tag fica em {@link friendRiotId}, para o tooltip.
+ * o chat mostram. A tag fica em {@link friendDisplayName}, para o tooltip.
  */
 export function friendNick(friend: Friend): string {
   return friend.gameName || friend.name || 'Amigo';
 }
 
-/** Riot ID completo (`nome#tag`), para identificar o amigo no tooltip. */
-export const friendRiotId = friendDisplayName;
-
 /** Nome da pasta padrão na LCU. */
-export const DEFAULT_GROUP_NAME = '**Default';
+const DEFAULT_GROUP_NAME = '**Default';
 
 /** Nome da pasta para mostrar: a padrão vira "Geral", como no client oficial. */
 export function friendGroupName(name: string): string {
@@ -113,7 +110,7 @@ export function groupFriends(friends: Friend[], groups: FriendGroup[]): FriendFo
 }
 
 /** Minutos desde `since`, ou `null` sem horário ou com horário no futuro. */
-export function minutesSince(since: number | null, now: number): number | null {
+function minutesSince(since: number | null, now: number): number | null {
   if (since === null || now < since) return null;
   return Math.floor((now - since) / 60_000);
 }

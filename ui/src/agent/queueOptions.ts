@@ -14,37 +14,13 @@ export function queueKey(queue: { queueId: number; queue: Queue | null }): Queue
   return queue.queue ?? `fila-${queue.queueId}`;
 }
 
-export type QueueOption = { key: QueueKey; label: string };
-export type QueueGroup = { label: string; options: QueueOption[] };
-
-/**
- * Filas do seletor, em grupos. As cinco fixas aparecem sempre (como antes);
- * as outras filas abertas que o agente lê da LCU entram depois, separando
- * os modos contra jogadores dos contra IA.
- */
-export function queueGroups(queues: GameQueue[]): QueueGroup[] {
-  const fixed: QueueOption[] = (Object.keys(queueNames) as Queue[]).map(queue => ({ key: queue, label: queueNames[queue] }));
-  const extra = queues.filter(q => q.queue === null && q.available);
-  const option = (q: GameQueue): QueueOption => ({ key: queueKey(q), label: q.name || q.description || `Fila ${q.queueId}` });
-  const groups: QueueGroup[] = [{ label: 'Filas principais', options: fixed }];
-  const pvp = extra.filter(q => !q.versusAi).map(option);
-  const bots = extra.filter(q => q.versusAi).map(option);
-  if (pvp.length) groups.push({ label: 'Mais modos', options: pvp });
-  if (bots.length) groups.push({ label: 'Contra IA', options: bots });
-  return groups;
-}
-
 /** Comando que cria o lobby (ou troca a fila) para a chave escolhida. */
 export function createLobbyCommand(key: QueueKey): Extract<Command, { type: 'createLobby' | 'createLobbyById' }> {
   return isQueue(key) ? { type: 'createLobby', queue: key } : { type: 'createLobbyById', queueId: Number(key.slice('fila-'.length)) };
 }
 
-export function isQueueKey(value: string, groups: QueueGroup[]): value is QueueKey {
-  return groups.some(group => group.options.some(option => option.key === value));
-}
-
 /** Filas fora da lista do agente que a aba Treinamento cria (Tutorial, Modo de Treino, #210). */
-export const trainingQueueNames: Record<number, string> = {
+const trainingQueueNames: Record<number, string> = {
   2000: 'Tutorial, Parte 1',
   2010: 'Tutorial, Parte 2',
   2020: 'Tutorial, Parte 3',

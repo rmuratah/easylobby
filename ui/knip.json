@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["scripts/generate-palette.mjs"],
+  "ignore": ["public/theme-init.js"],
+  "ignoreExportsUsedInFile": { "type": true, "interface": true }
+}

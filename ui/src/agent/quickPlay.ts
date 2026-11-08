@@ -80,7 +80,7 @@ export function missingScarcePosition(pair: SlotPair, scarce: Position[]): boole
  * Versão de um campeão só de um modo, como a `Jade_Aatrox` (id 60266) do modo Jade: o catálogo traz as duas com o
  * mesmo nome, e no Jogo Dinâmico só vale a normal.
  */
-export function isModeVariant(champion: Champion): boolean {
+function isModeVariant(champion: Champion): boolean {
   return champion.alias.includes('_');
 }
 

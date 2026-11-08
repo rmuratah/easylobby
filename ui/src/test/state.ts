@@ -4,7 +4,7 @@ import type { AgentState } from '../bindings/AgentState';
  * Estado de um agente conectado ao LoL, sem nada aberto: sem invocador, sem
  * lobby, sem seleção e com as listas vazias.
  */
-export const emptyState: AgentState = {
+const emptyState: AgentState = {
   lcu: { state: 'connected', session: 1 },
   summoner: null,
   gameflowPhase: null,
