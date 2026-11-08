@@ -54,4 +54,11 @@ describe('slots do Jogo Dinâmico', () => {
     expect(slotChampions(catalog, null).map(c => c.id)).toEqual([266, 22]);
     expect(slotChampions(null, [22])).toEqual([]);
   });
+
+  it('esconde as versões de modo do mesmo campeão (#218)', () => {
+    const catalog = { champions: [
+      { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: [] }, { id: 60266, name: 'Aatrox', alias: 'Jade_Aatrox', roles: [] }] };
+    expect(slotChampions(catalog, [266, 60266]).map(c => c.id)).toEqual([266]);
+    expect(slotChampions(catalog, null).map(c => c.id)).toEqual([266]);
+  });
 });
