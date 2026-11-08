@@ -5,6 +5,10 @@
 //!   `/lol-game-data/assets/v1/champion-summary.json` (id, nome, apelido em
 //!   inglês e funções de cada campeão). O agente lê uma vez por conexão. Os
 //!   ícones saem do `/assets` do agente ([`crate::assets`], tipo `champion`).
+//! - As rotas de cada campeão (#250) saem das posições recomendadas que o
+//!   client usa para sugerir runas:
+//!   `/lol-perks/v1/recommended-champion-positions`. Se a LCU não mandar, as
+//!   listas ficam vazias e a UI esconde o filtro de rota.
 //! - Durante a seleção, a LCU diz quais campeões o jogador pode escolher
 //!   (`/lol-champ-select/v1/pickable-champion-ids`: os dele e os da rotação
 //!   gratuita) e quais pode banir
@@ -17,10 +21,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use ts_rs::TS;
 
+use crate::lobby::Position;
 use crate::rest::{LcuClient, LcuError};
 
 /// Id, nome e funções de cada campeão.
 pub const CHAMPION_SUMMARY_PATH: &str = "/lol-game-data/assets/v1/champion-summary.json";
+
+/// Rotas recomendadas de cada campeão (#250), por id.
+pub const RECOMMENDED_POSITIONS_PATH: &str = "/lol-perks/v1/recommended-champion-positions";
 
 /// Campeões que o jogador pode escolher na seleção atual (endpoint e URI dos
 /// eventos WAMP).
@@ -60,6 +68,10 @@ pub struct Champion {
     /// Funções do campeão (`fighter`, `tank`, `mage`, `assassin`,
     /// `marksman`, `support`), como a LCU manda.
     pub roles: Vec<String>,
+    /// Rotas em que o campeão costuma jogar (#250), como o client recomenda
+    /// nas runas. Só `top`, `jungle`, `middle`, `bottom` e `utility`. Vazia
+    /// quando a LCU não mandou.
+    pub positions: Vec<Position>,
 }
 
 impl ChampionCatalog {
@@ -79,6 +91,53 @@ impl ChampionCatalog {
     pub fn get(&self, id: u32) -> Option<&Champion> {
         self.champions.iter().find(|c| c.id == id)
     }
+
+    /// Põe em cada campeão as rotas de `recommended-champion-positions`
+    /// (#250). Aceita o valor de cada id como objeto
+    /// (`{"recommendedPositions": ["TOP"]}`) ou como a lista direto. Nomes
+    /// desconhecidos, `FILL` e repetidos ficam de fora.
+    pub fn with_positions(mut self, recommended: &Value) -> Self {
+        let Some(by_id) = recommended.as_object() else {
+            return self;
+        };
+        for champion in &mut self.champions {
+            let Some(entry) = by_id.get(&champion.id.to_string()) else {
+                continue;
+            };
+            let list = entry
+                .get("recommendedPositions")
+                .or_else(|| entry.get("positions"))
+                .unwrap_or(entry);
+            champion.positions = positions_from_json(list);
+        }
+        self
+    }
+}
+
+/// As rotas de uma lista de nomes da LCU (`["MIDDLE", "UTILITY"]`), na ordem
+/// recebida.
+fn positions_from_json(list: &Value) -> Vec<Position> {
+    let mut positions = Vec::new();
+    for name in list
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+    {
+        let position = Position::from_lcu(Some(&name.to_uppercase()));
+        let lane = matches!(
+            position,
+            Position::Top
+                | Position::Jungle
+                | Position::Middle
+                | Position::Bottom
+                | Position::Utility
+        );
+        if lane && !positions.contains(&position) {
+            positions.push(position);
+        }
+    }
+    positions
 }
 
 impl Champion {
@@ -93,6 +152,7 @@ impl Champion {
             name: raw.name,
             alias: raw.alias,
             roles: raw.roles,
+            positions: Vec::new(),
         })
     }
 }
@@ -110,9 +170,17 @@ struct RawChampion {
 }
 
 /// Lê os campeões do jogo, no idioma do client.
+/// As rotas vêm junto (#250); sem elas, o catálogo sai igual, sem rotas.
 pub async fn catalog(lcu: &LcuClient) -> Result<Option<ChampionCatalog>, LcuError> {
-    let summary = lcu.get::<Value>(CHAMPION_SUMMARY_PATH).await?;
-    Ok(ChampionCatalog::from_json(&summary))
+    let (summary, recommended) = tokio::join!(
+        lcu.get::<Value>(CHAMPION_SUMMARY_PATH),
+        lcu.get::<Value>(RECOMMENDED_POSITIONS_PATH),
+    );
+    let catalog = ChampionCatalog::from_json(&summary?);
+    Ok(match recommended {
+        Ok(recommended) => catalog.map(|c| c.with_positions(&recommended)),
+        Err(_) => catalog,
+    })
 }
 
 /// Quais campeões o jogador pode escolher e banir na seleção atual.
@@ -212,6 +280,42 @@ mod tests {
         assert_eq!(catalog.get(62).unwrap().roles, ["fighter", "tank"]);
         assert!(catalog.get(103).unwrap().roles.is_empty());
         assert!(ChampionCatalog::from_json(&json!({})).is_none());
+    }
+
+    #[test]
+    fn junta_as_rotas_recomendadas() {
+        let summary = json!([
+            {"id": 1, "name": "Annie", "alias": "Annie"},
+            {"id": 62, "name": "Wukong", "alias": "MonkeyKing"},
+            {"id": 266, "name": "Aatrox", "alias": "Aatrox"},
+            {"id": 103, "name": "Ahri", "alias": "Ahri"},
+        ]);
+        let recommended = json!({
+            "1": {"recommendedPositions": ["MIDDLE", "UTILITY"]},
+            "62": ["JUNGLE", "TOP", "FILL", "JUNGLE", "lixo"],
+            "266": {"recommendedPositions": ["top"]},
+            "999": ["TOP"],
+        });
+        let catalog = ChampionCatalog::from_json(&summary)
+            .unwrap()
+            .with_positions(&recommended);
+        assert_eq!(
+            catalog.get(1).unwrap().positions,
+            [Position::Middle, Position::Utility]
+        );
+        assert_eq!(
+            catalog.get(62).unwrap().positions,
+            [Position::Jungle, Position::Top]
+        );
+        assert_eq!(catalog.get(266).unwrap().positions, [Position::Top]);
+        assert!(catalog.get(103).unwrap().positions.is_empty());
+        // Resposta fora do formato não estraga o catálogo.
+        let same = catalog.clone().with_positions(&json!([1, 2]));
+        assert_eq!(same, catalog);
+        assert_eq!(
+            serde_json::to_value(catalog.get(1).unwrap()).unwrap()["positions"],
+            json!(["middle", "utility"])
+        );
     }
 
     #[test]

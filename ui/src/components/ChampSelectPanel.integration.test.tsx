@@ -87,6 +87,36 @@ it('busca na grade e marca a escolha', () => {
   expect(panel().getByText('Nenhum campeão encontrado.')).toBeVisible();
 });
 
+it('filtra a grade por rota junto com a busca, e o mesmo botão tira o filtro', () => {
+  render(<App />); hello();
+  const lanes = () => within(panel().getByRole('list', { name: 'Filtrar por rota' }));
+  const names = () => grid().getAllByRole('button').map(button => button.getAttribute('title')?.replace(' (indisponível)', ''));
+  expect(lanes().getAllByRole('button').map(button => button.getAttribute('aria-label')))
+    .toEqual(['Topo', 'Selva', 'Meio', 'Atirador', 'Suporte']);
+  fireEvent.click(lanes().getByRole('button', { name: 'Selva' }));
+  expect(lanes().getByRole('button', { name: 'Selva' })).toHaveAttribute('aria-pressed', 'true');
+  expect(names()).toEqual(['Nunu e Willump', 'Wukong']);
+  fireEvent.change(panel().getByRole('searchbox', { name: 'Buscar campeão' }), { target: { value: 'nu' } });
+  expect(names()).toEqual(['Nunu e Willump']);
+  // Trocar de rota troca o filtro; a busca continua valendo.
+  fireEvent.click(lanes().getByRole('button', { name: 'Meio' }));
+  expect(lanes().getByRole('button', { name: 'Selva' })).toHaveAttribute('aria-pressed', 'false');
+  expect(panel().getByText('Nenhum campeão encontrado.')).toBeVisible();
+  fireEvent.change(panel().getByRole('searchbox', { name: 'Buscar campeão' }), { target: { value: '' } });
+  expect(names()).toEqual(['Ahri']);
+  fireEvent.click(lanes().getByRole('button', { name: 'Meio' }));
+  expect(lanes().getByRole('button', { name: 'Meio' })).toHaveAttribute('aria-pressed', 'false');
+  expect(grid().getAllByRole('button')).toHaveLength(5);
+});
+
+it('esconde o filtro de rota quando o catálogo não tem rotas', () => {
+  const catalog = champSelectState.championCatalog!;
+  render(<App />);
+  hello({ championCatalog: { champions: catalog.champions.map(champion => ({ ...champion, positions: [] })) } });
+  expect(grid().getAllByRole('button')).toHaveLength(5);
+  expect(panel().queryByRole('list', { name: 'Filtrar por rota' })).not.toBeInTheDocument();
+});
+
 it('preserva a busca na navegação e recomeça numa seleção nova', () => {
   render(<App />); hello();
   const search = () => panel().getByRole('searchbox', { name: 'Buscar campeão' });

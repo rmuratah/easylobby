@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { assetUrl } from '../agent/assets';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import {
-  actingCells, champSelectPhaseLabels, championName, gridChampions, gridPurpose, isAramChampSelect, markedChampion, myAction, playerName,
-  remainingMs, searchChampions, type GridChampion, type MyAction,
+  actingCells, champSelectPhaseLabels, championName, filterByLane, gridChampions, gridPurpose, hasLanes, isAramChampSelect, markedChampion,
+  myAction, playerName, remainingMs, searchChampions, type GridChampion, type MyAction,
 } from '../agent/champSelect';
 import { useCommand, type CommandFeedback } from '../agent/useCommand';
 import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
@@ -11,7 +11,8 @@ import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
 import { RuneQuickPick } from './RuneQuickPick';
 import { AramChampSelectContent } from './AramChampSelect';
-import { positionNames } from '../agent/positions';
+import { LANES, positionNames, type Lane } from '../agent/positions';
+import { PositionIcon } from './PositionIcon';
 import type { AgentState } from '../bindings/AgentState';
 import type { ChampSelect } from '../bindings/ChampSelect';
 import type { ChampSelectPlayer } from '../bindings/ChampSelectPlayer';
@@ -271,11 +272,14 @@ type GridProps = {
 
 function ChampionGrid({ state, champSelect, grid: all, selected, onSelect }: GridProps) {
   const [query, setQuery] = useState('');
+  const [lane, setLane] = useState<Lane | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const hintId = useId();
   const purpose = gridPurpose(champSelect);
   const byId = new Map(all.map(item => [item.champion.id, item]));
-  const shown = searchChampions(all.map(item => item.champion), query).map(c => byId.get(c.id)!);
+  const showLanes = hasLanes(state.championCatalog);
+  const activeLane = showLanes ? lane : null;
+  const shown = filterByLane(searchChampions(all.map(item => item.champion), query), activeLane).map(c => byId.get(c.id)!);
   const label = purpose === 'ban' ? 'Campeões para banir' : 'Campeões';
   // Digitar em qualquer lugar da seleção já busca (#130), sem roubar o que vai para um campo ou botão.
   useEffect(() => {
@@ -307,9 +311,24 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect }: Gri
           }}
           className="h-9 min-w-0 flex-1 rounded-control border border-control bg-surface px-3 text-body text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" />
         <span id={hintId} className="sr-only">Enter marca o primeiro campeão da busca; Esc limpa.</span>
+        {showLanes && (
+          <ul aria-label="Filtrar por rota" className="flex gap-1">
+            {LANES.map(option => (
+              <li key={option}>
+                <button type="button" aria-pressed={activeLane === option} title={positionNames[option]}
+                  aria-label={positionNames[option]}
+                  // Clicar na rota ativa tira o filtro (#250).
+                  onClick={() => setLane(current => current === option ? null : option)}
+                  className="flex h-9 w-9 items-center justify-center rounded-control border border-control text-muted hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-pressed:border-accent aria-pressed:bg-accent-soft aria-pressed:text-accent-ink">
+                  <PositionIcon position={option} size={20} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       {!state.championCatalog ? <p className="text-body text-muted">Carregando campeões…</p>
-        : shown.length === 0 ? <p className="text-body text-muted">{query ? 'Nenhum campeão encontrado.' : 'Nenhum campeão disponível.'}</p> : (
+        : shown.length === 0 ? <p className="text-body text-muted">{query || activeLane ? 'Nenhum campeão encontrado.' : 'Nenhum campeão disponível.'}</p> : (
           <ul className="champion-grid" aria-label="Grade de campeões">
             {shown.map(({ champion, available }) => (
               <li key={champion.id}>

@@ -49,7 +49,7 @@ describe('slots do Jogo Dinâmico', () => {
 
   it('filtra os campeões pelo que o jogador pode jogar', () => {
     const catalog = { champions: [
-      { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: [] }, { id: 22, name: 'Ashe', alias: 'Ashe', roles: [] }] };
+      { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: [], positions: [] }, { id: 22, name: 'Ashe', alias: 'Ashe', roles: [], positions: [] }] };
     expect(slotChampions(catalog, [22]).map(c => c.id)).toEqual([22]);
     expect(slotChampions(catalog, null).map(c => c.id)).toEqual([266, 22]);
     expect(slotChampions(null, [22])).toEqual([]);
@@ -57,7 +57,7 @@ describe('slots do Jogo Dinâmico', () => {
 
   it('esconde as versões de modo do mesmo campeão (#218)', () => {
     const catalog = { champions: [
-      { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: [] }, { id: 60266, name: 'Aatrox', alias: 'Jade_Aatrox', roles: [] }] };
+      { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: [], positions: [] }, { id: 60266, name: 'Aatrox', alias: 'Jade_Aatrox', roles: [], positions: [] }] };
     expect(slotChampions(catalog, [266, 60266]).map(c => c.id)).toEqual([266]);
     expect(slotChampions(catalog, null).map(c => c.id)).toEqual([266]);
   });

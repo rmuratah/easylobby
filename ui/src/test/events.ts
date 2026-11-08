@@ -56,10 +56,10 @@ export const testFriend: Friend = {
 };
 export const testChampionCatalog: ChampionCatalog = {
   champions: [
-    { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: ['fighter'] },
-    { id: 103, name: 'Ahri', alias: 'Ahri', roles: ['mage'] },
-    { id: 145, name: "Kai'Sa", alias: 'Kaisa', roles: ['marksman'] },
-    { id: 20, name: 'Nunu e Willump', alias: 'Nunu', roles: ['tank'] },
-    { id: 62, name: 'Wukong', alias: 'MonkeyKing', roles: ['fighter'] },
+    { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: ['fighter'], positions: ['top'] },
+    { id: 103, name: 'Ahri', alias: 'Ahri', roles: ['mage'], positions: ['middle'] },
+    { id: 145, name: "Kai'Sa", alias: 'Kaisa', roles: ['marksman'], positions: ['bottom'] },
+    { id: 20, name: 'Nunu e Willump', alias: 'Nunu', roles: ['tank'], positions: ['jungle', 'utility'] },
+    { id: 62, name: 'Wukong', alias: 'MonkeyKing', roles: ['fighter'], positions: ['jungle', 'top'] },
   ],
 };

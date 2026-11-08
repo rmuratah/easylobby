@@ -5,6 +5,7 @@ import type { ChampSelectPhase } from '../bindings/ChampSelectPhase';
 import type { ChampSelectPlayer } from '../bindings/ChampSelectPlayer';
 import type { Champion } from '../bindings/Champion';
 import type { ChampionCatalog } from '../bindings/ChampionCatalog';
+import type { Lane } from './positions';
 
 export const champSelectPhaseLabels = {
   PLANNING: 'Planejamento',
@@ -29,6 +30,16 @@ export function searchChampions(champions: Champion[], query: string): Champion[
   const key = searchKey(query);
   if (!key) return champions;
   return champions.filter(c => searchKey(c.name).includes(key) || searchKey(c.alias).includes(key));
+}
+
+/** Campeões que jogam na rota (#250); sem rota escolhida, todos. */
+export function filterByLane(champions: Champion[], lane: Lane | null): Champion[] {
+  return lane ? champions.filter(c => c.positions.includes(lane)) : champions;
+}
+
+/** Se o catálogo tem rotas; sem elas (a LCU não mandou), o filtro de rota some. */
+export function hasLanes(catalog: ChampionCatalog | null | undefined): boolean {
+  return !!catalog?.champions.some(c => c.positions.length > 0);
 }
 
 /** Milissegundos que faltam para a etapa acabar, nunca negativo. */

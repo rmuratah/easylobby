@@ -4,6 +4,9 @@
 //! enquanto ela não tiver, do arquivo **sintético** em `mock-lcu/data/`. As
 //! listas de campeões que dá para escolher e banir na seleção já saem da
 //! gravação, como os outros `GET`.
+//!
+//! `GET /lol-perks/v1/recommended-champion-positions` (#250) também sai da
+//! gravação ou, sem ela, do arquivo **sintético** em `mock-lcu/data/`.
 
 use crate::state::{LcuState, Response};
 
@@ -11,6 +14,12 @@ use crate::state::{LcuState, Response};
 pub const CHAMPION_SUMMARY: &str = "/lol-game-data/assets/v1/champion-summary.json";
 
 const SYNTHETIC_CHAMPION_SUMMARY: &str = include_str!("../data/champion-summary.json");
+
+const SYNTHETIC_RECOMMENDED_POSITIONS: &str =
+    include_str!("../data/recommended-champion-positions.json");
+
+/// Rotas recomendadas de cada campeão (#250).
+pub const RECOMMENDED_POSITIONS: &str = "/lol-perks/v1/recommended-champion-positions";
 
 /// Campeões do jogador (#218).
 pub const OWNED_CHAMPIONS: &str = "/lol-champions/v1/owned-champions-minimal";
@@ -58,6 +67,19 @@ pub fn game_data(state: &LcuState) -> Response {
     }
 }
 
+/// `GET` de [`RECOMMENDED_POSITIONS`]: o gravado, ou o sintético.
+pub fn recommended_positions(state: &LcuState) -> Response {
+    let recorded = state.get(RECOMMENDED_POSITIONS);
+    if recorded.status == 200 {
+        return recorded;
+    }
+    Response {
+        status: 200,
+        body: serde_json::from_str(SYNTHETIC_RECOMMENDED_POSITIONS)
+            .expect("dados sintéticos são JSON válido"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,5 +103,31 @@ mod tests {
         let ids = easylobby_agent::quick_play::playable_from_json(&body).unwrap();
         assert!(ids.len() > 150);
         assert!(ids.contains(&266));
+    }
+
+    #[test]
+    fn rotas_sinteticas_cobrem_as_cinco_rotas() {
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../agent/tests/fixtures/16.22");
+        let state = LcuState::new(&easylobby_agent::fixtures::FixtureSet::load(&dir).unwrap());
+        let catalog = ChampionCatalog::from_json(&game_data(&state).body)
+            .unwrap()
+            .with_positions(&recommended_positions(&state).body);
+        use easylobby_agent::lobby::Position;
+        for position in [
+            Position::Top,
+            Position::Jungle,
+            Position::Middle,
+            Position::Bottom,
+            Position::Utility,
+        ] {
+            assert!(
+                catalog
+                    .champions
+                    .iter()
+                    .any(|c| c.positions.contains(&position)),
+                "nenhum campeão em {position:?}"
+            );
+        }
     }
 }
