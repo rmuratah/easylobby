@@ -195,6 +195,33 @@ impl Hub {
         }
     }
 
+    /// Abre ou fecha o lobby (comando `setLobbyOpen`, #225). Só o líder pode:
+    /// fora de lobby ou sem ser o líder, recusa sem falar com a LCU. Relê o
+    /// lobby pelo REST e publica antes de devolver.
+    pub async fn set_lobby_open(&self, open: bool) -> CommandResult {
+        let leader = self.lock().state.lobby.as_ref().map(|l| l.is_leader);
+        match leader {
+            None => return CommandResult::error(ErrorCode::InvalidCommand, "fora de lobby"),
+            Some(false) => {
+                return CommandResult::error(
+                    ErrorCode::InvalidCommand,
+                    "só o líder abre ou fecha o lobby",
+                )
+            }
+            Some(true) => {}
+        }
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        match lobby::set_lobby_open(&client, open).await {
+            Ok(()) => {
+                self.refresh_lobby().await;
+                CommandResult::Ok
+            }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
     /// Publica os campeões que dá para pôr nos slots do Jogo Dinâmico (#218).
     pub fn set_playable_champions(&self, champions: Option<Vec<u32>>) {
         self.update(|shared| {
@@ -582,6 +609,41 @@ mod tests {
             ),
             "{result:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn abrir_o_lobby_so_para_o_lider() {
+        let hub = Hub::new();
+        let invalid = |result: CommandResult| {
+            matches!(
+                result,
+                CommandResult::Error {
+                    code: ErrorCode::InvalidCommand,
+                    ..
+                }
+            )
+        };
+        assert!(invalid(hub.set_lobby_open(true).await), "fora de lobby");
+        let lobby = |leader: bool| {
+            json!({
+                "gameConfig": {"queueId": 400},
+                "localMember": {"puuid": "p", "isLeader": leader},
+                "members": [{"puuid": "p", "isLeader": leader}],
+                "partyType": "closed",
+            })
+        };
+        hub.apply(event(LOBBY_PATH, EventType::Create, lobby(false)))
+            .await;
+        assert!(invalid(hub.set_lobby_open(true).await), "não é o líder");
+        hub.apply(event(LOBBY_PATH, EventType::Update, lobby(true)))
+            .await;
+        assert!(matches!(
+            hub.set_lobby_open(true).await,
+            CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            }
+        ));
     }
 
     #[tokio::test]

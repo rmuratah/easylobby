@@ -665,6 +665,19 @@ async fn handle_request(
             }
             response
         }
+        // Lobby aberto ou fechado (#225).
+        (&Method::PUT, lobby::PARTY_TYPE) => {
+            let body = axum::body::to_bytes(request.into_body(), 64 * 1024)
+                .await
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .unwrap_or(Value::Null);
+            let (response, events) = lobby::set_party_type(&shared.state(), &body);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
         // Slots do Jogo Dinâmico (#218).
         (&Method::PUT, lobby::PLAYER_SLOTS) => {
             let body = axum::body::to_bytes(request.into_body(), 64 * 1024)

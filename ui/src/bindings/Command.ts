@@ -25,6 +25,7 @@ export type Command =
   | { "type": "startTutorial" }
   | { "type": "startPracticeTool" }
   | { "type": "setPlayerSlots", slots: Array<PlayerSlotInput>, }
+  | { "type": "setLobbyOpen", open: boolean, }
   | { "type": "hoverChampion", actionId: number, championId: number, }
   | { "type": "confirmAction", actionId: number, championId: number, }
   | { "type": "setSummonerSpells", spell1Id: number, spell2Id: number, }

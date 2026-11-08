@@ -61,4 +61,9 @@ export type Lobby = {
    * `members`.
    */
   invitations: Array<LobbyInvitation>,
+  /**
+   * Se o lobby está aberto (#225): amigos entram sem convite. Vem do
+   * `partyType` da LCU (`open` ou `closed`); só o líder troca.
+   */
+  isOpen: boolean,
 };

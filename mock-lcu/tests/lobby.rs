@@ -291,6 +291,50 @@ async fn escolhe_os_cargos() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+#[tokio::test]
+async fn abre_e_fecha_o_lobby() {
+    let dir = temp_dir("aberto");
+    let mock = start_mock(&dir).await;
+    let url = start_agent(&dir).await;
+    let mut ui = tokio_tungstenite::connect_async(&url).await.unwrap().0;
+    wait_summoner(&mut ui).await;
+
+    // Fora de lobby o agente recusa sem falar com a LCU.
+    send(&mut ui, 1, Command::SetLobbyOpen { open: true }).await;
+    let (_, result) = until_response(&mut ui, 1).await;
+    assert!(is_error(&result, ErrorCode::InvalidCommand), "{result:?}");
+
+    send(
+        &mut ui,
+        2,
+        Command::CreateLobby {
+            queue: Queue::NormalDraft,
+        },
+    )
+    .await;
+    let (_, result) = until_response(&mut ui, 2).await;
+    assert_eq!(result, CommandResult::Ok);
+    assert!(!mock_lobby(&url).await.is_open);
+
+    for (id, open) in [(3, true), (4, false)] {
+        send(&mut ui, id, Command::SetLobbyOpen { open }).await;
+        let (before, result) = until_response(&mut ui, id).await;
+        assert_eq!(result, CommandResult::Ok);
+        let lobby = before
+            .iter()
+            .rev()
+            .find_map(|m| match m {
+                ServerMessage::Lobby { lobby } => lobby.clone(),
+                _ => None,
+            })
+            .expect("o lobby novo chega antes da resposta");
+        assert_eq!(lobby.is_open, open);
+    }
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// O lobby que uma UI nova recebe no `hello`.
 async fn mock_lobby(url: &str) -> easylobby_agent::lobby::Lobby {
     let mut ui = tokio_tungstenite::connect_async(url).await.unwrap().0;

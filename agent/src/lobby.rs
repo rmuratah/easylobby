@@ -26,6 +26,10 @@
 //! ([`Lobby::show_quick_play_slots`]) cada jogador escolhe duas posições e
 //! um campeão para cada uma ainda no lobby. Veja [`crate::quick_play`].
 //!
+//! Lobby aberto ou fechado (#225): com o lobby aberto (`partyType` `open`),
+//! amigos entram sem convite. O líder troca com
+//! `PUT /lol-lobby/v2/lobby/partyType`, mandando `"open"` ou `"closed"`.
+//!
 //! O [`Lobby`] guarda só o que a tela de lobby usa. Os outros campos da
 //! resposta são ignorados, então um campo novo num patch não quebra a
 //! leitura.
@@ -43,6 +47,9 @@ pub const LOBBY_PATH: &str = "/lol-lobby/v2/lobby";
 /// Endpoint dos cargos do jogador logado (#18).
 pub const POSITION_PREFERENCES_PATH: &str =
     "/lol-lobby/v2/lobby/members/localMember/position-preferences";
+
+/// Endpoint do lobby aberto ou fechado (#225).
+pub const PARTY_TYPE_PATH: &str = "/lol-lobby/v2/lobby/partyType";
 
 /// Um cargo (posição) no lobby. Na LCU são as strings em maiúsculas de
 /// [`Position::lcu_name`]; para a UI vão em camelCase (`"top"`,
@@ -231,6 +238,9 @@ pub struct Lobby {
     /// recusados, expulsos ou que deram erro. Quem aceitou aparece em
     /// `members`.
     pub invitations: Vec<LobbyInvitation>,
+    /// Se o lobby está aberto (#225): amigos entram sem convite. Vem do
+    /// `partyType` da LCU (`open` ou `closed`); só o líder troca.
+    pub is_open: bool,
     /// `multiUserChatId` da LCU: o começo do `id` da sala de chat do grupo
     /// (#206). A UI não precisa: o chat chega em `lobbyChat`.
     #[serde(skip)]
@@ -396,6 +406,7 @@ impl Lobby {
             members,
             can_invite: local_member.is_some_and(|m| m.is_leader || m.allowed_invite_others),
             invitations,
+            is_open: raw.party_type == "open",
             chat_id: raw.multi_user_chat_id,
             chat_password: raw.multi_user_chat_password,
             chat_muc_jwt: raw.muc_jwt_dto,
@@ -424,6 +435,8 @@ struct RawLobby {
     muc_jwt_dto: Value,
     #[serde(default)]
     scarce_positions: Value,
+    #[serde(default)]
+    party_type: String,
 }
 
 #[derive(Deserialize)]
@@ -522,6 +535,16 @@ pub async fn set_positions(
     Ok(())
 }
 
+/// Abre ou fecha o lobby (`PUT /lol-lobby/v2/lobby/partyType`, #225). Só o
+/// líder pode; a LCU recusa os outros. O lobby novo chega pelo WAMP (ou por
+/// [`current_lobby`]).
+pub async fn set_lobby_open(lcu: &LcuClient, open: bool) -> Result<(), LcuError> {
+    let party_type = if open { "open" } else { "closed" };
+    lcu.put::<_, Option<Value>>(PARTY_TYPE_PATH, &json!(party_type))
+        .await
+        .map(|_| ())
+}
+
 /// Erro de [`set_positions`].
 #[derive(Debug, thiserror::Error)]
 pub enum SetPositionsError {
@@ -577,6 +600,7 @@ mod tests {
         assert!(lobby.show_position_selector);
         assert_eq!(lobby.members[0].first_position, Position::Unselected);
         assert!(lobby.can_invite);
+        assert!(!lobby.is_open, "a gravação tem `partyType` `closed`");
         // O convite `Accepted` do próprio jogador não aparece.
         assert_eq!(lobby.invitations, []);
 
@@ -644,6 +668,10 @@ mod tests {
         assert!(lobby.members.is_empty());
         assert!(!lobby.can_invite);
         assert!(lobby.invitations.is_empty());
+        assert!(!lobby.is_open);
+        let aberto =
+            Lobby::from_json(&json!({"gameConfig": {"queueId": 400}, "partyType": "open"}));
+        assert!(aberto.unwrap().is_open);
 
         assert_eq!(Lobby::from_json(&json!(null)), None);
         assert_eq!(Lobby::from_json(&json!({"errorCode": "RPC_ERROR"})), None);
@@ -676,6 +704,7 @@ mod tests {
                 summoner_id: 4,
                 state: InvitationState::Pending,
             }],
+            is_open: true,
             // Não vai para a UI.
             chat_id: "grupo".into(),
             chat_password: "senha".into(),
@@ -704,6 +733,7 @@ mod tests {
                 }],
                 "canInvite": true,
                 "invitations": [{"puuid": "amigo", "summonerId": 4, "state": "Pending"}],
+                "isOpen": true,
             })
         );
     }

@@ -88,7 +88,8 @@ function lobby(v: unknown): v is Lobby | null {
     uint(v.maxLobbySize) && typeof v.isLeader === 'boolean' && typeof v.canStartActivity === 'boolean' &&
     typeof v.showPositionSelector === 'boolean' && typeof v.showQuickPlaySlots === 'boolean' &&
     Array.isArray(v.scarcePositions) && v.scarcePositions.every(position) && Array.isArray(v.members) && v.members.every(lobbyMember) &&
-    typeof v.canInvite === 'boolean' && Array.isArray(v.invitations) && v.invitations.every(lobbyInvitation));
+    typeof v.canInvite === 'boolean' && Array.isArray(v.invitations) && v.invitations.every(lobbyInvitation) &&
+    typeof v.isOpen === 'boolean');
 }
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const nums = (v: Record<string, unknown>, keys: string[]) => keys.every(k => num(v[k]));

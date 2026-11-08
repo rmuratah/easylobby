@@ -441,6 +441,13 @@ pub enum Command {
     /// fechado e `lcu` se a LCU recusar (fora de lobby, fila sem slots,
     /// campeão que o jogador não tem...).
     SetPlayerSlots { slots: Vec<PlayerSlotInput> },
+    /// Abre (`open: true`) ou fecha o lobby (#225): com o lobby aberto,
+    /// amigos entram sem convite (`PUT /lol-lobby/v2/lobby/partyType`). Só
+    /// o líder pode: fora de lobby ou sem ser o líder responde
+    /// `invalidCommand` sem falar com a LCU. O lobby novo, com `isOpen`,
+    /// chega numa mensagem `lobby` antes da resposta. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
+    SetLobbyOpen { open: bool },
 
     // Seleção de campeões
     /// Marca o campeão `championId` na ação `actionId` da seleção (#23), sem
@@ -818,6 +825,11 @@ mod tests {
                 serde_json::from_value(json!({"id": 9, "command": {"type": name}})).unwrap();
             assert_eq!(msg.command, command);
         }
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 9, "command": {"type": "setLobbyOpen", "open": true}}),
+        )
+        .unwrap();
+        assert_eq!(msg.command, Command::SetLobbyOpen { open: true });
         let msg: ClientMessage =
             serde_json::from_value(json!({"id": 8, "command": {"type": "launchLeague"}})).unwrap();
         assert_eq!(msg.command, Command::LaunchLeague);

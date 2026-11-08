@@ -16,6 +16,8 @@ import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
 import { PositionIcon } from './PositionIcon';
 import { ModeSelect } from './ModeSelect';
 import { QuickPlaySlots } from './QuickPlaySlots';
+import { LobbyOpenToggle } from './LobbyOpenToggle';
+import { isTutorialQueue } from '../agent/training';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' | 'startTutorial' | 'startPracticeTool' }>;
@@ -304,6 +306,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
           <span className="rounded-full surface px-3 py-1.5 shadow-soft text-caption font-medium text-muted">
             {lobby.isLeader ? 'Você é o líder' : 'Você é membro'}
           </span>
+          {/* Lobby aberto ou fechado (#225): todos os modos, menos o Tutorial. */}
+          {!isTutorialQueue(lobby.queueId) && <LobbyOpenToggle lobby={lobby} send={send} disabled={phase !== 'Lobby'} />}
           {/* Na fila e na partida encontrada, a faixa de ação fica com a busca; sair volta depois (ou já, com punição de fila). */}
           {(!searching || (penalty && !state.readyCheck)) && (
             <button type="button" aria-label="Sair do lobby" title="Sair do lobby" aria-describedby={descriptionId} aria-busy={pending}
