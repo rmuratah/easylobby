@@ -5,6 +5,7 @@ import type { LobbyMember } from "./LobbyMember";
 import type { LobbyRestriction } from "./LobbyRestriction";
 import type { Position } from "./Position";
 import type { Queue } from "./Queue";
+import type { SubteamLayout } from "./SubteamLayout";
 
 /**
  * O lobby do jogador, como a tela de lobby precisa.
@@ -20,8 +21,9 @@ export type Lobby = {
    */
   queue: Queue | null,
   /**
-   * Quantos jogadores cabem no grupo nesta fila (2 na Solo/Duo, 5 nas
-   * outras).
+   * Quantos jogadores cabem no grupo nesta fila (2 na Solo/Duo, 18 na
+   * Arena 3x6, 5 nas outras). No lobby com equipes, nunca menos que
+   * `subteams.count * subteams.size`.
    */
   maxLobbySize: number,
   /**
@@ -79,4 +81,10 @@ export type Lobby = {
    * `null` nas filas comuns. Veja [`crate::custom_lobby`].
    */
   custom: CustomLobby | null,
+  /**
+   * As equipes do lobby da Arena (#224): quantas são e quantas vagas tem
+   * cada uma. `null` nas filas sem equipes no lobby. A vaga de cada
+   * jogador vem em [`LobbyMember::subteam`].
+   */
+  subteams: SubteamLayout | null,
 };
