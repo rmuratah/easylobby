@@ -1,17 +1,17 @@
 //! Ready check: a partida encontrada, aceitar e recusar (#20).
 
-use super::{command_result, not_connected, Hub};
+use super::{command_result, not_connected, Hub, Resource, Shared, Stamp};
 use crate::ready_check::{self, ReadyCheck};
 use crate::ws::protocol::{CommandResult, ServerMessage};
 
 impl Hub {
     pub fn set_ready_check(&self, ready_check: Option<ReadyCheck>) {
-        self.update(|shared| {
-            if shared.state.ready_check == ready_check {
-                return None;
-            }
-            shared.state.ready_check = ready_check.clone();
-            Some(ServerMessage::ReadyCheck { ready_check })
+        self.update(|shared| write_ready_check(shared, ready_check));
+    }
+
+    pub(super) fn set_ready_check_if(&self, stamp: Stamp, ready_check: Option<ReadyCheck>) {
+        self.update_if(Resource::ReadyCheck, stamp, |shared| {
+            write_ready_check(shared, ready_check)
         });
     }
 
@@ -35,6 +35,19 @@ impl Hub {
             None => not_connected(),
         }
     }
+}
+
+/// Troca o ready check, contando a escrita mesmo quando nada muda (#245).
+fn write_ready_check(
+    shared: &mut Shared,
+    ready_check: Option<ReadyCheck>,
+) -> Option<ServerMessage> {
+    shared.ready_check_rev += 1;
+    if shared.state.ready_check == ready_check {
+        return None;
+    }
+    shared.state.ready_check = ready_check.clone();
+    Some(ServerMessage::ReadyCheck { ready_check })
 }
 
 #[cfg(test)]

@@ -91,6 +91,11 @@ struct Shared {
     /// O mesmo para a seleção de campeões e as páginas de runas (#87).
     champ_select_rev: u64,
     rune_pages_rev: u64,
+    /// O mesmo para o invocador, a fase e o ready check, que os eventos
+    /// mudam durante a releitura da conexão (#245).
+    summoner_rev: u64,
+    phase_rev: u64,
+    ready_check_rev: u64,
     /// Fecha de novo a UI oficial quando o LoL a reabre (#188).
     ux_guard: ux_guard::UxGuard,
     /// Sala do grupo em que o agente já tentou entrar nesta conexão, e
@@ -106,6 +111,9 @@ enum Resource {
     Invitations,
     ChampSelect,
     RunePages,
+    Summoner,
+    GameflowPhase,
+    ReadyCheck,
 }
 
 impl Shared {
@@ -116,6 +124,9 @@ impl Shared {
             Resource::Invitations => &mut self.invitations_rev,
             Resource::ChampSelect => &mut self.champ_select_rev,
             Resource::RunePages => &mut self.rune_pages_rev,
+            Resource::Summoner => &mut self.summoner_rev,
+            Resource::GameflowPhase => &mut self.phase_rev,
+            Resource::ReadyCheck => &mut self.ready_check_rev,
         }
     }
 
@@ -156,6 +167,9 @@ impl Hub {
                     invitations_rev: 0,
                     champ_select_rev: 0,
                     rune_pages_rev: 0,
+                    summoner_rev: 0,
+                    phase_rev: 0,
+                    ready_check_rev: 0,
                     ux_guard: ux_guard::UxGuard::default(),
                     lobby_chat_join: (String::new(), 0),
                 }),
@@ -206,22 +220,22 @@ impl Hub {
     }
 
     pub fn set_summoner(&self, summoner: Option<Summoner>) {
-        self.update(|shared| {
-            if shared.state.summoner == summoner {
-                return None;
-            }
-            shared.state.summoner = summoner.clone();
-            Some(ServerMessage::Summoner { summoner })
+        self.update(|shared| write_summoner(shared, summoner));
+    }
+
+    fn set_summoner_if(&self, stamp: Stamp, summoner: Option<Summoner>) {
+        self.update_if(Resource::Summoner, stamp, |shared| {
+            write_summoner(shared, summoner)
         });
     }
 
     pub fn set_gameflow_phase(&self, phase: Option<GameflowPhase>) {
-        self.update(|shared| {
-            if shared.state.gameflow_phase == phase {
-                return None;
-            }
-            shared.state.gameflow_phase = phase;
-            Some(ServerMessage::GameflowPhase { phase })
+        self.update(|shared| write_phase(shared, phase));
+    }
+
+    fn set_gameflow_phase_if(&self, stamp: Stamp, phase: Option<GameflowPhase>) {
+        self.update_if(Resource::GameflowPhase, stamp, |shared| {
+            write_phase(shared, phase)
         });
     }
 
@@ -263,7 +277,7 @@ impl Hub {
         match event {
             ConnectionEvent::Connected(session) => {
                 let client = session.client.clone();
-                let (lobby_stamp, search_stamp, invitations_stamp, rune_pages_stamp, chat_session) = {
+                let (stamps, chat_session) = {
                     let mut shared = self.lock();
                     shared.client = Some(session.client);
                     shared.session += 1;
@@ -272,13 +286,7 @@ impl Hub {
                     // a guarda liga quando ele acontecer.
                     shared.ux_guard.active = session.kill_ux.is_killed();
                     shared.ux_guard.generation += 1;
-                    (
-                        shared.stamp(Resource::Lobby),
-                        shared.stamp(Resource::Matchmaking),
-                        shared.stamp(Resource::Invitations),
-                        shared.stamp(Resource::RunePages),
-                        shared.session,
-                    )
+                    (ConnectStamps::take(&mut shared), shared.session)
                 };
                 if let KillUx::Scheduled { delay } = session.kill_ux {
                     self.schedule_kill_ux(delay);
@@ -317,20 +325,26 @@ impl Hub {
                     crate::queues::available(&client),
                     crate::quick_play::playable_champions(&client),
                 );
+                // Com [`drive`], os eventos dos retratos completos (invocador,
+                // fase, lobby, busca, convites, ready check e seleção) são
+                // aplicados durante esta releitura, e cada leitura só entra se
+                // nenhum deles chegou durante a espera (#245).
+                //
                 // 404 antes do login; qualquer outro erro também deixa vazio,
                 // e o próximo evento da LCU corrige.
-                self.set_summoner(summoner.ok());
-                let phase = phase.ok();
-                self.set_gameflow_phase(phase);
+                self.set_summoner_if(stamps.summoner, summoner.ok());
+                self.set_gameflow_phase_if(stamps.phase, phase.ok());
+                // Um evento pode ter trazido uma fase mais nova que a lida.
+                let phase = self.lock().state.gameflow_phase;
                 if ux_guard::reopens_ux(phase) {
                     self.guard_ux();
                 }
                 // Antes do lobby, para a UI já achar a fila dele na lista.
                 self.restore_queues(chat_session, queues.ok().flatten().unwrap_or_default());
                 // Um comando que publicou durante a releitura é mais novo.
-                self.set_lobby_if(lobby_stamp, lobby.ok().flatten());
-                self.set_matchmaking_if(search_stamp, search.ok().flatten());
-                self.set_received_invitations_if(invitations_stamp, received.unwrap_or_default());
+                self.set_lobby_if(stamps.lobby, lobby.ok().flatten());
+                self.set_matchmaking_if(stamps.search, search.ok().flatten());
+                self.set_received_invitations_if(stamps.invitations, received.unwrap_or_default());
                 self.restore_conversations(chat_session, conversations);
                 // O chat do grupo depois do lobby, que diz qual é a sala (#206).
                 let lobby_chat_id = self.lock().state.lobby.as_ref().map(|l| l.chat_id.clone());
@@ -345,7 +359,7 @@ impl Hub {
                 self.ensure_lobby_chat().await;
                 // O catálogo antes das páginas, para a UI já poder desenhá-las.
                 self.set_rune_catalog(rune_catalog.ok().flatten());
-                self.set_rune_pages_if(rune_pages_stamp, rune_pages.ok());
+                self.set_rune_pages_if(stamps.rune_pages, rune_pages.ok());
                 // Antes da seleção, para a UI já poder desenhar os feitiços.
                 self.set_summoner_spell_catalog(spell_catalog.ok().flatten());
                 self.set_champion_catalog(champion_catalog.ok().flatten());
@@ -360,16 +374,19 @@ impl Hub {
                 self.spawn_refresh_available_bots();
                 // Com o chat ainda conectando a LCU pode responder erro ou
                 // lista vazia; os eventos de cada amigo completam a lista.
-                // Nenhum comando mexe nos amigos e os eventos só são
-                // aplicados depois deste `apply`, então não há corrida.
+                // Nenhum comando mexe nos amigos e os eventos deles só são
+                // aplicados depois deste `apply` (veja [`drive`]), então não
+                // há corrida.
                 self.set_friends(friend_list.unwrap_or_default());
                 // Sem as pastas, a UI agrupa pelo nome da pasta de cada amigo.
                 self.set_friend_groups(friend_groups.unwrap_or_default());
                 // Só existe ready check aberto nessa fase; nas outras a LCU
                 // responde 404 ou `Invalid`, e não vale o pedido a mais.
                 if phase == Some(GameflowPhase::ReadyCheck) {
-                    let ready_check = crate::ready_check::current(&client).await;
-                    self.set_ready_check(ready_check.ok().flatten());
+                    if let Some((client, stamp)) = self.begin(Resource::ReadyCheck) {
+                        let ready_check = crate::ready_check::current(&client).await;
+                        self.set_ready_check_if(stamp, ready_check.ok().flatten());
+                    }
                 }
                 // A sessão da seleção também só existe na fase dela (fora,
                 // 404). Ela pode abrir um pouco antes da fase mudar, e o
@@ -646,11 +663,145 @@ fn command_result(result: Result<(), LcuError>) -> CommandResult {
     }
 }
 
+/// Carimbos dos recursos que a releitura do `Connected` aplica com
+/// [`Hub::update_if`], tirados antes das leituras.
+struct ConnectStamps {
+    summoner: Stamp,
+    phase: Stamp,
+    lobby: Stamp,
+    search: Stamp,
+    invitations: Stamp,
+    rune_pages: Stamp,
+}
+
+impl ConnectStamps {
+    fn take(shared: &mut Shared) -> Self {
+        Self {
+            summoner: shared.stamp(Resource::Summoner),
+            phase: shared.stamp(Resource::GameflowPhase),
+            lobby: shared.stamp(Resource::Lobby),
+            search: shared.stamp(Resource::Matchmaking),
+            invitations: shared.stamp(Resource::Invitations),
+            rune_pages: shared.stamp(Resource::RunePages),
+        }
+    }
+}
+
+/// Evento que é um retrato completo do recurso e cujas leituras do
+/// `Connected` têm carimbo: pode ser aplicado durante a releitura (#245).
+/// Os outros (amigos, chat, runas, listas de campeões...) mudam só uma parte
+/// do recurso e esperam a releitura terminar, como antes.
+fn applies_during_reread(uri: &str) -> bool {
+    matches!(
+        uri,
+        CURRENT_SUMMONER_PATH
+            | GAMEFLOW_PHASE_PATH
+            | LOBBY_PATH
+            | SEARCH_PATH
+            | RECEIVED_INVITATIONS_PATH
+            | READY_CHECK_PATH
+            | CHAMP_SELECT_SESSION_PATH
+    )
+}
+
+/// Eventos que chegaram durante a releitura do `Connected`.
+#[derive(Default)]
+struct DuringReread {
+    /// Os que esperam a releitura, na ordem em que chegaram.
+    deferred: Vec<LcuEvent>,
+    /// Já aplicados, mas o trabalho assíncrono deles (cartas do ARAM, sala
+    /// do grupo e bots) fica para depois da releitura.
+    champ_select: bool,
+    lobby: bool,
+}
+
+impl Hub {
+    /// Faz a releitura do `Connected` enquanto continua lendo a conexão
+    /// (#245). Os eventos dos retratos completos entram na hora e descartam,
+    /// pelos carimbos, a leitura que eles tornaram velha; os outros esperam a
+    /// releitura terminar. Sem isso, os eventos que a LCU mandou durante as
+    /// leituras eram aplicados depois delas e a UI voltava para trás.
+    ///
+    /// Devolve o próximo evento da conexão, que ainda não foi aplicado. Se a
+    /// conexão cair no meio, a releitura é abandonada junto com os eventos que
+    /// esperavam: o `Disconnected` limpa tudo da sessão.
+    async fn connect(
+        &self,
+        session: crate::connection::LcuSession,
+        connection: &mut LcuConnection,
+    ) -> ConnectionEvent {
+        let reread = self.apply(ConnectionEvent::Connected(session));
+        tokio::pin!(reread);
+        let mut during = DuringReread::default();
+        loop {
+            // O `next` só é solto depois de terminar: nenhum evento se perde.
+            let next = connection.next();
+            tokio::pin!(next);
+            tokio::select! {
+                biased;
+                () = &mut reread => {
+                    self.after_reread(during).await;
+                    return next.await;
+                }
+                event = &mut next => match event {
+                    ConnectionEvent::Event(event) if applies_during_reread(&event.uri) => {
+                        during.champ_select |= event.uri == CHAMP_SELECT_SESSION_PATH;
+                        during.lobby |= event.uri == LOBBY_PATH;
+                        self.apply_lcu_event(&event);
+                    }
+                    ConnectionEvent::Event(event) => during.deferred.push(event),
+                    other => return other,
+                },
+            }
+        }
+    }
+
+    async fn after_reread(&self, during: DuringReread) {
+        for event in during.deferred {
+            self.apply(ConnectionEvent::Event(event)).await;
+        }
+        if during.champ_select {
+            self.refresh_champion_offers().await;
+        }
+        if during.lobby {
+            self.spawn_refresh_available_bots();
+            self.ensure_lobby_chat().await;
+        }
+    }
+}
+
 /// Mantém o [`Hub`] atualizado com a conexão para sempre.
 pub async fn drive(mut connection: LcuConnection, hub: Hub) {
+    let mut event = connection.next().await;
     loop {
-        hub.apply(connection.next().await).await;
+        event = match event {
+            ConnectionEvent::Connected(session) => hub.connect(session, &mut connection).await,
+            other => {
+                hub.apply(other).await;
+                connection.next().await
+            }
+        };
     }
+}
+
+/// Troca o invocador, contando a escrita mesmo quando nada muda (#245).
+fn write_summoner(shared: &mut Shared, summoner: Option<Summoner>) -> Option<ServerMessage> {
+    shared.summoner_rev += 1;
+    if shared.state.summoner == summoner {
+        return None;
+    }
+    shared.state.summoner = summoner.clone();
+    Some(ServerMessage::Summoner { summoner })
+}
+
+/// Troca a fase, contando a escrita mesmo quando nada muda (#245).
+fn write_phase(shared: &mut Shared, phase: Option<GameflowPhase>) -> Option<ServerMessage> {
+    shared.phase_rev += 1;
+    if shared.state.gameflow_phase == phase {
+        return None;
+    }
+    shared.state.gameflow_phase = phase;
+    Some(ServerMessage::GameflowPhase { phase })
 }
 
 #[cfg(test)]
