@@ -43,9 +43,9 @@ const swiftplay = (playerSlots: PlayerSlot[] = []): Lobby => ({
   scarcePositions: ['jungle', 'bottom'], members: [{ ...testLobby.members[0], playerSlots }],
 });
 const champions = { champions: [
-  { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: ['fighter'] },
-  { id: 22, name: 'Ashe', alias: 'Ashe', roles: ['marksman'] },
-  { id: 1, name: 'Annie', alias: 'Annie', roles: ['mage'] },
+  { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: ['fighter'], positions: [] },
+  { id: 22, name: 'Ashe', alias: 'Ashe', roles: ['marksman'], positions: [] },
+  { id: 1, name: 'Annie', alias: 'Annie', roles: ['mage'], positions: [] },
 ] };
 const spells = { spells: [
   { id: 4, name: 'Flash', description: '', summonerLevel: 7, gameModes: ['SWIFTPLAY'], queues: ['swiftplay' as const] },

@@ -20,3 +20,10 @@ campeões da grade da seleção, #28), também **sintético**: os `id`s cobrem o
 campeões da gravação do patch 16.22 com os nomes em inglês, e `roles` vem vazio.
 Os `id`s que não reconhecemos aparecem como "Campeão N". O `gravar_fixtures` já
 grava o arquivo de verdade, que passa na frente.
+
+`recommended-champion-positions.json` imita
+`/lol-perks/v1/recommended-champion-positions` (as rotas de cada campeão, para o
+filtro da grade, #250), também **sintético**: os `id`s são os de
+`champion-summary.json` e as rotas foram escritas à mão pelo que se joga no patch
+16.22, só para testar o filtro sem o LoL. Não são as da Riot. Os "Campeão N" vêm
+sem rota.

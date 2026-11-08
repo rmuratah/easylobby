@@ -10,6 +10,11 @@ export const positionNames = {
   unselected: 'Não selecionado',
 } satisfies Record<Position, string>;
 
+/** As cinco rotas do Summoner's Rift, na ordem em que a tela mostra. */
+export const LANES = ['top', 'jungle', 'middle', 'bottom', 'utility'] as const satisfies readonly Position[];
+
+export type Lane = (typeof LANES)[number];
+
 export function isPosition(value: unknown): value is Position {
   return typeof value === 'string' && Object.hasOwn(positionNames, value);
 }

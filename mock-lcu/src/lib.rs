@@ -872,6 +872,10 @@ async fn handle_request(
         // Campeões para a grade da seleção (#28).
         (&Method::GET, champions::CHAMPION_SUMMARY) => champions::game_data(&shared.state()),
         (&Method::GET, champions::OWNED_CHAMPIONS) => champions::owned(&shared.state()),
+        // Rotas de cada campeão, para o filtro da grade (#250).
+        (&Method::GET, champions::RECOMMENDED_POSITIONS) => {
+            champions::recommended_positions(&shared.state())
+        }
         // Feitiços de invocador (#24).
         (&Method::GET, summoner_spells::SUMMONER_SPELLS) => {
             summoner_spells::game_data(&shared.state())

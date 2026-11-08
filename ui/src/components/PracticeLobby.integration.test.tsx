@@ -43,9 +43,9 @@ const practice = (custom: Partial<CustomLobby> = {}, leader = true): Lobby => ({
   custom: { teamSize: 5, team1: [{ ...me, isLeader: leader }], team2: [], ...custom },
 });
 const champions = { champions: [
-  { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: ['fighter'] },
-  { id: 22, name: 'Ashe', alias: 'Ashe', roles: ['marksman'] },
-  { id: 1, name: 'Annie', alias: 'Annie', roles: ['mage'] },
+  { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: ['fighter'], positions: [] },
+  { id: 22, name: 'Ashe', alias: 'Ashe', roles: ['marksman'], positions: [] },
+  { id: 1, name: 'Annie', alias: 'Annie', roles: ['mage'], positions: [] },
 ] };
 
 describe('lobby do Modo de Treino (#229)', () => {

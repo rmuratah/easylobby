@@ -30,7 +30,7 @@ describe('ProfilePage', () => {
     setup({
       ranked: { soloDuo: { ...unranked, tier: 'GOLD', division: 'II', leaguePoints: 47, wins: 30, losses: 10 }, flex: unranked },
       championMasteries: [{ championId: 103, level: 23, points: 287450 }],
-      championCatalog: { champions: [{ id: 103, name: 'Ahri', alias: 'Ahri', roles: [] }] },
+      championCatalog: { champions: [{ id: 103, name: 'Ahri', alias: 'Ahri', roles: [], positions: [] }] },
       matchHistory: { matches: [match(1), match(2, { result: 'loss' })], hasMore: false },
     });
     expect(screen.getByRole('heading', { name: 'Jogador#BR1' })).toBeInTheDocument();

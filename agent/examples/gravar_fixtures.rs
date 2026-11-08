@@ -66,12 +66,14 @@ const SNAPSHOT_PATHS: [&str; 19] = [
 ];
 
 /// Endpoints grandes e que quase não mudam: só no início.
-const STARTUP_ONLY_PATHS: [&str; 5] = [
+const STARTUP_ONLY_PATHS: [&str; 6] = [
     "/lol-game-queues/v1/queues",
     "/lol-game-data/assets/v1/perkstyles.json",
     "/lol-game-data/assets/v1/perks.json",
     "/lol-game-data/assets/v1/summoner-spells.json",
     "/lol-game-data/assets/v1/champion-summary.json",
+    // Rotas de cada campeão, para o filtro da grade (#250).
+    "/lol-perks/v1/recommended-champion-positions",
 ];
 
 /// Sessão da seleção: quando ela abre, o gravador tira a foto das cartas.
