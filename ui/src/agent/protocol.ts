@@ -104,9 +104,15 @@ function customMember(v: unknown): v is CustomMember {
   return object(v) && typeof v.puuid === 'string' && uint(v.summonerId) && uint(v.summonerIconId) &&
     typeof v.isLeader === 'boolean' && (v.bot === null || customBot(v.bot));
 }
+function customGameSettings(v: unknown): boolean {
+  return object(v) && typeof v.name === 'string' && typeof v.gameMode === 'string' && uint(v.mapId) &&
+    (v.map === null || typeof v.map === 'string') && (v.pickType === null || typeof v.pickType === 'string') &&
+    (v.spectators === null || typeof v.spectators === 'string');
+}
 function customLobby(v: unknown): v is CustomLobby {
-  return object(v) && uint(v.teamSize) && Array.isArray(v.team1) && v.team1.every(customMember) &&
-    Array.isArray(v.team2) && v.team2.every(customMember);
+  return object(v) && customGameSettings(v.settings) && uint(v.teamSize) && Array.isArray(v.team1) && v.team1.every(customMember) &&
+    Array.isArray(v.team2) && v.team2.every(customMember) &&
+    Array.isArray(v.spectators) && v.spectators.every(customMember) && uint(v.maxSpectators);
 }
 function lobby(v: unknown): v is Lobby | null {
   return v === null || (object(v) && uint(v.queueId) && (v.queue === null || isQueue(v.queue)) &&

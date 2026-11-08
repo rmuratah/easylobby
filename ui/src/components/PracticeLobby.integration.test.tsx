@@ -112,3 +112,41 @@ describe('lobby do Modo de Treino (#229)', () => {
     expect(team('Equipe 2').getByRole('button', { name: 'Juntar-se' })).toBeEnabled();
   });
 });
+
+describe('lobby da partida personalizada (#262 e #263)', () => {
+  const settings = { name: 'Treino da firma', gameMode: 'CLASSIC', mapId: 11, map: 'summonersRift', pickType: 'draftMode', spectators: 'all' } as const;
+  const friend: CustomMember = { puuid: 'amigo', summonerId: 2, summonerIconId: 2, isLeader: false, bot: null };
+
+  it('mostra o nome e as opções no cabeçalho e vira espectador', async () => {
+    render(<App />);
+    hello({ lobby: practice({ settings, teamSize: 3, spectators: [friend], maxSpectators: 4 }), championCatalog: champions });
+    expect(panel().getByText('Treino da firma')).toBeInTheDocument();
+    expect(panel().getByText("Summoner's Rift · 3v3 · Escolha alternada")).toBeInTheDocument();
+    const spectators = within(panel().getByRole('region', { name: 'Espectadores' }));
+    expect(spectators.getByText('Quem pode assistir: Todos')).toBeInTheDocument();
+    expect(spectators.getByText('1 / 4')).toBeInTheDocument();
+    expect(within(spectators.getByRole('list', { name: 'Jogadores assistindo' })).getAllByRole('listitem')).toHaveLength(1);
+    fireEvent.click(spectators.getByRole('button', { name: 'Assistir' }));
+    expect(request().command).toEqual({ type: 'spectate' });
+    await ok();
+  });
+
+  it('assistindo, volta pelo Juntar-se nas duas equipes', () => {
+    render(<App />);
+    hello({ lobby: practice({ settings, team1: [], spectators: [{ ...me, isLeader: true }] }), championCatalog: champions });
+    const spectators = within(panel().getByRole('region', { name: 'Espectadores' }));
+    expect(spectators.queryByRole('button', { name: 'Assistir' })).not.toBeInTheDocument();
+    expect(spectators.getByText(/Você está assistindo/)).toBeInTheDocument();
+    expect(team('Equipe 1').getByRole('button', { name: 'Juntar-se' })).toBeInTheDocument();
+    fireEvent.click(team('Equipe 2').getByRole('button', { name: 'Juntar-se' }));
+    expect(request().command).toEqual({ type: 'switchTeam', team: 'team2' });
+  });
+
+  it('sem espectadores, esconde o bloco; com as vagas cheias, não deixa assistir', () => {
+    render(<App />);
+    hello({ lobby: practice(), championCatalog: champions });
+    expect(panel().queryByRole('region', { name: 'Espectadores' })).not.toBeInTheDocument();
+    act(() => socket().receive({ type: 'lobby', lobby: practice({ settings, spectators: [friend], maxSpectators: 1 }) }));
+    expect(within(panel().getByRole('region', { name: 'Espectadores' })).getByRole('button', { name: 'Assistir' })).toBeDisabled();
+  });
+});

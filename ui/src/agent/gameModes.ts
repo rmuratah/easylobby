@@ -9,7 +9,7 @@ import { createLobbyCommand, queueKey } from './queueOptions';
  * (gravação 16.22); o card Eventos junta as outras filas abertas que o agente
  * lista.
  */
-export type ModeTabId = 'pvp' | 'coop' | 'training';
+export type ModeTabId = 'pvp' | 'coop' | 'training' | 'custom';
 export type ModeId = 'summonersRift' | 'aram' | 'arena' | 'events' | 'coopSummonersRift' | 'coopEvents' | 'tutorial' | 'practiceTool';
 export type CreateLobby = Extract<Command, { type: 'createLobby' | 'createLobbyById' }>;
 export type TrainingCommand = Extract<Command, { type: 'startTutorial' | 'startPracticeTool' }>;
@@ -113,7 +113,7 @@ function eventsMode(id: ModeId, queues: GameQueue[]): GameMode | null {
   return { id, name: 'Eventos', icon: 'EV', description: 'Modos por tempo limitado abertos agora.', available: true, submodes };
 }
 
-/** Monta as três abas a partir da lista de filas do agente. */
+/** Monta as abas a partir da lista de filas do agente. */
 export function buildModeTabs(queues: GameQueue[]): ModeTab[] {
   const pvpEvents = eventsMode('events', queues.filter(q => !q.versusAi));
   const coopEvents = eventsMode('coopEvents', queues.filter(q => q.versusAi));
@@ -121,6 +121,8 @@ export function buildModeTabs(queues: GameQueue[]): ModeTab[] {
     { id: 'pvp', label: 'PvP', modes: [...pvpModes.map(m => fixedMode(m, queues)), ...(pvpEvents ? [pvpEvents] : [])] },
     { id: 'coop', label: 'Co-op versus IA', modes: [...coopModes.map(m => fixedMode(m, queues)), ...(coopEvents ? [coopEvents] : [])] },
     { id: 'training', label: 'Treinamento', modes: trainingModes },
+    // Partida personalizada (#262): a aba mostra o formulário, sem cards de modo.
+    { id: 'custom', label: 'Personalizada', modes: [] },
   ];
 }
 

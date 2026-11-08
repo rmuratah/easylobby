@@ -5,6 +5,9 @@ import type { TutorialPart } from '../bindings/TutorialPart';
 import { defaultTutorialPart, tutorialCards } from '../agent/training';
 import { TutorialParts } from './TutorialParts';
 import { cx } from './base/cx';
+import { CustomGameForm } from './CustomGameForm';
+import { customOptionsProblem, customOptionsSummary, defaultCustomOptions } from '../agent/customGame';
+import type { CustomGameOptions } from '../bindings/CustomGameOptions';
 
 type Props = {
   queues: GameQueue[];
@@ -25,6 +28,10 @@ type Props = {
    * lobby. A fila atual fica bloqueada (#239).
    */
   lobby?: { queueId: number; queueName: string; onBack: () => void };
+  /** Nome do invocador, para o nome sugerido da personalizada ("Partida de ..."). */
+  summonerName?: string;
+  /** Cria a partida personalizada da aba Personalizada (#262). */
+  onCreateCustom?: (options: CustomGameOptions) => void;
 };
 type Selection = { tab: ModeTabId; mode: GameMode['id'] | null; queueId: number | null };
 
@@ -65,11 +72,12 @@ function selectionOf(tabs: ModeTab[], queueId: number | undefined): Selection {
 
 const currentQueueText = 'Você já está nesta fila.';
 
-export function ModeSelect({ queues, canCreate, pending, restriction, descriptionId, feedback, onCreate, onStart, tutorial = null, lobby }: Props) {
+export function ModeSelect({ queues, canCreate, pending, restriction, descriptionId, feedback, onCreate, onStart, tutorial = null, lobby, summonerName, onCreateCustom }: Props) {
   const allTabs = buildModeTabs(queues);
-  // Tutorial e Modo de Treino não trocam a fila de um lobby.
+  // Tutorial, Modo de Treino e personalizada não trocam a fila de um lobby.
   // A fila atual do lobby não pode ser escolhida (#239).
-  const tabs = lobby ? blockCurrentQueue(allTabs.filter(t => t.id !== 'training'), lobby.queueId) : allTabs;
+  const tabs = lobby ? blockCurrentQueue(allTabs.filter(t => t.id !== 'training' && t.id !== 'custom'), lobby.queueId)
+    : allTabs.filter(t => t.id !== 'custom' || onCreateCustom);
   const baseId = useId();
   const [selection, setSelection] = useState<Selection>(() => selectionOf(tabs, lobby?.queueId));
   const tab = tabs.find(t => t.id === selection.tab) ?? tabs[0];
@@ -82,6 +90,10 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
     : firstAvailable(tab);
   const locked = !canCreate || pending;
   const isTraining = tab.id === 'training';
+  const isCustom = tab.id === 'custom';
+  // Formulário da personalizada (#262): fica preenchido ao trocar de aba e voltar.
+  const [customOptions, setCustomOptions] = useState<CustomGameOptions>(() => defaultCustomOptions(summonerName));
+  const customProblem = customOptionsProblem(customOptions);
   // Tutorial (#228): a parte escolhida nos cards; sem escolha, a primeira liberada que falta.
   const [tutorialChoice, setTutorialChoice] = useState<number | null>(null);
   const parts = tutorialCards(tutorial);
@@ -98,6 +110,10 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
     setSelection({ tab: tab.id, mode: mode.id, queueId: submode?.queueId ?? null });
   }
   function confirm() {
+    if (isCustom) {
+      if (!customProblem) onCreateCustom?.({ ...customOptions, name: customOptions.name.trim() });
+      return;
+    }
     if (!current) return;
     if (isTutorial) onStart({ type: 'startTutorial', queueId: tutorialPart.queueId });
     else if (current.mode.start) onStart(current.mode.start);
@@ -125,6 +141,11 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
         </div>
       </header>
 
+      {isCustom ? (
+        <div role="tabpanel" id={`${baseId}-panel`} aria-labelledby={`${baseId}-tab-${tab.id}`} className="flex-1">
+          <CustomGameForm options={customOptions} onChange={setCustomOptions} locked={locked} problem={customProblem} />
+        </div>
+      ) : (
       <div role="tabpanel" id={`${baseId}-panel`} aria-labelledby={`${baseId}-tab-${tab.id}`}
         className={cx('grid flex-1 content-start gap-4',
           isTraining ? '@min-[40rem]:grid-cols-2'
@@ -182,6 +203,7 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
           );
         })}
       </div>
+      )}
 
       {isTutorial && (
         <TutorialParts cards={parts} selected={tutorialPart.queueId} locked={locked} name={`${baseId}-tutorial`}
@@ -189,7 +211,18 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
       )}
 
       <footer className="flex flex-wrap items-center gap-4 rounded-panel surface p-4 shadow-soft">
-        {current ? (
+        {isCustom ? (
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-tile bg-primary-gradient text-body font-semibold tracking-wide text-on-accent">PE</span>
+            <div className="min-w-0">
+              <p className="text-caption font-semibold uppercase tracking-wider text-muted">Partida personalizada</p>
+              <p className="truncate text-body font-semibold" aria-live="polite">{customOptions.name.trim() || 'Sem nome'}</p>
+              <p className="truncate text-caption text-muted">
+                {customOptionsSummary(customOptions)}{customOptions.password ? ' · Com senha' : ''}
+              </p>
+            </div>
+          </div>
+        ) : current ? (
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <ModeIcon mode={current.mode} />
             <div className="min-w-0">
@@ -209,8 +242,8 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
           </button>
         )}
         <button type="button" className={primaryPill} aria-describedby={descriptionId} aria-busy={pending}
-          disabled={!current || locked || unchanged} onClick={confirm}>
-          {isTraining ? 'Iniciar' : lobby ? 'Trocar fila' : 'Criar lobby'}
+          disabled={isCustom ? !!customProblem || locked : !current || locked || unchanged} onClick={confirm}>
+          {isCustom ? 'Criar partida' : isTraining ? 'Iniciar' : lobby ? 'Trocar fila' : 'Criar lobby'}
         </button>
       </footer>
       <p id={descriptionId} className="text-caption text-muted">{restriction}</p>
