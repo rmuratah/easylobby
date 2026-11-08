@@ -3,8 +3,8 @@
 //! Cada teste segura no mock-lcu a resposta de que um comando depende, muda o
 //! estado por fora (evento WAMP, queda da conexão ou um LoL novo), espera
 //! uma segunda UI (a observadora) ver a mudança e só então solta a resposta.
-//! A UI que mandou o comando não serve para isso: ela só recebe as mudanças
-//! junto com a resposta. O agente tem que descartar a resposta velha: o
+//! Uma UI separada deixa claro que a mudança foi publicada para todos, e não
+//! só para quem mandou o comando. O agente tem que descartar a resposta velha: o
 //! estado mais novo continua valendo e nada de antigo é publicado no `/ws`.
 
 use std::path::{Path, PathBuf};
@@ -249,6 +249,38 @@ async fn sair_da_fila_atrasado_nao_apaga_a_busca_nova() {
     let search = state(&mut ui, 4).await.matchmaking.expect("a busca nova");
     assert_eq!(search.search_state, SearchState::Searching);
     assert_eq!(search.time_in_queue, 99.0);
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn quem_mandou_o_comando_recebe_eventos_durante_a_espera() {
+    let dir = temp_dir("eventos-na-espera");
+    let mock = start_mock(&dir).await;
+    let (mut ui, _observer) = start_agent(&dir).await;
+
+    // Enquanto a LCU segura a resposta, o `/ws` dessa UI continua vivo: o
+    // evento chega antes da resposta, e o comando seguinte espera a vez
+    // (#244).
+    let mut hold = mock.hold(Method::POST, LOBBY_PATH);
+    send(&mut ui, 1, Command::CreateLobby { queue: Queue::Aram }).await;
+    hold.arrived().await;
+    send(&mut ui, 2, Command::Ping).await;
+    mock.emit(event(SEARCH_PATH, "Create", new_search()));
+    let seen = until(&mut ui, |m| is_search(m, true)).await;
+    assert!(
+        !seen
+            .iter()
+            .any(|m| matches!(m, ServerMessage::Response { .. })),
+        "{seen:?}"
+    );
+    hold.release();
+
+    let (_, result) = until_response(&mut ui, 1).await;
+    assert_eq!(result, CommandResult::Ok);
+    let (_, result) = until_response(&mut ui, 2).await;
+    assert_eq!(result, CommandResult::Ok);
 
     mock.shutdown().await;
     let _ = std::fs::remove_dir_all(&dir);
