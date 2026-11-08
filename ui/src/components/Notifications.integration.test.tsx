@@ -132,3 +132,14 @@ it('libera o áudio no primeiro clique', () => {
   fireEvent.pointerDown(window);
   expect(sound.unlock).toHaveBeenCalledTimes(1);
 });
+
+it('abre a conversa ao clicar no aviso e não avisa a conversa que está aberta na tela', () => {
+  render(<App />);
+  hello({ conversations: [testConversation] });
+  chat({ unreadCount: 2, messages: [...testConversation.messages, newMessage] });
+  fireEvent.click(notices().getByRole('button', { name: 'Abrir conversa com Amigo' }));
+  expect(region()).not.toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Conversa com Amigo' })).toBeVisible();
+  chat({ unreadCount: 1, messages: [...testConversation.messages, newMessage, { ...newMessage, id: 'm3', body: 'bora' }] });
+  expect(region()).not.toBeInTheDocument();
+});

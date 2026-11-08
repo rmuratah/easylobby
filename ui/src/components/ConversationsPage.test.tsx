@@ -7,7 +7,7 @@ import type { Conversation } from '../bindings/Conversation';
 import type { Friend } from '../bindings/Friend';
 import { testConversation, testFriend } from '../test/events';
 import { makeState } from '../test/state';
-import { ChatButton, ChatPanel } from './ChatPanel';
+import { ChatButton, ConversationsPage } from './ConversationsPage';
 
 const connectedWith = (conversations: Conversation[], friends: Friend[] = []): ConnectionSnapshot =>
   ({ status: 'connected', error: null, state: makeState({ conversations, friends }) });
@@ -23,31 +23,57 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function Harness({ connection, send, initial = null }: { connection: ConnectionSnapshot; send: AgentClient['send']; initial?: string | null }) {
+function Harness({ connection, send, initial = null, visible = true }: {
+  connection: ConnectionSnapshot; send: AgentClient['send']; initial?: string | null; visible?: boolean;
+}) {
   const [activeId, setActiveId] = useState(initial);
-  return <ChatPanel connection={connection} send={send} activeId={activeId} onActiveChange={setActiveId} />;
+  return <ConversationsPage connection={connection} send={send} activeId={activeId} onActiveChange={setActiveId} visible={visible} />;
 }
 const okSend = () => vi.fn<AgentClient['send']>(() => Promise.resolve({ status: 'ok' }));
 const commands = (send: ReturnType<typeof okSend>) => send.mock.calls.map(([command]) => command);
 
-describe('ChatPanel', () => {
-  it('não mostra nada sem conexão com o LoL nem sem conversa aberta', () => {
-    const { container, rerender } = render(<Harness connection={{ status: 'reconnecting', error: null, state: null }} send={okSend()} />);
-    expect(container).toBeEmptyDOMElement();
-    rerender(<Harness connection={connectedWith([testConversation, bia])} send={okSend()} />);
-    expect(container).toBeEmptyDOMElement();
-    expect(screen.queryByRole('region', { name: 'Conversas' })).toBeNull();
+describe('ConversationsPage', () => {
+  it('pede para aguardar sem conexão e explica como começar sem conversas', () => {
+    const { rerender } = render(<Harness connection={{ status: 'reconnecting', error: null, state: null }} send={okSend()} />);
+    expect(screen.getByText(/Aguarde a conexão/)).toBeInTheDocument();
+    rerender(<Harness connection={connectedWith([])} send={okSend()} />);
+    expect(screen.getByText(/Nenhuma conversa nesta sessão/)).toBeInTheDocument();
+    expect(screen.getByText('Escolha uma conversa na lista.')).toBeInTheDocument();
   });
 
-  it('abre a conversa, marca como ativa e desmarca ao fechar', () => {
+  it('lista as conversas da mais recente, com a última mensagem e as não lidas', () => {
     const send = okSend();
-    const { container } = render(<Harness connection={connectedWith([testConversation])} send={send} initial={testConversation.id} />);
+    render(<Harness connection={connectedWith([testConversation, bia])} send={send} />);
+    const items = within(screen.getByRole('list', { name: 'Conversas abertas' })).getAllByRole('button');
+    expect(items[0]).toHaveAccessibleName('Abrir conversa com Bia');
+    expect(items[0]).toHaveTextContent('Você: gg');
+    expect(items[1]).toHaveAccessibleName('Abrir conversa com Amigo, 1 não lida');
+    expect(items[1]).toHaveTextContent('bora?');
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('abre a conversa pela lista, marca como ativa e desmarca ao voltar', () => {
+    const send = okSend();
+    render(<Harness connection={connectedWith([testConversation])} send={send} />);
+    fireEvent.click(screen.getByRole('button', { name: /Abrir conversa com Amigo/ }));
+    expect(screen.getByRole('button', { name: /Abrir conversa com Amigo/ })).toHaveAttribute('aria-current', 'true');
     const view = within(screen.getByRole('region', { name: 'Conversa com Amigo' }));
     expect(view.getByRole('log', { name: 'Mensagens' })).toHaveTextContent('Amigo: bora?');
     expect(commands(send)).toEqual([{ type: 'setActiveConversation', conversationId: testConversation.id }]);
-    fireEvent.click(view.getByRole('button', { name: 'Fechar conversa' }));
-    expect(container).toBeEmptyDOMElement();
+    fireEvent.click(view.getByRole('button', { name: 'Voltar às conversas' }));
+    expect(screen.queryByRole('region', { name: 'Conversa com Amigo' })).toBeNull();
     expect(commands(send).at(-1)).toEqual({ type: 'setActiveConversation', conversationId: null });
+  });
+
+  it('escondida, mantém a conversa aberta mas não a marca como lida', () => {
+    const send = okSend();
+    const { rerender } = render(<Harness connection={connectedWith([testConversation])} send={send} initial={testConversation.id} visible={false} />);
+    expect(send).not.toHaveBeenCalled();
+    rerender(<Harness connection={connectedWith([testConversation])} send={send} initial={testConversation.id} visible />);
+    expect(commands(send)).toEqual([{ type: 'setActiveConversation', conversationId: testConversation.id }]);
+    rerender(<Harness connection={connectedWith([testConversation])} send={send} initial={testConversation.id} visible={false} />);
+    expect(commands(send).at(-1)).toEqual({ type: 'setActiveConversation', conversationId: null });
+    expect(screen.getByRole('region', { name: 'Conversa com Amigo' })).toBeInTheDocument();
   });
 
   it('marca as não lidas no balão do amigo', () => {
@@ -106,9 +132,10 @@ describe('ChatPanel', () => {
   });
 
   it('fecha quando a conversa some e não é de um amigo', () => {
-    const { container, rerender } = render(<Harness connection={connectedWith([testConversation])} send={okSend()} initial={testConversation.id} />);
+    const { rerender } = render(<Harness connection={connectedWith([testConversation])} send={okSend()} initial={testConversation.id} />);
     expect(screen.getByRole('region', { name: 'Conversa com Amigo' })).toBeInTheDocument();
     rerender(<Harness connection={connectedWith([])} send={okSend()} initial={testConversation.id} />);
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole('region', { name: 'Conversa com Amigo' })).toBeNull();
+    expect(screen.getByText('Escolha uma conversa na lista.')).toBeInTheDocument();
   });
 });

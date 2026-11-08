@@ -3,13 +3,15 @@ import type { Theme } from '../theme/theme';
 import { Segmented } from '../components/base';
 import { cx } from '../components/base/cx';
 
-export type NavigationPage = 'flow' | 'home' | 'profile';
+export type NavigationPage = 'flow' | 'home' | 'profile' | 'conversations';
 
 type Props = {
   active: NavigationPage;
   flowLabel: string;
   flowButtonRef: RefObject<HTMLButtonElement | null>;
   theme: Theme;
+  /** Mensagens não lidas: um ponto de destaque no botão Conversas. */
+  unread?: number;
   onNavigate: (page: NavigationPage) => void;
   onThemeChange: (theme: Theme) => void;
 };
@@ -24,7 +26,8 @@ const themeOptions: { value: Theme; label: ReactNode; ariaLabel: string }[] = [
  * Fica estreita, só com os ícones das telas, e se expande sobre o conteúdo
  * ao passar o mouse ou ao navegar pelo teclado.
  */
-export function SideNavigation({ active, flowLabel, flowButtonRef, theme, onNavigate, onThemeChange }: Props) {
+export function SideNavigation({ active, flowLabel, flowButtonRef, theme, unread = 0, onNavigate, onThemeChange }: Props) {
+  const conversationsLabel = unread > 0 ? `Conversas, ${unread} não ${unread === 1 ? 'lida' : 'lidas'}` : 'Conversas';
   return (
     <div className="app-navigation-slot">
       <aside className="app-navigation surface shadow-soft" aria-label="Navegação do aplicativo">
@@ -41,6 +44,8 @@ export function SideNavigation({ active, flowLabel, flowButtonRef, theme, onNavi
           <div aria-hidden="true" className="mx-1 my-1 border-t border-line" />
           <NavigationButton active={active === 'profile'} label="Perfil" icon={<ProfileIcon />}
             onClick={() => onNavigate('profile')} />
+          <NavigationButton active={active === 'conversations'} label="Conversas" ariaLabel={conversationsLabel}
+            icon={<ChatIcon />} badge={unread > 0} onClick={() => onNavigate('conversations')} />
         </nav>
         <div className="mt-auto flex flex-col items-center gap-3">
           <Segmented label="Tema" value={theme} onChange={onThemeChange} options={themeOptions}
@@ -60,18 +65,23 @@ type ButtonProps = {
   active: boolean;
   label: string;
   icon: ReactNode;
+  /** Nome lido pelo leitor de tela, quando difere do rótulo (por exemplo, com as não lidas). */
+  ariaLabel?: string;
   primary?: boolean;
+  /** Ponto de destaque no canto do ícone. */
+  badge?: boolean;
   onClick: () => void;
 };
 
-function NavigationButton({ ref, active, label, icon, primary = false, onClick }: ButtonProps) {
+function NavigationButton({ ref, active, label, ariaLabel = label, icon, primary = false, badge = false, onClick }: ButtonProps) {
   return (
-    <button ref={ref} type="button" aria-current={active ? 'page' : undefined} onClick={onClick} aria-label={label} title={label}
-      className={cx('app-navigation-button flex flex-col items-center justify-center gap-1 rounded-tile border px-1 py-2 text-caption font-semibold transition-colors',
+    <button ref={ref} type="button" aria-current={active ? 'page' : undefined} onClick={onClick} aria-label={ariaLabel} title={ariaLabel}
+      className={cx('app-navigation-button relative flex flex-col items-center justify-center gap-1 rounded-tile border px-1 py-2 text-caption font-semibold transition-colors',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         active ? 'border-accent bg-accent-soft text-accent-ink' : 'border-transparent text-muted hover:bg-raised hover:text-ink',
         primary && !active && 'border-line bg-raised text-ink')}>
       {icon}<span aria-hidden="true" className="app-navigation-label">{label}</span>
+      {badge && <span aria-hidden="true" data-unread className="absolute right-2 top-1.5 h-2 w-2 rounded-full bg-accent" />}
     </button>
   );
 }
@@ -83,6 +93,7 @@ function BaseIcon({ children }: { children: ReactNode }) {
 
 const SwordsIcon = () => <BaseIcon><path d="M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M9.5 17.5 21 6V3h-3L6.5 14.5M11 19l-6-6M8 16l-4 4M5 21l-2-2" /></BaseIcon>;
 const ProfileIcon = () => <BaseIcon><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></BaseIcon>;
+const ChatIcon = () => <BaseIcon><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></BaseIcon>;
 const HomeIcon = () => <BaseIcon><path d="m3 11 9-8 9 8M5 10v10h14V10M9 20v-6h6v6" /></BaseIcon>;
 const SettingsIcon = () => <BaseIcon><circle cx="12" cy="12" r="3.5" /><circle cx="12" cy="12" r="7" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" /></BaseIcon>;
 

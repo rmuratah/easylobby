@@ -1,10 +1,10 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import { conversationName, messageTime } from '../agent/chat';
+import { conversationName, messageTime, sortConversations } from '../agent/chat';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import { friendNick } from '../agent/friends';
 import type { Conversation } from '../bindings/Conversation';
 import type { Friend } from '../bindings/Friend';
-import { Avatar, Button, Card } from './base';
+import { Avatar, Button, Card, EmptyState } from './base';
 import { cx } from './base/cx';
 
 type Props = {
@@ -12,21 +12,26 @@ type Props = {
   send: AgentClient['send'];
   /**
    * Conversa aberta (o `id` da conversa, que é o `pid` do amigo), ou `null`
-   * para não mostrar nada. Fica fora do painel porque é a lista de amigos que
-   * abre as conversas.
+   * para só mostrar a lista. Fica fora da tela porque o balão do amigo e os
+   * avisos de mensagem também abrem conversas.
    */
   activeId: string | null;
   onActiveChange: (id: string | null) => void;
+  /**
+   * A tela está à vista. Escondida, ela continua montada (o rascunho não se
+   * perde), mas não avisa a LCU que a conversa está sendo lida.
+   */
+  visible?: boolean;
 };
 
 const noop = () => {};
 
 /**
- * Chat 1:1 com amigos (#31): a conversa aberta pelo balão do amigo, com o
- * histórico da sessão e o campo para responder. Não há lista de conversas;
- * as não lidas aparecem no balão de cada amigo.
+ * Tela de Conversas (#251): a lista de conversas da sessão, da mais recente
+ * para a mais antiga, e a conversa aberta ao lado. Em janela estreita, mostra
+ * uma de cada vez, com a seta para voltar à lista.
  */
-export function ChatPanel({ connection, send, activeId, onActiveChange }: Props) {
+export function ConversationsPage({ connection, send, activeId, onActiveChange, visible = true }: Props) {
   const state = connection.state;
   const connected = connection.status === 'connected' && state?.lcu.state === 'connected';
   const session = state?.lcu.state === 'connected' ? state.lcu.session : null;
@@ -41,22 +46,68 @@ export function ChatPanel({ connection, send, activeId, onActiveChange }: Props)
   const exists = !!existing;
 
   // Avisa a LCU qual conversa o jogador está vendo, para ela zerar as não
-  // lidas, e desmarca ao sair dela. Só vale para conversas que já existem.
+  // lidas, e desmarca ao sair dela ou da tela. Só vale para conversas que já existem.
   useEffect(() => {
-    if (!connected || activeId === null || !exists) return;
+    if (!connected || !visible || activeId === null || !exists) return;
     send({ type: 'setActiveConversation', conversationId: activeId }).catch(noop);
     return () => { send({ type: 'setActiveConversation', conversationId: null }).catch(noop); };
-  }, [send, connected, session, activeId, exists]);
+  }, [send, connected, session, visible, activeId, exists]);
 
-  // Sem lista de conversas (pedido do jogador): o painel só aparece com uma
-  // conversa aberta pelo balão na linha do amigo.
-  if (!connected || !active) return null;
+  if (!connected) {
+    return <EmptyState title="Conversas" description="Aguarde a conexão com o agente e o League of Legends para ver as conversas." />;
+  }
 
+  const sorted = sortConversations(conversations, friends);
   return (
-    <ConversationView
-      key={active.id} conversation={active} name={conversationName(active, friends)} send={send}
-      onBack={() => onActiveChange(null)}
-    />
+    <div className="grid h-full min-h-0 gap-4 @min-[44rem]:grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)]">
+      <Card as="section" aria-label="Lista de conversas"
+        className={cx('flex min-h-0 flex-col gap-2 overflow-y-auto p-3 text-ink', active && '@max-[44rem]:hidden')}>
+        <h2 className="px-1 text-section font-semibold">Conversas</h2>
+        {sorted.length === 0
+          ? <p className="px-1 text-body text-muted">Nenhuma conversa nesta sessão. Use o balão de conversar na lista de amigos para começar.</p>
+          : (
+            <ul aria-label="Conversas abertas" className="flex flex-col gap-1">
+              {sorted.map(conversation => (
+                <li key={conversation.id}>
+                  <ConversationItem conversation={conversation} name={conversationName(conversation, friends)}
+                    selected={conversation.id === active?.id} onOpen={() => onActiveChange(conversation.id)} />
+                </li>
+              ))}
+            </ul>
+          )}
+      </Card>
+      {active
+        ? <ConversationView key={active.id} conversation={active} name={conversationName(active, friends)} send={send}
+            onBack={() => onActiveChange(null)} />
+        : (
+          <Card className="hidden min-h-0 items-center justify-center p-6 text-center @min-[44rem]:flex">
+            <p className="text-body text-muted">Escolha uma conversa na lista.</p>
+          </Card>
+        )}
+    </div>
+  );
+}
+
+function ConversationItem({ conversation, name, selected, onOpen }: {
+  conversation: Conversation; name: string; selected: boolean; onOpen: () => void;
+}) {
+  const last = conversation.messages.at(-1);
+  const unread = conversation.unreadCount;
+  const label = `Abrir conversa com ${name}${unread > 0 ? `, ${unread} não ${unread === 1 ? 'lida' : 'lidas'}` : ''}`;
+  return (
+    <button type="button" onClick={onOpen} aria-label={label} aria-current={selected ? 'true' : undefined}
+      className={cx('flex w-full items-center gap-3 rounded-control px-2 py-2 text-left transition-colors',
+        'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+        selected ? 'bg-accent-soft text-accent-ink' : 'hover:bg-raised')}>
+      <Avatar name={name} size={32} />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-body font-semibold">{name}</span>
+        <span className="truncate text-caption text-muted">
+          {last ? `${last.fromMe ? 'Você: ' : ''}${last.body}` : 'Nenhuma mensagem ainda'}
+        </span>
+      </span>
+      {unread > 0 && <span aria-hidden="true" className="min-w-5 shrink-0 rounded-full bg-accent px-1.5 text-center text-caption font-semibold text-on-accent">{unread}</span>}
+    </button>
   );
 }
 
@@ -107,16 +158,16 @@ function ConversationView({ conversation, name, send, onBack }: {
   }
 
   return (
-    <Card as="section" aria-label={`Conversa com ${name}`} className="flex w-full flex-col gap-3 p-4 text-ink">
+    <Card as="section" aria-label={`Conversa com ${name}`} className="flex min-h-0 w-full flex-col gap-3 p-4 text-ink">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack} aria-label="Fechar conversa" title="Fechar conversa" className="px-2">←</Button>
+        <Button variant="ghost" size="sm" onClick={onBack} aria-label="Voltar às conversas" title="Voltar às conversas" className="px-2 @min-[44rem]:hidden">←</Button>
         <Avatar name={name} size={28} />
         <h2 className="min-w-0 truncate text-section font-semibold" title={name}>{name}</h2>
       </div>
       {messages.length === 0
-        ? <p className="text-body text-muted">Nenhuma mensagem nesta sessão. Mande a primeira.</p>
+        ? <p className="flex-1 text-body text-muted">Nenhuma mensagem nesta sessão. Mande a primeira.</p>
         : (
-          <ol ref={log} role="log" aria-label="Mensagens" className="flex max-h-80 flex-col gap-2 overflow-y-auto pr-1">
+          <ol ref={log} role="log" aria-label="Mensagens" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
             {messages.map(message => (
               <li key={message.id} className={cx('flex flex-col gap-0.5', message.fromMe ? 'items-end' : 'items-start')}>
                 <span className="sr-only">{message.fromMe ? 'Você' : name}: </span>

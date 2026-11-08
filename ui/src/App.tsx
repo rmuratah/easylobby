@@ -9,7 +9,7 @@ import { RunePagesPanel } from './components/RunePagesPanel';
 import { ReadyCheckPanel } from './components/ReadyCheckPanel';
 import { FriendsList } from './components/FriendsList';
 import { InvitationsPanel } from './components/InvitationsPanel';
-import { ChatButton, ChatPanel } from './components/ChatPanel';
+import { ChatButton, ConversationsPage } from './components/ConversationsPage';
 import { Notifications } from './components/Notifications';
 import { ChampSelectPanel } from './components/ChampSelectPanel';
 import { TitleBar } from './components/titlebar/TitleBar';
@@ -30,6 +30,7 @@ type Page = NavigationPage | 'runes';
 export default function App() {
   const connection = useAgent();
   const { theme, setPreference } = useTheme();
+  /** Última conversa aberta: o botão Conversas volta para ela (#251). */
   const [chatWith, setChatWith] = useState<string | null>(null);
   const screen = mainScreen(connection);
   const view = connectionView(connection);
@@ -59,6 +60,10 @@ export default function App() {
     if (!document.activeElement?.closest('[hidden]')) return;
     (activePage === 'runes' ? runesBackRef.current ?? flowButtonRef.current : flowButtonRef.current)?.focus();
   }, [activePage]);
+  const openConversation = (id: string) => {
+    setChatWith(id);
+    setNavigation({ screen, page: 'conversations' });
+  };
   const found = screen === 'found';
   // Início (#128) e lobby (#129) no layout de referência: cartões lado a lado quando há largura.
   const playable = screen === 'home' || screen === 'lobby' || screen === 'queue' || found;
@@ -76,14 +81,14 @@ export default function App() {
       <TitleBar connection={connection} send={connection.send} />
       <div className={sidebar.open || !ready ? 'app-body' : 'app-body sidebar-collapsed'}>
         <div hidden={!ready} className="contents">
-          <SideNavigation active={activePage === 'runes' ? 'flow' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'} flowButtonRef={flowButtonRef} theme={theme}
+          <SideNavigation active={activePage === 'runes' ? 'flow' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'} flowButtonRef={flowButtonRef} theme={theme} unread={unread}
             onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference} />
         </div>
         <div className="app-main-column">
           <main ref={contentRef} className="app-content">
           {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error} />}
           {/* Escondido, e não desmontado, enquanto reconecta: comandos em andamento sobrevivem à queda. */}
-          <div hidden={!ready} className={homeLayout ? 'home-grid' : 'flex min-h-full flex-col gap-5'}>
+          <div hidden={!ready} className={homeLayout ? 'home-grid' : activePage === 'conversations' ? 'flex h-full min-h-0 flex-col gap-5' : 'flex min-h-full flex-col gap-5'}>
             {ready && connection.error && <p role="alert" className="col-span-full text-warn">{connection.error}</p>}
             <section hidden={activePage !== 'home'} aria-label="Início"
               className={homeLayout ? 'home-secondary' : 'flex max-w-[22rem] flex-col gap-4'}>
@@ -101,6 +106,11 @@ export default function App() {
               {screen !== 'home' && !playable && <button type="button" className="nav-button self-start" onClick={() => setNavigation({ screen, page: 'flow' })}>Voltar para {title}</button>}
             </section>
             {activePage === 'profile' && <section aria-label="Perfil"><ProfilePage connection={connection} send={connection.send} /></section>}
+            {/* Sempre montada: o rascunho e a conversa escolhida sobrevivem à navegação. */}
+            <section aria-label="Conversas" hidden={activePage !== 'conversations'} className="min-h-0 flex-1">
+              <ConversationsPage connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith}
+                visible={ready && activePage === 'conversations'} />
+            </section>
             {activePage === 'flow' && screen === 'champSelect' && <h2 className="text-title font-semibold tracking-[-0.015em]">{title}</h2>}
             {activePage === 'flow' && screen === 'other' && <EmptyState title={phaseLabel(connection.state?.gameflowPhase)}
               description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />}
@@ -151,18 +161,18 @@ export default function App() {
         <div hidden={!ready} className={sidebar.open ? 'app-social-region' : 'app-social-region is-collapsed'}>
           {!sidebar.open && <SidebarToggle open={false} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
           {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento. */}
-          <aside id="coluna-amigos" aria-label="Amigos e conversas" hidden={!sidebar.open} className="app-sidebar">
+          <aside id="coluna-amigos" aria-label="Amigos e convites" hidden={!sidebar.open} className="app-sidebar">
             {sidebar.open && <SidebarToggle open onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
             {/* Convites recebidos ficam aqui, sem seção própria; convidar é pelo lobby (#206). */}
             <InvitationsPanel connection={connection} send={connection.send} />
             <FriendsList connection={connection} renderActions={friend => (
-              <ChatButton friend={friend} unread={unreadFrom(friend.id)} onOpen={setChatWith} />
+              <ChatButton friend={friend} unread={unreadFrom(friend.id)} onOpen={openConversation} />
             )} />
-            <ChatPanel connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith} />
           </aside>
         </div>
       </div>
-      <Notifications connection={connection} quiet={screen === 'champSelect'} sidebarOpen={sidebar.open} />
+      <Notifications connection={connection} quiet={screen === 'champSelect'} sidebarOpen={sidebar.open}
+        openConversationId={ready && activePage === 'conversations' ? chatWith : null} onOpenConversation={openConversation} />
     </div>
   );
 }
