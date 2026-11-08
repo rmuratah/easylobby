@@ -548,6 +548,14 @@ pub enum Command {
     /// responde `invalidCommand` sem falar com a LCU. O lobby novo chega numa
     /// mensagem `lobby` antes da resposta.
     SwitchTeam { team: CustomTeam },
+    /// Leva o jogador logado para os espectadores da personalizada (#263):
+    /// `POST /lol-lobby/v2/lobby/team/spectator`. Para voltar, `switchTeam`.
+    /// Qualquer membro pode. Fora de personalizada, com a personalizada sem
+    /// espectadores (`settings.spectators` `none`), já assistindo ou com as
+    /// vagas cheias (`maxSpectators`) responde `invalidCommand` sem falar com
+    /// a LCU. O lobby novo chega numa mensagem `lobby` antes da resposta.
+    /// Responde `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
+    Spectate,
     /// Inicia a partida da personalizada (#229): `POST
     /// /lol-lobby/v1/lobby/custom/start-champ-select`. Só o líder; fora de
     /// personalizada responde `invalidCommand`. A seleção de campeões chega
@@ -947,6 +955,7 @@ mod tests {
             ("startTutorial", Command::StartTutorial { queue_id: None }),
             ("startPracticeTool", Command::StartPracticeTool),
             ("startCustomGame", Command::StartCustomGame),
+            ("spectate", Command::Spectate),
         ] {
             let msg: ClientMessage =
                 serde_json::from_value(json!({"id": 9, "command": {"type": name}})).unwrap();

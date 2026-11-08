@@ -1,6 +1,7 @@
 //! Lobby de personalizada (#229): bots, troca de equipe e iniciar a partida.
 
 use super::{not_connected, Hub};
+use crate::custom_game::SpectatorPolicy;
 use crate::custom_lobby::{self, BotDifficulty, CustomBot, CustomLobby, CustomTeam};
 use crate::lobby::Position;
 use crate::rest::{LcuClient, LcuError};
@@ -179,6 +180,29 @@ impl Hub {
         self.after_custom(result).await
     }
 
+    /// Leva o jogador logado para os espectadores (comando `spectate`, #263).
+    pub async fn spectate(&self) -> CommandResult {
+        let context = match self.custom_context(false) {
+            Ok(context) => context,
+            Err(error) => return error,
+        };
+        if context.custom.settings.spectators == Some(SpectatorPolicy::None) {
+            return invalid("a personalizada não aceita espectadores");
+        }
+        if context.custom.is_spectator(&context.me) {
+            return invalid("você já está assistindo");
+        }
+        if context.custom.spectators.len() >= context.custom.max_spectators as usize {
+            return invalid("as vagas de espectador estão cheias");
+        }
+        let client = match context.client() {
+            Ok(client) => client,
+            Err(error) => return error,
+        };
+        let result = custom_lobby::spectate(client).await;
+        self.after_custom(result).await
+    }
+
     /// Inicia a partida da personalizada (comando `startCustomGame`): a
     /// seleção de campeões chega pelo WAMP.
     pub async fn start_custom_game(&self) -> CommandResult {
@@ -287,6 +311,7 @@ mod tests {
                 .await,
             hub.remove_bot("x").await,
             hub.switch_team(CustomTeam::Team2).await,
+            hub.spectate().await,
             hub.start_custom_game().await,
         ] {
             assert!(is_invalid(&result), "{result:?}");
@@ -344,6 +369,67 @@ mod tests {
         assert!(is_invalid(&hub.remove_bot("nao-existe").await));
         assert!(matches!(
             hub.remove_bot("bot-2").await,
+            CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn confere_politica_e_vagas_de_espectador() {
+        let hub = Hub::new();
+        hub.set_summoner(Some(crate::summoner::Summoner {
+            game_name: "Eu".into(),
+            tag_line: "BR1".into(),
+            display_name: "Eu".into(),
+            summoner_level: 30,
+            profile_icon_id: 1,
+            puuid: "eu".into(),
+            summoner_id: 1,
+        }));
+        let with = |policy: &str, spectators: serde_json::Value| {
+            let mut lobby = custom_lobby(false, 1);
+            lobby["gameConfig"]["customSpectatorPolicy"] = json!(policy);
+            lobby["gameConfig"]["maxLobbySpectatorCount"] = json!(1);
+            lobby["gameConfig"]["customSpectators"] = spectators;
+            lobby
+        };
+        hub.apply(event(
+            LOBBY_PATH,
+            EventType::Create,
+            with("NotAllowed", json!([])),
+        ))
+        .await;
+        assert!(is_invalid(&hub.spectate().await));
+        hub.apply(event(
+            LOBBY_PATH,
+            EventType::Update,
+            with("AllAllowed", json!([{"puuid": "outro"}])),
+        ))
+        .await;
+        assert!(is_invalid(&hub.spectate().await), "vagas cheias");
+        let mut watching = with("AllAllowed", json!([{"puuid": "eu"}]));
+        watching["gameConfig"]["customTeam100"] = json!([]);
+        hub.apply(event(LOBBY_PATH, EventType::Update, watching))
+            .await;
+        assert!(is_invalid(&hub.spectate().await), "já assistindo");
+        // Assistindo, volta pelo "Juntar-se": aqui o LoL não está conectado.
+        assert!(matches!(
+            hub.switch_team(CustomTeam::Team1).await,
+            CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            }
+        ));
+        hub.apply(event(
+            LOBBY_PATH,
+            EventType::Update,
+            with("LobbyAllowed", json!([])),
+        ))
+        .await;
+        assert!(matches!(
+            hub.spectate().await,
             CommandResult::Error {
                 code: ErrorCode::NotConnected,
                 ..

@@ -36,6 +36,7 @@ export type Command =
   | { "type": "updateBot", botUuid: string, championId: number, difficulty: BotDifficulty, position: Position, }
   | { "type": "removeBot", botUuid: string, }
   | { "type": "switchTeam", team: CustomTeam, }
+  | { "type": "spectate" }
   | { "type": "startCustomGame" }
   | { "type": "hoverChampion", actionId: number, championId: number, }
   | { "type": "confirmAction", actionId: number, championId: number, }

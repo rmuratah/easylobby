@@ -19,6 +19,9 @@
 //!   tira o bot ([`remove_bot`]).
 //! - `POST /lol-lobby/v2/lobby/team/{team}`: troca de equipe, o "Juntar-se"
 //!   ([`switch_team`]).
+//! - `POST /lol-lobby/v2/lobby/team/spectator`: vira espectador ([`spectate`],
+//!   #263). A rota não aparece separada no `/help` e precisa ser conferida
+//!   no LoL real; voltar a uma equipe é o mesmo "Juntar-se".
 //! - `POST /lol-lobby/v1/lobby/custom/start-champ-select`: inicia a partida
 //!   ([`crate::training::start_custom_champ_select`]).
 
@@ -31,6 +34,12 @@ use crate::chat::encode;
 use crate::custom_game::CustomGameSettings;
 use crate::lobby::Position;
 use crate::rest::{LcuClient, LcuError};
+
+/// Vira espectador da personalizada (#263).
+pub const SPECTATE_PATH: &str = "/lol-lobby/v2/lobby/team/spectator";
+
+/// Vagas de espectador quando a LCU não manda `maxLobbySpectatorCount`.
+pub const DEFAULT_MAX_SPECTATORS: u32 = 4;
 
 /// Campeões que podem ser bots na personalizada atual.
 pub const AVAILABLE_BOTS_PATH: &str = "/lol-lobby/v2/lobby/custom/available-bots";
@@ -111,6 +120,10 @@ pub struct CustomLobby {
     pub team1: Vec<CustomMember>,
     /// Equipe 2, na ordem da LCU.
     pub team2: Vec<CustomMember>,
+    /// Quem está assistindo (`customSpectators`, #263), na ordem da LCU.
+    pub spectators: Vec<CustomMember>,
+    /// Quantos podem assistir (`maxLobbySpectatorCount`; 4 na gravação).
+    pub max_spectators: u32,
 }
 
 /// Uma vaga ocupada: um jogador ou um bot.
@@ -163,11 +176,18 @@ impl CustomLobby {
             .and_then(|n| u32::try_from(n).ok())
             .filter(|&n| n > 0)
             .unwrap_or(5);
+        let max_spectators = config
+            .get("maxLobbySpectatorCount")
+            .and_then(Value::as_u64)
+            .and_then(|n| u32::try_from(n).ok())
+            .unwrap_or(DEFAULT_MAX_SPECTATORS);
         Some(CustomLobby {
             settings: CustomGameSettings::from_game_config(config),
             team_size,
             team1: team("customTeam100"),
             team2: team("customTeam200"),
+            spectators: team("customSpectators"),
+            max_spectators,
         })
     }
 
@@ -180,6 +200,11 @@ impl CustomLobby {
         } else {
             None
         }
+    }
+
+    /// Se o jogador `puuid` está assistindo.
+    pub fn is_spectator(&self, puuid: &str) -> bool {
+        self.spectators.iter().any(|m| m.puuid == puuid)
     }
 
     /// Os membros de uma equipe.
@@ -353,6 +378,13 @@ pub async fn switch_team(lcu: &LcuClient, team: CustomTeam) -> Result<(), LcuErr
         .map(|_| ())
 }
 
+/// Leva o jogador logado para os espectadores da personalizada (#263).
+pub async fn spectate(lcu: &LcuClient) -> Result<(), LcuError> {
+    lcu.send::<Option<Value>>(Method::POST, SPECTATE_PATH, None)
+        .await
+        .map(|_| ())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -396,6 +428,23 @@ mod tests {
         assert_eq!(custom.team_of("outro"), None);
         assert_eq!(custom.bot("id-annie").unwrap().0, CustomTeam::Team2);
         assert!(custom.bot("nada").is_none());
+        assert!(custom.spectators.is_empty());
+        assert_eq!(custom.max_spectators, DEFAULT_MAX_SPECTATORS);
+    }
+
+    #[test]
+    fn le_os_espectadores() {
+        let mut config = config();
+        config["customSpectators"] =
+            json!([{"puuid": "amigo", "summonerId": 2, "summonerIconId": 7, "isBot": false}]);
+        config["maxLobbySpectatorCount"] = json!(2);
+        let custom = CustomLobby::from_game_config(&config).unwrap();
+        assert_eq!(custom.spectators.len(), 1);
+        assert_eq!(custom.spectators[0].puuid, "amigo");
+        assert_eq!(custom.max_spectators, 2);
+        assert!(custom.is_spectator("amigo"));
+        assert!(!custom.is_spectator("eu"));
+        assert_eq!(custom.team_of("amigo"), None);
     }
 
     #[test]
