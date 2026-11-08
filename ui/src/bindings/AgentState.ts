@@ -15,6 +15,7 @@ import type { LobbyChat } from "./LobbyChat";
 import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
+import type { PlayerProfile } from "./PlayerProfile";
 import type { RankedStats } from "./RankedStats";
 import type { ReadyCheck } from "./ReadyCheck";
 import type { ReceivedInvitation } from "./ReceivedInvitation";
@@ -129,4 +130,9 @@ export type AgentState = {
    * Último placar pedido com `openMatchDetails` (#174), ou `null`.
    */
   matchDetails: MatchDetails | null,
+  /**
+   * Último perfil de outro jogador pedido com `openPlayerProfile` (#255),
+   * ou `null`.
+   */
+  playerProfile: PlayerProfile | null,
 };

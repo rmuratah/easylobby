@@ -43,6 +43,7 @@ import type { ChampionMastery } from '../bindings/ChampionMastery';
 import type { MatchHistory } from '../bindings/MatchHistory';
 import type { MatchSummary } from '../bindings/MatchSummary';
 import type { MatchDetails } from '../bindings/MatchDetails';
+import type { PlayerProfile } from '../bindings/PlayerProfile';
 import type { MatchPlayer } from '../bindings/MatchPlayer';
 import type { MatchResult } from '../bindings/MatchResult';
 import type { RecentPlayer } from '../bindings/RecentPlayer';
@@ -238,6 +239,11 @@ function matchHistory(v: unknown): v is MatchHistory | null {
 function matchDetails(v: unknown): v is MatchDetails | null {
   return v === null || (object(v) && matchInfo(v) && typeof v.remake === 'boolean' && list(v.players, matchPlayer));
 }
+// Perfil de outro jogador (#255).
+function playerProfile(v: unknown): v is PlayerProfile | null {
+  return v === null || (object(v) && v.summoner !== null && summoner(v.summoner) && typeof v.privateProfile === 'boolean' &&
+    ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory));
+}
 function status(v: unknown): v is LcuStatus {
   if (!object(v)) return false;
   switch (v.state) {
@@ -256,7 +262,7 @@ function state(v: unknown): v is AgentState {
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
     champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) &&
     ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory) &&
-    matchDetails(v.matchDetails);
+    matchDetails(v.matchDetails) && playerProfile(v.playerProfile);
 }
 
 // Os tipos vêm do Rust; esta validação protege a fronteira JSON em runtime.
@@ -295,6 +301,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'championMasteries': valid = list(v.championMasteries, championMastery); break;
     case 'matchHistory': valid = matchHistory(v.matchHistory); break;
     case 'matchDetails': valid = matchDetails(v.matchDetails); break;
+    case 'playerProfile': valid = playerProfile(v.playerProfile); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
       (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;
     case 'invalidMessage': valid = typeof v.message === 'string'; break;

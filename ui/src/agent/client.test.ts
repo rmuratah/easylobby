@@ -9,6 +9,7 @@ import type { AgentState } from '../bindings/AgentState';
 import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { GameQueue } from '../bindings/GameQueue';
 import type { MatchSummary } from '../bindings/MatchSummary';
+import type { PlayerProfile } from '../bindings/PlayerProfile';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import type { Command } from '../bindings/Command';
 import type { CommandResult } from '../bindings/CommandResult';
@@ -43,6 +44,11 @@ const testMatch: MatchSummary = {
   },
 };
 const unranked = { tier: null, division: null, leaguePoints: 0, wins: 0, losses: 0, provisional: false };
+const testPlayerProfile: PlayerProfile = {
+  summoner: { gameName: 'Amigo', tagLine: 'BR1', displayName: '', summonerLevel: 143, profileIconId: 29, puuid: 'amigo', summonerId: 1003 },
+  privateProfile: false, ranked: { soloDuo: unranked, flex: unranked },
+  championMasteries: [{ championId: 103, level: 12, points: 184000 }], matchHistory: { matches: [testMatch], hasMore: false },
+};
 const state: AgentState = makeState({ gameflowPhase: 'Lobby' });
 const hello = (overrides: Partial<AgentState> = {}): ServerMessage => ({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: { ...state, ...overrides } });
 let client: AgentClient;
@@ -241,6 +247,7 @@ describe('eventos de estado do agente', () => {
       { matchHistory: { matches: [testMatch], hasMore: true } }],
     [{ type: 'matchDetails', matchDetails: { ...testMatch, remake: false, players: [testMatch.player] } },
       { matchDetails: { ...testMatch, remake: false, players: [testMatch.player] } }],
+    [{ type: 'playerProfile', playerProfile: testPlayerProfile }, { playerProfile: testPlayerProfile }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
     socket().receive(hello({ lobby: testLobby }));
     socket().receive(message);

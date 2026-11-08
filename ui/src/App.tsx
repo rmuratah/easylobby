@@ -20,18 +20,20 @@ import { SidebarToggle } from './layout/SidebarToggle';
 import { connectionView } from './screens/connection';
 import { ConnectionScreen } from './components/connection/ConnectionScreen';
 import { SummonerHeader } from './components/home/SummonerHeader';
-import { ProfilePage } from './components/profile/ProfilePage';
+import { FriendProfilePage, ProfilePage } from './components/profile/ProfilePage';
 import { EmptyState } from './components/base';
 import { totalUnread } from './agent/chat';
 
 /** Runas não é destino da navegação lateral: o editor só abre pela seleção de campeões (#165). */
-type Page = NavigationPage | 'runes';
+type Page = NavigationPage | 'runes' | 'friendProfile';
 
 export default function App() {
   const connection = useAgent();
   const { theme, setPreference } = useTheme();
   /** Última conversa aberta: o botão Conversas volta para ela (#251). */
   const [chatWith, setChatWith] = useState<string | null>(null);
+  /** Amigo cujo perfil está aberto (#255) e a página para onde o "Voltar" leva. */
+  const [profileOf, setProfileOf] = useState<{ puuid: string; back: 'main' | Page } | null>(null);
   const screen = mainScreen(connection);
   const view = connectionView(connection);
   const ready = view.screen === null;
@@ -64,6 +66,10 @@ export default function App() {
     setChatWith(id);
     setNavigation({ screen, page: 'conversations' });
   };
+  const openFriendProfile = (puuid: string) => {
+    setProfileOf({ puuid, back: page === 'friendProfile' ? profileOf?.back ?? 'main' : page });
+    setNavigation({ screen, page: 'friendProfile' });
+  };
   const found = screen === 'found';
   // Início (#128) e lobby (#129) no layout de referência: cartões lado a lado quando há largura.
   const playable = screen === 'home' || screen === 'lobby' || screen === 'queue' || found;
@@ -81,7 +87,7 @@ export default function App() {
       <TitleBar connection={connection} send={connection.send} />
       <div className={sidebar.open || !ready ? 'app-body' : 'app-body sidebar-collapsed'}>
         <div hidden={!ready} className="contents">
-          <SideNavigation active={activePage === 'runes' ? 'flow' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'} flowButtonRef={flowButtonRef} theme={theme} unread={unread}
+          <SideNavigation active={activePage === 'runes' ? 'flow' : activePage === 'friendProfile' ? 'profile' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'} flowButtonRef={flowButtonRef} theme={theme} unread={unread}
             onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference} />
         </div>
         <div className="app-main-column">
@@ -106,6 +112,10 @@ export default function App() {
               {screen !== 'home' && !playable && <button type="button" className="nav-button self-start" onClick={() => setNavigation({ screen, page: 'flow' })}>Voltar para {title}</button>}
             </section>
             {activePage === 'profile' && <section aria-label="Perfil"><ProfilePage connection={connection} send={connection.send} /></section>}
+            {activePage === 'friendProfile' && profileOf && <section aria-label="Perfil do amigo">
+              <FriendProfilePage key={profileOf.puuid} connection={connection} send={connection.send} puuid={profileOf.puuid}
+                onBack={() => setNavigation({ screen, page: profileOf.back })} onChat={openConversation} />
+            </section>}
             {/* Sempre montada: o rascunho e a conversa escolhida sobrevivem à navegação. */}
             <section aria-label="Conversas" hidden={activePage !== 'conversations'} className="min-h-0 flex-1">
               <ConversationsPage connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith}
@@ -165,8 +175,10 @@ export default function App() {
             {sidebar.open && <SidebarToggle open onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
             {/* Convites recebidos ficam aqui, sem seção própria; convidar é pelo lobby (#206). */}
             <InvitationsPanel connection={connection} send={connection.send} />
-            <FriendsList connection={connection} renderActions={friend => (
-              <ChatButton friend={friend} unread={unreadFrom(friend.id)} onOpen={openConversation} />
+            <FriendsList connection={connection} onOpenProfile={friend => openFriendProfile(friend.puuid)} renderActions={friend => (
+              // A área inteira à direita da linha abre a conversa, não só o ícone (#255).
+              <ChatButton friend={friend} unread={unreadFrom(friend.id)} onOpen={openConversation}
+                className="h-auto! w-14 rounded-control! hover:bg-line/40!" />
             )} />
           </aside>
         </div>

@@ -60,6 +60,7 @@ use crate::lobby_chat::LobbyChat;
 use crate::mastery::ChampionMastery;
 use crate::match_history::{MatchDetails, MatchHistory};
 use crate::matchmaking::Matchmaking;
+use crate::player_profile::PlayerProfile;
 use crate::players::RecentPlayer;
 use crate::queues::GameQueue;
 use crate::quick_play::PlayerSlotInput;
@@ -235,6 +236,12 @@ pub enum ServerMessage {
     /// O placar de uma partida pedido com `openMatchDetails` (#174). Fica
     /// no estado até outro ser pedido. `null` com o LoL fechado.
     MatchDetails { match_details: Option<MatchDetails> },
+    /// O perfil de outro jogador pedido com `openPlayerProfile` (#255)
+    /// chegou ou ganhou mais partidas (`loadMorePlayerMatches`). Fica no
+    /// estado até outro ser pedido. `null` com o LoL fechado.
+    PlayerProfile {
+        player_profile: Option<PlayerProfile>,
+    },
 
     // Respostas aos comandos
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
@@ -315,6 +322,9 @@ pub struct AgentState {
     pub match_history: Option<MatchHistory>,
     /// Último placar pedido com `openMatchDetails` (#174), ou `null`.
     pub match_details: Option<MatchDetails>,
+    /// Último perfil de outro jogador pedido com `openPlayerProfile` (#255),
+    /// ou `null`.
+    pub player_profile: Option<PlayerProfile>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -715,6 +725,21 @@ pub enum Command {
         #[ts(type = "number")]
         game_id: u64,
     },
+    /// Busca o perfil do jogador `puuid` (#255), por exemplo de um amigo:
+    /// invocador, ranks, maestria e a primeira página do histórico. O perfil
+    /// chega numa mensagem `playerProfile` antes da resposta. Uma parte que
+    /// a LCU não manda (histórico de perfil privado, por exemplo) fica vazia.
+    /// O placar de uma partida dele sai do `openMatchDetails`. Responde
+    /// `invalidCommand` para um `puuid` vazio ou com caracteres fora de
+    /// letras, números e `-`, `notConnected` com o LoL fechado, `notFound`
+    /// se a LCU não conhece o jogador e `lcu` se a LCU recusar.
+    OpenPlayerProfile { puuid: String },
+    /// Carrega a próxima página do histórico do perfil aberto com
+    /// `openPlayerProfile` (#255). O perfil com as partidas novas chega numa
+    /// mensagem `playerProfile` antes da resposta. Responde `invalidCommand`
+    /// sem perfil aberto, `notConnected` com o LoL fechado e `lcu` se a LCU
+    /// recusar.
+    LoadMorePlayerMatches,
 }
 
 /// Resultado de um comando.
@@ -802,6 +827,7 @@ mod tests {
                     "championMasteries": [],
                     "matchHistory": null,
                     "matchDetails": null,
+                    "playerProfile": null,
                 },
             })
         );
@@ -1201,6 +1227,23 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(msg.command, Command::LoadMoreMatches);
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 16,
+            "command": {"type": "openPlayerProfile", "puuid": "fake-puuid-0002"},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::OpenPlayerProfile {
+                puuid: "fake-puuid-0002".into()
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 16,
+            "command": {"type": "loadMorePlayerMatches"},
+        }))
+        .unwrap();
+        assert_eq!(msg.command, Command::LoadMorePlayerMatches);
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 14,
             "command": {"type": "inviteToLobby", "invitees": [{"summonerId": 1003, "puuid": "p"}]},

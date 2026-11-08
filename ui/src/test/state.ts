@@ -32,6 +32,7 @@ const emptyState: AgentState = {
   championMasteries: [],
   matchHistory: null,
   matchDetails: null,
+  playerProfile: null,
 };
 
 /**

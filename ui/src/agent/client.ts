@@ -66,6 +66,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'championMasteries': return { ...state, championMasteries: message.championMasteries };
     case 'matchHistory': return { ...state, matchHistory: message.matchHistory };
     case 'matchDetails': return { ...state, matchDetails: message.matchDetails };
+    case 'playerProfile': return { ...state, playerProfile: message.playerProfile };
     default: return message satisfies never;
   }
 }

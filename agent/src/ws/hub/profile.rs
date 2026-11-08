@@ -1,5 +1,6 @@
 //! Perfil do jogador logado: ranks (#171), histórico de partidas (#172),
-//! placar de uma partida (#174) e maestria (#175).
+//! placar de uma partida (#174) e maestria (#175). E o perfil de outro
+//! jogador, pedido pela UI (#255).
 //!
 //! Tudo é lido ao conectar e relido depois de cada partida (veja
 //! [`ends_a_game`]); os ranks também chegam pelo WAMP. Os resultados REST só
@@ -11,6 +12,7 @@ use super::{not_connected, Hub, Shared};
 use crate::gameflow::GameflowPhase;
 use crate::mastery::{self, ChampionMastery};
 use crate::match_history::{self, MatchDetails, MatchHistory, MatchSummary};
+use crate::player_profile::{self, PlayerProfile};
 use crate::ranked::{self, RankedStats};
 use crate::rest::LcuClient;
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
@@ -43,6 +45,15 @@ impl Hub {
 
     pub fn set_match_details(&self, details: Option<MatchDetails>) {
         self.update(|shared| write_details(shared, details));
+    }
+
+    pub fn set_player_profile(&self, profile: Option<PlayerProfile>) {
+        self.update(|shared| {
+            if profile.is_none() {
+                shared.player_profile_request = None;
+            }
+            write_player_profile(shared, profile)
+        });
     }
 
     /// Muda o estado com `f` só se a conexão ainda é a `session`.
@@ -154,6 +165,74 @@ impl Hub {
     }
 }
 
+impl Hub {
+    /// Busca o perfil do jogador `puuid` (comando `openPlayerProfile`,
+    /// #255). O perfil chega numa mensagem `playerProfile` antes da
+    /// resposta. Se outro perfil for pedido antes deste chegar, este é
+    /// descartado.
+    pub async fn open_player_profile(&self, puuid: &str) -> CommandResult {
+        if !player_profile::valid_puuid(puuid) {
+            return CommandResult::error(ErrorCode::InvalidCommand, "puuid inválido");
+        }
+        let Some((client, session, _)) = self.client_and_session() else {
+            return not_connected();
+        };
+        self.lock().player_profile_request = Some(puuid.to_owned());
+        match player_profile::load(&client, puuid).await {
+            Ok(Some(profile)) => {
+                self.update_in_session(session, |shared| {
+                    if shared.player_profile_request.as_deref() != Some(puuid) {
+                        return None;
+                    }
+                    write_player_profile(shared, Some(profile))
+                });
+                CommandResult::Ok
+            }
+            Ok(None) => CommandResult::error(ErrorCode::Lcu, "resposta inesperada da LCU"),
+            Err(error) if error.status() == Some(404) => {
+                CommandResult::error(ErrorCode::NotFound, "jogador não encontrado")
+            }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
+    /// Carrega a próxima página do histórico do perfil aberto (comando
+    /// `loadMorePlayerMatches`, #255). O perfil com as partidas novas chega
+    /// numa mensagem `playerProfile` antes da resposta.
+    pub async fn load_more_player_matches(&self) -> CommandResult {
+        let Some((client, session, _)) = self.client_and_session() else {
+            return not_connected();
+        };
+        let Some((puuid, begin)) = self.lock().state.player_profile.as_ref().map(|p| {
+            let begin = p.match_history.as_ref().map_or(0, |h| h.matches.len());
+            (p.summoner.puuid.clone(), begin)
+        }) else {
+            return CommandResult::error(ErrorCode::InvalidCommand, "nenhum perfil aberto");
+        };
+        match player_profile::page(&client, &puuid, begin).await {
+            Ok(Some((matches, received))) => {
+                self.update_in_session(session, |shared| {
+                    let mut profile = shared.state.player_profile.clone()?;
+                    if profile.summoner.puuid != puuid {
+                        return None;
+                    }
+                    profile.match_history = Some(match profile.match_history {
+                        Some(mut history) => {
+                            history.append(matches, received);
+                            history
+                        }
+                        None => MatchHistory::first_page(matches, received),
+                    });
+                    write_player_profile(shared, Some(profile))
+                });
+                CommandResult::Ok
+            }
+            Ok(None) => CommandResult::error(ErrorCode::Lcu, "resposta inesperada da LCU"),
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+}
+
 fn merge_first(
     current: Option<MatchHistory>,
     matches: Vec<MatchSummary>,
@@ -203,6 +282,19 @@ fn write_details(shared: &mut Shared, details: Option<MatchDetails>) -> Option<S
     shared.state.match_details = details.clone();
     Some(ServerMessage::MatchDetails {
         match_details: details,
+    })
+}
+
+fn write_player_profile(
+    shared: &mut Shared,
+    profile: Option<PlayerProfile>,
+) -> Option<ServerMessage> {
+    if shared.state.player_profile == profile {
+        return None;
+    }
+    shared.state.player_profile = profile.clone();
+    Some(ServerMessage::PlayerProfile {
+        player_profile: profile,
     })
 }
 
@@ -268,11 +360,27 @@ mod tests {
         for result in [
             hub.load_more_matches().await,
             hub.open_match_details(1).await,
+            hub.open_player_profile("fake-puuid-0002").await,
+            hub.load_more_player_matches().await,
         ] {
             assert!(matches!(
                 result,
                 CommandResult::Error {
                     code: ErrorCode::NotConnected,
+                    ..
+                }
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn perfil_de_jogador_com_puuid_invalido() {
+        let hub = Hub::new();
+        for puuid in ["", "../lol-summoner/v1/current-summoner", "a?b"] {
+            assert!(matches!(
+                hub.open_player_profile(puuid).await,
+                CommandResult::Error {
+                    code: ErrorCode::InvalidCommand,
                     ..
                 }
             ));
@@ -289,6 +397,17 @@ mod tests {
             level: 1,
             points: 1,
         }]);
+        let summoner: crate::summoner::Summoner = serde_json::from_value(json!({
+            "summonerLevel": 1, "puuid": "fake-puuid-0002", "summonerId": 1003
+        }))
+        .unwrap();
+        hub.set_player_profile(Some(PlayerProfile {
+            summoner,
+            private_profile: false,
+            ranked: None,
+            champion_masteries: Vec::new(),
+            match_history: None,
+        }));
         hub.apply(crate::connection::ConnectionEvent::Disconnected(
             crate::connection::DisconnectReason::Closed,
         ))
@@ -298,5 +417,6 @@ mod tests {
         assert_eq!(state.match_history, None);
         assert_eq!(state.match_details, None);
         assert!(state.champion_masteries.is_empty());
+        assert_eq!(state.player_profile, None);
     }
 }
