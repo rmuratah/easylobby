@@ -381,7 +381,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
       {picker !== null && <InvitePicker invites={invites} groups={state.friendGroups} recent={state.recentPlayers}
         loadRecent={loadRecent} onClose={closePicker} />}
 
-      <div className={cx('grid items-stretch gap-4', !searching && '@min-[44rem]:grid-cols-2')}>
+      {/* Fila sem posições (ARAM, Arena, Co-op, eventos): nada no lugar, como no client oficial, e a fila ocupa a largura toda. */}
+      <div className={cx('grid items-stretch gap-4', !searching && (lobby.showPositionSelector || lobby.showQuickPlaySlots) && '@min-[44rem]:grid-cols-2')}>
         {lobby.showPositionSelector ? (
           <fieldset className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" disabled={!canSetPositions}>
             <legend className="sr-only">Suas posições</legend>
@@ -426,7 +427,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
             <p className="px-1 text-caption text-muted">No Jogo Dinâmico, escolha as duas posições e um campeão para cada uma no seu card, acima.</p>
             <div ref={setSlotNotes} className="flex flex-col gap-1 px-1" />
           </div>
-        ) : <p className="rounded-panel surface p-4 shadow-soft text-body text-muted animate-fade-up">Esta fila não permite escolher posições.</p>}
+        ) : null}
         {/* Na fila e na partida encontrada, a faixa de ação fica com a busca; trocar fila volta depois. A troca é feita ao escolher. */}
         {!searching && (
           <div className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" style={{ animationDelay: '70ms' }}>
