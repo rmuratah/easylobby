@@ -16,3 +16,11 @@ unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# Binário menor no instalador (#242): sem o LTO e com 16 codegen units, o
+# agente sai com o dobro do tamanho. `panic` continua `unwind`: com `abort`,
+# um pânico numa tarefa do tokio derrubaria o app inteiro.
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
