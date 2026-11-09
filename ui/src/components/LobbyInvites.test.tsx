@@ -155,6 +155,20 @@ describe('convidar pelo lobby', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('o aviso de "já foi convidado" não passa para o próximo lobby', async () => {
+    const send = ok();
+    const pending = { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 2001, state: 'Pending' as const }] };
+    const { rerender } = render(<LobbyPanel connection={connected({ lobby: pending })} send={send} />);
+    await drop('ana');
+    expect(lobby().getByRole('alert')).toHaveTextContent('Ana#BR1 já foi convidado.');
+    // Saiu do lobby e criou outro: o convite antigo não vale mais.
+    rerender(<LobbyPanel connection={connected({ lobby: null })} send={send} />);
+    rerender(<LobbyPanel connection={connected({})} send={send} />);
+    expect(lobby().queryByRole('alert')).not.toBeInTheDocument();
+    await drop('ana');
+    expect(send).toHaveBeenCalledWith({ type: 'inviteToLobby', invitees: [{ summonerId: 2001, puuid: 'ana' }] });
+  });
+
   it('mostra o erro do agente ao convidar', async () => {
     const send: AgentClient['send'] = vi.fn(async (): Promise<CommandResult> => ({ status: 'error', code: 'lcu', message: 'falhou' }));
     render(<LobbyPanel connection={connected({})} send={send} />);
