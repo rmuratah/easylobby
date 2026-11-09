@@ -1,4 +1,4 @@
-import { testLobby, testState } from './test/lobby';
+import { testLobby, testReadyLobby, testState } from './test/lobby';
 import { testFriend, testMatchmaking } from './test/events';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { match } from './test/profile';
@@ -130,11 +130,11 @@ describe('telas confirmadas pelo agente', () => {
   });
   it('preserva busca pendente entre Lobby, Início e Fila e volta após reconectar', () => {
     send.mockClear();
-    snapshot({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    snapshot({ lobby: testReadyLobby, gameflowPhase: 'Lobby' });
     const { rerender } = render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Iniciar busca' }));
     fireEvent.click(screen.getByRole('button', { name: 'Início' }));
-    snapshot({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
+    snapshot({ lobby: testReadyLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
     rerender(<App />);
     expect(screen.getByRole('button', { name: 'Cancelar busca' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
@@ -144,7 +144,7 @@ describe('telas confirmadas pelo agente', () => {
     rerender(<App />);
     expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Abrir client oficial' })).toBeDisabled();
-    snapshot({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
+    snapshot({ lobby: testReadyLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
     rerender(<App />);
     expect(screen.getByRole('button', { name: 'Cancelar busca' })).toBeEnabled();
   });
