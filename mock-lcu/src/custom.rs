@@ -359,7 +359,8 @@ mod tests {
     fn practice(state: &mut LcuState) {
         let body = json!({
             "customGameLobby": {"configuration": {"gameMode": "PRACTICETOOL", "mapId": 11}},
-            "isCustom": true
+            "isCustom": true,
+            "queueId": 3140
         });
         let (_, events) = lobby::create(state, &body);
         apply(state, &events);
@@ -430,7 +431,8 @@ mod tests {
                                   "spectatorPolicy": "AllAllowed", "teamSize": 5},
                 "lobbyName": "Partida", "lobbyPassword": ""
             },
-            "isCustom": true
+            "isCustom": true,
+            "queueId": 3110
         });
         let (_, events) = lobby::create(&s, &body);
         apply(&mut s, &events);

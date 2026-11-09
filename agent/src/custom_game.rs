@@ -17,6 +17,12 @@
 //! }
 //! ```
 //!
+//! **`queueId` obrigatório (#330):** no LoL 16.22 o corpo sem `queueId`
+//! volta 500 `INVALID_LOBBY`, com qualquer opção (testado no LoL real). O
+//! agente manda a fila personalizada do mapa e do tipo de seleção
+//! ([`CustomGameOptions::queue_id`]); quem decide o tipo é ela, e o
+//! `mutators.id` só acompanha.
+//!
 //! O tipo de seleção vai em `mutators.id`: é o `gameTypeConfig.id` das filas
 //! personalizadas da lista da LCU (gravação real do patch 16.22): 19 às
 //! cegas, 18 alternada, 21 todos aleatórios e 6 alternada para torneios.
@@ -299,9 +305,30 @@ impl CustomGameOptions {
         }
     }
 
+    /// Fila personalizada do mapa e do tipo de seleção, na lista da LCU do
+    /// 16.22 (#330). Combinações que o mapa não aceita (barradas no
+    /// [`CustomGameOptions::validate`]) caem na fila às cegas do mapa.
+    pub fn queue_id(&self) -> u32 {
+        use CustomPickType::*;
+        match (self.map, self.pick_type) {
+            (CustomMap::SummonersRift, DraftMode) => 3110,
+            (CustomMap::SummonersRift, AllRandom) => 3120,
+            (CustomMap::SummonersRift, TournamentDraft) => 3130,
+            (CustomMap::SummonersRift, _) => 3100,
+            (CustomMap::HowlingAbyss, DraftMode) => 3210,
+            (CustomMap::HowlingAbyss, AllRandom) => 3220,
+            (CustomMap::HowlingAbyss, TournamentDraft) => 3230,
+            (CustomMap::HowlingAbyss, AramMayhem) => 3270,
+            (CustomMap::HowlingAbyss, BlindPick) => 3200,
+            (CustomMap::ClassicRift, DraftMode) => 3262,
+            (CustomMap::ClassicRift, _) => 3260,
+        }
+    }
+
     /// Corpo do `POST /lol-lobby/v2/lobby` que cria a personalizada.
     pub fn body(&self) -> Value {
         lobby_body(&LobbyConfig {
+            queue_id: self.queue_id(),
             name: self.name.trim(),
             password: &self.password,
             game_mode: self.game_mode(),
@@ -320,6 +347,8 @@ impl CustomGameOptions {
 
 /// Tudo o que vai no `customGameLobby`. Usado também pelo Modo de Treino.
 pub(crate) struct LobbyConfig<'a> {
+    /// Fila personalizada (#330): sem ela a LCU responde `INVALID_LOBBY`.
+    pub queue_id: u32,
     pub name: &'a str,
     pub password: &'a str,
     pub game_mode: &'a str,
@@ -357,7 +386,8 @@ pub(crate) fn lobby_body(config: &LobbyConfig) -> Value {
             "lobbyName": config.name,
             "lobbyPassword": config.password
         },
-        "isCustom": true
+        "isCustom": true,
+        "queueId": config.queue_id
     });
     if let Some(extras) = &config.extras {
         body["customGameLobby"]["configuration"]["isPrivate"] = json!(extras.private);
@@ -459,6 +489,32 @@ mod tests {
         assert_eq!(body["customGameLobby"]["lobbyName"], "Partida de Fulano");
         assert_eq!(body["customGameLobby"]["lobbyPassword"], "segredo");
         assert_eq!(body["isCustom"], true);
+        assert_eq!(body["queueId"], 3210);
+    }
+
+    #[test]
+    fn fila_personalizada_de_cada_mapa_e_tipo() {
+        let queue = |map, pick_type| {
+            CustomGameOptions {
+                map,
+                pick_type,
+                ..options()
+            }
+            .queue_id()
+        };
+        use CustomMap::*;
+        use CustomPickType::*;
+        assert_eq!(queue(SummonersRift, BlindPick), 3100);
+        assert_eq!(queue(SummonersRift, DraftMode), 3110);
+        assert_eq!(queue(SummonersRift, AllRandom), 3120);
+        assert_eq!(queue(SummonersRift, TournamentDraft), 3130);
+        assert_eq!(queue(HowlingAbyss, BlindPick), 3200);
+        assert_eq!(queue(HowlingAbyss, DraftMode), 3210);
+        assert_eq!(queue(HowlingAbyss, AllRandom), 3220);
+        assert_eq!(queue(HowlingAbyss, TournamentDraft), 3230);
+        assert_eq!(queue(HowlingAbyss, AramMayhem), 3270);
+        assert_eq!(queue(ClassicRift, BlindPick), 3260);
+        assert_eq!(queue(ClassicRift, DraftMode), 3262);
     }
 
     #[test]
