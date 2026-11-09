@@ -304,8 +304,10 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
           </span>
           {/* Lobby aberto ou fechado (#225): todos os modos, menos o Tutorial. */}
           {!isTutorialQueue(lobby.queueId) && <LobbyOpenToggle lobby={lobby} send={send} disabled={phase !== 'Lobby'} />}
-          {/* Link para entrar no lobby (#226): todos os modos, menos o Tutorial. */}
-          {!isTutorialQueue(lobby.queueId) && <LobbyLinkButton link={state.lobbyLink} send={send} disabled={phase !== 'Lobby'} />}
+          {/* Link para entrar no lobby (#226): todos os modos, menos o Tutorial.
+              Também durante a busca (Matchmaking), como no client oficial. */}
+          {!isTutorialQueue(lobby.queueId) && <LobbyLinkButton link={state.lobbyLink} send={send}
+            disabled={phase !== 'Lobby' && phase !== 'Matchmaking'} />}
           {!searching && (
             <button type="button" aria-describedby={descriptionId} disabled={!canCreate || pending}
               onClick={() => { setFeedback({ status: 'idle', message: '' }); setChangingMode(true); }}

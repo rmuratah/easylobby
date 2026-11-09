@@ -75,6 +75,26 @@ describe('link para entrar no lobby (#226)', () => {
     expect(writeText).not.toHaveBeenCalled();
   });
 
+  it('copia o link também durante a busca', async () => {
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Matchmaking' });
+    expect(button()).toBeEnabled();
+    fireEvent.click(button());
+    expect(request().command).toEqual({ type: 'createLobbyLink' });
+    const id = request().id;
+    await act(async () => {
+      socket().receive({ type: 'lobbyLink', lobbyLink: link });
+      socket().receive({ type: 'response', id, result: { status: 'ok' } });
+    });
+    expect(writeText).toHaveBeenCalledWith(link.url);
+  });
+
+  it.each(['ReadyCheck', 'ChampSelect', 'InProgress'] as const)('fica desabilitado na fase %s', phase => {
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: phase });
+    expect(button()).toBeDisabled();
+  });
+
   it('não aparece no Tutorial', () => {
     render(<App />);
     hello({ lobby: { ...testLobby, queueId: 2000 } });
