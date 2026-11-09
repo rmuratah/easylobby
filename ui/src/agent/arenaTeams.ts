@@ -8,9 +8,9 @@ export type ArenaTeam = { team: number; slots: ArenaSlot[] };
 export type ArenaLayout = { teams: ArenaTeam[]; unplaced: LobbyMember[] };
 
 /**
- * Base dos índices de equipe e de vaga. A gravação 16.22 não tem um lobby da
- * Arena: o mock começa em 1 e a LCU ainda precisa ser conferida no LoL real.
- * Vale 1, a não ser que algum jogador chegue com um índice 0.
+ * Base dos índices de equipe e de vaga. No LoL real começam em 1 (#303: o
+ * líder sozinho veio na equipe 1, vaga 3 de 3), como no mock. Vale 1, a não
+ * ser que algum jogador chegue com um índice 0.
  */
 export function subteamBase(members: LobbyMember[]): 0 | 1 {
   return members.some(m => m.subteam && (m.subteam.team === 0 || m.subteam.position === 0)) ? 0 : 1;

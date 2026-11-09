@@ -25,6 +25,14 @@ export type LobbyMember = {
    */
   secondPosition: Position,
   /**
+   * As preferências de posição em ordem, da 1ª à 5ª (#230), só nas filas
+   * com [`Lobby::ordered_positions`]. `["fill"]` com "Qualquer posição".
+   * Vazia nas outras filas e antes de o jogador escolher; as posições
+   * que a LCU manda vazias ficam de fora. A 1ª é a mesma de
+   * `first_position`.
+   */
+  positionOrder: Array<Position>,
+  /**
    * Posições e campeões do Jogo Dinâmico (#218), na ordem dos slots.
    * Vazia nas outras filas e antes de o jogador escolher.
    */

@@ -7,6 +7,9 @@ import type { CustomGameOptions } from '../bindings/CustomGameOptions';
 import type { CustomPickType } from '../bindings/CustomPickType';
 import type { SpectatorPolicy } from '../bindings/SpectatorPolicy';
 import { cx } from './base/cx';
+import aramImage from '../assets/modes/aram.png';
+import classicRiftImage from '../assets/modes/summoners-rift-classico.png';
+import summonersRiftImage from '../assets/modes/summoners-rift.png';
 
 type Props = {
   options: CustomGameOptions;
@@ -22,8 +25,8 @@ const labelClass = 'text-caption font-semibold uppercase tracking-wider text-mut
 const choice = 'flex cursor-pointer items-center gap-2 text-body has-[:disabled]:cursor-not-allowed';
 const radio = 'size-4 shrink-0 accent-[var(--el-accent)]';
 
-/** Sigla no lugar do ícone do modo, até as imagens finais entrarem. */
-const mapIcons = { summonersRift: 'SR', howlingAbyss: 'MA', classicRift: 'RC' } as const;
+/** Ícone de cada mapa (#296), os mesmos dos cards de modo (#294). */
+const mapIcons = { summonersRift: summonersRiftImage, howlingAbyss: aramImage, classicRift: classicRiftImage } as const;
 
 /**
  * Formulário da aba Personalizada, como a tela "Criar personalizada" do
@@ -47,8 +50,7 @@ export function CustomGameForm({ options, onChange, locked, problem }: Props) {
               locked && 'cursor-not-allowed')}>
               <input type="radio" name={`${baseId}-map`} className="sr-only" checked={selected}
                 onChange={() => onChange(withMap(options, map))} />
-              <span aria-hidden="true" className={cx('flex size-12 shrink-0 items-center justify-center rounded-tile text-body font-semibold tracking-wide',
-                selected ? 'bg-primary-gradient text-on-accent' : 'bg-raised text-muted')}>{mapIcons[map]}</span>
+              <img src={mapIcons[map]} alt="" aria-hidden="true" draggable={false} className="size-12 shrink-0 object-contain" />
               <span className="text-section font-semibold uppercase tracking-wide">{formMapNames[map]}</span>
             </label>
           );

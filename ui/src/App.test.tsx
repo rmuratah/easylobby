@@ -38,6 +38,15 @@ describe('App', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Versões incompatíveis');
     expect(screen.getByRole('alert')).toHaveTextContent('Atualize');
   });
+  it('deixa as margens em volta das áreas arrastarem a janela (#299)', () => {
+    connected({ state: 'connected', session: 1 });
+    const { container } = render(<App />);
+    for (const area of ['.app-shell', '.app-body', '.app-main-column']) {
+      expect(container.querySelector(area)).toHaveAttribute('data-tauri-drag-region');
+    }
+    // Só o próprio contorno arrasta: o conteúdo continua clicável.
+    expect(screen.getByRole('main')).not.toHaveAttribute('data-tauri-drag-region');
+  });
 });
 
 describe('invocador logado', () => {
@@ -59,7 +68,7 @@ describe('invocador logado', () => {
     expect(screen.getByRole('img', { name: 'Presença indisponível' })).toBeInTheDocument();
     expect(screen.getByText('Solo/Duo').nextElementSibling).toHaveTextContent('Indisponível');
     expect(screen.getByText('Flex').nextElementSibling).toHaveTextContent('Indisponível');
-    expect(screen.getByRole('article', { name: 'Área reservada' })).toHaveTextContent('futura funcionalidade');
+    expect(screen.getByRole('article', { name: 'Notas da atualização' })).toHaveTextContent('assim que o LoL informar');
     expect(screen.getByRole('article', { name: 'Sem conteúdo' })).toHaveTextContent('reservado no momento');
     vi.mocked(useAgent).mockReturnValue({ status: 'reconnecting', state: null, error: null, send: vi.fn() });
     rerender(<App />);

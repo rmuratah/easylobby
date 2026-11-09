@@ -18,6 +18,7 @@ mod invitations;
 mod lobby;
 mod lobby_chat;
 mod lobby_ranks;
+mod patch_notes;
 mod profile;
 mod ready_check;
 mod runes;
@@ -388,6 +389,8 @@ impl Hub {
                 }
                 // Os cards do Tutorial (#228).
                 self.spawn_refresh_tutorial();
+                // As notas da atualização do Início (#301), da internet.
+                self.spawn_refresh_patch_notes();
                 // Os campeões que podem ser bots, se já estiver numa
                 // personalizada (#229).
                 self.spawn_refresh_available_bots();

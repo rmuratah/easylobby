@@ -24,6 +24,7 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::CreateLobbyById { queue_id } => hub.create_lobby_by_id(queue_id).await,
         Command::LeaveLobby => hub.leave_lobby().await,
         Command::SetPositions { first, second } => hub.set_positions(first, second).await,
+        Command::SetPositionOrder { positions } => hub.set_position_order(&positions).await,
         Command::StartQueue => hub.start_queue().await,
         Command::StopQueue => hub.stop_queue().await,
         Command::AcceptReadyCheck => hub.accept_ready_check().await,
@@ -143,6 +144,9 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::OpenMatchDetails { game_id } => hub.open_match_details(game_id).await,
         Command::OpenPlayerProfile { puuid } => hub.open_player_profile(&puuid).await,
         Command::LoadMorePlayerMatches => hub.load_more_player_matches().await,
+
+        // Início
+        Command::OpenPatchNotes => hub.open_patch_notes(),
     }
 }
 

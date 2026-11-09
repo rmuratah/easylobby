@@ -10,6 +10,12 @@ type Props = {
   send: AgentClient['send'];
   /** Na fila, na partida encontrada ou fora da fase de lobby, o menu fica desabilitado. */
   disabled?: boolean;
+  /**
+   * Para que lado o menu abre (#303): `end` (padrão) alinha pela direita do
+   * botão e abre para a esquerda; `start` alinha pela esquerda do botão e abre
+   * para a direita, para caber nos cards estreitos da Arena.
+   */
+  align?: 'start' | 'end';
 };
 
 type Action = 'promote' | 'kick';
@@ -40,7 +46,8 @@ const texts: Record<Action, { label: string; question: (name: string) => string;
  * só mostra o menu para o líder e fora do próprio card. O lobby novo chega
  * pelo agente; o menu não guarda estado do lobby.
  */
-export function LobbyMemberMenu({ name, summonerId, send, disabled = false }: Props) {
+export function LobbyMemberMenu({ name, summonerId, send, disabled = false, align = 'end' }: Props) {
+  const side = align === 'end' ? 'right-0' : 'left-0';
   const { feedback, pending, run } = useCommand(send);
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState<Action | null>(null);
@@ -88,7 +95,7 @@ export function LobbyMemberMenu({ name, summonerId, send, disabled = false }: Pr
         <span aria-hidden="true" className="text-section leading-none">⋯</span>
       </button>
       {open && (
-        <div id={menuId} className="absolute right-0 top-9 z-20 w-64 rounded-tile bg-surface p-2 shadow-lift ring-1 ring-line">
+        <div id={menuId} className={cx('absolute top-9 z-20 w-64 rounded-tile bg-surface p-2 shadow-lift ring-1 ring-line', side)}>
           {confirming ? (
             <div role="alertdialog" aria-label={texts[confirming].label} className="flex flex-col gap-2 p-1">
               <p className="text-body">{texts[confirming].question(name)}</p>
@@ -120,7 +127,7 @@ export function LobbyMemberMenu({ name, summonerId, send, disabled = false }: Pr
       )}
       {feedback.status === 'pending' && <span role="status" className="sr-only">{feedback.message}</span>}
       {feedback.status === 'error' && (
-        <p role="alert" className="absolute right-0 top-9 z-10 w-64 rounded-tile bg-surface p-2 text-caption text-danger shadow-soft">{feedback.message}</p>
+        <p role="alert" className={cx('absolute top-9 z-10 w-64 rounded-tile bg-surface p-2 text-caption text-danger shadow-soft', side)}>{feedback.message}</p>
       )}
     </div>
   );

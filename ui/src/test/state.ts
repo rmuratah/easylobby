@@ -35,6 +35,7 @@ const emptyState: AgentState = {
   matchHistory: null,
   matchDetails: null,
   playerProfile: null,
+  patchNotes: null,
 };
 
 /**

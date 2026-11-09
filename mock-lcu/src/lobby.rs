@@ -2,12 +2,13 @@
 //! os cargos do jogador (#18) em `PUT` [`POSITION_PREFERENCES`] e os slots
 //! do Jogo Dinâmico (#218) em `PUT` [`PLAYER_SLOTS`].
 //!
-//! Arena (#224): o lobby de uma fila `CHERRY` ganha equipes de 3
-//! (`maxTeamSize`) até caber o `maxLobbySize` (6 na Arena 3x6), e cada
-//! membro uma vaga em `subteamIndex` e `intraSubteamPosition`. O jogador
-//! troca de vaga em `PUT` [`SUBTEAM_DATA`]. A gravação não tem um lobby da
-//! Arena: os índices começando em 1 e a recusa de uma vaga ocupada são
-//! suposições do mock, ainda não conferidas no LoL real.
+//! Arena (#224): o lobby de uma fila `CHERRY` tem equipes de 3 até caber o
+//! `maxLobbySize` (6 na Arena 3x6), e cada membro uma vaga em
+//! `subteamIndex` e `intraSubteamPosition`. Como no LoL real (#303), o
+//! `gameConfig` não diz o tamanho das equipes: vem com `maxTeamSize` do
+//! tamanho do lobby e `numberOfTeamsInLobby` 1, e os índices começam em 1.
+//! O jogador troca de vaga em `PUT` [`SUBTEAM_DATA`]. A recusa de uma vaga
+//! ocupada é suposição do mock, ainda não conferida no LoL real.
 //!
 //! As fixtures só têm `GET`, então o mock monta o lobby a partir do lobby
 //! gravado (trocando a fila) e manda os mesmos eventos que a LCU manda:
@@ -233,6 +234,13 @@ pub fn leave(state: &LcuState) -> (Response, Vec<EventFixture>) {
 /// "secondPreference": "JUNGLE"}`: troca os cargos do jogador logado no
 /// `localMember` e na lista `members`. Fora de lobby responde 404, e numa
 /// fila sem escolha de cargos, 400.
+///
+/// No Rift Clássico (`gameMode` `JADE`, #230) o corpo traz também
+/// `thirdPreference`, `fourthPreference` e `fifthPreference`, e o mock
+/// grava as cinco de `firstPositionPreference` até
+/// `fifthPositionPreference`. Ali só aceita as 5 rotas, cada uma uma vez, ou
+/// `FILL` na 1ª e `UNSELECTED` nas outras; fora disso, 400. A rota e o corpo
+/// são suposições do mock, ainda não conferidas no LoL real.
 pub fn set_positions(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
     let current = state.get(LOBBY);
     if current.status != 200 {
@@ -265,11 +273,52 @@ pub fn set_positions(state: &LcuState, body: &Value) -> (Response, Vec<EventFixt
             Vec::new(),
         );
     }
+    // Rift Clássico (#230): as 5 preferências em ordem.
+    let mut rest = Vec::new();
+    if lobby["gameConfig"]["gameMode"] == json!("JADE") {
+        let others: Option<Vec<&str>> = ["thirdPreference", "fourthPreference", "fifthPreference"]
+            .into_iter()
+            .map(preference)
+            .collect();
+        let order = others.map(|others| [vec![first, second], others].concat());
+        let lanes = &POSITIONS[..5];
+        let valid = order.as_ref().is_some_and(|order| {
+            order.as_slice()
+                == [
+                    "FILL",
+                    "UNSELECTED",
+                    "UNSELECTED",
+                    "UNSELECTED",
+                    "UNSELECTED",
+                ]
+                || lanes.iter().all(|lane| order.contains(lane))
+        });
+        let Some(order) = order.filter(|_| valid) else {
+            return (
+                Response::error(
+                    400,
+                    "mock-lcu: o Rift Clássico precisa das 5 posições em ordem ou de FILL",
+                ),
+                Vec::new(),
+            );
+        };
+        rest = order[2..].to_vec();
+    }
     let puuid = lobby["localMember"]["puuid"].clone();
     let set = |member: &mut Value| {
         if let Some(member) = member.as_object_mut() {
             member.insert("firstPositionPreference".into(), json!(first));
             member.insert("secondPositionPreference".into(), json!(second));
+            for (key, position) in [
+                "thirdPositionPreference",
+                "fourthPositionPreference",
+                "fifthPositionPreference",
+            ]
+            .into_iter()
+            .zip(&rest)
+            {
+                member.insert(key.into(), json!(position));
+            }
         }
     };
     set(&mut lobby["localMember"]);
@@ -385,11 +434,12 @@ fn make_subteams(lobby: &mut Value, arena: bool, max_lobby_size: u64) {
         1
     };
     if let Some(config) = lobby.get_mut("gameConfig").and_then(Value::as_object_mut) {
-        config.insert("numberOfTeamsInLobby".into(), json!(teams));
+        config.insert("numberOfTeamsInLobby".into(), json!(1));
         if arena {
-            config.insert("maxTeamSize".into(), json!(ARENA_TEAM_SIZE));
+            // Como no LoL real (#303): o lobby inteiro numa equipe só.
+            config.insert("maxTeamSize".into(), json!(max_lobby_size));
         } else if config.get("isCustom") != Some(&json!(true))
-            && config.get("maxTeamSize").and_then(Value::as_u64) == Some(ARENA_TEAM_SIZE)
+            && config.get("maxTeamSize").and_then(Value::as_u64) > Some(5)
         {
             // Saindo da Arena; a personalizada (#262) escolhe o tamanho.
             config.insert("maxTeamSize".into(), json!(5));
@@ -466,10 +516,11 @@ pub fn set_subteam_data(state: &LcuState, body: &Value) -> (Response, Vec<EventF
             Vec::new(),
         );
     }
-    let teams = lobby["gameConfig"]["numberOfTeamsInLobby"]
+    let size = ARENA_TEAM_SIZE;
+    let teams = lobby["gameConfig"]["maxLobbySize"]
         .as_u64()
-        .unwrap_or(1);
-    let size = lobby["gameConfig"]["maxTeamSize"].as_u64().unwrap_or(0);
+        .unwrap_or(0)
+        .div_ceil(size);
     if !(1..=teams).contains(&slot.0) || !(1..=size).contains(&slot.1) {
         return (
             Response::error(400, "mock-lcu: essa vaga não existe"),
@@ -580,8 +631,8 @@ mod tests {
         let config = &response.body["gameConfig"];
         assert_eq!(config["gameMode"], "CHERRY");
         assert_eq!(config["maxLobbySize"], 18);
-        assert_eq!(config["numberOfTeamsInLobby"], 6);
-        assert_eq!(config["maxTeamSize"], 3);
+        assert_eq!(config["numberOfTeamsInLobby"], 1);
+        assert_eq!(config["maxTeamSize"], 18);
         assert_eq!(response.body["localMember"]["subteamIndex"], 1);
         assert_eq!(response.body["members"][0]["intraSubteamPosition"], 1);
         apply(&mut s, &events);
@@ -699,6 +750,51 @@ mod tests {
             false
         );
         assert_eq!(set_positions(&s, &cargos).0.status, 400);
+    }
+
+    #[test]
+    fn grava_as_5_posicoes_no_rift_classico() {
+        let mut s = state("16.22");
+        let (_, events) = create(&s, &json!({"queueId": 4310}));
+        apply(&mut s, &events);
+        assert_eq!(s.get(LOBBY).body["gameConfig"]["gameMode"], "JADE");
+
+        let ordem = json!({
+            "firstPreference": "MIDDLE", "secondPreference": "JUNGLE",
+            "thirdPreference": "TOP", "fourthPreference": "UTILITY",
+            "fifthPreference": "BOTTOM",
+        });
+        let (response, events) = set_positions(&s, &ordem);
+        assert_eq!(response.status, 201);
+        apply(&mut s, &events);
+        let me = &s.get(LOBBY).body["members"][0];
+        assert_eq!(me["firstPositionPreference"], "MIDDLE");
+        assert_eq!(me["thirdPositionPreference"], "TOP");
+        assert_eq!(me["fifthPositionPreference"], "BOTTOM");
+
+        // Só a primária e a secundária não bastam.
+        let par = json!({"firstPreference": "MIDDLE", "secondPreference": "JUNGLE"});
+        assert_eq!(set_positions(&s, &par).0.status, 400);
+        // Posição repetida.
+        let repetida = json!({
+            "firstPreference": "TOP", "secondPreference": "TOP",
+            "thirdPreference": "MIDDLE", "fourthPreference": "UTILITY",
+            "fifthPreference": "BOTTOM",
+        });
+        assert_eq!(set_positions(&s, &repetida).0.status, 400);
+
+        // Qualquer posição.
+        let qualquer = json!({
+            "firstPreference": "FILL", "secondPreference": "UNSELECTED",
+            "thirdPreference": "UNSELECTED", "fourthPreference": "UNSELECTED",
+            "fifthPreference": "UNSELECTED",
+        });
+        let (response, events) = set_positions(&s, &qualquer);
+        assert_eq!(response.status, 201);
+        apply(&mut s, &events);
+        let me = &s.get(LOBBY).body["localMember"];
+        assert_eq!(me["firstPositionPreference"], "FILL");
+        assert_eq!(me["fifthPositionPreference"], "UNSELECTED");
     }
 
     #[test]
