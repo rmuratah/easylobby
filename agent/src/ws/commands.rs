@@ -130,6 +130,9 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::OpenMatchDetails { game_id } => hub.open_match_details(game_id).await,
         Command::OpenPlayerProfile { puuid } => hub.open_player_profile(&puuid).await,
         Command::LoadMorePlayerMatches => hub.load_more_player_matches().await,
+
+        // Início
+        Command::OpenPatchNotes => hub.open_patch_notes(),
     }
 }
 

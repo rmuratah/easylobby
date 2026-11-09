@@ -16,6 +16,7 @@ import type { LobbyLink } from "./LobbyLink";
 import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
+import type { PatchNotes } from "./PatchNotes";
 import type { PlayerProfile } from "./PlayerProfile";
 import type { RankedStats } from "./RankedStats";
 import type { ReadyCheck } from "./ReadyCheck";
@@ -141,4 +142,8 @@ export type AgentState = {
    * ou `null`.
    */
   playerProfile: PlayerProfile | null,
+  /**
+   * Notas da atualização atual do LoL (#301), ou `null`.
+   */
+  patchNotes: PatchNotes | null,
 };

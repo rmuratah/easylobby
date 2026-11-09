@@ -20,6 +20,7 @@ import { SidebarToggle } from './layout/SidebarToggle';
 import { connectionView } from './screens/connection';
 import { ConnectionScreen } from './components/connection/ConnectionScreen';
 import { SummonerHeader } from './components/home/SummonerHeader';
+import { PatchNotesCard } from './components/home/PatchNotesCard';
 import { FriendProfilePage, ProfilePage } from './components/profile/ProfilePage';
 import { EmptyState } from './components/base';
 import { totalUnread } from './agent/chat';
@@ -100,10 +101,7 @@ export default function App() {
               className={homeLayout ? 'home-secondary' : 'flex max-w-[22rem] flex-col gap-4'}>
               {summoner && <SummonerHeader summoner={summoner} ranked={connection.state?.ranked ?? null} />}
               {homeLayout && <div className="home-placeholders">
-                <article aria-label="Área reservada" className="flex min-h-32 flex-col justify-end rounded-panel surface p-5 shadow-soft animate-fade-up" style={{ animationDelay: '140ms' }}>
-                  <h2 className="text-section font-semibold text-ink">Área reservada</h2>
-                  <p className="mt-1 text-body text-muted">Espaço para uma futura funcionalidade.</p>
-                </article>
+                <PatchNotesCard notes={connection.state?.patchNotes ?? null} send={connection.send} />
                 <article aria-label="Sem conteúdo" className="flex min-h-32 flex-col justify-end rounded-panel surface p-5 shadow-soft animate-fade-up" style={{ animationDelay: '200ms' }}>
                   <h2 className="text-section font-semibold text-ink">Sem conteúdo</h2>
                   <p className="mt-1 text-body text-muted">Espaço reservado no momento.</p>

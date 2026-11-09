@@ -65,4 +65,5 @@ export type Command =
   | { "type": "loadMoreMatches" }
   | { "type": "openMatchDetails", gameId: number, }
   | { "type": "openPlayerProfile", puuid: string, }
-  | { "type": "loadMorePlayerMatches" };
+  | { "type": "loadMorePlayerMatches" }
+  | { "type": "openPatchNotes" };

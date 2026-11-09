@@ -59,7 +59,7 @@ describe('invocador logado', () => {
     expect(screen.getByRole('img', { name: 'Presença indisponível' })).toBeInTheDocument();
     expect(screen.getByText('Solo/Duo').nextElementSibling).toHaveTextContent('Indisponível');
     expect(screen.getByText('Flex').nextElementSibling).toHaveTextContent('Indisponível');
-    expect(screen.getByRole('article', { name: 'Área reservada' })).toHaveTextContent('futura funcionalidade');
+    expect(screen.getByRole('article', { name: 'Notas da atualização' })).toHaveTextContent('assim que o LoL informar');
     expect(screen.getByRole('article', { name: 'Sem conteúdo' })).toHaveTextContent('reservado no momento');
     vi.mocked(useAgent).mockReturnValue({ status: 'reconnecting', state: null, error: null, send: vi.fn() });
     rerender(<App />);
