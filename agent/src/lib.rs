@@ -43,6 +43,7 @@
 //! - [`mastery`]: campeões com mais maestria (#175)
 //! - [`swaps`]: trocas de campeão, de ordem de pick e de cargo na seleção
 //!   (#25)
+//! - [`patch_notes`]: notas da atualização atual, para o Início (#301)
 
 pub mod assets;
 pub mod bench;
@@ -66,6 +67,7 @@ pub mod lockfile;
 pub mod mastery;
 pub mod match_history;
 pub mod matchmaking;
+pub mod patch_notes;
 pub mod player_profile;
 pub mod players;
 pub mod queues;

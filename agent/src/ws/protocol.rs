@@ -62,6 +62,7 @@ use crate::lobby_link::LobbyLink;
 use crate::mastery::ChampionMastery;
 use crate::match_history::{MatchDetails, MatchHistory};
 use crate::matchmaking::Matchmaking;
+use crate::patch_notes::PatchNotes;
 use crate::player_profile::PlayerProfile;
 use crate::players::RecentPlayer;
 use crate::queues::GameQueue;
@@ -250,6 +251,12 @@ pub enum ServerMessage {
         player_profile: Option<PlayerProfile>,
     },
 
+    // Início
+    /// As notas da atualização atual do LoL (#301), lidas ao conectar. Ficam
+    /// no estado quando o LoL fecha. `null` enquanto o agente não conectou
+    /// nenhuma vez ou se a LCU não deu a versão do jogo.
+    PatchNotes { patch_notes: Option<PatchNotes> },
+
     // Respostas aos comandos
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
@@ -335,6 +342,10 @@ pub struct AgentState {
     /// Último perfil de outro jogador pedido com `openPlayerProfile` (#255),
     /// ou `null`.
     pub player_profile: Option<PlayerProfile>,
+
+    // Início
+    /// Notas da atualização atual do LoL (#301), ou `null`.
+    pub patch_notes: Option<PatchNotes>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -806,6 +817,12 @@ pub enum Command {
     /// sem perfil aberto, `notConnected` com o LoL fechado e `lcu` se a LCU
     /// recusar.
     LoadMorePlayerMatches,
+
+    // Início
+    /// Abre a página de `patchNotes.url` (#301) no navegador padrão. Responde
+    /// `notFound` sem notas no estado e `launchFailed` se não deu para abrir
+    /// o navegador.
+    OpenPatchNotes,
 }
 
 /// Resultado de um comando.
@@ -896,6 +913,7 @@ mod tests {
                     "matchHistory": null,
                     "matchDetails": null,
                     "playerProfile": null,
+                    "patchNotes": null,
                 },
             })
         );
@@ -1371,6 +1389,12 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(msg.command, Command::LoadMorePlayerMatches);
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 17,
+            "command": {"type": "openPatchNotes"},
+        }))
+        .unwrap();
+        assert_eq!(msg.command, Command::OpenPatchNotes);
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 14,
             "command": {"type": "inviteToLobby", "invitees": [{"summonerId": 1003, "puuid": "p"}]},
