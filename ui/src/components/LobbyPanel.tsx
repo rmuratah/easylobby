@@ -24,14 +24,19 @@ import { PracticeLobby } from './PracticeLobby';
 import { ArenaTeams } from './ArenaTeams';
 import { isTutorialQueue } from '../agent/training';
 
-type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
+type Props = {
+  connection: ConnectionSnapshot;
+  send: AgentClient['send'];
+  /** Abre o perfil de outro jogador ao clicar no card dele (#308). */
+  onOpenProfile?: (puuid: string) => void;
+};
 type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' | 'startTutorial' | 'startPracticeTool' | 'createCustomGame' | 'joinCustomGame' }>;
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 const selectClass = `h-10 rounded-tile border border-control bg-raised px-3 text-body text-ink transition-colors disabled:cursor-not-allowed disabled:text-muted ${focusRing}`;
 /** Botão em pílula do layout de referência: o principal leva o destaque com brilho; o secundário fica na superfície. */
 
-export function LobbyPanel({ connection, send }: Props) {
+export function LobbyPanel({ connection, send, onOpenProfile }: Props) {
   const state = connection.state;
   const lcu = state?.lcu;
   if (connection.status !== 'connected' || !state || lcu?.state !== 'connected') {
@@ -43,7 +48,7 @@ export function LobbyPanel({ connection, send }: Props) {
     );
   }
   // Trocar a sessão ou o jogador descarta feedback e respostas da sessão anterior.
-  return <LobbyActions key={`${lcu.session}:${state.summoner?.puuid ?? ''}`} state={state} send={send} />;
+  return <LobbyActions key={`${lcu.session}:${state.summoner?.puuid ?? ''}`} state={state} send={send} onOpenProfile={onOpenProfile} />;
 }
 
 /** Espera depois da última escolha antes de enviar, para trocas rápidas (ex.: setas do teclado) virarem um comando só. */
@@ -60,7 +65,7 @@ function positionsComplete(first: Position, second: Position) {
   return second !== 'unselected' || first === 'fill' || first === 'unselected';
 }
 
-function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['send'] }) {
+function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send: AgentClient['send']; onOpenProfile?: (puuid: string) => void }) {
   const { lobby, matchmaking, summoner, gameflowPhase: phase } = state;
   const localMember = summoner?.puuid ? lobby?.members.find(member => member.puuid === summoner.puuid) : undefined;
   const first = localMember?.firstPosition ?? 'unselected';
@@ -315,7 +320,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
 
       {/* Arena (#224): vagas em equipes, com convidar e trocar de vaga em cada vaga livre. */}
       {lobby.subteams ? (
-        <ArenaTeams lobby={lobby} state={state} localName={localName} send={send} picker={picker} onPicker={setPicker}
+        <ArenaTeams lobby={lobby} state={state} localName={localName} send={send} picker={picker} onPicker={setPicker} onOpenProfile={onOpenProfile}
           canSwap={canManageMembers && !!localMember} canManageMembers={canManageMembers} />
       ) : (
       <ul aria-label="Jogadores no lobby" className="flex min-h-0 flex-1 flex-col gap-3">
@@ -327,6 +332,13 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
               className={cx('relative flex min-h-20 flex-1 items-center gap-4 rounded-panel px-4 py-3 transition-all duration-200 animate-fade-up',
                 // O card do jogador fica por cima dos outros para a escolha de campeão aberta nele não ficar escondida.
                 me ? 'z-10 bg-surface shadow-lift ring-2 ring-accent/30' : 'surface shadow-soft hover:-translate-y-0.5 hover:shadow-lift')}>
+              {/* O card de outro jogador inteiro abre o perfil dele (#308). O botão fica por baixo dos
+                  controles do card (menu do líder, campeões do Jogo Dinâmico), que vêm depois e são posicionados. */}
+              {!me && onOpenProfile && (
+                <button type="button" aria-label={`Ver perfil de ${name}`} title={`Ver perfil de ${name}`}
+                  onClick={() => onOpenProfile(member.puuid)}
+                  className={`absolute inset-0 cursor-pointer rounded-panel ${focusRing}`} />
+              )}
               <div className={cx('shrink-0 rounded-full p-1', me ? 'bg-primary-gradient' : 'bg-raised')}>
                 <Avatar name={me && summoner?.gameName ? summoner.gameName : name} src={assetUrl('profileIcon', member.summonerIconId)}
                   size={me ? 64 : 56} className="ring-2 ring-surface" />

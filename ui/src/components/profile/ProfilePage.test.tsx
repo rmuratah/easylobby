@@ -87,6 +87,37 @@ describe('ProfilePage', () => {
   });
 });
 
+describe('jogadores do placar (#308)', () => {
+  it('abrem o perfil, menos o dono do perfil e quem veio sem puuid', () => {
+    const onOpenProfile = vi.fn();
+    const players = Array.from({ length: 10 }, (_, i) => ({
+      ...match(1).player, puuid: i === 9 ? '' : i === 0 ? summoner.puuid : `p${i}`, gameName: `Jogador ${i}`, tagLine: 'BR1',
+      teamId: i < 5 ? 100 : 200, win: i < 5,
+    }));
+    const state = makeState({ summoner, matchHistory: { matches: [match(1)], hasMore: false }, matchDetails: { ...match(1), remake: false, players } });
+    render(<ProfilePage connection={{ status: 'connected', error: null, state }} send={vi.fn(() => Promise.resolve({ status: 'ok' as const }))}
+      onOpenProfile={onOpenProfile} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Histórico' }));
+    fireEvent.click(within(screen.getByRole('list', { name: 'Partidas' })).getAllByRole('button')[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Ver perfil de Jogador 3#BR1' }));
+    expect(onOpenProfile).toHaveBeenCalledWith('p3');
+    expect(screen.getAllByRole('button', { name: /^Ver perfil de/ })).toHaveLength(8);
+    expect(screen.queryByRole('button', { name: 'Ver perfil de Jogador 0#BR1' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ver perfil de Jogador 9#BR1' })).toBeNull();
+    expect(screen.getByText('Jogador 9')).toBeInTheDocument();
+  });
+
+  it('sem onOpenProfile, os nomes não viram botão', () => {
+    const players = [{ ...match(1).player, puuid: 'p1', gameName: 'Outro', teamId: 100 }];
+    const state = makeState({ summoner, matchHistory: { matches: [match(1)], hasMore: false }, matchDetails: { ...match(1), remake: false, players } });
+    render(<ProfilePage connection={{ status: 'connected', error: null, state }} send={vi.fn(() => Promise.resolve({ status: 'ok' as const }))} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Histórico' }));
+    fireEvent.click(within(screen.getByRole('list', { name: 'Partidas' })).getAllByRole('button')[0]);
+    expect(screen.getByText('Outro')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Ver perfil de/ })).toBeNull();
+  });
+});
+
 describe('FriendProfilePage', () => {
   const amigo = { ...summoner, gameName: 'Amigo', puuid: 'amigo', summonerLevel: 143, summonerId: 1003 };
   const friend = { ...testFriend, activity: { type: 'league' as const, status: 'inGame' as const, queueId: 420, championId: 103, since: Date.now() } };

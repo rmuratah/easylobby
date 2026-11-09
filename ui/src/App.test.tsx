@@ -1,6 +1,7 @@
 import { testLobby, testState } from './test/lobby';
 import { testFriend, testMatchmaking } from './test/events';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { match } from './test/profile';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { useAgent } from './agent/useAgent';
@@ -174,10 +175,55 @@ describe('perfil do amigo (#255)', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /^Ver perfil de Amigo/ }));
     expect(send).toHaveBeenCalledWith({ type: 'openPlayerProfile', puuid: testFriend.puuid });
-    expect(screen.getByRole('region', { name: 'Perfil do amigo' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Perfil do jogador' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Perfil' })).toHaveAttribute('aria-current', 'page');
     fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
-    expect(screen.queryByRole('region', { name: 'Perfil do amigo' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Perfil do jogador' })).toBeNull();
     expect(screen.getByRole('region', { name: 'Início' })).toBeVisible();
+  });
+
+  it('abre o perfil de um jogador do placar e volta para o perfil de antes (#308)', () => {
+    const send = vi.fn(() => Promise.resolve({ status: 'ok' as const }));
+    const players = [
+      { ...match(1).player, puuid: testFriend.puuid, gameName: 'Amigo', tagLine: 'BR1', teamId: 100 },
+      { ...match(1).player, puuid: 'outro', gameName: 'Outro', tagLine: 'BR1', teamId: 200, win: false },
+      { ...match(1).player, puuid: 'fake', gameName: 'Victor', tagLine: 'BR1', teamId: 200, win: false },
+    ];
+    const playerProfile = {
+      summoner: { ...summoner, gameName: 'Amigo', puuid: testFriend.puuid }, privateProfile: false, ranked: null, championMasteries: [],
+      matchHistory: { matches: [match(1)], hasMore: false },
+    };
+    vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, send,
+      state: makeState({ summoner, friends: [testFriend], playerProfile, matchDetails: { ...match(1), remake: false, players } }) });
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /^Ver perfil de Amigo/ }));
+    const profile = () => within(screen.getByRole('region', { name: 'Perfil do jogador' }));
+    fireEvent.click(profile().getByRole('tab', { name: 'Histórico' }));
+    fireEvent.click(within(profile().getByRole('list', { name: 'Partidas' })).getAllByRole('button')[0]);
+    fireEvent.click(profile().getByRole('button', { name: 'Ver perfil de Outro#BR1' }));
+    expect(send).toHaveBeenLastCalledWith({ type: 'openPlayerProfile', puuid: 'outro' });
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+    expect(send).toHaveBeenLastCalledWith({ type: 'openPlayerProfile', puuid: testFriend.puuid });
+    // O jogador logado tem a própria página de perfil.
+    fireEvent.click(profile().getByRole('tab', { name: 'Histórico' }));
+    fireEvent.click(within(profile().getByRole('list', { name: 'Partidas' })).getAllByRole('button')[0]);
+    fireEvent.click(profile().getByRole('button', { name: 'Ver perfil de Victor#BR1' }));
+    expect(screen.getByRole('region', { name: 'Perfil' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Perfil do jogador' })).toBeNull();
+  });
+
+  it('abre o perfil pelo card de outro jogador do lobby (#308)', () => {
+    const send = vi.fn(() => Promise.resolve({ status: 'ok' as const }));
+    const lobby = { ...testLobby, members: [testLobby.members[0], { ...testLobby.members[0], puuid: testFriend.puuid, summonerId: testFriend.summonerId, isLeader: false }] };
+    vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, send,
+      state: { ...testState, gameflowPhase: 'Lobby', lobby, friends: [testFriend] } });
+    render(<App />);
+    const players = within(screen.getByRole('list', { name: 'Jogadores no lobby' }));
+    expect(players.getAllByRole('button', { name: /^Ver perfil de/ })).toHaveLength(1);
+    fireEvent.click(players.getByRole('button', { name: /^Ver perfil de Amigo/ }));
+    expect(send).toHaveBeenCalledWith({ type: 'openPlayerProfile', puuid: testFriend.puuid });
+    expect(screen.getByRole('region', { name: 'Perfil do jogador' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+    expect(screen.getByRole('list', { name: 'Jogadores no lobby' })).toBeVisible();
   });
 });

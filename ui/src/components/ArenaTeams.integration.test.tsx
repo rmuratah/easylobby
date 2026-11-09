@@ -92,4 +92,12 @@ describe('lobby da Arena com equipes (#224)', () => {
     hello({ lobby: { ...arenaLobby, isLeader: false } });
     expect(panel().queryByRole('button', { name: /^Ações para / })).not.toBeInTheDocument();
   });
+
+  it('abre o perfil pela vaga de outro jogador (#308)', () => {
+    render(<App />);
+    hello({ lobby: arenaLobby });
+    expect(panel().getAllByRole('button', { name: /^Ver perfil de/ })).toHaveLength(1);
+    fireEvent.click(panel().getByRole('button', { name: 'Ver perfil de Jogador' }));
+    expect(request().command).toEqual({ type: 'openPlayerProfile', puuid: 'amigo' });
+  });
 });
