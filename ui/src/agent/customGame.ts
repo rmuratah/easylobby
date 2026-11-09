@@ -1,3 +1,4 @@
+import type { AramMap } from '../bindings/AramMap';
 import type { CustomGameOptions } from '../bindings/CustomGameOptions';
 import type { CustomGameSettings } from '../bindings/CustomGameSettings';
 import type { CustomMap } from '../bindings/CustomMap';
@@ -12,22 +13,37 @@ import type { SpectatorPolicy } from '../bindings/SpectatorPolicy';
 export const CUSTOM_NAME_MAX = 64;
 export const TEAM_SIZES = [1, 2, 3, 4, 5] as const;
 
-export const customMapNames = {
+const customMapNames = {
   summonersRift: "Summoner's Rift",
   howlingAbyss: 'Abismo Uivante',
   classicRift: 'Rift Clássico',
 } satisfies Record<CustomMap, string>;
 
 /**
- * Modos da aba Personalizada, na ordem do client oficial (#270). O Mapa
- * aleatório, com o Abismo Uivante, entra no #271.
+ * Modos da aba Personalizada, na ordem do client oficial (#270, #271). O Mapa
+ * aleatório é o Abismo Uivante com a seleção de mapas.
  */
-export const FORM_MAPS = ['summonersRift', 'classicRift'] as const satisfies readonly CustomMap[];
+export const FORM_MAPS = ['summonersRift', 'howlingAbyss', 'classicRift'] as const satisfies readonly CustomMap[];
+
+/** Nome de cada modo nos cards do formulário. */
+export const formMapNames = {
+  summonersRift: "Summoner's Rift",
+  howlingAbyss: 'Mapa aleatório',
+  classicRift: 'Rift Clássico',
+} satisfies Record<CustomMap, string>;
+
+/** "Seleção de mapas" do Mapa aleatório, na ordem do client oficial (#271). */
+export const aramMapNames = {
+  howlingAbyss: 'Howling Abyss',
+  koeshinCrossing: 'Travessia de Koeshin',
+  butchersBridge: 'Ponte da Carnificina',
+  random: 'Mapa aleatório',
+} satisfies Record<AramMap, string>;
 
 /** Tipos de jogo de cada modo, na ordem e com os nomes do client oficial. */
 export const pickTypesByMap: Record<CustomMap, readonly CustomPickType[]> = {
   summonersRift: ['blindPick', 'draftMode', 'allRandom', 'tournamentDraft'],
-  howlingAbyss: ['allRandom', 'blindPick', 'tournamentDraft', 'draftMode'],
+  howlingAbyss: ['allRandom', 'aramMayhem', 'blindPick', 'tournamentDraft', 'draftMode'],
   classicRift: ['draftMode', 'blindPick'],
 };
 
@@ -36,6 +52,7 @@ const pickTypeNames = {
   draftMode: 'Modo alternado',
   allRandom: 'Todos aleatórios',
   tournamentDraft: 'Alternada Torneio',
+  aramMayhem: 'ARAM: Desordem',
 } satisfies Record<CustomPickType, string>;
 
 /** O Rift Clássico chama a alternada de "Escolha Alternada". */
@@ -58,6 +75,7 @@ export function defaultCustomOptions(summonerName: string | undefined): CustomGa
     password: '',
     map: 'summonersRift',
     pickType: 'blindPick',
+    aramMap: 'howlingAbyss',
     teamSize: 5,
     spectators: 'all',
     hideFromPublicList: false,
@@ -79,9 +97,13 @@ export function customOptionsProblem(options: CustomGameOptions): string | null 
   return null;
 }
 
-/** Linha de resumo: "Summoner's Rift · 5v5 · Escolha alternada". */
-export function customOptionsSummary(options: Pick<CustomGameOptions, 'map' | 'pickType' | 'teamSize'>): string {
-  return [customMapNames[options.map], `${options.teamSize}v${options.teamSize}`, pickTypeName(options.map, options.pickType)].join(' · ');
+/**
+ * Linha de resumo: "Summoner's Rift · 5v5 · Escolha alternada". No Mapa
+ * aleatório, o mapa é o da seleção de mapas.
+ */
+export function customOptionsSummary(options: Pick<CustomGameOptions, 'map' | 'pickType' | 'teamSize' | 'aramMap'>): string {
+  const map = options.map === 'howlingAbyss' ? aramMapNames[options.aramMap] : customMapNames[options.map];
+  return [map, `${options.teamSize}v${options.teamSize}`, pickTypeName(options.map, options.pickType)].join(' · ');
 }
 
 const PRACTICE_TOOL = 'PRACTICETOOL';

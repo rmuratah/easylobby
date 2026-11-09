@@ -359,12 +359,39 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByText('Rift Clássico · 3v3 · Escolha Alternada · Com senha')).toBeInTheDocument();
     fireEvent.click(button('Confirmar'));
     expect(request().command).toEqual({ type: 'createCustomGame', options: {
-      name: 'Treino da firma', password: 'segredo', map: 'classicRift', pickType: 'draftMode', teamSize: 3,
+      name: 'Treino da firma', password: 'segredo', map: 'classicRift', pickType: 'draftMode', aramMap: 'howlingAbyss', teamSize: 3,
       spectators: 'friendsOnly', hideFromPublicList: true, spectatorDelay: false,
     } });
     expect(panel().getByRole('status')).toHaveTextContent('Criando a partida personalizada');
     await ok();
     expect(panel().getByRole('status')).toHaveTextContent('Partida personalizada criada');
+  });
+
+  it('cria a personalizada no Mapa aleatório com a seleção de mapas (#271)', async () => {
+    render(<App />);
+    hello();
+    fireEvent.click(panel().getByRole('tab', { name: 'Personalizada' }));
+    expect(panel().queryByRole('combobox', { name: 'Seleção de mapas' })).not.toBeInTheDocument();
+    fireEvent.click(radio('Mapa aleatório'));
+    const pick = panel().getByRole('combobox', { name: 'Tipo de jogo' });
+    expect(within(pick).getAllByRole('option').map(o => o.textContent))
+      .toEqual(['Todos aleatórios', 'ARAM: Desordem', 'Escolha às Cegas', 'Alternada Torneio', 'Modo alternado']);
+    const maps = panel().getByRole('combobox', { name: 'Seleção de mapas' });
+    expect(maps).toHaveValue('howlingAbyss');
+    expect(within(maps).getAllByRole('option').map(o => o.textContent))
+      .toEqual(['Howling Abyss', 'Travessia de Koeshin', 'Ponte da Carnificina', 'Mapa aleatório']);
+    fireEvent.change(pick, { target: { value: 'aramMayhem' } });
+    fireEvent.change(maps, { target: { value: 'butchersBridge' } });
+    expect(panel().getByText('Ponte da Carnificina · 5v5 · ARAM: Desordem')).toBeInTheDocument();
+    fireEvent.click(button('Confirmar'));
+    expect(request().command).toMatchObject({ type: 'createCustomGame', options: {
+      map: 'howlingAbyss', pickType: 'aramMayhem', aramMap: 'butchersBridge',
+    } });
+    await ok();
+    // A Desordem só existe no Mapa aleatório: no Summoner's Rift, o tipo volta para o primeiro.
+    fireEvent.click(radio("Summoner's Rift"));
+    expect(pick).toHaveValue('blindPick');
+    expect(panel().queryByRole('combobox', { name: 'Seleção de mapas' })).not.toBeInTheDocument();
   });
 
   it('não mostra a aba Personalizada ao trocar a fila de um lobby', () => {

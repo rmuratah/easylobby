@@ -7,4 +7,5 @@ export type CustomPickType =
   | "blindPick"
   | "draftMode"
   | "allRandom"
-  | "tournamentDraft";
+  | "tournamentDraft"
+  | "aramMayhem";

@@ -567,7 +567,7 @@ pub(super) fn write_matchmaking(
 mod tests {
     use super::super::tests::*;
     use super::*;
-    use crate::custom_game::{CustomMap, CustomPickType, SpectatorPolicy};
+    use crate::custom_game::{AramMap, CustomMap, CustomPickType, SpectatorPolicy};
     use crate::lobby::LOBBY_PATH;
     use crate::matchmaking::SearchState;
     use crate::matchmaking::SEARCH_PATH;
@@ -636,6 +636,7 @@ mod tests {
             password: String::new(),
             map: CustomMap::SummonersRift,
             pick_type: CustomPickType::BlindPick,
+            aram_map: AramMap::HowlingAbyss,
             team_size: 5,
             spectators: SpectatorPolicy::None,
             hide_from_public_list: false,
