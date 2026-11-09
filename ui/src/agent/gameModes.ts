@@ -6,8 +6,8 @@ import { createLobbyCommand, queueKey } from './queueOptions';
 /**
  * Tela de escolha de modo de jogo (#210): abas, modos (cards) e submodos
  * (filas). Os modos fixos e os ids das filas seguem o mapa da #209/#210
- * (gravação 16.22); o card Eventos junta as outras filas abertas que o agente
- * lista.
+ * (gravação 16.22); o card Summoner's Rift Clássico (antes Eventos, #280) junta
+ * as outras filas abertas que o agente lista.
  */
 export type ModeTabId = 'pvp' | 'coop' | 'training' | 'custom';
 export type ModeId = 'summonersRift' | 'aram' | 'arena' | 'events' | 'coopSummonersRift' | 'coopEvents' | 'tutorial' | 'practiceTool';
@@ -86,7 +86,7 @@ const trainingModes: GameMode[] = [
   },
 ];
 
-/** `queueId` com lugar fixo na tela; o resto das filas abertas vai para Eventos. */
+/** `queueId` com lugar fixo na tela; o resto das filas abertas vai para o card Summoner's Rift Clássico. */
 const fixedQueueIds = new Set([...pvpModes, ...coopModes].flatMap(mode => mode.submodes.map(s => s.queueId)));
 
 function fixedMode(mode: FixedMode, queues: GameQueue[]): GameMode {
@@ -101,16 +101,33 @@ function fixedMode(mode: FixedMode, queues: GameQueue[]): GameMode {
   return { id: mode.id, name: mode.name, description: mode.description, icon: mode.icon, available: submodes.some(s => s.available), submodes };
 }
 
-function eventsMode(id: ModeId, queues: GameQueue[]): GameMode | null {
+type EventsCard = Pick<GameMode, 'name' | 'icon' | 'description'> & {
+  /** Usa a descrição da LCU como nome da fila (o nome dela vem interno, como "Jade"). */
+  nameFromDescription?: boolean;
+  /** Descrição curta no lugar da da LCU. */
+  submodeDescription?: string;
+};
+
+/** Card das filas sem lugar fixo: hoje são as filas do 5v5 clássico (#280). */
+const eventsCards: Record<'events' | 'coopEvents', EventsCard> = {
+  events: { name: "Summoner's Rift Clássico", icon: 'SR', description: 'O 5 contra 5 clássico e as outras filas abertas agora.' },
+  coopEvents: {
+    name: "Summoner's Rift Clássico", icon: 'SR', description: 'O 5 contra 5 clássico contra bots.',
+    nameFromDescription: true, submodeDescription: 'Seu time contra bots.',
+  },
+};
+
+function eventsMode(id: 'events' | 'coopEvents', queues: GameQueue[]): GameMode | null {
+  const { nameFromDescription, submodeDescription, ...card } = eventsCards[id];
   const submodes = queues.filter(q => q.available && !fixedQueueIds.has(q.queueId)).map((q): Submode => ({
     queueId: q.queueId,
-    name: q.name || q.description || `Fila ${q.queueId}`,
-    description: q.description && q.description !== q.name ? q.description : 'Modo por tempo limitado.',
+    name: (nameFromDescription && q.description) || q.name || q.description || `Fila ${q.queueId}`,
+    description: submodeDescription ?? (q.description && q.description !== q.name ? q.description : 'Modo por tempo limitado.'),
     available: true,
     command: createLobbyCommand(queueKey(q)),
   }));
   if (!submodes.length) return null;
-  return { id, name: 'Eventos', icon: 'EV', description: 'Modos por tempo limitado abertos agora.', available: true, submodes };
+  return { id, ...card, available: true, submodes };
 }
 
 /** Monta as abas a partir da lista de filas do agente. */

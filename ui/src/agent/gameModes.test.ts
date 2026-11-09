@@ -33,17 +33,22 @@ describe('abas da tela de escolha de modo', () => {
       ["Summoner's Rift", true, [[480, true], [400, true], [440, true], [420, true]]],
       ['ARAM', true, [[450, true], [2400, true]]],
       ['Arena', false, [[1750, false]]],
-      ['Eventos', true, [[4310, true]]],
+      ["Summoner's Rift Clássico", true, [[4310, true]]],
     ]);
     expect(summary(tab(tabs, 'coop'))).toEqual([
       ["Summoner's Rift", true, [[870, true], [880, true], [890, true]]],
-      ['Eventos', true, [[4320, true]]],
+      ["Summoner's Rift Clássico", true, [[4320, true]]],
     ]);
     const training = tab(tabs, 'training').modes;
     expect(training.map(m => [m.name, m.start])).toEqual([
       ['Tutorial', { type: 'startTutorial' }],
       ['Modo de Treino', { type: 'startPracticeTool' }],
     ]);
+  });
+
+  it('mostra a fila clássica do Co-op pela descrição, com descrição curta', () => {
+    const [, classic] = tab(buildModeTabs(recorded), 'coop').modes;
+    expect(classic.submodes.map(s => [s.name, s.description])).toEqual([['Clássico (Coop vs. IA)', 'Seu time contra bots.']]);
   });
 
   it('usa os nomes do design e o comando certo para cada fila', () => {
@@ -56,7 +61,7 @@ describe('abas da tela de escolha de modo', () => {
     ]);
   });
 
-  it('sem fila de evento aberta, não mostra o card Eventos', () => {
+  it("sem fila de evento aberta, não mostra o card Summoner's Rift Clássico", () => {
     const tabs = buildModeTabs(recorded.filter(q => q.queueId < 4000));
     expect(tab(tabs, 'pvp').modes.map(m => m.id)).toEqual(['summonersRift', 'aram', 'arena']);
     expect(tab(tabs, 'coop').modes.map(m => m.id)).toEqual(['coopSummonersRift']);

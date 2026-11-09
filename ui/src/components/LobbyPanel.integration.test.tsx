@@ -288,8 +288,8 @@ describe('lobby pelo único /ws do App', () => {
   it('oferece a ARAM: Desordem e as outras filas da LCU, cria pelo id e troca de volta para uma fixa', async () => {
     render(<App />);
     hello({ queues: [desordem, jade, coop] });
-    // A Desordem vai para o card ARAM; a Jade, para Eventos.
-    expect(panel().getByRole('group', { name: 'Eventos' })).toHaveTextContent('Jade');
+    // A Desordem vai para o card ARAM; a Jade, para o Summoner's Rift Clássico.
+    expect(panel().getByRole('group', { name: "Summoner's Rift Clássico" })).toHaveTextContent('Jade');
     fireEvent.click(radio('ARAM Desordem'));
     await settle();
     expect(socket().send).not.toHaveBeenCalled();
