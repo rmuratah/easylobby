@@ -34,7 +34,7 @@ describe('escolhas que faltam antes da busca (#334)', () => {
     ]);
   });
   it('pede as duas posições e os campeões no Jogo Dinâmico', () => {
-    const slot = { championId: 1, skinId: 0, position: 'top' as const, spell1Id: 4, spell2Id: 14, runeStyleId: 0, runeSubStyleId: 0, keystoneId: 0 };
+    const slot = { championId: 1, skinId: 0, position: 'top' as const, spell1Id: 4, spell2Id: 14, runeStyleId: 0, runeSubStyleId: 0, keystoneId: 0, perkIds: [] };
     const lobby: Lobby = { ...testLobby, showPositionSelector: false, showQuickPlaySlots: true, members: [
       member({ playerSlots: [slot] }),
     ] };
