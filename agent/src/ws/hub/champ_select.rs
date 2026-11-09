@@ -173,13 +173,24 @@ impl Hub {
             return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
         }
         let sent = match intent {
-            ActionIntent::Hover => champ_select::hover(&client, action_id, champion_id).await,
+            ActionIntent::Hover => champ_select::hover(&client, action_id, champion_id)
+                .await
+                .map(|()| true),
             ActionIntent::Confirm => champ_select::confirm(&client, action_id, champion_id).await,
         };
-        if let Err(error) = sent {
-            return CommandResult::error(ErrorCode::Lcu, error.to_string());
-        }
+        let confirmed = match sent {
+            Ok(confirmed) => confirmed,
+            Err(error) => return CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        };
         self.refresh_champ_select().await;
+        if !confirmed {
+            // A LCU aceitou os pedidos mas a ação continua aberta (#311):
+            // melhor um erro na tela do que um botão que não faz nada.
+            return CommandResult::error(
+                ErrorCode::Lcu,
+                "a LCU aceitou o pedido, mas não confirmou a ação",
+            );
+        }
         CommandResult::Ok
     }
 
