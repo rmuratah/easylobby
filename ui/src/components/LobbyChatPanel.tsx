@@ -16,11 +16,15 @@ function senderName(state: AgentState, message: LobbyChatMessage): string {
 
 const cardClass = 'flex w-full min-w-0 flex-col gap-2 rounded-panel surface p-4 text-ink shadow-soft animate-fade-up';
 
-/** Chat do grupo no lobby (#206), embaixo da busca de partida e do card do grupo. */
+/**
+ * Chat do grupo no lobby (#206), embaixo da busca de partida e do card do grupo.
+ * Sozinho no lobby o card some (#285): como no client oficial, a sala só serve com 2 ou mais membros.
+ */
 export function LobbyChatPanel({ connection, send }: Props) {
   const state = connection.state;
   const lcu = state?.lcu;
   if (connection.status !== 'connected' || !state || lcu?.state !== 'connected' || !state.lobby) return null;
+  if (state.lobby.members.length < 2) return null;
   if (!state.lobbyChat) return (
     <section aria-label="Chat do grupo" className={cardClass}>
       <h2 className="px-1 text-section font-semibold">Chat do grupo</h2>
