@@ -19,6 +19,7 @@ import { QuickPlaySlots } from './QuickPlaySlots';
 import { LobbyRank } from './LobbyRank';
 import { LobbyOpenToggle } from './LobbyOpenToggle';
 import { LobbyLinkButton } from './LobbyLinkButton';
+import { LobbyMemberMenu } from './LobbyMemberMenu';
 import { PracticeLobby } from './PracticeLobby';
 import { isTutorialQueue } from '../agent/training';
 
@@ -118,6 +119,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   const canLeave = !state.readyCheck && !!summoner && !!lobby
     && (matchmaking ? penalty && (phase === 'Lobby' || phase === 'Matchmaking') : phase === 'Lobby');
   const canSetPositions = !state.readyCheck && !!localMember && !!lobby?.showPositionSelector && !matchmaking && phase === 'Lobby';
+  // Tornar líder e remover do grupo (#267): fora da fila e da partida encontrada.
+  const canManageMembers = !state.readyCheck && !matchmaking && phase === 'Lobby';
   // Jogo Dinâmico (#218): posições e campeões escolhidos no próprio card.
   const canSetSlots = !state.readyCheck && !!localMember && !!lobby?.showQuickPlaySlots && !matchmaking && phase === 'Lobby';
   // Posições que o LoL tem (ou acabou de aceitar, antes do evento chegar).
@@ -350,6 +353,10 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
                     </li>
                   ))}
                 </ul>
+              )}
+              {/* Tornar líder e remover do grupo (#267): só o líder, nos cards dos outros. */}
+              {lobby.isLeader && !me && (
+                <LobbyMemberMenu name={name} summonerId={member.summonerId} send={send} disabled={!canManageMembers} />
               )}
             </li>
           );

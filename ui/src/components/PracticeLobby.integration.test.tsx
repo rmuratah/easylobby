@@ -150,3 +150,23 @@ describe('lobby da partida personalizada (#262 e #263)', () => {
     expect(within(panel().getByRole('region', { name: 'Espectadores' })).getByRole('button', { name: 'Assistir' })).toBeDisabled();
   });
 });
+
+describe('remover e passar a liderança na personalizada (#267)', () => {
+  const ana: CustomMember = { puuid: 'ana', summonerId: 2, summonerIconId: 1, isLeader: false, bot: null };
+  it('o líder tem o menu só nos outros jogadores, e não nos bots', () => {
+    render(<App />);
+    hello({ lobby: practice({ team2: [ana, ashe] }), championCatalog: champions });
+    expect(team('Equipe 2').getAllByRole('button', { name: /^Ações para/ })).toHaveLength(1);
+    expect(team('Equipe 1').queryByRole('button', { name: /^Ações para/ })).not.toBeInTheDocument();
+    fireEvent.click(team('Equipe 2').getByRole('button', { name: /^Ações para/ }));
+    fireEvent.click(team('Equipe 2').getByRole('menuitem', { name: 'Remover do grupo' }));
+    fireEvent.click(team('Equipe 2').getByRole('button', { name: 'Remover' }));
+    expect(request().command).toEqual({ type: 'kickLobbyMember', summonerId: 2 });
+  });
+
+  it('quem não é o líder não vê o menu', () => {
+    render(<App />);
+    hello({ lobby: practice({ team2: [{ ...ana, isLeader: true }] }, false), championCatalog: champions });
+    expect(panel().queryByRole('button', { name: /^Ações para/ })).not.toBeInTheDocument();
+  });
+});

@@ -19,6 +19,7 @@ import { Avatar } from './base';
 import { cx } from './base/cx';
 import { ChampionIcon } from './ChampSelectPanel';
 import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
+import { LobbyMemberMenu } from './LobbyMemberMenu';
 import { LobbyOpenToggle } from './LobbyOpenToggle';
 import { PositionIcon } from './PositionIcon';
 
@@ -122,7 +123,7 @@ export function PracticeLobby({ lobby, state, send, canLeave, leaving, onLeave, 
                           onChampion={() => setPicking({ bot: member.bot! })}
                           onChange={change => updateBot(member.bot!, change)}
                           onRemove={() => { void command.run({ type: 'removeBot', botUuid: member.bot!.uuid }, { pending: 'Tirando o bot…', failure: 'tirar o bot' }); }} />
-                      : <PlayerRow member={member} me={member.puuid === me} state={state} />}
+                      : <PlayerRow member={member} me={member.puuid === me} state={state} send={send} manage={lobby.isLeader} disabled={!phaseOk} />}
                   </li>
                 ))}
                 {Array.from({ length: free }, (_, index) => (
@@ -171,7 +172,7 @@ export function PracticeLobby({ lobby, state, send, canLeave, leaving, onLeave, 
           {custom.spectators.length > 0 ? (
             <ul aria-label="Jogadores assistindo" className="grid gap-2 @min-[44rem]:grid-cols-2">
               {custom.spectators.map((member, index) => (
-                <li key={member.puuid || index}><PlayerRow member={member} me={member.puuid === me} state={state} /></li>
+                <li key={member.puuid || index}><PlayerRow member={member} me={member.puuid === me} state={state} send={send} manage={lobby.isLeader} disabled={!phaseOk} /></li>
               ))}
             </ul>
           ) : <p className="px-1 text-caption text-muted">Ninguém assistindo.</p>}
@@ -210,7 +211,10 @@ export function PracticeLobby({ lobby, state, send, canLeave, leaving, onLeave, 
   );
 }
 
-function PlayerRow({ member, me, state }: { member: CustomMember; me: boolean; state: AgentState }) {
+function PlayerRow({ member, me, state, send, manage = false, disabled = false }: {
+  member: CustomMember; me: boolean; state: AgentState;
+  send: AgentClient['send']; manage?: boolean; disabled?: boolean;
+}) {
   const summoner = state.summoner;
   const name = me && summoner?.gameName ? `${summoner.gameName}${summoner.tagLine ? `#${summoner.tagLine}` : ''}`
     : playerName(member.puuid, member.summonerId, state.friends);
@@ -225,6 +229,8 @@ function PlayerRow({ member, me, state }: { member: CustomMember; me: boolean; s
           <CrownIcon size={14} />
         </span>
       )}
+      {/* Tornar líder e remover do grupo (#267): só o líder, nos outros jogadores. */}
+      {manage && !me && <LobbyMemberMenu name={name} summonerId={member.summonerId} send={send} disabled={disabled} />}
     </div>
   );
 }
