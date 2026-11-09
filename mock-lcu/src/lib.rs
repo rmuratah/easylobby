@@ -39,6 +39,7 @@ pub mod custom;
 pub mod invitations;
 pub mod lobby;
 pub mod matchmaking;
+pub mod members;
 pub mod perks;
 pub mod state;
 pub mod summoner_spells;
@@ -454,6 +455,17 @@ impl MockLcu {
             .to_owned()
     }
 
+    /// Um amigo entra no lobby atual (#267), como a rota
+    /// [`members::SIMULATE_JOIN`]. Devolve o `summonerId` dele, ou `None`
+    /// fora de lobby ou com o lobby cheio.
+    pub fn join_lobby_member(&self) -> Option<u64> {
+        let (response, events) = members::simulate_join(&self.shared.state());
+        for event in events {
+            emit(&self.shared, event);
+        }
+        (response.status == 200).then(|| response.body["summonerId"].as_u64())?
+    }
+
     /// Um aliado pede uma troca ao jogador na seleção (#25), como a rota
     /// [`swaps::SIMULATE`]. Devolve o id da troca, ou `None` sem seleção ou
     /// sem troca disponível desse tipo.
@@ -744,6 +756,29 @@ async fn handle_request(
                 emit(&shared, event);
             }
             response
+        }
+        // Remover membro e passar a liderança (#267).
+        (&Method::POST, members::SIMULATE_JOIN) => {
+            let (response, events) = members::simulate_join(&shared.state());
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::POST, p) if p.starts_with(members::MEMBERS) => {
+            let handled = members::action(&shared.state(), &p[members::MEMBERS.len()..]);
+            match handled {
+                Some((response, events)) => {
+                    for event in events {
+                        emit(&shared, event);
+                    }
+                    response
+                }
+                None => Response::error(
+                    501,
+                    format!("mock-lcu: {method} {path} não está implementado"),
+                ),
+            }
         }
         // Equipe e vaga na Arena (#224).
         (&Method::PUT, lobby::SUBTEAM_DATA) => {

@@ -664,6 +664,45 @@ pub async fn set_lobby_open(lcu: &LcuClient, open: bool) -> Result<(), LcuError>
         .map(|_| ())
 }
 
+/// O que o líder faz com outro membro do lobby (#267).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberAction {
+    /// Tira o membro do grupo (`kick`).
+    Kick,
+    /// Passa a liderança para o membro (`promote`).
+    Promote,
+}
+
+impl MemberAction {
+    fn lcu_name(self) -> &'static str {
+        match self {
+            MemberAction::Kick => "kick",
+            MemberAction::Promote => "promote",
+        }
+    }
+}
+
+/// Caminho de [`member_action`]: `/lol-lobby/v2/lobby/members/{summonerId}/kick`
+/// ou `.../promote`.
+pub fn member_action_path(summoner_id: u64, action: MemberAction) -> String {
+    format!("{LOBBY_PATH}/members/{summoner_id}/{}", action.lcu_name())
+}
+
+/// Remove o membro `summoner_id` do grupo ou passa a liderança para ele
+/// (`POST /lol-lobby/v2/lobby/members/{summonerId}/kick` ou `/promote`, #267).
+/// Só o líder pode; a LCU recusa os outros. O caminho usa o `summonerId`,
+/// como na lista `/help` da LCU; falta conferir no LoL real. O lobby novo
+/// chega pelo WAMP (ou por [`current_lobby`]).
+pub async fn member_action(
+    lcu: &LcuClient,
+    summoner_id: u64,
+    action: MemberAction,
+) -> Result<(), LcuError> {
+    lcu.post::<_, Option<Value>>(&member_action_path(summoner_id, action), &json!({}))
+        .await
+        .map(|_| ())
+}
+
 /// Põe o jogador logado na vaga `slot` do lobby da Arena
 /// (`PUT /lol-lobby/v2/lobby/subteamData`, #224). A LCU recusa fora de
 /// lobby e numa fila sem equipes. O lobby novo chega pelo WAMP (ou por

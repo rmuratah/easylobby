@@ -30,6 +30,8 @@ export type Command =
   | { "type": "createCustomGame", options: CustomGameOptions, }
   | { "type": "setPlayerSlots", slots: Array<PlayerSlotInput>, }
   | { "type": "setLobbyOpen", open: boolean, }
+  | { "type": "kickLobbyMember", summonerId: number, }
+  | { "type": "promoteLobbyMember", summonerId: number, }
   | { "type": "createLobbyLink" }
   | { "type": "setSubteamSlot", team: number, position: number, }
   | { "type": "addBot", team: CustomTeam, championId: number, difficulty: BotDifficulty, position: Position, }

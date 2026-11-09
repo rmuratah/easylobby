@@ -312,6 +312,47 @@ impl Hub {
         }
     }
 
+    /// Remove um membro do grupo ou passa a liderança para ele (comandos
+    /// `kickLobbyMember` e `promoteLobbyMember`, #267). Só o líder pode, e só
+    /// com outro jogador do lobby (nas filas comuns ou nas equipes e
+    /// espectadores da personalizada): senão recusa sem falar com a LCU.
+    /// Relê o lobby pelo REST e publica antes de devolver.
+    pub async fn lobby_member_action(
+        &self,
+        summoner_id: u64,
+        action: lobby::MemberAction,
+    ) -> CommandResult {
+        let check = {
+            let shared = self.lock();
+            let me = shared.state.summoner.as_ref();
+            match shared.state.lobby.as_ref() {
+                None => Err("fora de lobby"),
+                Some(l) if !l.is_leader => Err(match action {
+                    lobby::MemberAction::Kick => "só o líder remove jogadores do grupo",
+                    lobby::MemberAction::Promote => "só o líder passa a liderança",
+                }),
+                Some(l) if !has_player(l, summoner_id) => Err("esse jogador não está no lobby"),
+                Some(_) if me.is_some_and(|me| me.summoner_id == summoner_id) => {
+                    Err("não dá para fazer isso com o próprio jogador")
+                }
+                Some(_) => Ok(()),
+            }
+        };
+        if let Err(message) = check {
+            return CommandResult::error(ErrorCode::InvalidCommand, message);
+        }
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        match lobby::member_action(&client, summoner_id, action).await {
+            Ok(()) => {
+                self.refresh_lobby().await;
+                CommandResult::Ok
+            }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
     /// Troca o jogador logado de equipe ou de vaga no lobby da Arena (comando
     /// `setSubteamSlot`, #224). Fora de lobby ou num lobby sem equipes,
     /// recusa sem falar com a LCU. Relê o lobby pelo REST e publica antes de
@@ -579,6 +620,20 @@ pub(super) fn write_matchmaking(
     }
     shared.state.matchmaking = matchmaking.clone();
     Some(ServerMessage::Matchmaking { matchmaking })
+}
+
+/// Se `summoner_id` é um jogador (não um bot) do lobby: em `members` ou, na
+/// personalizada, nas equipes e entre os espectadores.
+fn has_player(lobby: &Lobby, summoner_id: u64) -> bool {
+    summoner_id != 0
+        && (lobby.members.iter().any(|m| m.summoner_id == summoner_id)
+            || lobby.custom.as_ref().is_some_and(|c| {
+                c.team1
+                    .iter()
+                    .chain(&c.team2)
+                    .chain(&c.spectators)
+                    .any(|m| m.bot.is_none() && m.summoner_id == summoner_id)
+            }))
 }
 
 #[cfg(test)]
@@ -902,6 +957,68 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[tokio::test]
+    async fn remover_e_promover_so_o_lider_com_outro_jogador() {
+        use crate::lobby::MemberAction::{Kick, Promote};
+        let hub = Hub::new();
+        let code = |result: CommandResult| match result {
+            CommandResult::Error { code, .. } => Some(code),
+            CommandResult::Ok => None,
+        };
+        for action in [Kick, Promote] {
+            assert_eq!(
+                code(hub.lobby_member_action(2, action).await),
+                Some(ErrorCode::InvalidCommand),
+                "fora de lobby"
+            );
+        }
+        hub.set_summoner(Some(
+            serde_json::from_value(json!({
+                "gameName": "Eu", "tagLine": "BR1", "puuid": "p", "summonerId": 1,
+                "summonerLevel": 30, "profileIconId": 1,
+            }))
+            .unwrap(),
+        ));
+        let lobby = |leader: bool| {
+            json!({
+                "gameConfig": {"queueId": 400},
+                "localMember": {"puuid": "p", "summonerId": 1, "isLeader": leader},
+                "members": [
+                    {"puuid": "p", "summonerId": 1, "isLeader": leader},
+                    {"puuid": "amigo", "summonerId": 2, "isLeader": !leader},
+                ],
+            })
+        };
+        hub.apply(event(LOBBY_PATH, EventType::Create, lobby(false)))
+            .await;
+        for action in [Kick, Promote] {
+            assert_eq!(
+                code(hub.lobby_member_action(2, action).await),
+                Some(ErrorCode::InvalidCommand),
+                "não é o líder"
+            );
+        }
+        hub.apply(event(LOBBY_PATH, EventType::Update, lobby(true)))
+            .await;
+        for action in [Kick, Promote] {
+            assert_eq!(
+                code(hub.lobby_member_action(1, action).await),
+                Some(ErrorCode::InvalidCommand),
+                "o próprio jogador"
+            );
+            assert_eq!(
+                code(hub.lobby_member_action(3, action).await),
+                Some(ErrorCode::InvalidCommand),
+                "quem não está no lobby"
+            );
+            assert_eq!(
+                code(hub.lobby_member_action(2, action).await),
+                Some(ErrorCode::NotConnected),
+                "um amigo do lobby, com o LoL fechado"
+            );
+        }
     }
 
     #[tokio::test]
