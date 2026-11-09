@@ -38,8 +38,15 @@ type Selection = { tab: ModeTabId; mode: GameMode['id'] | null; queueId: number 
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 const primaryPill = `inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full px-6 text-body font-semibold transition-all disabled:cursor-not-allowed bg-accent text-on-accent shadow-glow enabled:hover:-translate-y-0.5 disabled:bg-raised disabled:text-muted disabled:shadow-none ${focusRing}`;
 
-/** Sigla no lugar do ícone do modo, até as imagens finais entrarem (#210). */
+/** Ícone do modo (#294); sem imagem, a sigla. Modo fechado fica acinzentado. */
 function ModeIcon({ mode, size = 'md' }: { mode: GameMode; size?: 'md' | 'lg' }) {
+  const box = size === 'lg' ? 'size-14' : 'size-11';
+  if (mode.image) {
+    return (
+      <img src={mode.image} alt="" aria-hidden="true" draggable={false}
+        className={cx('shrink-0 object-contain', box, !mode.available && 'opacity-50 grayscale')} />
+    );
+  }
   return (
     <span aria-hidden="true" className={cx('flex shrink-0 items-center justify-center rounded-tile font-semibold tracking-wide',
       mode.available ? 'bg-primary-gradient text-on-accent' : 'bg-raised text-muted',

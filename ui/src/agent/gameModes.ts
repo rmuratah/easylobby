@@ -2,6 +2,13 @@ import type { Command } from '../bindings/Command';
 import type { GameQueue } from '../bindings/GameQueue';
 import type { Queue } from '../bindings/Queue';
 import { createLobbyCommand, queueKey } from './queueOptions';
+import aramImage from '../assets/modes/aram.png';
+import arenaImage from '../assets/modes/arena.png';
+import coopImage from '../assets/modes/coop-ia.png';
+import classicRiftImage from '../assets/modes/summoners-rift-classico.png';
+import summonersRiftImage from '../assets/modes/summoners-rift.png';
+import practiceToolImage from '../assets/modes/treino.png';
+import tutorialImage from '../assets/modes/tutorial.png';
 
 /**
  * Tela de escolha de modo de jogo (#210): abas, modos (cards) e submodos
@@ -28,8 +35,10 @@ export type GameMode = {
   id: ModeId;
   name: string;
   description: string;
-  /** Sigla no lugar do ícone, até as imagens finais entrarem. */
+  /** Sigla do modo: aparece no lugar do ícone se o modo não tiver imagem (#294). */
   icon: string;
+  /** Ícone do modo (#294). */
+  image?: string;
   /** Algum submodo aberto (ou, no Treinamento, sempre). */
   available: boolean;
   submodes: Submode[];
@@ -39,11 +48,11 @@ export type GameMode = {
 export type ModeTab = { id: ModeTabId; label: string; modes: GameMode[] };
 
 type FixedSubmode = { queueId: number; queue?: Queue; name: string; description: string };
-type FixedMode = { id: ModeId; name: string; description: string; icon: string; submodes: FixedSubmode[] };
+type FixedMode = { id: ModeId; name: string; description: string; icon: string; image?: string; submodes: FixedSubmode[] };
 
 const pvpModes: FixedMode[] = [
   {
-    id: 'summonersRift', name: "Summoner's Rift", icon: 'SR', description: 'O mapa clássico: 5 contra 5 em três rotas.',
+    id: 'summonersRift', name: "Summoner's Rift", icon: 'SR', image: summonersRiftImage, description: 'O mapa clássico: 5 contra 5 em três rotas.',
     submodes: [
       { queueId: 480, queue: 'swiftplay', name: 'Partida Dinâmica', description: 'Partidas mais curtas, com campeões e cargos escolhidos antes da fila.' },
       { queueId: 400, queue: 'normalDraft', name: 'Partida Alternada', description: 'Bans e escolhas alternadas, sem valer ranque.' },
@@ -52,21 +61,21 @@ const pvpModes: FixedMode[] = [
     ],
   },
   {
-    id: 'aram', name: 'ARAM', icon: 'AR', description: 'Uma rota só, campeões aleatórios, no Abismo Uivante.',
+    id: 'aram', name: 'ARAM', icon: 'AR', image: aramImage, description: 'Uma rota só, campeões aleatórios, no Abismo Uivante.',
     submodes: [
       { queueId: 450, queue: 'aram', name: 'ARAM Normal', description: 'O ARAM de sempre.' },
       { queueId: 2400, name: 'ARAM Desordem', description: 'ARAM com aprimoramentos ao longo da partida.' },
     ],
   },
   {
-    id: 'arena', name: 'Arena', icon: 'AN', description: 'Combates rápidos por rodadas até sobrar um time.',
+    id: 'arena', name: 'Arena', icon: 'AN', image: arenaImage, description: 'Combates rápidos por rodadas até sobrar um time.',
     submodes: [{ queueId: 1750, name: 'Arena 3x6', description: 'Seis trios disputam rodada a rodada.' }],
   },
 ];
 
 const coopModes: FixedMode[] = [
   {
-    id: 'coopSummonersRift', name: "Summoner's Rift", icon: 'SR', description: 'Você e seu time contra bots no mapa clássico.',
+    id: 'coopSummonersRift', name: "Summoner's Rift", icon: 'SR', image: coopImage, description: 'Você e seu time contra bots no mapa clássico.',
     submodes: [
       { queueId: 870, name: 'Introdução', description: 'Bots bem fáceis, para conhecer o jogo.' },
       { queueId: 880, name: 'Iniciante', description: 'Bots para quem está começando.' },
@@ -77,11 +86,11 @@ const coopModes: FixedMode[] = [
 
 const trainingModes: GameMode[] = [
   {
-    id: 'tutorial', name: 'Tutorial', icon: 'TU', available: true, submodes: [], start: { type: 'startTutorial' },
+    id: 'tutorial', name: 'Tutorial', icon: 'TU', image: tutorialImage, available: true, submodes: [], start: { type: 'startTutorial' },
     description: 'Aprenda o básico em três partes. Escolha a parte para jogar.',
   },
   {
-    id: 'practiceTool', name: 'Modo de Treino', icon: 'MT', available: true, submodes: [], start: { type: 'startPracticeTool' },
+    id: 'practiceTool', name: 'Modo de Treino', icon: 'MT', image: practiceToolImage, available: true, submodes: [], start: { type: 'startPracticeTool' },
     description: "Teste campeões e combos sem pressão no Summoner's Rift.",
   },
 ];
@@ -106,7 +115,7 @@ function fixedMode(mode: FixedMode, queues: GameQueue[]): GameMode {
     available: true,
     command: createLobbyCommand(queueKey(q)),
   })));
-  return { id: mode.id, name: mode.name, description: mode.description, icon: mode.icon, available: submodes.some(s => s.available), submodes };
+  return { id: mode.id, name: mode.name, description: mode.description, icon: mode.icon, image: mode.image, available: submodes.some(s => s.available), submodes };
 }
 
 /** `gameMode` da Arena na LCU. */
@@ -117,7 +126,7 @@ function isOtherArena(q: GameQueue) {
   return q.available && !q.versusAi && q.gameMode === ARENA_GAME_MODE && !fixedQueueIds.has(q.queueId);
 }
 
-type EventsCard = Pick<GameMode, 'name' | 'icon' | 'description'> & {
+type EventsCard = Pick<GameMode, 'name' | 'icon' | 'image' | 'description'> & {
   /** Usa a descrição da LCU como nome da fila (o nome dela vem interno, como "Jade"). */
   nameFromDescription?: boolean;
   /** Descrição curta no lugar da da LCU. */
@@ -126,9 +135,9 @@ type EventsCard = Pick<GameMode, 'name' | 'icon' | 'description'> & {
 
 /** Card das filas sem lugar fixo: hoje são as filas do 5v5 clássico (#280). */
 const eventsCards: Record<'events' | 'coopEvents', EventsCard> = {
-  events: { name: "Summoner's Rift Clássico", icon: 'SR', description: 'O 5 contra 5 clássico e as outras filas abertas agora.' },
+  events: { name: "Summoner's Rift Clássico", icon: 'SR', image: classicRiftImage, description: 'O 5 contra 5 clássico e as outras filas abertas agora.' },
   coopEvents: {
-    name: "Summoner's Rift Clássico", icon: 'SR', description: 'O 5 contra 5 clássico contra bots.',
+    name: "Summoner's Rift Clássico", icon: 'SR', image: classicRiftImage, description: 'O 5 contra 5 clássico contra bots.',
     nameFromDescription: true, submodeDescription: 'Seu time contra bots.',
   },
 };
