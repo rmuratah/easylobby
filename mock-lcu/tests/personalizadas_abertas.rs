@@ -112,15 +112,14 @@ async fn lista_e_entra_na_personalizada_com_senha() {
     assert_eq!(names, ["5v5 da firma", "ARAM fechado", "1v1 no meio"]);
     let locked = &games[1];
     assert!(locked.has_password);
-    assert_eq!(locked.owner, "Garen Top");
+    assert_eq!(locked.owner, "Garen Top #BR1");
 
     // Sem senha, o agente nem chega na LCU; com a errada, a LCU recusa.
-    let join = |id, password: Option<&str>| Command::JoinCustomGame {
-        id,
+    let join = |party_id: &str, password: Option<&str>| Command::JoinCustomGame {
+        party_id: party_id.into(),
         password: password.map(Into::into),
-        as_spectator: None,
     };
-    send(&mut ui, 2, join(locked.id, None)).await;
+    send(&mut ui, 2, join(&locked.party_id, None)).await;
     let (_, result) = until_response(&mut ui, 2).await;
     assert!(
         matches!(
@@ -132,7 +131,7 @@ async fn lista_e_entra_na_personalizada_com_senha() {
         ),
         "{result:?}"
     );
-    send(&mut ui, 3, join(locked.id, Some("errada"))).await;
+    send(&mut ui, 3, join(&locked.party_id, Some("errada"))).await;
     let (_, result) = until_response(&mut ui, 3).await;
     assert!(
         matches!(
@@ -148,7 +147,7 @@ async fn lista_e_entra_na_personalizada_com_senha() {
     send(
         &mut ui,
         4,
-        join(locked.id, Some(mock_lcu::custom_games::PASSWORD)),
+        join(&locked.party_id, Some(mock_lcu::custom_games::PASSWORD)),
     )
     .await;
     let (before, result) = until_response(&mut ui, 4).await;

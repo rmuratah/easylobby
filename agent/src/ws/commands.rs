@@ -66,17 +66,9 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::Spectate => hub.spectate().await,
         Command::StartCustomGame => hub.start_custom_game().await,
         Command::RefreshCustomGames => hub.refresh_custom_games().await,
-        Command::JoinCustomGame {
-            id,
-            password,
-            as_spectator,
-        } => {
-            hub.join_custom_game(
-                id,
-                password.as_deref().unwrap_or_default(),
-                as_spectator.unwrap_or(false),
-            )
-            .await
+        Command::JoinCustomGame { party_id, password } => {
+            hub.join_custom_game(&party_id, password.as_deref().unwrap_or_default())
+                .await
         }
 
         // Seleção de campeões

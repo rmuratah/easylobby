@@ -751,9 +751,9 @@ async fn handle_request(
             response
         }
         (&Method::POST, p) if custom_games::join_route(p).is_some() => {
-            let id = custom_games::join_route(p).unwrap_or_default();
+            let id = custom_games::join_route(p).unwrap_or_default().to_owned();
             let body = read_json(request).await;
-            let (response, events) = custom_games::join(&shared.state(), id, &body);
+            let (response, events) = custom_games::join(&shared.state(), &id, &body);
             emit_all(&shared, events);
             response
         }

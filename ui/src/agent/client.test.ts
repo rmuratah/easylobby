@@ -65,8 +65,8 @@ beforeEach(() => {
 afterEach(() => { client.stop(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 const testCustomGame: CustomGameListing = {
-  id: 6123456789, name: '5v5 da firma', owner: 'Ahri Mid', mapId: 11, map: 'summonersRift', gameType: 'DRAFT_MODE',
-  pickType: 'draftMode', players: 3, maxPlayers: 10, spectators: 0, maxSpectators: 4, spectatorPolicy: 'all', hasPassword: true,
+  partyId: '06645d51-8137-48c7-9a29-e41cebf815dc', name: 'Partida de fake-name-0040', owner: 'fake-name-0040 #br1', mapId: 11,
+  map: 'summonersRift', players: 1, maxPlayers: 10, spectators: 0, maxSpectators: 15, spectatorPolicy: 'all', hasPassword: true,
 };
 
 describe('canal do agente', () => {

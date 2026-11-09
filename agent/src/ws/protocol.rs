@@ -620,23 +620,19 @@ pub enum Command {
     /// se a LCU trouxer a lista nova depois). Responde `notConnected` com o
     /// LoL fechado e `lcu` se a LCU recusar.
     RefreshCustomGames,
-    /// Entra na personalizada `id` da lista (#264): `POST
-    /// /lol-lobby/v1/custom-games/{id}/join`, com a senha e, com
-    /// `asSpectator`, como espectador. O lobby dela chega numa mensagem
-    /// `lobby` antes da resposta. Sem senha numa partida que a lista diz ter
-    /// senha, ou com senha de mais de 64 caracteres, responde
-    /// `invalidCommand` sem falar com a LCU. Responde `notConnected` com o
-    /// LoL fechado e `lcu` se a LCU recusar (senha errada, partida cheia ou
-    /// que já fechou).
+    /// Entra na personalizada `partyId` da lista (#264): `POST
+    /// /lol-lobby/v2/party/{partyId}/join` com a senha (`lobbyPassword`). O
+    /// lobby dela chega numa mensagem `lobby` antes da resposta. `partyId`
+    /// vazio ou com algo além de letras, números e hífens, sem senha numa
+    /// partida que a lista diz ter senha, ou com senha de mais de 64
+    /// caracteres responde `invalidCommand` sem falar com a LCU. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (senha
+    /// errada, partida cheia ou que já fechou).
     JoinCustomGame {
-        #[ts(type = "number")]
-        id: u64,
+        party_id: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         password: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        #[ts(optional)]
-        as_spectator: Option<bool>,
     },
 
     // Seleção de campeões
@@ -1122,19 +1118,17 @@ mod tests {
                 Command::RefreshCustomGames,
             ),
             (
-                json!({"type": "joinCustomGame", "id": 6_123_456_789u64}),
+                json!({"type": "joinCustomGame", "partyId": "06645d51-8137"}),
                 Command::JoinCustomGame {
-                    id: 6_123_456_789,
+                    party_id: "06645d51-8137".into(),
                     password: None,
-                    as_spectator: None,
                 },
             ),
             (
-                json!({"type": "joinCustomGame", "id": 7, "password": "segredo", "asSpectator": true}),
+                json!({"type": "joinCustomGame", "partyId": "p", "password": "segredo"}),
                 Command::JoinCustomGame {
-                    id: 7,
+                    party_id: "p".into(),
                     password: Some("segredo".into()),
-                    as_spectator: Some(true),
                 },
             ),
         ] {

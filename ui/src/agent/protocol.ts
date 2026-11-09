@@ -113,9 +113,9 @@ function customGameSettings(v: unknown): boolean {
 }
 // Personalizadas abertas (#264).
 function customGameListing(v: unknown): v is CustomGameListing {
-  return object(v) && uint(v.id) && ['name', 'owner', 'gameType'].every(k => typeof v[k] === 'string') &&
+  return object(v) && ['partyId', 'name', 'owner'].every(k => typeof v[k] === 'string') &&
     ['mapId', 'players', 'maxPlayers', 'spectators', 'maxSpectators'].every(k => uint(v[k])) &&
-    nullableString(v.map) && nullableString(v.pickType) && nullableString(v.spectatorPolicy) && typeof v.hasPassword === 'boolean';
+    nullableString(v.map) && nullableString(v.spectatorPolicy) && typeof v.hasPassword === 'boolean';
 }
 const customGames = (v: unknown): v is CustomGameListing[] | null => v === null || list(v, customGameListing);
 function customLobby(v: unknown): v is CustomLobby {

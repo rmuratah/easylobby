@@ -397,12 +397,12 @@ describe('lobby pelo único /ws do App', () => {
 
   it('lista as personalizadas abertas e entra numa com senha (#264)', async () => {
     const games: CustomGameListing[] = [
-      { id: 1001, name: '5v5 da firma', owner: 'Ahri Mid', mapId: 11, map: 'summonersRift', gameType: 'DRAFT_MODE', pickType: 'draftMode',
-        players: 3, maxPlayers: 10, spectators: 0, maxSpectators: 4, spectatorPolicy: 'all', hasPassword: false },
-      { id: 1002, name: 'ARAM fechado', owner: 'Garen Top', mapId: 12, map: 'howlingAbyss', gameType: 'ALL_RANDOM', pickType: 'allRandom',
-        players: 2, maxPlayers: 10, spectators: 1, maxSpectators: 4, spectatorPolicy: 'friendsOnly', hasPassword: true },
-      { id: 1003, name: '1v1 no meio', owner: 'Yasuo', mapId: 11, map: 'summonersRift', gameType: 'BLIND_PICK', pickType: 'blindPick',
-        players: 2, maxPlayers: 2, spectators: 0, maxSpectators: 2, spectatorPolicy: 'none', hasPassword: false },
+      { partyId: 'p-1001', name: '5v5 da firma', owner: 'Ahri Mid #BR1', mapId: 11, map: 'summonersRift',
+        players: 3, maxPlayers: 10, spectators: 0, maxSpectators: 15, spectatorPolicy: 'all', hasPassword: false },
+      { partyId: 'p-1002', name: 'ARAM fechado', owner: 'Garen Top #BR1', mapId: 12, map: 'howlingAbyss',
+        players: 2, maxPlayers: 10, spectators: 1, maxSpectators: 15, spectatorPolicy: 'all', hasPassword: true },
+      { partyId: 'p-1003', name: '1v1 no meio', owner: 'Yasuo #0010', mapId: 11, map: 'summonersRift',
+        players: 2, maxPlayers: 2, spectators: 0, maxSpectators: 15, spectatorPolicy: 'none', hasPassword: false },
     ];
     render(<App />);
     hello();
@@ -413,8 +413,8 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByRole('status')).toHaveTextContent('Buscando personalizadas');
     act(() => socket().receive({ type: 'customGames', customGames: games }));
     await ok();
-    expect(panel().getByRole('radio', { name: /^5v5 da firma, de Ahri Mid$/ })).toBeEnabled();
-    expect(panel().getByRole('radio', { name: /^ARAM fechado, de Garen Top, com senha$/ })).toBeEnabled();
+    expect(panel().getByRole('radio', { name: /^5v5 da firma, de Ahri Mid #BR1$/ })).toBeEnabled();
+    expect(panel().getByRole('radio', { name: /^ARAM fechado, de Garen Top #BR1, com senha$/ })).toBeEnabled();
     // Cheia aparece, mas não dá para escolher.
     expect(panel().getByRole('radio', { name: /1v1 no meio.*cheia/ })).toBeDisabled();
 
@@ -430,11 +430,11 @@ describe('lobby pelo único /ws do App', () => {
     const enter = () => panel().getAllByRole('button', { name: 'Entrar' }).at(-1)!;
     expect(enter()).toBeDisabled();
     fireEvent.click(panel().getByRole('radio', { name: /ARAM fechado/ }));
-    expect(panel().getByText('Garen Top · Abismo Uivante · Todos aleatórios · 2/10 jogadores')).toBeInTheDocument();
+    expect(panel().getByText('Garen Top #BR1 · Abismo Uivante · 2/10 jogadores')).toBeInTheDocument();
     expect(enter()).toBeDisabled();
     fireEvent.change(panel().getByLabelText('Senha'), { target: { value: 'senha' } });
     fireEvent.click(enter());
-    expect(request().command).toEqual({ type: 'joinCustomGame', id: 1002, password: 'senha' });
+    expect(request().command).toEqual({ type: 'joinCustomGame', partyId: 'p-1002', password: 'senha' });
     expect(panel().getByRole('status')).toHaveTextContent('Entrando na partida personalizada');
     await ok();
     expect(panel().getByRole('status')).toHaveTextContent('Você entrou na partida personalizada');
@@ -443,7 +443,7 @@ describe('lobby pelo único /ws do App', () => {
     fireEvent.click(panel().getByRole('radio', { name: /5v5 da firma/ }));
     expect(panel().queryByLabelText('Senha')).not.toBeInTheDocument();
     fireEvent.click(enter());
-    expect(request().command).toEqual({ type: 'joinCustomGame', id: 1001 });
+    expect(request().command).toEqual({ type: 'joinCustomGame', partyId: 'p-1001' });
     await ok();
     fireEvent.click(button('Atualizar'));
     expect(request().command).toEqual({ type: 'refreshCustomGames' });

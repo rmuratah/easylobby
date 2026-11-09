@@ -24,17 +24,12 @@ impl Hub {
         }
     }
 
-    /// Entra na personalizada `id` (comando `joinCustomGame`). Sem senha numa
-    /// partida que a lista diz ter senha recusa sem falar com a LCU. O lobby
-    /// chega numa mensagem `lobby` antes da resposta.
-    pub async fn join_custom_game(
-        &self,
-        id: u64,
-        password: &str,
-        as_spectator: bool,
-    ) -> CommandResult {
-        if id == 0 {
-            return invalid("personalizada sem id");
+    /// Entra na personalizada do grupo `party_id` (comando `joinCustomGame`).
+    /// Sem senha numa partida que a lista diz ter senha recusa sem falar com
+    /// a LCU. O lobby chega numa mensagem `lobby` antes da resposta.
+    pub async fn join_custom_game(&self, party_id: &str, password: &str) -> CommandResult {
+        if !custom_game_list::valid_party_id(party_id) {
+            return invalid("partyId inválido");
         }
         if password.chars().count() > MAX_PASSWORD_LEN {
             return invalid(format!("a senha passa de {MAX_PASSWORD_LEN} caracteres"));
@@ -45,14 +40,14 @@ impl Hub {
             .custom_games
             .iter()
             .flatten()
-            .any(|game| game.id == id && game.has_password);
+            .any(|game| game.party_id == party_id && game.has_password);
         if needs_password && password.is_empty() {
             return invalid("a personalizada pede senha");
         }
         let Some((client, _)) = self.begin(Resource::Lobby) else {
             return not_connected();
         };
-        match custom_game_list::join(&client, id, password, as_spectator).await {
+        match custom_game_list::join(&client, party_id, password).await {
             Ok(()) => {
                 self.refresh_lobby().await;
                 CommandResult::Ok
@@ -101,7 +96,7 @@ mod tests {
             ErrorCode::NotConnected
         );
         assert_eq!(
-            code(hub.join_custom_game(1, "", false).await),
+            code(hub.join_custom_game("p1", "").await),
             ErrorCode::NotConnected
         );
     }
@@ -114,8 +109,8 @@ mod tests {
             custom_game_list::CUSTOM_GAMES_PATH,
             EventType::Update,
             json!([
-                {"id": 1, "lobbyName": "Aberta", "hasPassword": false},
-                {"id": 2, "lobbyName": "Fechada", "hasPassword": true}
+                {"id": 0, "partyId": "p1", "lobbyName": "Aberta", "hasPassword": false},
+                {"id": 0, "partyId": "p2", "lobbyName": "Fechada", "hasPassword": true}
             ]),
         ))
         .await;
@@ -129,27 +124,31 @@ mod tests {
         ));
 
         assert_eq!(
-            code(hub.join_custom_game(2, "", false).await),
+            code(hub.join_custom_game("p2", "").await),
             ErrorCode::InvalidCommand
         );
         assert_eq!(
-            code(hub.join_custom_game(0, "", false).await),
+            code(hub.join_custom_game("", "").await),
+            ErrorCode::InvalidCommand
+        );
+        assert_eq!(
+            code(hub.join_custom_game("../lobby", "").await),
             ErrorCode::InvalidCommand
         );
         assert_eq!(
             code(
-                hub.join_custom_game(1, &"x".repeat(MAX_PASSWORD_LEN + 1), false)
+                hub.join_custom_game("p1", &"x".repeat(MAX_PASSWORD_LEN + 1))
                     .await
             ),
             ErrorCode::InvalidCommand
         );
         // Com a senha, ou numa sem senha, passa das regras (e para no LoL fechado).
         assert_eq!(
-            code(hub.join_custom_game(2, "segredo", false).await),
+            code(hub.join_custom_game("p2", "segredo").await),
             ErrorCode::NotConnected
         );
         assert_eq!(
-            code(hub.join_custom_game(1, "", false).await),
+            code(hub.join_custom_game("p1", "").await),
             ErrorCode::NotConnected
         );
     }
