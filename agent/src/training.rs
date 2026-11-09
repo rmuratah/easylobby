@@ -141,6 +141,7 @@ pub fn practice_tool_body(password: &str) -> Value {
         mutator_id: 1,
         team_size: 5,
         spectators: SpectatorPolicy::None,
+        extras: None,
     })
 }
 

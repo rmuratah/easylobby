@@ -25,6 +25,15 @@
 //! Por isso a UI pode oferecer qualquer combinação dos tipos abaixo, e o
 //! agente só confere o nome e o tamanho da equipe.
 //!
+//! O Rift Clássico (#270) é o modo `JADE` no mapa 453 e só tem as filas
+//! personalizadas 3260 (às cegas) e 3262 (alternada): os outros tipos de
+//! seleção respondem `invalidCommand`.
+//!
+//! "Esconder da lista de saguões públicos" e "Intervalo de espectador" (#270)
+//! vão em `configuration.isPrivate` e `configuration.spectatorDelayEnabled`.
+//! Os nomes não estão documentados e precisam ser conferidos no LoL real (o
+//! estado do lobby da LCU já mostra `isNoSpectateDelay`).
+//!
 //! Depois de criada, a personalizada mostra no lobby o nome, o mapa, o tipo de
 //! seleção e quem pode assistir ([`CustomGameSettings`]), lidos do
 //! `gameConfig` (`customLobbyName`, `mapId`, `gameMode`,
@@ -50,8 +59,11 @@ pub const MAX_NAME_LEN: usize = 64;
 pub enum CustomMap {
     /// Summoner's Rift, modo Clássico (`CLASSIC`, mapa 11).
     SummonersRift,
-    /// Abismo Uivante, modo ARAM (`ARAM`, mapa 12).
+    /// Abismo Uivante, modo ARAM (`ARAM`, mapa 12). O client oficial o mostra
+    /// dentro do Mapa aleatório (#271).
     HowlingAbyss,
+    /// Rift Clássico (`JADE`, mapa 453, #270): só às cegas e alternada.
+    ClassicRift,
 }
 
 impl CustomMap {
@@ -59,6 +71,7 @@ impl CustomMap {
         match self {
             CustomMap::SummonersRift => 11,
             CustomMap::HowlingAbyss => 12,
+            CustomMap::ClassicRift => 453,
         }
     }
 
@@ -66,6 +79,18 @@ impl CustomMap {
         match self {
             CustomMap::SummonersRift => "CLASSIC",
             CustomMap::HowlingAbyss => "ARAM",
+            CustomMap::ClassicRift => "JADE",
+        }
+    }
+
+    /// Se o mapa aceita o tipo de seleção, pelas filas personalizadas da LCU.
+    pub fn allows(self, pick_type: CustomPickType) -> bool {
+        match self {
+            CustomMap::ClassicRift => matches!(
+                pick_type,
+                CustomPickType::BlindPick | CustomPickType::DraftMode
+            ),
+            CustomMap::SummonersRift | CustomMap::HowlingAbyss => true,
         }
     }
 
@@ -75,6 +100,7 @@ impl CustomMap {
         match map_id {
             11 => Some(CustomMap::SummonersRift),
             12 => Some(CustomMap::HowlingAbyss),
+            453 => Some(CustomMap::ClassicRift),
             _ => None,
         }
     }
@@ -172,6 +198,11 @@ pub struct CustomGameOptions {
     /// Jogadores por equipe, de 1 a 5.
     pub team_size: u32,
     pub spectators: SpectatorPolicy,
+    /// "Esconder da lista de saguões públicos" (#270).
+    pub hide_from_public_list: bool,
+    /// "Intervalo de espectador" (#270): quem assiste vê a partida com
+    /// atraso. O client oficial deixa ligado.
+    pub spectator_delay: bool,
 }
 
 impl CustomGameOptions {
@@ -184,6 +215,12 @@ impl CustomGameOptions {
         if name.chars().count() > MAX_NAME_LEN {
             return Err(format!(
                 "o nome da personalizada passa de {MAX_NAME_LEN} caracteres"
+            ));
+        }
+        if !self.map.allows(self.pick_type) {
+            return Err(format!(
+                "o mapa {:?} não aceita o tipo de seleção {:?}",
+                self.map, self.pick_type
             ));
         }
         if !(1..=MAX_TEAM_SIZE).contains(&self.team_size) {
@@ -205,6 +242,10 @@ impl CustomGameOptions {
             mutator_id: self.pick_type.mutator_id(),
             team_size: self.team_size,
             spectators: self.spectators,
+            extras: Some(Extras {
+                private: self.hide_from_public_list,
+                spectator_delay: self.spectator_delay,
+            }),
         })
     }
 }
@@ -218,11 +259,20 @@ pub(crate) struct LobbyConfig<'a> {
     pub mutator_id: u32,
     pub team_size: u32,
     pub spectators: SpectatorPolicy,
+    /// Esconder da lista e intervalo de espectador (#270). `None` não manda
+    /// os campos (o Modo de Treino segue com o corpo do #209).
+    pub extras: Option<Extras>,
+}
+
+/// Opções do #270 que vão no `configuration`.
+pub(crate) struct Extras {
+    pub private: bool,
+    pub spectator_delay: bool,
 }
 
 /// Corpo do `POST /lol-lobby/v2/lobby` de uma personalizada.
 pub(crate) fn lobby_body(config: &LobbyConfig) -> Value {
-    json!({
+    let mut body = json!({
         "customGameLobby": {
             "configuration": {
                 "gameMode": config.game_mode,
@@ -237,7 +287,13 @@ pub(crate) fn lobby_body(config: &LobbyConfig) -> Value {
             "lobbyPassword": config.password
         },
         "isCustom": true
-    })
+    });
+    if let Some(extras) = &config.extras {
+        let configuration = &mut body["customGameLobby"]["configuration"];
+        configuration["isPrivate"] = json!(extras.private);
+        configuration["spectatorDelayEnabled"] = json!(extras.spectator_delay);
+    }
+    body
 }
 
 /// Cria a personalizada. Devolve o lobby que a LCU respondeu.
@@ -296,6 +352,8 @@ mod tests {
             pick_type: CustomPickType::DraftMode,
             team_size: 3,
             spectators: SpectatorPolicy::FriendsOnly,
+            hide_from_public_list: true,
+            spectator_delay: false,
         }
     }
 
@@ -308,6 +366,8 @@ mod tests {
         assert_eq!(config["mutators"]["id"], 18);
         assert_eq!(config["teamSize"], 3);
         assert_eq!(config["spectatorPolicy"], "FriendsAllowed");
+        assert_eq!(config["isPrivate"], true);
+        assert_eq!(config["spectatorDelayEnabled"], false);
         assert_eq!(body["customGameLobby"]["lobbyName"], "Partida de Fulano");
         assert_eq!(body["customGameLobby"]["lobbyPassword"], "segredo");
         assert_eq!(body["isCustom"], true);
@@ -372,6 +432,11 @@ mod tests {
                 team_size: 6,
                 ..options()
             },
+            CustomGameOptions {
+                map: CustomMap::ClassicRift,
+                pick_type: CustomPickType::AllRandom,
+                ..options()
+            },
         ] {
             assert!(broken.validate().is_err(), "{broken:?}");
         }
@@ -381,6 +446,15 @@ mod tests {
             ..options()
         };
         assert_eq!(one.validate(), Ok(()));
+        let classic = CustomGameOptions {
+            map: CustomMap::ClassicRift,
+            pick_type: CustomPickType::BlindPick,
+            ..options()
+        };
+        assert_eq!(classic.validate(), Ok(()));
+        let body = classic.body();
+        assert_eq!(body["customGameLobby"]["configuration"]["gameMode"], "JADE");
+        assert_eq!(body["customGameLobby"]["configuration"]["mapId"], 453);
     }
 
     #[test]

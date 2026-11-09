@@ -15,25 +15,40 @@ export const TEAM_SIZES = [1, 2, 3, 4, 5] as const;
 export const customMapNames = {
   summonersRift: "Summoner's Rift",
   howlingAbyss: 'Abismo Uivante',
+  classicRift: 'Rift Clássico',
 } satisfies Record<CustomMap, string>;
 
-export const customMapDescriptions = {
-  summonersRift: 'O mapa clássico, com três rotas.',
-  howlingAbyss: 'ARAM: uma rota só.',
-} satisfies Record<CustomMap, string>;
+/**
+ * Modos da aba Personalizada, na ordem do client oficial (#270). O Mapa
+ * aleatório, com o Abismo Uivante, entra no #271.
+ */
+export const FORM_MAPS = ['summonersRift', 'classicRift'] as const satisfies readonly CustomMap[];
 
-export const pickTypeNames = {
-  blindPick: 'Escolha às cegas',
-  draftMode: 'Escolha alternada',
+/** Tipos de jogo de cada modo, na ordem e com os nomes do client oficial. */
+export const pickTypesByMap: Record<CustomMap, readonly CustomPickType[]> = {
+  summonersRift: ['blindPick', 'draftMode', 'allRandom', 'tournamentDraft'],
+  howlingAbyss: ['allRandom', 'blindPick', 'tournamentDraft', 'draftMode'],
+  classicRift: ['draftMode', 'blindPick'],
+};
+
+const pickTypeNames = {
+  blindPick: 'Escolha às Cegas',
+  draftMode: 'Modo alternado',
   allRandom: 'Todos aleatórios',
-  tournamentDraft: 'Alternada para torneios',
+  tournamentDraft: 'Alternada Torneio',
 } satisfies Record<CustomPickType, string>;
 
+/** O Rift Clássico chama a alternada de "Escolha Alternada". */
+export function pickTypeName(map: CustomMap | null, pickType: CustomPickType): string {
+  return map === 'classicRift' && pickType === 'draftMode' ? 'Escolha Alternada' : pickTypeNames[pickType];
+}
+
+/** Ordem do client oficial: duas colunas, saguão e amigos em cima. */
 export const spectatorNames = {
-  none: 'Ninguém',
-  lobbyOnly: 'Só quem está no lobby',
-  friendsOnly: 'Só amigos',
+  lobbyOnly: 'Somente do saguão',
+  friendsOnly: 'Somente da lista de amigos',
   all: 'Todos',
+  none: 'Nenhum',
 } satisfies Record<SpectatorPolicy, string>;
 
 /** O formulário já preenchido com os padrões do client oficial. */
@@ -44,8 +59,16 @@ export function defaultCustomOptions(summonerName: string | undefined): CustomGa
     map: 'summonersRift',
     pickType: 'blindPick',
     teamSize: 5,
-    spectators: 'lobbyOnly',
+    spectators: 'all',
+    hideFromPublicList: false,
+    spectatorDelay: true,
   };
+}
+
+/** Troca o modo: o tipo de jogo vira o primeiro do modo quando o atual não existe nele. */
+export function withMap(options: CustomGameOptions, map: CustomMap): CustomGameOptions {
+  const pickTypes = pickTypesByMap[map];
+  return { ...options, map, pickType: pickTypes.includes(options.pickType) ? options.pickType : pickTypes[0] };
 }
 
 /** Por que o formulário não pode ser enviado, ou `null` quando pode. */
@@ -58,7 +81,7 @@ export function customOptionsProblem(options: CustomGameOptions): string | null 
 
 /** Linha de resumo: "Summoner's Rift · 5v5 · Escolha alternada". */
 export function customOptionsSummary(options: Pick<CustomGameOptions, 'map' | 'pickType' | 'teamSize'>): string {
-  return [customMapNames[options.map], `${options.teamSize}v${options.teamSize}`, pickTypeNames[options.pickType]].join(' · ');
+  return [customMapNames[options.map], `${options.teamSize}v${options.teamSize}`, pickTypeName(options.map, options.pickType)].join(' · ');
 }
 
 const PRACTICE_TOOL = 'PRACTICETOOL';
@@ -74,7 +97,7 @@ export function customLobbySummary(settings: CustomGameSettings, teamSize: numbe
   return [
     settings.map ? customMapNames[settings.map] : null,
     `${teamSize}v${teamSize}`,
-    settings.pickType ? pickTypeNames[settings.pickType] : null,
+    settings.pickType ? pickTypeName(settings.map, settings.pickType) : null,
     settings.gameMode === PRACTICE_TOOL ? 'Modo de Treino' : null,
   ].filter(Boolean).join(' · ');
 }

@@ -328,27 +328,39 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByRole('status')).toHaveTextContent('Modo de Treino iniciado');
   });
 
-  it('cria a partida personalizada pelo formulário da aba Personalizada (#262)', async () => {
+  it('cria a partida personalizada pelo formulário da aba Personalizada (#262, #270)', async () => {
     render(<App />);
     hello();
     fireEvent.click(panel().getByRole('tab', { name: 'Personalizada' }));
-    const name = panel().getByRole('textbox', { name: 'Nome da partida' });
+    const name = panel().getByRole('textbox', { name: 'Nome' });
     expect(name).toHaveValue('Partida de Victor');
-    expect(panel().getByText("Summoner's Rift · 5v5 · Escolha às cegas")).toBeInTheDocument();
+    expect(panel().getByText("Summoner's Rift · 5v5 · Escolha às Cegas")).toBeInTheDocument();
+    // Padrões do client oficial: espectadores Todos e com intervalo.
+    expect(panel().getByRole('radio', { name: 'Todos' })).toBeChecked();
+    expect(panel().getByRole('radio', { name: 'Adicionar intervalo' })).toBeChecked();
+    const pick = panel().getByRole('combobox', { name: 'Tipo de jogo' });
+    expect(within(pick).getAllByRole('option').map(o => o.textContent))
+      .toEqual(['Escolha às Cegas', 'Modo alternado', 'Todos aleatórios', 'Alternada Torneio']);
     // Nome vazio não sai.
     fireEvent.change(name, { target: { value: '   ' } });
-    expect(button('Criar partida')).toBeDisabled();
+    expect(button('Confirmar')).toBeDisabled();
     expect(panel().getByText('Dê um nome para a partida.')).toBeInTheDocument();
     fireEvent.change(name, { target: { value: '  Treino da firma ' } });
     fireEvent.change(panel().getByRole('textbox', { name: 'Senha (opcional)' }), { target: { value: 'segredo' } });
-    fireEvent.click(radio('Abismo Uivante'));
-    fireEvent.change(panel().getByRole('combobox', { name: 'Tipo de seleção' }), { target: { value: 'allRandom' } });
-    fireEvent.change(panel().getByRole('combobox', { name: 'Tamanho' }), { target: { value: '3' } });
-    fireEvent.change(panel().getByRole('combobox', { name: 'Espectadores' }), { target: { value: 'all' } });
-    expect(panel().getByText('Abismo Uivante · 3v3 · Todos aleatórios · Com senha')).toBeInTheDocument();
-    fireEvent.click(button('Criar partida'));
+    fireEvent.change(pick, { target: { value: 'allRandom' } });
+    // Rift Clássico: só alternada e às cegas; o tipo que não existe nele volta para o primeiro.
+    fireEvent.click(radio('Rift Clássico'));
+    expect(within(pick).getAllByRole('option').map(o => o.textContent)).toEqual(['Escolha Alternada', 'Escolha às Cegas']);
+    expect(pick).toHaveValue('draftMode');
+    fireEvent.change(panel().getByRole('combobox', { name: 'Tamanho da equipe' }), { target: { value: '3' } });
+    fireEvent.click(panel().getByRole('radio', { name: 'Somente da lista de amigos' }));
+    fireEvent.click(panel().getByRole('radio', { name: 'Sem intervalo' }));
+    fireEvent.click(panel().getByRole('checkbox', { name: 'Esconder da lista de saguões públicos' }));
+    expect(panel().getByText('Rift Clássico · 3v3 · Escolha Alternada · Com senha')).toBeInTheDocument();
+    fireEvent.click(button('Confirmar'));
     expect(request().command).toEqual({ type: 'createCustomGame', options: {
-      name: 'Treino da firma', password: 'segredo', map: 'howlingAbyss', pickType: 'allRandom', teamSize: 3, spectators: 'all',
+      name: 'Treino da firma', password: 'segredo', map: 'classicRift', pickType: 'draftMode', teamSize: 3,
+      spectators: 'friendsOnly', hideFromPublicList: true, spectatorDelay: false,
     } });
     expect(panel().getByRole('status')).toHaveTextContent('Criando a partida personalizada');
     await ok();

@@ -52,7 +52,7 @@ describe('lobby do Modo de Treino (#229)', () => {
   it('mostra as duas equipes com 5 vagas e os bots', () => {
     render(<App />);
     hello({ lobby: practice({ team2: [ashe] }), championCatalog: champions });
-    expect(panel().getByText("Summoner's Rift · 5v5 · Escolha às cegas · Modo de Treino")).toBeInTheDocument();
+    expect(panel().getByText("Summoner's Rift · 5v5 · Escolha às Cegas · Modo de Treino")).toBeInTheDocument();
     expect(team('Equipe 1').getAllByRole('listitem', { name: 'Vaga livre' })).toHaveLength(4);
     expect(team('Equipe 2').getAllByRole('listitem', { name: 'Vaga livre' })).toHaveLength(4);
     expect(team('Equipe 2').getByText('Ashe')).toBeInTheDocument();
@@ -121,7 +121,7 @@ describe('lobby da partida personalizada (#262 e #263)', () => {
     render(<App />);
     hello({ lobby: practice({ settings, teamSize: 3, spectators: [friend], maxSpectators: 4 }), championCatalog: champions });
     expect(panel().getByText('Treino da firma')).toBeInTheDocument();
-    expect(panel().getByText("Summoner's Rift · 3v3 · Escolha alternada")).toBeInTheDocument();
+    expect(panel().getByText("Summoner's Rift · 3v3 · Modo alternado")).toBeInTheDocument();
     const spectators = within(panel().getByRole('region', { name: 'Espectadores' }));
     expect(spectators.getByText('Quem pode assistir: Todos')).toBeInTheDocument();
     expect(spectators.getByText('1 / 4')).toBeInTheDocument();

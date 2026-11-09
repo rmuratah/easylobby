@@ -243,7 +243,7 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
         )}
         <button type="button" className={primaryPill} aria-describedby={descriptionId} aria-busy={pending}
           disabled={isCustom ? !!customProblem || locked : !current || locked || unchanged} onClick={confirm}>
-          {isCustom ? 'Criar partida' : isTraining ? 'Iniciar' : lobby ? 'Trocar fila' : 'Criar lobby'}
+          {isCustom ? 'Confirmar' : isTraining ? 'Iniciar' : lobby ? 'Trocar fila' : 'Criar lobby'}
         </button>
       </footer>
       <p id={descriptionId} className="text-caption text-muted">{restriction}</p>

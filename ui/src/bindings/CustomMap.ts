@@ -6,4 +6,5 @@
  */
 export type CustomMap =
   | "summonersRift"
-  | "howlingAbyss";
+  | "howlingAbyss"
+  | "classicRift";
