@@ -409,6 +409,15 @@ impl Hub {
         self.update(|shared| write_queues(shared, queues));
     }
 
+    /// Como [`Hub::set_queues`], mas só se nada mudou as filas desde
+    /// `stamp`: a releitura da conexão não apaga a lista que um login no
+    /// meio dela já releu (#277).
+    pub(super) fn set_queues_if(&self, stamp: Stamp, queues: Vec<GameQueue>) -> bool {
+        self.update_if(Resource::Queues, stamp, |shared| {
+            write_queues(shared, queues)
+        })
+    }
+
     /// Como [`Hub::set_queues`], mas só se a conexão ainda é a `session` da
     /// releitura.
     pub(super) fn restore_queues(&self, session: u64, queues: Vec<GameQueue>) {
@@ -526,7 +535,9 @@ impl Hub {
     }
 }
 
+/// Troca as filas, contando a escrita mesmo quando nada muda (#277).
 fn write_queues(shared: &mut Shared, queues: Vec<GameQueue>) -> Option<ServerMessage> {
+    shared.queues_rev += 1;
     if shared.state.queues == queues {
         return None;
     }
@@ -752,6 +763,23 @@ mod tests {
         assert_eq!(ids, [450, 2400]);
         assert_eq!(queues[0].queue, Some(Queue::Aram));
         assert_eq!(hub.state().queues, *queues);
+    }
+
+    #[tokio::test]
+    async fn releitura_nao_apaga_as_filas_relidas_no_login() {
+        // A releitura da conexão tira o carimbo antes das leituras (#277).
+        let hub = Hub::new();
+        let stamp = hub.lock().stamp(Resource::Queues);
+        // O login no meio dela relê as filas em segundo plano.
+        hub.apply(event(GAME_QUEUES_PATH, EventType::Update, queues_json()))
+            .await;
+        // A lista vazia, lida antes do login, chega depois e é descartada.
+        assert!(!hub.set_queues_if(stamp, Vec::new()));
+        assert_eq!(hub.state().queues.len(), 2);
+        // Sem nada no meio, a releitura entra.
+        let stamp = hub.lock().stamp(Resource::Queues);
+        assert!(hub.set_queues_if(stamp, Vec::new()));
+        assert!(hub.state().queues.is_empty());
     }
 
     #[tokio::test]
