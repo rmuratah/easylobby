@@ -24,12 +24,20 @@
 //! esconderijo não começar (fora do Windows, ou o hook recusado), a espera
 //! do primeiro `kill-ux` minimiza a UI pela LCU (`ux-minimize`). O botão de
 //! emergência mostra de novo as janelas escondidas antes do `launch-ux`.
+//!
+//! No fim da seleção a guarda não fecha a UI (#342): o LoL pede a janela
+//! (`ShowMain`) uns 10 s antes da etapa `FINALIZATION` acabar, e um `kill-ux`
+//! que caia na passagem para `GAME_STARTING` vira esquiva do jogador, sem
+//! mensagem nenhuma. Nos últimos [`SPARE_BEFORE_GAME`] da finalização e no
+//! `GAME_STARTING` a janela só fica escondida; a UI é fechada de novo quando
+//! o jogador volta ao lobby depois da partida.
 
 use std::time::Duration;
 
 use tokio::time::Instant;
 
 use super::Hub;
+use crate::champ_select::{ChampSelect, ChampSelectPhase};
 use crate::gameflow::GameflowPhase;
 use crate::ux;
 use crate::ux_window::UxHider;
@@ -48,6 +56,11 @@ pub(super) const RECLOSE_AFTER: [Duration; 6] = [
 /// Se a fase não deixa fechar a UI quando a espera acaba (por exemplo, o
 /// agente abriu com a partida em andamento), olha de novo a cada intervalo.
 pub(super) const KILL_UX_RETRY: Duration = Duration::from_secs(5);
+
+/// Nos últimos instantes da etapa `FINALIZATION` a guarda não fecha a UI: o
+/// `kill-ux` na passagem para `GAME_STARTING` faz o jogador esquivar (#342).
+/// Folga sobre os 10 s em que o LoL pede a janela antes do fim da etapa.
+pub(super) const SPARE_BEFORE_GAME: Duration = Duration::from_secs(15);
 
 /// Estado da guarda dentro do [`Hub`].
 #[derive(Debug, Default)]
@@ -94,6 +107,34 @@ fn covered(phase: Option<GameflowPhase>) -> bool {
                 | GameflowPhase::ChampSelect
         )
     )
+}
+
+/// Se a seleção está perto de abrir a partida, quando fechar a UI oficial
+/// faz o jogador esquivar (#342): na etapa `GAME_STARTING` ou nos últimos
+/// [`SPARE_BEFORE_GAME`] da `FINALIZATION`. `now_ms` no relógio de
+/// `ends_at_ms`.
+pub(super) fn game_starting(champ_select: Option<&ChampSelect>, now_ms: u64) -> bool {
+    let Some(cs) = champ_select else {
+        return false;
+    };
+    match cs.timer.phase {
+        ChampSelectPhase::GameStarting => true,
+        ChampSelectPhase::Finalization => {
+            let spare = u64::try_from(SPARE_BEFORE_GAME.as_millis()).unwrap_or(u64::MAX);
+            !cs.timer.is_infinite && cs.timer.ends_at_ms.saturating_sub(now_ms) <= spare
+        }
+        _ => false,
+    }
+}
+
+/// Se a guarda pode fechar a UI agora: numa fase que o app cobre e fora do
+/// fim da seleção.
+fn may_kill(shared: &super::Shared) -> bool {
+    covered(shared.state.gameflow_phase)
+        && !game_starting(
+            shared.state.champ_select.as_ref(),
+            crate::champ_select::now_ms(),
+        )
 }
 
 impl Hub {
@@ -218,7 +259,7 @@ impl Hub {
         if shared.session != session || shared.ux_guard.generation != generation {
             return ScheduledKill::Cancelled;
         }
-        if !covered(shared.state.gameflow_phase) {
+        if !may_kill(&shared) {
             return ScheduledKill::Wait;
         }
         shared.ux_guard.active = true;
@@ -232,7 +273,7 @@ impl Hub {
         shared.ux_guard.active
             && shared.ux_guard.generation == generation
             && shared.session == session
-            && covered(shared.state.gameflow_phase)
+            && may_kill(&shared)
     }
 }
 
@@ -278,6 +319,35 @@ mod tests {
         ] {
             assert!(!covered(Some(phase)), "{phase:?}");
         }
+    }
+
+    fn selecao(phase: &str, left_ms: u32) -> ChampSelect {
+        let mut raw = champ_select(phase, 1);
+        raw["timer"]["adjustedTimeLeftInPhase"] = json!(left_ms);
+        ChampSelect::from_json_at(&raw, 1_000_000).unwrap()
+    }
+
+    #[test]
+    fn nao_fecha_a_ui_quando_a_partida_vai_comecar() {
+        let agora = 1_000_000;
+        // Sem seleção, no planejamento e no começo da finalização: pode fechar.
+        assert!(!game_starting(None, agora));
+        assert!(!game_starting(Some(&selecao("BAN_PICK", 5_000)), agora));
+        assert!(!game_starting(
+            Some(&selecao("FINALIZATION", 30_000)),
+            agora
+        ));
+        // O `ShowMain` do fim da finalização chega com 10 s restando (#342).
+        assert!(game_starting(Some(&selecao("FINALIZATION", 10_000)), agora));
+        assert!(game_starting(
+            Some(&selecao("FINALIZATION", 30_000)),
+            agora + 20_000
+        ));
+        assert!(game_starting(Some(&selecao("GAME_STARTING", 0)), agora));
+        // Finalização sem limite (personalizada): o fim não está perto.
+        let mut sem_limite = selecao("FINALIZATION", 0);
+        sem_limite.timer.is_infinite = true;
+        assert!(!game_starting(Some(&sem_limite), agora));
     }
 
     #[test]

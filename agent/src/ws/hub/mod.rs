@@ -535,6 +535,11 @@ impl Hub {
                     if profile::ends_a_game(before, Some(phase)) {
                         self.spawn_refresh_profile();
                         self.reload_lobby_ranks();
+                        // A UI oficial ficou aberta para a partida começar
+                        // (#342): de volta ao lobby, fecha de novo.
+                        if matches!(phase, GameflowPhase::Lobby | GameflowPhase::Idle) {
+                            self.guard_ux();
+                        }
                     }
                     // De volta à escolha de modo: as filas abertas podem ter
                     // mudado sem evento (#210).
