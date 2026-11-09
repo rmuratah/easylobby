@@ -1,7 +1,7 @@
 import type { AgentClient } from '../agent/client';
 import { arenaTeams } from '../agent/arenaTeams';
 import { assetUrl } from '../agent/assets';
-import { playerName } from '../agent/friends';
+import { memberName } from '../agent/friends';
 import { useCommand } from '../agent/useCommand';
 import type { AgentState } from '../bindings/AgentState';
 import type { Lobby } from '../bindings/Lobby';
@@ -41,7 +41,7 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMe
   const layout = arenaTeams(lobby);
   if (!layout) return null;
   const me = state.summoner?.puuid;
-  const name = (member: LobbyMember) => member.puuid === me ? localName : playerName(member.puuid, member.summonerId, state.friends);
+  const name = (member: LobbyMember) => member.puuid === me ? localName : memberName(member, state.friends);
   const size = lobby.subteams?.size ?? 0;
   function moveTo(slot: SubteamSlot, label: string) {
     if (!canSwap || swap.pending) return;
@@ -67,21 +67,21 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMe
                   const slotName = `vaga ${p + 1} da ${teamName}`;
                   if (member) {
                     const isMe = member.puuid === me;
-                    const memberName = name(member);
+                    const displayName = name(member);
                     return (
-                      <li key={p} aria-label={`${memberName}, ${slotName}`}
+                      <li key={p} aria-label={`${displayName}, ${slotName}`}
                         className={cx('relative flex min-h-12 items-center gap-3 rounded-tile px-2 py-2', isMe ? 'bg-accent-soft' : 'bg-raised',
                           !isMe && onOpenProfile && 'transition-colors hover:bg-line/40')}>
                         {/* A vaga de outro jogador abre o perfil dele (#308); o menu do líder fica por cima. */}
                         {!isMe && onOpenProfile && (
-                          <button type="button" aria-label={`Ver perfil de ${memberName}`} title={`Ver perfil de ${memberName}`}
+                          <button type="button" aria-label={`Ver perfil de ${displayName}`} title={`Ver perfil de ${displayName}`}
                             onClick={() => onOpenProfile(member.puuid)}
                             className={`absolute inset-0 cursor-pointer rounded-tile ${focusRing}`} />
                         )}
-                        <Avatar name={memberName} src={assetUrl('profileIcon', member.summonerIconId)} size={36} className="ring-2 ring-surface" />
+                        <Avatar name={displayName} src={assetUrl('profileIcon', member.summonerIconId)} size={36} className="ring-2 ring-surface" />
                         <div className="min-w-0 flex-1">
                           <p className="flex items-center gap-1.5">
-                            <span className="truncate text-body font-semibold">{memberName}</span>
+                            <span className="truncate text-body font-semibold">{displayName}</span>
                             {member.isLeader && (
                               <span role="img" aria-label="Líder do grupo" title="Líder do grupo"
                                 className="flex size-5 shrink-0 items-center justify-center rounded-full bg-gold-soft text-warn">
@@ -93,7 +93,7 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMe
                         </div>
                         {/* Tornar líder e remover do grupo (#267): só o líder, nas vagas dos outros. */}
                         {lobby.isLeader && !isMe && (
-                          <LobbyMemberMenu name={memberName} summonerId={member.summonerId} send={send} disabled={!canManageMembers} align="start" />
+                          <LobbyMemberMenu name={displayName} summonerId={member.summonerId} send={send} disabled={!canManageMembers} align="start" />
                         )}
                       </li>
                     );

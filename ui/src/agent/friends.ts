@@ -3,6 +3,7 @@ import type { Availability } from '../bindings/Availability';
 import type { Friend } from '../bindings/Friend';
 import type { FriendGroup } from '../bindings/FriendGroup';
 import type { LeagueStatus } from '../bindings/LeagueStatus';
+import type { LobbyMember } from '../bindings/LobbyMember';
 
 export const availabilityNames = {
   online: 'Online',
@@ -135,10 +136,20 @@ export function describeActivity(friend: Friend, now: number): string {
 /**
  * Riot ID de outro jogador (no lobby ou convidado), achado na lista de amigos
  * pelo `puuid` ou, na falta dele, pelo `summonerId`: a LCU não manda o nome
- * de quem está no grupo. "Jogador" quando não é amigo.
+ * de quem está no grupo. "Jogador" quando não é amigo; para um membro do
+ * lobby, use {@link memberName}, que acha também quem não é amigo.
  */
 export function playerName(puuid: string, summonerId: number, friends: Friend[]): string {
   const friend = (puuid ? friends.find(f => f.puuid === puuid) : undefined)
     ?? (summonerId > 0 ? friends.find(f => f.summonerId === summonerId) : undefined);
   return friend ? friendDisplayName(friend) : 'Jogador';
+}
+
+/**
+ * Riot ID de um membro do lobby (#325): o que o agente buscou pelo `puuid`
+ * ou, enquanto ele não chega, o da lista de amigos. "Jogador" sem nenhum.
+ */
+export function memberName(member: LobbyMember, friends: Friend[]): string {
+  if (member.gameName) return member.tagLine ? `${member.gameName}#${member.tagLine}` : member.gameName;
+  return playerName(member.puuid, member.summonerId, friends);
 }

@@ -1,11 +1,13 @@
-//! Elo de cada jogador no card do lobby (#275).
+//! Elo (#275) e Riot ID (#325) de cada jogador no card do lobby.
 //!
-//! O lobby da LCU não traz o elo dos membros. A cada lobby novo o agente
-//! busca `GET /lol-ranked/v1/ranked-stats/{puuid}` de quem ainda não está na
+//! O lobby da LCU não traz o elo nem o nome dos membros. A cada lobby novo o
+//! agente busca `GET /lol-ranked/v1/ranked-stats/{puuid}` e
+//! `GET /lol-summoner/v2/summoners/puuid/{puuid}` de quem ainda não está na
 //! cache, numa tarefa separada, e publica o lobby de novo com
-//! [`LobbyMember::ranked`](crate::lobby::LobbyMember::ranked) preenchido. O
-//! jogador logado usa os ranks que o agente já acompanha (#171), que mudam
-//! no fim de uma ranqueada.
+//! [`LobbyMember::ranked`](crate::lobby::LobbyMember::ranked) e
+//! [`LobbyMember::game_name`](crate::lobby::LobbyMember::game_name)
+//! preenchidos. O jogador logado usa os ranks que o agente já acompanha
+//! (#171), que mudam no fim de uma ranqueada, e o próprio Riot ID.
 //!
 //! A cache vale enquanto o lobby existe: limpa quando ele fecha (e com o LoL
 //! fechado, que fecha o lobby) e no fim de uma partida, quando os ranks
@@ -24,10 +26,14 @@ use crate::ws::protocol::ServerMessage;
 /// sempre.
 const MAX_ATTEMPTS: u8 = 3;
 
-/// Ranks já buscados dos membros do lobby.
+/// Riot ID de um membro: nome e tag.
+type RiotId = (String, String);
+
+/// Ranks e nomes já buscados dos membros do lobby.
 #[derive(Debug, Default)]
 pub(super) struct LobbyRanks {
     known: HashMap<String, RankedStats>,
+    names: HashMap<String, RiotId>,
     attempts: HashMap<String, u8>,
     in_flight: HashSet<String>,
 }
@@ -37,21 +43,34 @@ impl LobbyRanks {
     /// dela entra se o jogador ainda estiver no lobby.
     pub(super) fn clear(&mut self) {
         self.known.clear();
+        self.names.clear();
         self.attempts.clear();
         self.in_flight.clear();
     }
 }
 
-/// Preenche o elo dos membros de `lobby` com o que já se sabe.
+/// Preenche o elo e o Riot ID dos membros de `lobby` com o que já se sabe.
 pub(super) fn fill_ranks(shared: &Shared, lobby: &mut Lobby) {
-    let me = shared.state.summoner.as_ref().map(|s| s.puuid.as_str());
+    let summoner = shared.state.summoner.as_ref();
     for member in &mut lobby.members {
-        let mine = me == Some(member.puuid.as_str()) && shared.state.ranked.is_some();
+        let me = summoner.filter(|s| s.puuid == member.puuid);
+        let mine = me.is_some() && shared.state.ranked.is_some();
         member.ranked = if mine {
             shared.state.ranked.clone()
         } else {
             shared.lobby_ranks.known.get(&member.puuid).cloned()
         };
+        let (game_name, tag_line) = match me {
+            Some(s) => (s.game_name.clone(), s.tag_line.clone()),
+            None => shared
+                .lobby_ranks
+                .names
+                .get(&member.puuid)
+                .cloned()
+                .unwrap_or_default(),
+        };
+        member.game_name = game_name;
+        member.tag_line = tag_line;
     }
 }
 
@@ -67,7 +86,8 @@ fn write_refilled_lobby(shared: &mut Shared) -> Option<ServerMessage> {
     Some(ServerMessage::Lobby { lobby: Some(lobby) })
 }
 
-/// Membros do lobby cujo elo ainda falta buscar, já marcados como em busca.
+/// Membros do lobby cujo elo ou nome ainda falta buscar, já marcados como em
+/// busca.
 fn take_wanted(shared: &mut Shared) -> Vec<String> {
     let Some(lobby) = &shared.state.lobby else {
         return Vec::new();
@@ -78,8 +98,11 @@ fn take_wanted(shared: &mut Shared) -> Vec<String> {
         .members
         .iter()
         .map(|m| m.puuid.as_str())
-        .filter(|puuid| !puuid.is_empty() && Some(*puuid) != me)
-        .filter(|puuid| !ranks.known.contains_key(*puuid) && !ranks.in_flight.contains(*puuid))
+        .filter(|puuid| player_profile::valid_puuid(puuid) && Some(*puuid) != me)
+        .filter(|puuid| {
+            !(ranks.known.contains_key(*puuid) && ranks.names.contains_key(*puuid))
+                && !ranks.in_flight.contains(*puuid)
+        })
         .filter(|puuid| ranks.attempts.get(*puuid).copied().unwrap_or(0) < MAX_ATTEMPTS)
         .map(str::to_owned)
         .collect();
@@ -90,15 +113,18 @@ fn take_wanted(shared: &mut Shared) -> Vec<String> {
     wanted
 }
 
-/// Guarda o elo que chegou de `puuid`, se ele ainda está no lobby, e
-/// publica o lobby com ele.
+/// Guarda o elo e o nome que chegaram de `puuid`, se ele ainda está no
+/// lobby, e publica o lobby com eles.
 fn write_fetched(
     shared: &mut Shared,
     puuid: &str,
     ranked: Option<RankedStats>,
+    name: Option<RiotId>,
 ) -> Option<ServerMessage> {
     shared.lobby_ranks.in_flight.remove(puuid);
-    let ranked = ranked?;
+    if ranked.is_none() && name.is_none() {
+        return None;
+    }
     let member = shared
         .state
         .lobby
@@ -107,7 +133,12 @@ fn write_fetched(
     if !member {
         return None;
     }
-    shared.lobby_ranks.known.insert(puuid.to_owned(), ranked);
+    if let Some(ranked) = ranked {
+        shared.lobby_ranks.known.insert(puuid.to_owned(), ranked);
+    }
+    if let Some(name) = name {
+        shared.lobby_ranks.names.insert(puuid.to_owned(), name);
+    }
     write_refilled_lobby(shared)
 }
 
@@ -124,7 +155,7 @@ impl Hub {
         self.spawn_fetch_lobby_ranks();
     }
 
-    /// Busca o elo de quem entrou no lobby, uma tarefa por jogador.
+    /// Busca o elo e o nome de quem entrou no lobby, uma tarefa por jogador.
     pub(super) fn spawn_fetch_lobby_ranks(&self) {
         let Ok(runtime) = tokio::runtime::Handle::try_current() else {
             return;
@@ -141,12 +172,28 @@ impl Hub {
             let hub = self.clone();
             let client = client.clone();
             runtime.spawn(async move {
-                let ranked = player_profile::ranked(&client, &puuid).await.ok().flatten();
+                let (ranked, summoner) = tokio::join!(
+                    player_profile::ranked(&client, &puuid),
+                    player_profile::summoner(&client, &puuid),
+                );
+                let ranked = ranked.ok().flatten();
+                // Sem Riot ID (conta antiga), o nome antigo de invocador.
+                let name = summoner
+                    .ok()
+                    .flatten()
+                    .map(|(s, _)| {
+                        if s.game_name.is_empty() {
+                            (s.display_name, String::new())
+                        } else {
+                            (s.game_name, s.tag_line)
+                        }
+                    })
+                    .filter(|(name, _)| !name.is_empty());
                 hub.update(|shared| {
                     if shared.session != session {
                         return None;
                     }
-                    write_fetched(shared, &puuid, ranked)
+                    write_fetched(shared, &puuid, ranked, name)
                 });
             });
         }
@@ -186,6 +233,19 @@ mod tests {
         hub.set_summoner(Some(summoner));
     }
 
+    fn ana() -> RiotId {
+        ("Ana".to_owned(), "BR1".to_owned())
+    }
+
+    fn names_of(hub: &Hub) -> Vec<String> {
+        let lobby = hub.state().lobby.unwrap();
+        lobby
+            .members
+            .into_iter()
+            .map(|m| format!("{}#{}", m.game_name, m.tag_line))
+            .collect()
+    }
+
     fn ranks_of(hub: &Hub) -> Vec<Option<RankedStats>> {
         let state = hub.state();
         let lobby = state.lobby.unwrap();
@@ -204,10 +264,10 @@ mod tests {
         assert!(take_wanted(&mut shared).is_empty());
         // Falhou: tenta de novo até o limite.
         for _ in 1..MAX_ATTEMPTS {
-            write_fetched(&mut shared, "amigo", None);
+            write_fetched(&mut shared, "amigo", None, None);
             assert_eq!(take_wanted(&mut shared).len(), 1);
         }
-        write_fetched(&mut shared, "amigo", None);
+        write_fetched(&mut shared, "amigo", None, None);
         assert!(take_wanted(&mut shared).is_empty());
     }
 
@@ -219,7 +279,7 @@ mod tests {
         let (_, mut rx) = hub.subscribe();
         hub.update(|shared| {
             take_wanted(shared);
-            write_fetched(shared, "amigo", Some(gold()))
+            write_fetched(shared, "amigo", Some(gold()), None)
         });
         assert!(matches!(rx.try_recv(), Ok(ServerMessage::Lobby { .. })));
         assert_eq!(ranks_of(&hub), vec![None, Some(gold())]);
@@ -245,14 +305,42 @@ mod tests {
         hub.set_lobby(Some(lobby(&["amigo"])));
         hub.update(|shared| {
             take_wanted(shared);
-            write_fetched(shared, "outro", Some(gold()))
+            write_fetched(shared, "outro", Some(gold()), None)
         });
         assert!(hub.lock().lobby_ranks.known.is_empty());
-        hub.update(|shared| write_fetched(shared, "amigo", Some(gold())));
+        hub.update(|shared| write_fetched(shared, "amigo", Some(gold()), None));
         assert_eq!(ranks_of(&hub), vec![Some(gold())]);
         hub.set_lobby(None);
         assert!(hub.lock().lobby_ranks.known.is_empty());
         hub.set_lobby(Some(lobby(&["amigo"])));
         assert_eq!(ranks_of(&hub), vec![None]);
+    }
+
+    #[test]
+    fn nome_buscado_entra_no_lobby() {
+        let hub = Hub::new();
+        let summoner = serde_json::from_value(json!({
+            "puuid": "eu", "gameName": "Eu", "tagLine": "000",
+            "summonerLevel": 1, "summonerId": 1
+        }))
+        .unwrap();
+        hub.set_summoner(Some(summoner));
+        hub.set_lobby(Some(lobby(&["eu", "outro"])));
+        // O jogador logado já tem o nome; o outro chega vazio.
+        assert_eq!(names_of(&hub), vec!["Eu#000", "#"]);
+        hub.update(|shared| {
+            assert_eq!(take_wanted(shared), vec!["outro".to_owned()]);
+            write_fetched(shared, "outro", None, Some(ana()))
+        });
+        assert_eq!(names_of(&hub), vec!["Eu#000", "Ana#BR1"]);
+        assert_eq!(ranks_of(&hub), vec![None, None]);
+        // O elo ainda falta: busca de novo, e o nome fica na cache.
+        let mut shared = hub.lock();
+        assert_eq!(take_wanted(&mut shared), vec!["outro".to_owned()]);
+        write_fetched(&mut shared, "outro", Some(gold()), None);
+        assert!(take_wanted(&mut shared).is_empty());
+        drop(shared);
+        assert_eq!(names_of(&hub), vec!["Eu#000", "Ana#BR1"]);
+        assert_eq!(ranks_of(&hub), vec![None, Some(gold())]);
     }
 }

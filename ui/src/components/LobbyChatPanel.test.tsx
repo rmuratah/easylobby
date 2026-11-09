@@ -4,15 +4,20 @@ import { applyEvent, type ConnectionSnapshot } from '../agent/client';
 import type { AgentState } from '../bindings/AgentState';
 import type { CommandResult } from '../bindings/CommandResult';
 import type { LobbyChat } from '../bindings/LobbyChat';
+import type { LobbyChatMessage } from '../bindings/LobbyChatMessage';
 import { testFriend } from '../test/events';
 import { testLobby, testState } from '../test/lobby';
 import { LobbyChatPanel } from './LobbyChatPanel';
 
 const t = '2026-11-07T20:00:00.000Z';
+const line = (m: Partial<LobbyChatMessage> & Pick<LobbyChatMessage, 'id'>): LobbyChatMessage => ({
+  kind: 'chat', body: '', fromMe: false, fromPuuid: '', gameName: '', tagLine: '', timestamp: t, ...m });
 const chat: LobbyChat = { messages: [
-  { id: '1', body: 'bora?', fromMe: false, fromPuuid: 'ana', timestamp: t },
-  { id: '2', body: 'bora', fromMe: true, fromPuuid: 'local', timestamp: t },
-  { id: '3', body: 'oi', fromMe: false, fromPuuid: 'outro', timestamp: t },
+  line({ id: '0', kind: 'joined', fromPuuid: 'kyoto', gameName: 'Kyoto', tagLine: '村田1' }),
+  line({ id: '1', body: 'bora?', fromPuuid: 'ana' }),
+  line({ id: '2', body: 'bora', fromMe: true, fromPuuid: 'local', gameName: 'Rafinha Lover', tagLine: 'mrt' }),
+  line({ id: '3', body: 'oi', fromPuuid: 'outro' }),
+  line({ id: '4', kind: 'left', fromPuuid: 'kyoto', gameName: 'Kyoto', tagLine: '村田1' }),
 ] };
 const ana = { ...testLobby.members[0], puuid: 'ana', summonerId: 2, isLeader: false };
 const party = { ...testLobby, members: [...testLobby.members, ana] };
@@ -21,10 +26,18 @@ const connected = (overrides: Partial<AgentState>): ConnectionSnapshot => ({ sta
   friends: [{ ...testFriend, puuid: 'ana', gameName: 'Ana', tagLine: 'BR1' }], ...overrides } });
 
 describe('chat do grupo', () => {
-  it('mostra as mensagens com o nome de quem mandou', () => {
+  it('mostra as mensagens e quem entrou e saiu, com o Riot ID de quem mandou', () => {
     render(<LobbyChatPanel connection={connected({})} send={vi.fn()} />);
     const log = within(screen.getByRole('log', { name: 'Mensagens do grupo' }));
-    expect(log.getAllByRole('listitem').map(item => item.textContent?.replace(/^\S+ /, ''))).toEqual(['Ana#BR1: bora?', 'Você: bora', 'Jogador: oi']);
+    expect(log.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+      'Kyoto #村田1 entrou no saguão', 'Ana#BR1: bora?', 'Rafinha Lover #mrt: bora', 'Jogador: oi', 'Kyoto #村田1 saiu do saguão']);
+  });
+
+  it('atualiza quando chega mensagem nova', () => {
+    const { rerender } = render(<LobbyChatPanel connection={connected({})} send={vi.fn()} />);
+    const nova = { messages: [...chat.messages, line({ id: '5', body: 'teste', fromPuuid: 'kyoto', gameName: 'Kyoto', tagLine: '村田1' })] };
+    rerender(<LobbyChatPanel connection={connected({ lobbyChat: nova })} send={vi.fn()} />);
+    expect(screen.getAllByRole('listitem').at(-1)).toHaveTextContent('Kyoto #村田1: teste');
   });
 
   it('manda a mensagem e limpa o campo', async () => {

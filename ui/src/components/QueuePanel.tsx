@@ -3,7 +3,8 @@ import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
 import { queuePenalty } from '../agent/matchmaking';
-import { restrictionReasons } from '../agent/lobbyRestrictions';
+import { pendingChoices, restrictionReasons } from '../agent/lobbyRestrictions';
+import { playerName } from '../agent/friends';
 import { cx } from './base/cx';
 import { useDismiss } from '../agent/useDismiss';
 
@@ -77,11 +78,14 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
   const pending = feedback.status === 'pending';
   // Na personalizada (Modo de Treino, #229) a partida começa pelo lobby, sem busca.
   const custom = !!lobby?.custom;
-  const canStart = !state.readyCheck && !!summoner && !!lobby && !custom && lobby.isLeader && lobby.canStartActivity && phase === 'Lobby' && !matchmaking;
+  // Escolhas obrigatórias que faltam (#334): a busca só libera com todas feitas.
+  const missing = pendingChoices(lobby, summoner?.puuid, member => playerName(member.puuid, member.summonerId, state.friends));
+  const canStart = !state.readyCheck && !!summoner && !!lobby && !custom && lobby.isLeader && lobby.canStartActivity && phase === 'Lobby' && !matchmaking
+    && missing.length === 0;
   // A busca parada por punição também sai, mesmo se a fase não for `Matchmaking`.
   const canStop = !state.readyCheck && !!matchmaking && (phase === 'Matchmaking' || queuePenalty(matchmaking));
   // Motivos da LCU para a fila bloqueada (#227), no lugar do aviso genérico.
-  const reasons = restrictionReasons(lobby);
+  const reasons = [...restrictionReasons(lobby), ...missing];
   const restriction = !summoner ? 'Aguarde o login no League of Legends.'
     : matchmaking ? (canStop ? 'A busca confirmada pelo agente está em andamento.' : 'Aguarde a próxima fase confirmada pelo agente.')
     : !lobby ? 'Crie ou entre em um lobby antes de buscar uma partida.'
@@ -89,6 +93,7 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
     : !lobby.isLeader ? 'Somente o líder do lobby pode iniciar a busca.'
     : phase !== 'Lobby' ? 'A busca só pode ser iniciada na fase de lobby.'
     : !lobby.canStartActivity ? (reasons.length ? 'A busca não pode começar:' : 'O lobby ainda não está pronto para iniciar a busca.')
+    : missing.length ? 'Faltam escolhas antes de buscar:'
     : 'O lobby está pronto para buscar uma partida.';
 
   async function execute(command: QueueCommand) {

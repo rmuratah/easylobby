@@ -579,6 +579,17 @@ describe('cargos pelo /ws', () => {
     expect(players.queryByText(/Invocador/)).not.toBeInTheDocument();
   });
 
+  it('mostra o Riot ID que o agente buscou de quem não é amigo (#325)', () => {
+    render(<App />);
+    const member = { ...testLobby.members[0], isLeader: false };
+    hello({ gameflowPhase: 'Lobby', friends: [],
+      lobby: { ...testLobby, maxLobbySize: 5, members: [testLobby.members[0],
+        { ...member, puuid: 'outro', summonerId: 173, gameName: 'Rafinha Lover', tagLine: 'mrt' }] } });
+    const players = within(panel().getByRole('list', { name: 'Jogadores no lobby' }));
+    expect(players.getByRole('heading', { name: 'Rafinha Lover#mrt' })).toBeInTheDocument();
+    expect(players.queryByRole('heading', { name: 'Jogador' })).not.toBeInTheDocument();
+  });
+
   it('normaliza preenchimento e vazio, bloqueia repetidos e permite preenchimento secundário', async () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
