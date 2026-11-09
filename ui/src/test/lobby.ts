@@ -9,3 +9,5 @@ export const testLobby: Lobby = {
     firstPosition: 'unselected', secondPosition: 'unselected', positionOrder: [], playerSlots: [], subteam: null, ranked: null, gameName: '', tagLine: '' }],
 };
 export const testState: AgentState = makeState({ gameflowPhase: 'None', summoner: { gameName: 'Victor', tagLine: 'BR1', displayName: 'Victor', puuid: 'local', summonerId: 1, profileIconId: 1, summonerLevel: 122 } });
+/** Lobby com as posições já escolhidas: a busca não espera nenhuma escolha (#334). */
+export const testReadyLobby: Lobby = { ...testLobby, members: [{ ...testLobby.members[0], firstPosition: 'top', secondPosition: 'jungle' }] };

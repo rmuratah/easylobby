@@ -5,7 +5,7 @@ import type { AgentState } from '../bindings/AgentState';
 import type { ClientMessage } from '../bindings/ClientMessage';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { testMatchmaking } from '../test/events';
-import { testLobby, testState } from '../test/lobby';
+import { testReadyLobby as testLobby, testState } from '../test/lobby';
 
 class Socket {
   static OPEN = 1;
