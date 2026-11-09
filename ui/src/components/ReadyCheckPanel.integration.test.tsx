@@ -62,6 +62,22 @@ it('ressincroniza duration e timer e limita em zero', () => {
   act(() => vi.advanceTimersByTime(40000));
   expect(panel().getByLabelText('Tempo para responder')).toHaveTextContent('0 s');
 });
+it('barra preenche da esquerda para a direita com o timer da LCU', () => {
+  render(<App />); open();
+  event({ duration: 12, timer: 3 });
+  const bar = () => panel().getByRole('progressbar', { name: 'Tempo decorrido para responder' });
+  const fill = () => panel().getByTestId('ready-check-bar');
+  expect(bar()).toHaveAttribute('aria-valuemax', '12');
+  expect(bar()).toHaveAttribute('aria-valuenow', '3');
+  expect(fill()).toHaveStyle({ width: '25%' });
+  act(() => vi.advanceTimersByTime(3000));
+  expect(fill()).toHaveStyle({ width: '50%' });
+  expect(panel().getByLabelText('Tempo para responder')).toHaveTextContent('6 s');
+  act(() => vi.advanceTimersByTime(20000));
+  expect(fill()).toHaveStyle({ width: '100%' });
+  event({ state: 'EveryoneReady' });
+  expect(panel().queryByRole('progressbar')).not.toBeInTheDocument();
+});
 it.each(['EveryoneReady', 'StrangerNotReady', 'PartyNotReady', 'Error', 'Unknown', 'Invalid'] as const)('mantém resultado %s até null', state => {
   render(<App />); open(); event({ state });
   expect(button('Aceitar')).toBeDisabled();
