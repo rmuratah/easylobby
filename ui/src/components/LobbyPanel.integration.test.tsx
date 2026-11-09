@@ -367,6 +367,20 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByRole('status')).toHaveTextContent('Partida personalizada criada');
   });
 
+  it('o nome sugerido da personalizada usa o invocador que chega depois, sem apagar o que o jogador digitou (#278)', () => {
+    render(<App />);
+    const victor = testState.summoner!;
+    hello({ summoner: { ...victor, gameName: '', displayName: '' } });
+    fireEvent.click(panel().getByRole('tab', { name: 'Personalizada' }));
+    const name = () => panel().getByRole('textbox', { name: 'Nome' });
+    expect(name()).toHaveValue('Partida personalizada');
+    act(() => socket().receive({ type: 'summoner', summoner: victor }));
+    expect(name()).toHaveValue('Partida de Victor');
+    fireEvent.change(name(), { target: { value: 'Treino da firma' } });
+    act(() => socket().receive({ type: 'summoner', summoner: { ...victor, gameName: 'Outro' } }));
+    expect(name()).toHaveValue('Treino da firma');
+  });
+
   it('cria a personalizada no Mapa aleatório com a seleção de mapas (#271)', async () => {
     render(<App />);
     hello();
