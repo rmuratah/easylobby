@@ -249,9 +249,11 @@ function ActionBar({ mine, chosen, chosenAvailable, catalog, busy, onConfirm, fe
   return (
     <div className="flex flex-col gap-1">
       <div className="flex flex-wrap items-center gap-3">
+        {/* O ban mostra só "Banir" (#311); o nome do campeão fica para o leitor de tela. */}
         <Button variant={ban ? 'danger' : 'primary'} size="lg" disabled={!chosen || !chosenAvailable || busy}
+          aria-label={chosen ? `${ban ? 'Banir' : 'Escolher'} ${championName(catalog, chosen)}` : undefined}
           onClick={() => { if (chosen) onConfirm(chosen); }}>
-          {chosen ? `${ban ? 'Banir' : 'Escolher'} ${championName(catalog, chosen)}` : ban ? 'Banir' : 'Escolher'}
+          {ban ? 'Banir' : chosen ? `Escolher ${championName(catalog, chosen)}` : 'Escolher'}
         </Button>
         {!chosen && <p className="text-body text-muted">{ban ? 'Escolha na grade quem banir.' : 'Escolha seu campeão na grade.'}</p>}
         {chosen && !chosenAvailable && <p className="text-body text-warn">Esse campeão não está mais disponível.</p>}

@@ -48,6 +48,7 @@ it('na vez do ban, marca na grade e confirma pelo botão', async () => {
   await respond();
   // A sessão confirma o hover; o botão usa o campeão marcado.
   session({ pendingAction: { ...banAction, championId: 62 } });
+  expect(panel().getByRole('button', { name: 'Banir Wukong' })).toHaveTextContent(/^Banir$/);
   fireEvent.click(panel().getByRole('button', { name: 'Banir Wukong' }));
   expect(last().command).toEqual({ type: 'confirmAction', actionId: 1, championId: 62 });
   expect(panel().getByText('Confirmando o ban…')).toBeVisible();
