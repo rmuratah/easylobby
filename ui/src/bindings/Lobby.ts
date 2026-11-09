@@ -40,6 +40,13 @@ export type Lobby = {
    */
   showPositionSelector: boolean,
   /**
+   * Se o jogador ordena as 5 posições em vez de escolher primário e
+   * secundário (#230): `true` no Rift Clássico (`gameMode` `JADE`).
+   * Cada membro traz a ordem em [`LobbyMember::position_order`]; o
+   * jogador salva com o comando `setPositionOrder`.
+   */
+  orderedPositions: boolean,
+  /**
    * Se a fila pede as posições e os campeões no lobby (#218): `true` no
    * Jogo Dinâmico. Cada membro traz os seus em
    * [`LobbyMember::player_slots`].

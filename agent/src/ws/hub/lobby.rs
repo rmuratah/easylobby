@@ -2,7 +2,9 @@
 
 use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
 use crate::custom_game::{self, CustomGameOptions};
-use crate::lobby::{self, Lobby, Position, Queue, SetPositionsError, SubteamSlot};
+use crate::lobby::{
+    self, Lobby, Position, Queue, SetPositionOrderError, SetPositionsError, SubteamSlot,
+};
 use crate::lobby_link::{self, LobbyLink};
 use crate::matchmaking::{self, Matchmaking};
 use crate::queues::{GameQueue, MODE_SCREEN_QUEUES};
@@ -244,6 +246,47 @@ impl Hub {
                 CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string())
             }
             Err(SetPositionsError::Lcu(error)) => {
+                CommandResult::error(ErrorCode::Lcu, error.to_string())
+            }
+        }
+    }
+
+    /// Salva a ordem das 5 posições do jogador logado no Rift Clássico
+    /// (comando `setPositionOrder`, #230). Recusa sem falar com a LCU uma
+    /// ordem inválida, fora de lobby e num lobby sem posições em ordem.
+    /// Relê o lobby pelo REST e publica antes de devolver.
+    pub async fn set_position_order(&self, order: &[Position]) -> CommandResult {
+        if let Err(invalid) = lobby::check_position_order(order) {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        let ordered = self
+            .lock()
+            .state
+            .lobby
+            .as_ref()
+            .map(|l| l.ordered_positions);
+        match ordered {
+            None => return CommandResult::error(ErrorCode::InvalidCommand, "fora de lobby"),
+            Some(false) => {
+                return CommandResult::error(
+                    ErrorCode::InvalidCommand,
+                    "esta fila não ordena as 5 posições",
+                )
+            }
+            Some(true) => {}
+        }
+        match lobby::set_position_order(&client, order).await {
+            Ok(()) => {
+                self.refresh_lobby().await;
+                CommandResult::Ok
+            }
+            Err(SetPositionOrderError::Invalid(invalid)) => {
+                CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string())
+            }
+            Err(SetPositionOrderError::Lcu(error)) => {
                 CommandResult::error(ErrorCode::Lcu, error.to_string())
             }
         }
@@ -686,6 +729,7 @@ mod tests {
             hub.create_lobby(Queue::RankedSolo).await,
             hub.leave_lobby().await,
             hub.set_positions(Position::Top, Position::Jungle).await,
+            hub.set_position_order(&[Position::Fill]).await,
             hub.start_tutorial(None).await,
             hub.start_tutorial(Some(2010)).await,
             hub.start_practice_tool().await,
@@ -1108,6 +1152,30 @@ mod tests {
             code(hub.set_subteam_slot(slot).await),
             Some(ErrorCode::NotConnected)
         );
+    }
+
+    #[tokio::test]
+    async fn ordem_invalida_nem_precisa_do_lol() {
+        let hub = Hub::new();
+        for order in [
+            &[][..],
+            &[Position::Top, Position::Jungle],
+            &[
+                Position::Fill,
+                Position::Jungle,
+                Position::Middle,
+                Position::Bottom,
+                Position::Utility,
+            ],
+        ] {
+            assert!(matches!(
+                hub.set_position_order(order).await,
+                CommandResult::Error {
+                    code: ErrorCode::InvalidCommand,
+                    ..
+                }
+            ));
+        }
     }
 
     #[tokio::test]
