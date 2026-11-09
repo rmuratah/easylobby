@@ -1,15 +1,12 @@
 import { useId } from 'react';
 import {
-  CUSTOM_NAME_MAX, FORM_MAPS, TEAM_SIZES, aramMapNames, formMapNames, pickTypeName, pickTypesByMap, spectatorNames, withMap,
+  CUSTOM_NAME_MAX, FORM_MAPS, mapIcons, TEAM_SIZES, aramMapNames, formMapNames, pickTypeName, pickTypesByMap, spectatorNames, withMap,
 } from '../agent/customGame';
 import type { AramMap } from '../bindings/AramMap';
 import type { CustomGameOptions } from '../bindings/CustomGameOptions';
 import type { CustomPickType } from '../bindings/CustomPickType';
 import type { SpectatorPolicy } from '../bindings/SpectatorPolicy';
 import { cx } from './base/cx';
-import aramImage from '../assets/modes/aram.png';
-import classicRiftImage from '../assets/modes/summoners-rift-classico.png';
-import summonersRiftImage from '../assets/modes/summoners-rift.png';
 
 type Props = {
   options: CustomGameOptions;
@@ -25,8 +22,6 @@ const labelClass = 'text-caption font-semibold uppercase tracking-wider text-mut
 const choice = 'flex cursor-pointer items-center gap-2 text-body has-[:disabled]:cursor-not-allowed';
 const radio = 'size-4 shrink-0 accent-[var(--el-accent)]';
 
-/** Ícone de cada mapa (#296), os mesmos dos cards de modo (#294). */
-const mapIcons = { summonersRift: summonersRiftImage, howlingAbyss: aramImage, classicRift: classicRiftImage } as const;
 
 /**
  * Formulário da aba Personalizada, como a tela "Criar personalizada" do

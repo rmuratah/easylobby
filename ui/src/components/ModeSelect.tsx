@@ -6,7 +6,7 @@ import { defaultTutorialPart, tutorialCards } from '../agent/training';
 import { TutorialParts } from './TutorialParts';
 import { cx } from './base/cx';
 import { CustomGameForm } from './CustomGameForm';
-import { customOptionsProblem, customOptionsSummary, defaultCustomOptions } from '../agent/customGame';
+import { customOptionsProblem, customOptionsSummary, defaultCustomOptions, mapIcons } from '../agent/customGame';
 import type { CustomGameOptions } from '../bindings/CustomGameOptions';
 import type { CustomGameListing } from '../bindings/CustomGameListing';
 import type { AgentClient } from '../agent/client';
@@ -291,7 +291,8 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
           </div>
         ) : isCustom ? (
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-tile bg-primary-gradient text-body font-semibold tracking-wide text-on-accent">PE</span>
+            {/* Ícone do mapa escolhido (#332), o mesmo do card do mapa, no lugar da sigla. */}
+            <img src={mapIcons[customOptions.map]} alt="" aria-hidden="true" draggable={false} className="size-11 shrink-0 object-contain" />
             <div className="min-w-0">
               <p className="text-caption font-semibold uppercase tracking-wider text-muted">Partida personalizada</p>
               <p className="truncate text-body font-semibold" aria-live="polite">{customOptions.name.trim() || 'Sem nome'}</p>

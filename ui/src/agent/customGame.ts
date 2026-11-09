@@ -5,6 +5,9 @@ import type { CustomGameSettings } from '../bindings/CustomGameSettings';
 import type { CustomMap } from '../bindings/CustomMap';
 import type { CustomPickType } from '../bindings/CustomPickType';
 import type { SpectatorPolicy } from '../bindings/SpectatorPolicy';
+import aramImage from '../assets/modes/aram.png';
+import classicRiftImage from '../assets/modes/summoners-rift-classico.png';
+import summonersRiftImage from '../assets/modes/summoners-rift.png';
 
 /**
  * Partida personalizada (#262 e #263): nomes das opções do formulário, como o
@@ -27,6 +30,9 @@ const customMapNames = {
 export const FORM_MAPS = ['summonersRift', 'howlingAbyss', 'classicRift'] as const satisfies readonly CustomMap[];
 
 /** Nome de cada modo nos cards do formulário. */
+/** Ícone de cada mapa (#296), os mesmos dos cards de modo (#294). */
+export const mapIcons = { summonersRift: summonersRiftImage, howlingAbyss: aramImage, classicRift: classicRiftImage } as const;
+
 export const formMapNames = {
   summonersRift: "Summoner's Rift",
   howlingAbyss: 'Mapa aleatório',
