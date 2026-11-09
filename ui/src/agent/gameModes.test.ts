@@ -124,3 +124,11 @@ describe('abas da tela de escolha de modo', () => {
     expect(arena.submodes[0].current).toBe(true);
   });
 });
+
+describe('ícones dos modos (#294)', () => {
+  it('todo card de modo tem imagem', () => {
+    const modes = buildModeTabs(recorded).flatMap(t => t.modes);
+    expect(modes.length).toBeGreaterThan(0);
+    expect(modes.filter(m => !m.image).map(m => m.id)).toEqual([]);
+  });
+});
