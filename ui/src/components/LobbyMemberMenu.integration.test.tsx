@@ -41,10 +41,19 @@ describe('remover membro e passar a liderança (#267)', () => {
     expect(panel().getAllByRole('button', { name: /^Ações para/ })).toHaveLength(1);
   });
 
+  it('o próprio card reserva o espaço do menu para as posições ficarem alinhadas', () => {
+    render(<App />);
+    hello({ lobby: party });
+    const spacers = panel().getAllByTestId('lobby-menu-spacer');
+    expect(spacers).toHaveLength(1);
+    expect(spacers[0].closest('li')).toHaveTextContent('Você');
+  });
+
   it('quem não é o líder não vê o menu', () => {
     render(<App />);
     hello({ lobby: { ...party, isLeader: false, members: [{ ...party.members[0], isLeader: false }, { ...friend, isLeader: true }] } });
     expect(panel().queryByRole('button', { name: /^Ações para/ })).not.toBeInTheDocument();
+    expect(panel().queryByTestId('lobby-menu-spacer')).not.toBeInTheDocument();
   });
 
   it('passa a liderança depois de confirmar, e o menu some com o lobby novo', async () => {
