@@ -162,3 +162,8 @@ export function matchStats(matches: MatchSummary[]): MatchStats {
     champions,
   };
 }
+
+/** Fila cujo elo o card do lobby mostra (#275): a Flex no lobby da Flex, a Solo/Duo nos outros, como o client oficial. */
+export function lobbyRankQueue(queueId: number): 'soloDuo' | 'flex' {
+  return queueId === 440 ? 'flex' : 'soloDuo';
+}

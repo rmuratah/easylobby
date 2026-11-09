@@ -33,6 +33,7 @@ pub(super) fn ends_a_game(from: Option<GameflowPhase>, to: Option<GameflowPhase>
 impl Hub {
     pub fn set_ranked(&self, ranked: Option<RankedStats>) {
         self.update(|shared| write_ranked(shared, ranked));
+        self.refill_lobby_ranks();
     }
 
     pub fn set_champion_masteries(&self, masteries: Vec<ChampionMastery>) {
@@ -95,7 +96,9 @@ impl Hub {
         // Um erro (conta sem histórico, LCU ainda subindo) não apaga o que já
         // estava na tela; a próxima releitura tenta de novo.
         if let Ok(Some(ranked)) = ranked {
-            self.update_in_session(session, |shared| write_ranked(shared, Some(ranked)));
+            if self.update_in_session(session, |shared| write_ranked(shared, Some(ranked))) {
+                self.refill_lobby_ranks();
+            }
         }
         if let Ok(Some(masteries)) = masteries {
             self.update_in_session(session, |shared| write_masteries(shared, masteries));

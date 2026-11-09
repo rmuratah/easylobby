@@ -16,6 +16,7 @@ mod friends;
 mod invitations;
 mod lobby;
 mod lobby_chat;
+mod lobby_ranks;
 mod profile;
 mod ready_check;
 mod runes;
@@ -104,6 +105,8 @@ struct Shared {
     /// `puuid` do último `openPlayerProfile` (#255). Um perfil que chega
     /// depois de outro ter sido pedido é descartado.
     player_profile_request: Option<String>,
+    /// Elo dos outros membros do lobby, já buscado (#275).
+    lobby_ranks: lobby_ranks::LobbyRanks,
 }
 
 /// Recurso do estado que um comando relê ou muda pelo REST.
@@ -176,6 +179,7 @@ impl Hub {
                     ux_guard: ux_guard::UxGuard::default(),
                     lobby_chat_join: (String::new(), 0),
                     player_profile_request: None,
+                    lobby_ranks: lobby_ranks::LobbyRanks::default(),
                 }),
                 tx,
             }),
@@ -511,6 +515,7 @@ impl Hub {
                     // A partida terminou: histórico, ranks e maestria mudaram.
                     if profile::ends_a_game(before, Some(phase)) {
                         self.spawn_refresh_profile();
+                        self.reload_lobby_ranks();
                     }
                     // De volta à escolha de modo: as filas abertas podem ter
                     // mudado sem evento (#210).

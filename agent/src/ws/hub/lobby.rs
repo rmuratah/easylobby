@@ -14,11 +14,13 @@ impl Hub {
     pub fn set_lobby(&self, lobby: Option<Lobby>) {
         self.update(|shared| write_lobby(shared, lobby));
         self.drop_lobby_link_without_lobby();
+        self.spawn_fetch_lobby_ranks();
     }
 
     pub(super) fn set_lobby_if(&self, stamp: Stamp, lobby: Option<Lobby>) -> bool {
         let applied = self.update_if(Resource::Lobby, stamp, |shared| write_lobby(shared, lobby));
         self.drop_lobby_link_without_lobby();
+        self.spawn_fetch_lobby_ranks();
         applied
     }
 
@@ -533,8 +535,13 @@ fn write_queues(shared: &mut Shared, queues: Vec<GameQueue>) -> Option<ServerMes
 }
 
 /// Troca o lobby, contando a escrita mesmo quando nada muda (#73).
-pub(super) fn write_lobby(shared: &mut Shared, lobby: Option<Lobby>) -> Option<ServerMessage> {
+pub(super) fn write_lobby(shared: &mut Shared, mut lobby: Option<Lobby>) -> Option<ServerMessage> {
     shared.lobby_rev += 1;
+    match lobby.as_mut() {
+        Some(lobby) => super::lobby_ranks::fill_ranks(shared, lobby),
+        // Sem lobby, os ranks buscados não valem mais (#275).
+        None => shared.lobby_ranks.clear(),
+    }
     if shared.state.lobby == lobby {
         return None;
     }

@@ -16,6 +16,7 @@ import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
 import { PositionIcon } from './PositionIcon';
 import { ModeSelect } from './ModeSelect';
 import { QuickPlaySlots } from './QuickPlaySlots';
+import { LobbyRank } from './LobbyRank';
 import { LobbyOpenToggle } from './LobbyOpenToggle';
 import { LobbyLinkButton } from './LobbyLinkButton';
 import { PracticeLobby } from './PracticeLobby';
@@ -328,7 +329,10 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
                   )}
                 </div>
                 {me && <p className="truncate text-caption text-muted">Você</p>}
-                <span className="mt-2 inline-block rounded-full bg-raised px-2.5 py-1 text-caption font-semibold text-muted">Nível {member.summonerLevel}</span>
+                <div className="flex flex-wrap items-center gap-x-2">
+                  <span className="mt-2 inline-block rounded-full bg-raised px-2.5 py-1 text-caption font-semibold text-muted">Nível {member.summonerLevel}</span>
+                  <LobbyRank ranked={member.ranked} queueId={lobby.queueId} />
+                </div>
               </div>
               {lobby.showQuickPlaySlots && (
                 <QuickPlaySlots key={`${lobby.queueId}:${member.puuid}`} member={member} mine={me} canEdit={canSetSlots}

@@ -52,6 +52,7 @@ use ts_rs::TS;
 use crate::custom_lobby::CustomLobby;
 use crate::lobby_restrictions::{self, LobbyRestriction};
 use crate::quick_play::PlayerSlot;
+use crate::ranked::RankedStats;
 use crate::rest::{LcuClient, LcuError};
 
 /// Endpoint (e URI dos eventos WAMP) do lobby.
@@ -403,6 +404,11 @@ pub struct LobbyMember {
     /// Equipe e vaga no lobby da Arena (#224). `null` nas filas sem equipes
     /// e enquanto a LCU não põe o jogador numa vaga.
     pub subteam: Option<SubteamSlot>,
+    /// Elo do jogador na Solo/Duo e na Flex (#275). A LCU não manda no
+    /// lobby: o agente busca pelo `puuid` e preenche depois, então chega
+    /// `null` primeiro e numa mensagem `lobby` seguinte com os ranks. Também
+    /// `null` se a LCU não respondeu.
+    pub ranked: Option<RankedStats>,
 }
 
 impl Lobby {
@@ -426,6 +432,7 @@ impl Lobby {
                     (Some(team), Some(position)) => Some(SubteamSlot { team, position }),
                     _ => None,
                 },
+                ranked: None,
             })
             .collect::<Vec<LobbyMember>>();
         // A LCU lista em `invitations` até o próprio jogador logado, como
@@ -825,6 +832,7 @@ mod tests {
                 second_position: Position::Unselected,
                 player_slots: Vec::new(),
                 subteam: None,
+                ranked: None,
             }],
             can_invite: true,
             invitations: vec![LobbyInvitation {
@@ -862,6 +870,7 @@ mod tests {
                     "secondPosition": "unselected",
                     "playerSlots": [],
                     "subteam": null,
+                    "ranked": null,
                 }],
                 "canInvite": true,
                 "invitations": [{"puuid": "amigo", "summonerId": 4, "state": "Pending"}],
