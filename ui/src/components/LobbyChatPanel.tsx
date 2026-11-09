@@ -8,10 +8,30 @@ import type { LobbyChatMessage } from '../bindings/LobbyChatMessage';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 
+// Riot ID como no client oficial ("Nome #tag"). O agente preenche o nome; até lá, o do jogador logado ou da lista de amigos.
 function senderName(state: AgentState, message: LobbyChatMessage): string {
-  if (message.fromMe) return 'Você';
+  if (message.gameName) return message.tagLine ? `${message.gameName} #${message.tagLine}` : message.gameName;
+  const me = state.summoner;
+  if (message.fromMe && me?.gameName) return me.tagLine ? `${me.gameName} #${me.tagLine}` : me.gameName;
   const member = state.lobby?.members.find(m => m.puuid === message.fromPuuid);
   return member ? memberName(member, state.friends) : playerName(message.fromPuuid, 0, state.friends);
+}
+
+function ChatLine({ state, message }: { state: AgentState; message: LobbyChatMessage }) {
+  const name = senderName(state, message);
+  const time = messageTime(message);
+  if (message.kind !== 'chat') return (
+    <li title={time} className="break-words text-body text-muted">
+      {name} {message.kind === 'joined' ? 'entrou no saguão' : 'saiu do saguão'}
+    </li>
+  );
+  return (
+    <li title={time} className="break-words text-body">
+      <span className={`font-semibold ${message.fromMe ? 'text-accent-ink' : 'text-ink'}`}>{name}</span>
+      <span className="text-muted">: </span>
+      <span className="whitespace-pre-wrap">{message.body}</span>
+    </li>
+  );
 }
 
 const cardClass = 'flex w-full min-w-0 flex-col gap-2 rounded-panel surface p-4 text-ink shadow-soft animate-fade-up';
@@ -88,13 +108,7 @@ function OpenChat({ state, chat, send }: { state: AgentState; chat: LobbyChat; s
             const element = log.current;
             if (element) follow.current = element.scrollHeight - element.scrollTop - element.clientHeight <= 32;
           }} role="log" aria-label="Mensagens do grupo" className="flex max-h-56 flex-col gap-1 overflow-y-auto px-1">
-            {messages.map(message => (
-              <li key={message.id} className="break-words text-body">
-                <span className="text-caption text-muted">{messageTime(message)} </span>
-                <span className={`font-semibold ${message.fromMe ? 'text-accent-ink' : 'text-ink'}`}>{senderName(state, message)}: </span>
-                <span className="whitespace-pre-wrap">{message.body}</span>
-              </li>
-            ))}
+            {messages.map(message => <ChatLine key={message.id} state={state} message={message} />)}
           </ol>
         )}
       <form onSubmit={submit} className="flex gap-2">

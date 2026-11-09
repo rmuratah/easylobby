@@ -105,9 +105,9 @@ struct Shared {
     queues_rev: u64,
     /// Fecha de novo a UI oficial quando o LoL a reabre (#188).
     ux_guard: ux_guard::UxGuard,
-    /// Sala do grupo em que o agente já tentou entrar nesta conexão, e
-    /// quantas vezes (#206). Evita repetir o `POST` a cada evento do lobby.
-    lobby_chat_join: (String, u8),
+    /// Tentativas de entrar na sala do grupo, de qual lobby é a sala aberta
+    /// e os nomes de quem mandou mensagem (#206).
+    lobby_chat_sync: lobby_chat::LobbyChatSync,
     /// `puuid` do último `openPlayerProfile` (#255). Um perfil que chega
     /// depois de outro ter sido pedido é descartado.
     player_profile_request: Option<String>,
@@ -186,7 +186,7 @@ impl Hub {
                     ready_check_rev: 0,
                     queues_rev: 0,
                     ux_guard: ux_guard::UxGuard::default(),
-                    lobby_chat_join: (String::new(), 0),
+                    lobby_chat_sync: lobby_chat::LobbyChatSync::default(),
                     player_profile_request: None,
                     lobby_ranks: lobby_ranks::LobbyRanks::default(),
                 }),
@@ -372,11 +372,13 @@ impl Hub {
                     if let Ok(Some((id, messages))) =
                         crate::lobby_chat::current_room(&client, &lobby_chat_id).await
                     {
-                        self.restore_lobby_chat(chat_session, id, &messages);
+                        self.restore_lobby_chat(chat_session, id, &messages, false);
                     }
                 }
                 // Com a UI oficial fechada ninguém entrou na sala.
                 self.ensure_lobby_chat().await;
+                // E as mensagens que o WAMP não trouxer (#206).
+                self.spawn_lobby_chat_sync(chat_session);
                 // O catálogo antes das páginas, para a UI já poder desenhá-las.
                 self.set_rune_catalog(rune_catalog.ok().flatten());
                 self.set_rune_pages_if(stamps.rune_pages, rune_pages.ok());
@@ -454,7 +456,7 @@ impl Hub {
                     shared.client = None;
                     shared.session += 1;
                     shared.ux_guard.active = false;
-                    shared.lobby_chat_join = (String::new(), 0);
+                    shared.lobby_chat_sync = lobby_chat::LobbyChatSync::default();
                 }
                 // O LoL fechou ou reiniciou: as janelas escondidas se foram.
                 self.stop_hiding(None, false);
