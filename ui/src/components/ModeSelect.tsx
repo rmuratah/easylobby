@@ -270,7 +270,7 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
       <footer className="flex flex-wrap items-center gap-4 rounded-panel surface p-4 shadow-soft">
         {joining ? (
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-            <div className="min-w-0 flex-1">
+            <div className="min-w-[12rem] flex-1">
               <p className="text-caption font-semibold uppercase tracking-wider text-muted">Entrar na personalizada</p>
               <p className="truncate text-body font-semibold" aria-live="polite">{joinGame ? joinGame.name || 'Sem nome' : 'Escolha uma partida da lista'}</p>
               {joinGame && (
@@ -280,7 +280,7 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
               )}
             </div>
             {joinGame?.hasPassword && (
-              <div className="flex min-w-[10rem] flex-col gap-1">
+              <div className="flex w-48 max-w-full flex-col gap-1">
                 <label htmlFor={`${baseId}-join-password`} className="text-caption font-semibold uppercase tracking-wider text-muted">Senha</label>
                 <input id={`${baseId}-join-password`} type="password" value={joinPassword} disabled={locked} autoComplete="off"
                   onChange={event => setJoinPassword(event.target.value)}
