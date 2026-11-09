@@ -447,8 +447,8 @@ impl InvitationState {
     }
 }
 
-/// Um jogador no lobby. A LCU não manda o nome aqui; a UI cruza o `puuid`
-/// com o invocador logado ou com a lista de amigos.
+/// Um jogador no lobby. A LCU não manda o nome aqui: o agente busca o Riot
+/// ID pelo `puuid` e preenche [`game_name`](Self::game_name) depois (#325).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct LobbyMember {
@@ -482,6 +482,13 @@ pub struct LobbyMember {
     /// `null` primeiro e numa mensagem `lobby` seguinte com os ranks. Também
     /// `null` se a LCU não respondeu.
     pub ranked: Option<RankedStats>,
+    /// Nome do Riot ID (antes do `#`) (#325). A LCU não manda no lobby: o
+    /// agente busca pelo `puuid` (`/lol-summoner/v2/summoners/puuid/`),
+    /// junto com o elo, então chega vazio primeiro. Vazio também se a LCU
+    /// não respondeu; aí a UI procura na lista de amigos.
+    pub game_name: String,
+    /// Tag do Riot ID (depois do `#`). Vazia junto com `game_name`.
+    pub tag_line: String,
 }
 
 impl Lobby {
@@ -515,6 +522,8 @@ impl Lobby {
                         _ => None,
                     },
                     ranked: None,
+                    game_name: String::new(),
+                    tag_line: String::new(),
                 }
             })
             .collect::<Vec<LobbyMember>>();
@@ -1053,6 +1062,8 @@ mod tests {
                 player_slots: Vec::new(),
                 subteam: None,
                 ranked: None,
+                game_name: "Ana".into(),
+                tag_line: "BR1".into(),
             }],
             can_invite: true,
             invitations: vec![LobbyInvitation {
@@ -1093,6 +1104,8 @@ mod tests {
                     "playerSlots": [],
                     "subteam": null,
                     "ranked": null,
+                    "gameName": "Ana",
+                    "tagLine": "BR1",
                 }],
                 "canInvite": true,
                 "invitations": [{"puuid": "amigo", "summonerId": 4, "state": "Pending"}],

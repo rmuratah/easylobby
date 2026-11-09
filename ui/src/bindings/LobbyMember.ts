@@ -5,8 +5,8 @@ import type { RankedStats } from "./RankedStats";
 import type { SubteamSlot } from "./SubteamSlot";
 
 /**
- * Um jogador no lobby. A LCU não manda o nome aqui; a UI cruza o `puuid`
- * com o invocador logado ou com a lista de amigos.
+ * Um jogador no lobby. A LCU não manda o nome aqui: o agente busca o Riot
+ * ID pelo `puuid` e preenche [`game_name`](Self::game_name) depois (#325).
  */
 export type LobbyMember = {
   puuid: string,
@@ -49,4 +49,15 @@ export type LobbyMember = {
    * `null` se a LCU não respondeu.
    */
   ranked: RankedStats | null,
+  /**
+   * Nome do Riot ID (antes do `#`) (#325). A LCU não manda no lobby: o
+   * agente busca pelo `puuid` (`/lol-summoner/v2/summoners/puuid/`),
+   * junto com o elo, então chega vazio primeiro. Vazio também se a LCU
+   * não respondeu; aí a UI procura na lista de amigos.
+   */
+  gameName: string,
+  /**
+   * Tag do Riot ID (depois do `#`). Vazia junto com `game_name`.
+   */
+  tagLine: string,
 };

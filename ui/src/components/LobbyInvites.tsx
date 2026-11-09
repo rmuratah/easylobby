@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { ConnectionSnapshot } from '../agent/client';
 import { assetUrl } from '../agent/assets';
-import { friendDisplayName, groupFriends, playerName } from '../agent/friends';
+import { friendDisplayName, groupFriends, memberName, playerName } from '../agent/friends';
 import { isOpenInvitation } from '../agent/invitations';
 import { friendTarget, type InviteTarget, type LobbyInvite } from '../agent/lobbyInvite';
 import type { Friend } from '../bindings/Friend';
@@ -313,7 +313,7 @@ export function LobbyGroupCard({ connection }: { connection: ConnectionSnapshot 
   const me = state.summoner?.puuid;
   const entries: GroupEntry[] = [
     ...lobby.members.filter(m => m.puuid !== me)
-      .map(m => ({ puuid: m.puuid, name: playerName(m.puuid, m.summonerId, state.friends), status: 'member' as const })),
+      .map(m => ({ puuid: m.puuid, name: memberName(m, state.friends), status: 'member' as const })),
     ...lobby.invitations.filter(i => !lobby.members.some(m => m.puuid === i.puuid))
       .map(i => ({ puuid: i.puuid, name: playerName(i.puuid, i.summonerId, state.friends), status: i.state })),
   ];
