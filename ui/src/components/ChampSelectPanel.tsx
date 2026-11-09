@@ -72,7 +72,7 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
     if (!mine || confirm.pending) return;
     setChoice({ actionId: mine.action.id, championId });
     void hover.run({ type: 'hoverChampion', actionId: mine.action.id, championId },
-      { pending: 'Marcando o campeão…', failure: 'marcar o campeão' });
+      { pending: '', failure: 'marcar o campeão' });
   }
   function lockIn(championId: number) {
     if (!mine?.turn || confirm.pending) return;
@@ -230,8 +230,9 @@ type ActionBarProps = {
 };
 
 function ActionBar({ mine, chosen, chosenAvailable, catalog, busy, onConfirm, feedback }: ActionBarProps) {
-  // O retorno mais recente que ainda diz algo: o da confirmação primeiro.
-  const shown = feedback.find(f => f.status !== 'idle');
+  // O retorno mais recente que ainda diz algo: o da confirmação primeiro. Marcar o campeão
+  // não mostra "marcando…" (#311), só o erro se a LCU recusar.
+  const shown = feedback.find(f => f.status !== 'idle' && f.message);
   const message = shown && <p role={shown.status === 'error' ? 'alert' : 'status'}
     className={shown.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{shown.message}</p>;
   if (!mine) return message ?? null;

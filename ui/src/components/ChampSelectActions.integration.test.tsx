@@ -45,6 +45,8 @@ it('na vez do ban, marca na grade e confirma pelo botão', async () => {
   fireEvent.click(tile('Wukong'));
   expect(last().command).toEqual({ type: 'hoverChampion', actionId: 1, championId: 62 });
   expect(tile('Wukong')).toHaveAttribute('aria-pressed', 'true');
+  // Marcar não mostra mensagem embaixo do botão (#311).
+  expect(panel().queryByText('Marcando o campeão…')).toBeNull();
   await respond();
   // A sessão confirma o hover; o botão usa o campeão marcado.
   session({ pendingAction: { ...banAction, championId: 62 } });
