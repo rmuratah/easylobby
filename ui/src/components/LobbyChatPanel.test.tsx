@@ -14,8 +14,10 @@ const chat: LobbyChat = { messages: [
   { id: '2', body: 'bora', fromMe: true, fromPuuid: 'local', timestamp: t },
   { id: '3', body: 'oi', fromMe: false, fromPuuid: 'outro', timestamp: t },
 ] };
+const ana = { ...testLobby.members[0], puuid: 'ana', summonerId: 2, isLeader: false };
+const party = { ...testLobby, members: [...testLobby.members, ana] };
 const connected = (overrides: Partial<AgentState>): ConnectionSnapshot => ({ status: 'connected', error: null, state: {
-  ...testState, gameflowPhase: 'Lobby', lobby: testLobby, lobbyChat: chat,
+  ...testState, gameflowPhase: 'Lobby', lobby: party, lobbyChat: chat,
   friends: [{ ...testFriend, puuid: 'ana', gameName: 'Ana', tagLine: 'BR1' }], ...overrides } });
 
 describe('chat do grupo', () => {
@@ -49,6 +51,13 @@ describe('chat do grupo', () => {
     expect(screen.getByText('Aguardando a sala do grupo abrir…')).toBeInTheDocument();
     rerender(<LobbyChatPanel connection={connected({ lobby: null, lobbyChat: null })} send={vi.fn()} />);
     expect(screen.queryByRole('region', { name: 'Chat do grupo' })).not.toBeInTheDocument();
+  });
+
+  it('some sozinho no lobby e volta quando alguém entra (#285)', () => {
+    const { rerender } = render(<LobbyChatPanel connection={connected({ lobby: testLobby })} send={vi.fn()} />);
+    expect(screen.queryByRole('region', { name: 'Chat do grupo' })).not.toBeInTheDocument();
+    rerender(<LobbyChatPanel connection={connected({ lobby: party })} send={vi.fn()} />);
+    expect(screen.getByRole('region', { name: 'Chat do grupo' })).toBeInTheDocument();
   });
 
   it('sair do lobby descarta o chat do grupo', () => {
