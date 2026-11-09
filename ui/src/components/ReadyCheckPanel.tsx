@@ -14,14 +14,32 @@ export function ReadyCheckPanel({ connection, send }: Props) {
     check={check} active={state.gameflowPhase === 'ReadyCheck'} send={send} />;
 }
 
-function Countdown({ check }: { check: ReadyCheck }) {
+// Contador e barra usam o mesmo relógio: o timer da LCU mais o tempo desde o último evento.
+function useElapsed(check: ReadyCheck) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     const started = Date.now();
     const interval = setInterval(() => setElapsed((Date.now() - started) / 1000), 250);
     return () => clearInterval(interval);
   }, []);
-  return <strong aria-label="Tempo para responder">{Math.ceil(Math.max(0, check.duration - check.timer - elapsed))} s</strong>;
+  return Math.min(check.duration, Math.max(0, check.timer + elapsed));
+}
+
+function Countdown({ check }: { check: ReadyCheck }) {
+  const elapsed = useElapsed(check);
+  return <strong aria-label="Tempo para responder">{Math.ceil(check.duration - elapsed)} s</strong>;
+}
+
+// Preenche da esquerda para a direita até acabar o tempo (#347).
+function TimeBar({ check }: { check: ReadyCheck }) {
+  const elapsed = useElapsed(check);
+  const percent = check.duration > 0 ? (elapsed / check.duration) * 100 : 100;
+  return <div role="progressbar" aria-label="Tempo decorrido para responder" aria-valuemin={0}
+    aria-valuemax={check.duration} aria-valuenow={Math.floor(elapsed)}
+    className="h-2 w-full overflow-hidden rounded-full bg-control">
+    <div data-testid="ready-check-bar" className="h-full rounded-full bg-accent transition-[width] duration-[250ms] ease-linear"
+      style={{ width: `${percent}%` }} />
+  </div>;
 }
 
 function ReadyCheckActions({ check, active, send }: { check: ReadyCheck; active: boolean; send: AgentClient['send'] }) {
@@ -86,6 +104,7 @@ function ReadyCheckActions({ check, active, send }: { check: ReadyCheck; active:
       {answering && <p className="flex flex-col items-center text-caption text-muted">Tempo para responder
         <span className="text-[2.5rem] font-semibold leading-none tabular-nums text-ink"><Countdown key={`${check.timer}:${check.duration}`} check={check} /></span></p>}
     </div>
+    {answering && <TimeBar key={`${check.timer}:${check.duration}`} check={check} />}
     <div className="flex flex-wrap items-center gap-3">
       <Button variant="primary" size="lg" className="min-w-[10rem]" disabled={!canAnswer || pending}
         aria-keyshortcuts="Enter" onClick={() => { void answer('acceptReadyCheck'); }}>Aceitar</Button>
