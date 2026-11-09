@@ -36,6 +36,14 @@
 //! em texto (`"true"` ou `"false"`); o primeiro ainda precisa ser conferido no
 //! LoL real.
 //!
+//! O Mapa aleatório do client oficial (#271) é o Abismo Uivante (mapa 12) com
+//! a "Seleção de mapas" em `gameCustomization.aramMapMutator`: `NONE` no
+//! Howling Abyss, `MapSkin_Map12_Bloom` na Travessia de Koeshin e
+//! `MapSkin_HA_Bilgewater` na Ponte da Carnificina ([`AramMap`]). O "Mapa
+//! aleatório" da lista não tem valor próprio: o client sorteia um dos três, e o
+//! agente faz o mesmo. O ARAM: Desordem é o modo `KIWI` no mesmo mapa (fila
+//! 3270, `mutators.id` 19), como mostram as gravações do LoL real.
+//!
 //! Depois de criada, a personalizada mostra no lobby o nome, o mapa, o tipo de
 //! seleção e quem pode assistir ([`CustomGameSettings`]), lidos do
 //! `gameConfig` (`customLobbyName`, `mapId`, `gameMode`,
@@ -61,8 +69,8 @@ pub const MAX_NAME_LEN: usize = 64;
 pub enum CustomMap {
     /// Summoner's Rift, modo Clássico (`CLASSIC`, mapa 11).
     SummonersRift,
-    /// Abismo Uivante, modo ARAM (`ARAM`, mapa 12). O client oficial o mostra
-    /// dentro do Mapa aleatório (#271).
+    /// Abismo Uivante, modo ARAM (`ARAM`, mapa 12). É o modo "Mapa aleatório"
+    /// do client oficial (#271), com a seleção de mapas em [`AramMap`].
     HowlingAbyss,
     /// Rift Clássico (`JADE`, mapa 453, #270): só às cegas e alternada.
     ClassicRift,
@@ -92,7 +100,8 @@ impl CustomMap {
                 pick_type,
                 CustomPickType::BlindPick | CustomPickType::DraftMode
             ),
-            CustomMap::SummonersRift | CustomMap::HowlingAbyss => true,
+            CustomMap::SummonersRift => pick_type != CustomPickType::AramMayhem,
+            CustomMap::HowlingAbyss => true,
         }
     }
 
@@ -120,6 +129,8 @@ pub enum CustomPickType {
     AllRandom,
     /// Alternada para torneios.
     TournamentDraft,
+    /// ARAM: Desordem (#271), só no Abismo Uivante: o modo `KIWI`.
+    AramMayhem,
 }
 
 impl CustomPickType {
@@ -131,6 +142,7 @@ impl CustomPickType {
             CustomPickType::DraftMode => 18,
             CustomPickType::AllRandom => 21,
             CustomPickType::TournamentDraft => 6,
+            CustomPickType::AramMayhem => 19,
         }
     }
 
@@ -146,6 +158,48 @@ impl CustomPickType {
             }
             _ => None,
         }
+    }
+}
+
+/// "Seleção de mapas" do Mapa aleatório (#271): a variante do Abismo Uivante.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum AramMap {
+    /// Howling Abyss (`NONE`).
+    HowlingAbyss,
+    /// Travessia de Koeshin (`MapSkin_Map12_Bloom`).
+    KoeshinCrossing,
+    /// Ponte da Carnificina (`MapSkin_HA_Bilgewater`).
+    ButchersBridge,
+    /// Mapa aleatório: o agente sorteia um dos três, como o client oficial.
+    Random,
+}
+
+impl AramMap {
+    const CHOICES: [AramMap; 3] = [
+        AramMap::HowlingAbyss,
+        AramMap::KoeshinCrossing,
+        AramMap::ButchersBridge,
+    ];
+
+    /// Valor de `gameCustomization.aramMapMutator`. O `Random` sorteia.
+    pub fn to_lcu(self) -> &'static str {
+        match self {
+            AramMap::HowlingAbyss => "NONE",
+            AramMap::KoeshinCrossing => "MapSkin_Map12_Bloom",
+            AramMap::ButchersBridge => "MapSkin_HA_Bilgewater",
+            AramMap::Random => Self::random().to_lcu(),
+        }
+    }
+
+    /// Um dos três mapas. O sorteio não precisa ser criptográfico: usa os
+    /// nanossegundos do relógio.
+    fn random() -> AramMap {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        Self::CHOICES[nanos as usize % Self::CHOICES.len()]
     }
 }
 
@@ -197,6 +251,9 @@ pub struct CustomGameOptions {
     pub password: String,
     pub map: CustomMap,
     pub pick_type: CustomPickType,
+    /// Seleção de mapas do Mapa aleatório (#271). Só vale no Abismo Uivante;
+    /// nos outros mapas é ignorada.
+    pub aram_map: AramMap,
     /// Jogadores por equipe, de 1 a 5.
     pub team_size: u32,
     pub spectators: SpectatorPolicy,
@@ -234,12 +291,20 @@ impl CustomGameOptions {
         Ok(())
     }
 
+    /// `gameMode` da LCU: o do mapa, ou `KIWI` no ARAM: Desordem.
+    pub fn game_mode(&self) -> &'static str {
+        match self.pick_type {
+            CustomPickType::AramMayhem => "KIWI",
+            _ => self.map.game_mode(),
+        }
+    }
+
     /// Corpo do `POST /lol-lobby/v2/lobby` que cria a personalizada.
     pub fn body(&self) -> Value {
         lobby_body(&LobbyConfig {
             name: self.name.trim(),
             password: &self.password,
-            game_mode: self.map.game_mode(),
+            game_mode: self.game_mode(),
             map_id: self.map.map_id(),
             mutator_id: self.pick_type.mutator_id(),
             team_size: self.team_size,
@@ -247,6 +312,7 @@ impl CustomGameOptions {
             extras: Some(Extras {
                 private: self.hide_from_public_list,
                 spectator_delay: self.spectator_delay,
+                aram_map: (self.map == CustomMap::HowlingAbyss).then(|| self.aram_map.to_lcu()),
             }),
         })
     }
@@ -266,10 +332,13 @@ pub(crate) struct LobbyConfig<'a> {
     pub extras: Option<Extras>,
 }
 
-/// Opções do #270 que vão no `configuration`.
+/// Opções do #270 e do #271, que vão no `configuration` e no
+/// `gameCustomization`.
 pub(crate) struct Extras {
     pub private: bool,
     pub spectator_delay: bool,
+    /// `aramMapMutator`, só no Abismo Uivante.
+    pub aram_map: Option<&'static str>,
 }
 
 /// Corpo do `POST /lol-lobby/v2/lobby` de uma personalizada.
@@ -295,6 +364,9 @@ pub(crate) fn lobby_body(config: &LobbyConfig) -> Value {
         body["gameCustomization"] = json!({
             "spectatorGridDelayEnabled": extras.spectator_delay.to_string()
         });
+        if let Some(aram_map) = extras.aram_map {
+            body["gameCustomization"]["aramMapMutator"] = json!(aram_map);
+        }
     }
     body
 }
@@ -337,7 +409,12 @@ impl CustomGameSettings {
             game_mode: text("gameMode").to_owned(),
             map_id: u32::try_from(map_id).unwrap_or(0),
             map: CustomMap::from_map_id(map_id),
-            pick_type: CustomPickType::from_mutator_name(text("customMutatorName")),
+            // O ARAM: Desordem manda AllRandomPickStrategy: o modo diz mais.
+            pick_type: if text("gameMode") == "KIWI" {
+                Some(CustomPickType::AramMayhem)
+            } else {
+                CustomPickType::from_mutator_name(text("customMutatorName"))
+            },
             spectators: SpectatorPolicy::from_lcu(text("customSpectatorPolicy")),
         }
     }
@@ -353,6 +430,7 @@ mod tests {
             password: "segredo".into(),
             map: CustomMap::HowlingAbyss,
             pick_type: CustomPickType::DraftMode,
+            aram_map: AramMap::KoeshinCrossing,
             team_size: 3,
             spectators: SpectatorPolicy::FriendsOnly,
             hide_from_public_list: true,
@@ -374,9 +452,60 @@ mod tests {
             body["gameCustomization"]["spectatorGridDelayEnabled"],
             "false"
         );
+        assert_eq!(
+            body["gameCustomization"]["aramMapMutator"],
+            "MapSkin_Map12_Bloom"
+        );
         assert_eq!(body["customGameLobby"]["lobbyName"], "Partida de Fulano");
         assert_eq!(body["customGameLobby"]["lobbyPassword"], "segredo");
         assert_eq!(body["isCustom"], true);
+    }
+
+    #[test]
+    fn mapa_aleatorio_manda_a_selecao_de_mapas_e_a_desordem_vira_kiwi() {
+        let mayhem = CustomGameOptions {
+            pick_type: CustomPickType::AramMayhem,
+            aram_map: AramMap::ButchersBridge,
+            ..options()
+        };
+        assert_eq!(mayhem.validate(), Ok(()));
+        let body = mayhem.body();
+        assert_eq!(body["customGameLobby"]["configuration"]["gameMode"], "KIWI");
+        assert_eq!(body["customGameLobby"]["configuration"]["mapId"], 12);
+        assert_eq!(
+            body["gameCustomization"]["aramMapMutator"],
+            "MapSkin_HA_Bilgewater"
+        );
+
+        let random = CustomGameOptions {
+            aram_map: AramMap::Random,
+            ..options()
+        };
+        let chosen = random.body()["gameCustomization"]["aramMapMutator"].clone();
+        assert!(
+            ["NONE", "MapSkin_Map12_Bloom", "MapSkin_HA_Bilgewater"]
+                .contains(&chosen.as_str().unwrap()),
+            "{chosen}"
+        );
+
+        // Fora do Abismo Uivante, a seleção de mapas não vai e a Desordem não vale.
+        let rift = CustomGameOptions {
+            map: CustomMap::SummonersRift,
+            ..options()
+        };
+        assert!(rift.body()["gameCustomization"]
+            .get("aramMapMutator")
+            .is_none());
+        let rift_mayhem = CustomGameOptions {
+            pick_type: CustomPickType::AramMayhem,
+            ..rift
+        };
+        assert!(rift_mayhem.validate().is_err());
+
+        let settings = CustomGameSettings::from_game_config(&json!({
+            "gameMode": "KIWI", "mapId": 12, "customMutatorName": "AllRandomPickStrategy"
+        }));
+        assert_eq!(settings.pick_type, Some(CustomPickType::AramMayhem));
     }
 
     #[test]
@@ -409,6 +538,7 @@ mod tests {
             (3210, CustomPickType::DraftMode),
             (3220, CustomPickType::AllRandom),
             (3230, CustomPickType::TournamentDraft),
+            (3270, CustomPickType::AramMayhem),
         ] {
             assert_eq!(
                 game_type(queue),
@@ -481,7 +611,7 @@ mod tests {
                 game_mode: "KIWI".into(),
                 map_id: 12,
                 map: Some(CustomMap::HowlingAbyss),
-                pick_type: Some(CustomPickType::AllRandom),
+                pick_type: Some(CustomPickType::AramMayhem),
                 spectators: Some(SpectatorPolicy::All),
             }
         );

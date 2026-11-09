@@ -775,7 +775,7 @@ mod tests {
     #[test]
     fn personalizada_usa_a_fila_do_mapa_e_do_tipo_de_selecao() {
         use easylobby_agent::custom_game::{
-            CustomGameOptions, CustomMap, CustomPickType, SpectatorPolicy,
+            AramMap, CustomGameOptions, CustomMap, CustomPickType, SpectatorPolicy,
         };
         use easylobby_agent::lobby::Lobby;
 
@@ -785,6 +785,7 @@ mod tests {
             password: "segredo".into(),
             map: CustomMap::HowlingAbyss,
             pick_type: CustomPickType::TournamentDraft,
+            aram_map: AramMap::HowlingAbyss,
             team_size: 3,
             spectators: SpectatorPolicy::LobbyOnly,
             hide_from_public_list: false,
@@ -814,5 +815,18 @@ mod tests {
             create(&s, &blind.body()).0.body["gameConfig"]["queueId"],
             3100
         );
+
+        // ARAM: Desordem (#271): modo KIWI, fila 3270.
+        let mayhem = CustomGameOptions {
+            map: CustomMap::HowlingAbyss,
+            pick_type: CustomPickType::AramMayhem,
+            ..blind
+        };
+        let created = create(&s, &mayhem.body()).0.body;
+        assert_eq!(created["gameConfig"]["queueId"], 3270);
+        let custom = Lobby::from_json(&created)
+            .and_then(|l| l.custom)
+            .expect("lobby de personalizada");
+        assert_eq!(custom.settings.pick_type, Some(CustomPickType::AramMayhem));
     }
 }

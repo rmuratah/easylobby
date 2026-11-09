@@ -821,7 +821,7 @@ impl CommandResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::custom_game::{CustomMap, CustomPickType, SpectatorPolicy};
+    use crate::custom_game::{AramMap, CustomMap, CustomPickType, SpectatorPolicy};
     use serde_json::json;
 
     #[test]
@@ -975,7 +975,7 @@ mod tests {
         let msg: ClientMessage = serde_json::from_value(json!({"id": 9, "command": {
             "type": "createCustomGame", "options": {
                 "name": "Partida de Fulano", "password": "", "map": "summonersRift",
-                "pickType": "draftMode", "teamSize": 5, "spectators": "lobbyOnly",
+                "pickType": "draftMode", "aramMap": "howlingAbyss", "teamSize": 5, "spectators": "lobbyOnly",
                 "hideFromPublicList": false, "spectatorDelay": true,
             },
         }}))
@@ -988,6 +988,7 @@ mod tests {
                     password: String::new(),
                     map: CustomMap::SummonersRift,
                     pick_type: CustomPickType::DraftMode,
+                    aram_map: AramMap::HowlingAbyss,
                     team_size: 5,
                     spectators: SpectatorPolicy::LobbyOnly,
                     hide_from_public_list: false,

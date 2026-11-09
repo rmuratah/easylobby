@@ -1,7 +1,8 @@
 import { useId } from 'react';
 import {
-  CUSTOM_NAME_MAX, FORM_MAPS, TEAM_SIZES, customMapNames, pickTypeName, pickTypesByMap, spectatorNames, withMap,
+  CUSTOM_NAME_MAX, FORM_MAPS, TEAM_SIZES, aramMapNames, formMapNames, pickTypeName, pickTypesByMap, spectatorNames, withMap,
 } from '../agent/customGame';
+import type { AramMap } from '../bindings/AramMap';
 import type { CustomGameOptions } from '../bindings/CustomGameOptions';
 import type { CustomPickType } from '../bindings/CustomPickType';
 import type { SpectatorPolicy } from '../bindings/SpectatorPolicy';
@@ -22,21 +23,22 @@ const choice = 'flex cursor-pointer items-center gap-2 text-body has-[:disabled]
 const radio = 'size-4 shrink-0 accent-[var(--el-accent)]';
 
 /** Sigla no lugar do ícone do modo, até as imagens finais entrarem. */
-const mapIcons = { summonersRift: 'SR', classicRift: 'RC' } as const;
+const mapIcons = { summonersRift: 'SR', howlingAbyss: 'MA', classicRift: 'RC' } as const;
 
 /**
  * Formulário da aba Personalizada, como a tela "Criar personalizada" do
  * client oficial (#270): o modo no topo e, embaixo, duas colunas. À esquerda,
  * nome, tamanho da equipe, senha e "Esconder da lista de saguões públicos"; à
- * direita, tipo de jogo, espectadores e intervalo de espectador. O Modo de
- * Treino fica na aba Treinamento e o Mapa aleatório entra no #271.
+ * direita, tipo de jogo, seleção de mapas (só no Mapa aleatório, #271),
+ * espectadores e intervalo de espectador. O Modo de Treino fica na aba
+ * Treinamento.
  */
 export function CustomGameForm({ options, onChange, locked, problem }: Props) {
   const baseId = useId();
   const set = <K extends keyof CustomGameOptions>(key: K, value: CustomGameOptions[K]) => onChange({ ...options, [key]: value });
   return (
     <div className="flex flex-col gap-5">
-      <fieldset aria-label="Modo" disabled={locked} className="grid gap-3 border-b border-line pb-5 @min-[40rem]:grid-cols-2">
+      <fieldset aria-label="Modo" disabled={locked} className="grid gap-3 border-b border-line pb-5 @min-[40rem]:grid-cols-3">
         {FORM_MAPS.map(map => {
           const selected = options.map === map;
           return (
@@ -47,7 +49,7 @@ export function CustomGameForm({ options, onChange, locked, problem }: Props) {
                 onChange={() => onChange(withMap(options, map))} />
               <span aria-hidden="true" className={cx('flex size-12 shrink-0 items-center justify-center rounded-tile text-body font-semibold tracking-wide',
                 selected ? 'bg-primary-gradient text-on-accent' : 'bg-raised text-muted')}>{mapIcons[map]}</span>
-              <span className="text-section font-semibold uppercase tracking-wide">{customMapNames[map]}</span>
+              <span className="text-section font-semibold uppercase tracking-wide">{formMapNames[map]}</span>
             </label>
           );
         })}
@@ -89,6 +91,15 @@ export function CustomGameForm({ options, onChange, locked, problem }: Props) {
               {pickTypesByMap[options.map].map(pick => <option key={pick} value={pick}>{pickTypeName(options.map, pick)}</option>)}
             </select>
           </div>
+          {options.map === 'howlingAbyss' && (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={`${baseId}-aram-map`} className={labelClass}>Seleção de mapas</label>
+              <select id={`${baseId}-aram-map`} value={options.aramMap} disabled={locked} className={field}
+                onChange={event => set('aramMap', event.target.value as AramMap)}>
+                {(Object.keys(aramMapNames) as AramMap[]).map(map => <option key={map} value={map}>{aramMapNames[map]}</option>)}
+              </select>
+            </div>
+          )}
           <fieldset disabled={locked} className="flex flex-col gap-2">
             <legend className={cx(labelClass, 'mb-2')}>Permitir espectadores</legend>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
