@@ -93,6 +93,15 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
   const isCustom = tab.id === 'custom';
   // Formulário da personalizada (#262): fica preenchido ao trocar de aba e voltar.
   const [customOptions, setCustomOptions] = useState<CustomGameOptions>(() => defaultCustomOptions(summonerName));
+  // O invocador pode chegar depois de a tela montar (#278): o nome sugerido
+  // acompanha, a menos que o jogador já tenha editado o campo.
+  const [suggestedFor, setSuggestedFor] = useState(summonerName);
+  if (suggestedFor !== summonerName) {
+    setSuggestedFor(summonerName);
+    if (customOptions.name === defaultCustomOptions(suggestedFor).name) {
+      setCustomOptions({ ...customOptions, name: defaultCustomOptions(summonerName).name });
+    }
+  }
   const customProblem = customOptionsProblem(customOptions);
   // Tutorial (#228): a parte escolhida nos cards; sem escolha, a primeira liberada que falta.
   const [tutorialChoice, setTutorialChoice] = useState<number | null>(null);
