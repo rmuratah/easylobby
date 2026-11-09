@@ -83,14 +83,16 @@ export default function App() {
   const summoner = connection.status === 'connected' && connection.state?.lcu.state === 'connected'
     ? connection.state.summoner : null;
   return (
-    <div className="app-shell">
+    // Margens e espaços vazios também arrastam a janela (#299). Sem valor, o
+    // atributo só vale para cliques no próprio elemento, não nos filhos.
+    <div data-tauri-drag-region className="app-shell">
       <TitleBar connection={connection} send={connection.send} />
-      <div className={sidebar.open || !ready ? 'app-body' : 'app-body sidebar-collapsed'}>
+      <div data-tauri-drag-region className={sidebar.open || !ready ? 'app-body' : 'app-body sidebar-collapsed'}>
         <div hidden={!ready} className="contents">
           <SideNavigation active={activePage === 'runes' ? 'flow' : activePage === 'friendProfile' ? 'profile' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'} flowButtonRef={flowButtonRef} theme={theme} unread={unread}
             onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference} />
         </div>
-        <div className="app-main-column">
+        <div data-tauri-drag-region className="app-main-column">
           <main ref={contentRef} className="app-content">
           {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error} />}
           {/* Escondido, e não desmontado, enquanto reconecta: comandos em andamento sobrevivem à queda. */}

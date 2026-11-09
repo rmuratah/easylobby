@@ -38,6 +38,15 @@ describe('App', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Versões incompatíveis');
     expect(screen.getByRole('alert')).toHaveTextContent('Atualize');
   });
+  it('deixa as margens em volta das áreas arrastarem a janela (#299)', () => {
+    connected({ state: 'connected', session: 1 });
+    const { container } = render(<App />);
+    for (const area of ['.app-shell', '.app-body', '.app-main-column']) {
+      expect(container.querySelector(area)).toHaveAttribute('data-tauri-drag-region');
+    }
+    // Só o próprio contorno arrasta: o conteúdo continua clicável.
+    expect(screen.getByRole('main')).not.toHaveAttribute('data-tauri-drag-region');
+  });
 });
 
 describe('invocador logado', () => {
