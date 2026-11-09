@@ -41,7 +41,15 @@ export function useLobbyInvite(state: AgentState, send: AgentClient['send']): Lo
   const { lobby, friends, matchmaking, gameflowPhase: phase } = state;
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   const [done, setDone] = useState<ReadonlySet<string>>(new Set());
-  const [error, setError] = useState('');
+  // O aviso vale para o lobby em que apareceu: quando o grupo ou os convites
+  // mudam (outro lobby, convite recusado ou aceito), ele some em vez de
+  // repetir um "já foi convidado" antigo.
+  const key = lobbyKey(state.lobby);
+  const keyRef = useRef(key);
+  useEffect(() => { keyRef.current = key; }, [key]);
+  const [notice, setNotice] = useState({ text: '', key });
+  const setError = (text: string) => setNotice({ text, key: keyRef.current });
+  const error = notice.key === key ? notice.text : '';
   const inFlight = useRef(new Set<string>());
   const mounted = useRef(false);
   useEffect(() => {
@@ -125,6 +133,14 @@ export function useLobbyInvite(state: AgentState, send: AgentClient['send']): Lo
   }
 
   return { canInvite, candidates, slots: Math.max(slots, 0), pending: puuid => pending.has(puuid) || done.has(puuid), invite, inviteMany, inviteByRiotId, taken, inviteByPuuid, error };
+}
+
+/** Identifica o lobby e os convites dele: muda ao sair, criar outro lobby ou quando um convite muda. */
+function lobbyKey(lobby: AgentState['lobby']): string {
+  if (!lobby) return '';
+  const members = lobby.members.map(m => m.puuid).join(',');
+  const invitations = lobby.invitations.map(i => `${i.puuid}:${i.state}`).join(',');
+  return `${lobby.queueId}|${members}|${invitations}`;
 }
 
 /** O alvo de convite de um amigo. */
