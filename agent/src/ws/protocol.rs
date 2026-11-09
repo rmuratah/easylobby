@@ -423,6 +423,15 @@ pub enum Command {
     /// com o LoL fechado e `lcu` se a LCU recusar (fora de lobby, fila sem
     /// cargos...).
     SetPositions { first: Position, second: Position },
+    /// Salva a ordem das 5 posições do jogador logado no Rift Clássico
+    /// (#230). Só vale num lobby com `orderedPositions`. `positions` traz
+    /// as 5 rotas (`top`, `jungle`, `middle`, `bottom`, `utility`) da 1ª à
+    /// 5ª preferência, cada uma uma vez, ou só `["fill"]` para "Qualquer
+    /// posição"; fora disso responde `invalidCommand` sem falar com a LCU,
+    /// e também fora de lobby ou num lobby sem `orderedPositions`. O lobby
+    /// com a ordem nova chega numa mensagem `lobby` antes da resposta.
+    /// Responde `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
+    SetPositionOrder { positions: Vec<Position> },
     /// Entra na fila com o lobby atual (só o líder pode). A mensagem
     /// `matchmaking` com a busca chega antes da resposta. Responde
     /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (fora de
@@ -1106,6 +1115,23 @@ mod tests {
             Command::SetPositions {
                 first: Position::Middle,
                 second: Position::Jungle,
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 10,
+            "command": {"type": "setPositionOrder", "positions": ["middle", "jungle", "top", "utility", "bottom"]},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::SetPositionOrder {
+                positions: vec![
+                    Position::Middle,
+                    Position::Jungle,
+                    Position::Top,
+                    Position::Utility,
+                    Position::Bottom,
+                ],
             }
         );
         let msg: ClientMessage =

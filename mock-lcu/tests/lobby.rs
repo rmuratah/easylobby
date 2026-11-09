@@ -1,6 +1,7 @@
 //! Criar lobby e escolher fila (#17) e cargos (#18) pelo `/ws`, com o agente
 //! conectado no mock-lcu: a UI cria o lobby, troca a fila, escolhe os cargos
-//! e sai, e vê cada mudança chegar antes da resposta do comando.
+//! e sai, e vê cada mudança chegar antes da resposta do comando. Também
+//! ordena as 5 posições no Rift Clássico (#230).
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -286,6 +287,80 @@ async fn escolhe_os_cargos() {
     .await;
     let (_, result) = until_response(&mut ui, 7).await;
     assert!(is_error(&result, ErrorCode::Lcu), "{result:?}");
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn ordena_as_5_posicoes_no_rift_classico() {
+    let dir = temp_dir("ordem-posicoes");
+    let mock = start_mock(&dir).await;
+    let url = start_agent(&dir).await;
+    let mut ui = tokio_tungstenite::connect_async(&url).await.unwrap().0;
+    wait_summoner(&mut ui).await;
+    use Position::*;
+
+    // Num lobby de Solo/Duo não há ordem: o agente recusa.
+    send(
+        &mut ui,
+        1,
+        Command::CreateLobby {
+            queue: Queue::RankedSolo,
+        },
+    )
+    .await;
+    let (before, result) = until_response(&mut ui, 1).await;
+    assert_eq!(result, CommandResult::Ok);
+    assert!(!last_lobby(&before).ordered_positions);
+    let ordem = Command::SetPositionOrder {
+        positions: vec![Middle, Jungle, Top, Utility, Bottom],
+    };
+    send(&mut ui, 2, ordem.clone()).await;
+    let (_, result) = until_response(&mut ui, 2).await;
+    assert!(is_error(&result, ErrorCode::InvalidCommand), "{result:?}");
+
+    // Rift Clássico (Jade, 4310).
+    send(&mut ui, 3, Command::CreateLobbyById { queue_id: 4310 }).await;
+    let (before, result) = until_response(&mut ui, 3).await;
+    assert_eq!(result, CommandResult::Ok);
+    let lobby = last_lobby(&before);
+    assert!(lobby.ordered_positions);
+    assert_eq!(lobby.members[0].position_order, []);
+
+    // Salva a ordem: o lobby com ela chega antes da resposta.
+    send(&mut ui, 4, ordem).await;
+    let (before, result) = until_response(&mut ui, 4).await;
+    assert_eq!(result, CommandResult::Ok);
+    let me = &last_lobby(&before).members[0];
+    assert_eq!(me.position_order, [Middle, Jungle, Top, Utility, Bottom]);
+    assert_eq!(me.first_position, Middle);
+
+    // Ordem incompleta: recusa sem falar com a LCU.
+    send(
+        &mut ui,
+        5,
+        Command::SetPositionOrder {
+            positions: vec![Top, Jungle],
+        },
+    )
+    .await;
+    let (_, result) = until_response(&mut ui, 5).await;
+    assert!(is_error(&result, ErrorCode::InvalidCommand), "{result:?}");
+
+    // Qualquer posição.
+    send(
+        &mut ui,
+        6,
+        Command::SetPositionOrder {
+            positions: vec![Fill],
+        },
+    )
+    .await;
+    let (_, result) = until_response(&mut ui, 6).await;
+    assert_eq!(result, CommandResult::Ok);
+    let me = &mock_lobby(&url).await.members[0];
+    assert_eq!(me.position_order, [Fill]);
 
     mock.shutdown().await;
     let _ = std::fs::remove_dir_all(&dir);

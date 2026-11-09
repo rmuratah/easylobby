@@ -20,6 +20,7 @@ export type Command =
   | { "type": "createLobby", queue: Queue, }
   | { "type": "leaveLobby" }
   | { "type": "setPositions", first: Position, second: Position, }
+  | { "type": "setPositionOrder", positions: Array<Position>, }
   | { "type": "startQueue" }
   | { "type": "stopQueue" }
   | { "type": "createLobbyById", queueId: number, }
