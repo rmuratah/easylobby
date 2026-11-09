@@ -312,7 +312,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
       {/* Arena (#224): vagas em equipes, com convidar e trocar de vaga em cada vaga livre. */}
       {lobby.subteams ? (
         <ArenaTeams lobby={lobby} state={state} localName={localName} send={send} picker={picker} onPicker={setPicker}
-          canSwap={!state.readyCheck && !matchmaking && phase === 'Lobby' && !!localMember} />
+          canSwap={canManageMembers && !!localMember} canManageMembers={canManageMembers} />
       ) : (
       <ul aria-label="Jogadores no lobby" className="flex min-h-0 flex-1 flex-col gap-3">
         {lobby.members.map((member, index) => {

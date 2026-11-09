@@ -77,4 +77,19 @@ describe('lobby da Arena com equipes (#224)', () => {
     hello({ lobby: { ...arenaLobby, canInvite: false } });
     expect(panel().queryByRole('button', { name: /^Convidar amigo para/ })).not.toBeInTheDocument();
   });
+  it('o líder vê o menu de tornar líder e remover nas vagas dos outros (#303)', () => {
+    render(<App />);
+    hello({ lobby: arenaLobby });
+    const teams = panel().getByRole('list', { name: 'Equipes do lobby' });
+    const menus = within(teams).getAllByRole('button', { name: /^Ações para / });
+    expect(menus).toHaveLength(1);
+    expect(within(teams).getByRole('listitem', { name: 'Equipe 2' })).toContainElement(menus[0]);
+    expect(menus[0]).toBeEnabled();
+  });
+
+  it('quem não é líder não vê o menu', () => {
+    render(<App />);
+    hello({ lobby: { ...arenaLobby, isLeader: false } });
+    expect(panel().queryByRole('button', { name: /^Ações para / })).not.toBeInTheDocument();
+  });
 });
