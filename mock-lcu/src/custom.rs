@@ -176,7 +176,7 @@ pub fn add_bot(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) 
         .filter_map(|k| lobby["gameConfig"][k].as_array().map(Vec::len))
         .sum::<usize>();
     let bot = json!({
-        "isBot": true, "isLeader": false, "puuid": "", "summonerId": 0,
+        "isBot": true, "isLeader": false, "puuid": "", "summonerId": 0, "summonerIconId": -1,
         "botChampionId": choice.champion_id, "botDifficulty": choice.difficulty,
         "botPosition": choice.position, "botUuid": format!("mock-bot-{count}-{}", choice.champion_id),
         "summonerInternalName": format!("Bot_{}_{count}", choice.champion_id),
