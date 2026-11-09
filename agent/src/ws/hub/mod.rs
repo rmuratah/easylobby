@@ -97,6 +97,10 @@ struct Shared {
     summoner_rev: u64,
     phase_rev: u64,
     ready_check_rev: u64,
+    /// O mesmo para a lista de filas: o login durante a releitura relê as
+    /// filas em segundo plano, e a lista velha da releitura não pode
+    /// apagar a nova (#277).
+    queues_rev: u64,
     /// Fecha de novo a UI oficial quando o LoL a reabre (#188).
     ux_guard: ux_guard::UxGuard,
     /// Sala do grupo em que o agente já tentou entrar nesta conexão, e
@@ -120,6 +124,7 @@ enum Resource {
     Summoner,
     GameflowPhase,
     ReadyCheck,
+    Queues,
 }
 
 impl Shared {
@@ -133,6 +138,7 @@ impl Shared {
             Resource::Summoner => &mut self.summoner_rev,
             Resource::GameflowPhase => &mut self.phase_rev,
             Resource::ReadyCheck => &mut self.ready_check_rev,
+            Resource::Queues => &mut self.queues_rev,
         }
     }
 
@@ -176,6 +182,7 @@ impl Hub {
                     summoner_rev: 0,
                     phase_rev: 0,
                     ready_check_rev: 0,
+                    queues_rev: 0,
                     ux_guard: ux_guard::UxGuard::default(),
                     lobby_chat_join: (String::new(), 0),
                     player_profile_request: None,
@@ -348,7 +355,8 @@ impl Hub {
                     self.guard_ux();
                 }
                 // Antes do lobby, para a UI já achar a fila dele na lista.
-                self.restore_queues(chat_session, queues.ok().flatten().unwrap_or_default());
+                // Um login durante a releitura já releu as filas (#277).
+                self.set_queues_if(stamps.queues, queues.ok().flatten().unwrap_or_default());
                 // Um comando que publicou durante a releitura é mais novo.
                 self.set_lobby_if(stamps.lobby, lobby.ok().flatten());
                 self.set_matchmaking_if(stamps.search, search.ok().flatten());
@@ -682,6 +690,7 @@ struct ConnectStamps {
     search: Stamp,
     invitations: Stamp,
     rune_pages: Stamp,
+    queues: Stamp,
 }
 
 impl ConnectStamps {
@@ -693,6 +702,7 @@ impl ConnectStamps {
             search: shared.stamp(Resource::Matchmaking),
             invitations: shared.stamp(Resource::Invitations),
             rune_pages: shared.stamp(Resource::RunePages),
+            queues: shared.stamp(Resource::Queues),
         }
     }
 }
