@@ -11,9 +11,12 @@
 //!   caso de a LCU trocar o nome do tipo;
 //! - as mensagens chegam como no chat 1:1 (`.../{id}/messages/{msg}`), e
 //!   `POST .../{id}/messages {"body", "type": "chat"}` manda uma;
-//! - no lobby os nomes não são escondidos: a mensagem traz `fromPuuid`, e a
-//!   UI acha o nome pela lista de amigos (o jogador logado é `fromMe`);
-//! - os avisos de entrada e saída da sala (`type: "system"`) ficam de fora;
+//! - no lobby os nomes não são escondidos: a mensagem traz `fromPuuid`, e o
+//!   agente preenche o Riot ID de quem mandou (o jogador logado é `fromMe`);
+//! - os avisos de entrada e saída da sala (`type: "system"`, corpo
+//!   `joined_room` ou `left_room`) viram as linhas "X entrou no saguão" e
+//!   "X saiu do saguão", como no client oficial; os outros avisos ficam de
+//!   fora;
 //! - quem entra na sala é a UI oficial. Com ela fechada pelo `kill-ux`, a
 //!   sala nunca aparece em `/lol-chat/v1/conversations`, então o agente entra
 //!   sozinho ([`join_room`]) com o `multiUserChatPassword` e o `mucJwtDto` do
@@ -39,6 +42,11 @@ const ROOM_TYPE: &str = "customGame";
 /// `type` das mensagens escritas por jogadores.
 const CHAT_TYPE: &str = "chat";
 
+/// `type` dos avisos da sala, e o corpo dos avisos de entrada e saída.
+const SYSTEM_TYPE: &str = "system";
+const JOINED_BODY: &str = "joined_room";
+const LEFT_BODY: &str = "left_room";
+
 /// A sala de chat do grupo no lobby.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -53,18 +61,38 @@ pub struct LobbyChat {
     pub id: String,
 }
 
-/// Uma mensagem do chat do grupo.
+/// O que é uma linha do chat do grupo.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum LobbyChatMessageKind {
+    /// Mensagem escrita por um jogador.
+    Chat,
+    /// Aviso de que o jogador entrou na sala ("X entrou no saguão"). `body`
+    /// vem vazio.
+    Joined,
+    /// Aviso de que o jogador saiu da sala ("X saiu do saguão"). `body` vem
+    /// vazio.
+    Left,
+}
+
+/// Uma linha do chat do grupo: mensagem ou aviso de entrada e saída.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct LobbyChatMessage {
     /// Identificador da mensagem na LCU, único dentro da sala.
     pub id: String,
+    pub kind: LobbyChatMessageKind,
     pub body: String,
-    /// `true` quando foi o jogador logado que mandou.
+    /// `true` quando foi o jogador logado que mandou (ou entrou, ou saiu).
     pub from_me: bool,
-    /// `puuid` de quem mandou, para a UI achar o nome (lista de amigos ou
-    /// membros do lobby). Vazio quando a LCU não manda.
+    /// `puuid` de quem mandou. Vazio quando a LCU não manda.
     pub from_puuid: String,
+    /// Riot ID de quem mandou (`gameName#tagLine`), que o agente preenche
+    /// pelo jogador logado, pela lista de amigos ou pela LCU. Chega vazio
+    /// primeiro e numa mensagem `lobbyChat` seguinte com o nome; vazio
+    /// também se a LCU não respondeu.
+    pub game_name: String,
+    pub tag_line: String,
     /// Quando foi mandada, em ISO 8601 UTC (`2026-11-05T01:13:41.755Z`).
     pub timestamp: String,
 }
@@ -80,20 +108,43 @@ pub fn is_room(value: &Value, lobby_chat_id: &str) -> bool {
     !lobby_chat_id.is_empty() && id.split('@').next() == Some(lobby_chat_id)
 }
 
+/// Se a sala `room_id` é a do lobby cujo `multiUserChatId` é
+/// `lobby_chat_id`: o começo do `id` da sala, antes do `@`, é o do lobby.
+pub fn room_belongs_to(room_id: &str, lobby_chat_id: &str) -> bool {
+    let room = room_id.split('@').next().unwrap_or_default();
+    let lobby = lobby_chat_id.split('@').next().unwrap_or_default();
+    !room.is_empty() && room.eq_ignore_ascii_case(lobby)
+}
+
 impl LobbyChatMessage {
-    /// Lê uma mensagem da sala. `None` para avisos de sistema
-    /// (`type: "system"`) e valores sem o formato esperado.
+    /// Lê uma mensagem da sala. `None` para os avisos de sistema que não
+    /// são de entrada ou saída e para valores sem o formato esperado.
     pub fn from_json(value: &Value, my_puuid: Option<&str>) -> Option<Self> {
         let raw = LcuMessage::deserialize(value).ok()?;
-        if raw.kind != CHAT_TYPE || raw.id.is_empty() {
+        if raw.id.is_empty() {
             return None;
         }
-        let from_me = my_puuid.is_some_and(|me| !me.is_empty() && me == raw.from_puuid);
+        let (kind, body) = match (raw.kind.as_str(), raw.body.as_str()) {
+            (CHAT_TYPE, _) => (LobbyChatMessageKind::Chat, raw.body),
+            (SYSTEM_TYPE, JOINED_BODY) => (LobbyChatMessageKind::Joined, String::new()),
+            (SYSTEM_TYPE, LEFT_BODY) => (LobbyChatMessageKind::Left, String::new()),
+            _ => return None,
+        };
+        // Sem `fromPuuid`, o `fromId` (`<puuid>@<servidor>`) diz quem foi.
+        let from_puuid = if raw.from_puuid.is_empty() {
+            raw.from_id.split('@').next().unwrap_or_default().to_owned()
+        } else {
+            raw.from_puuid
+        };
+        let from_me = my_puuid.is_some_and(|me| !me.is_empty() && me == from_puuid);
         Some(LobbyChatMessage {
             id: raw.id,
-            body: raw.body,
+            kind,
+            body,
             from_me,
-            from_puuid: raw.from_puuid,
+            from_puuid,
+            game_name: String::new(),
+            tag_line: String::new(),
             timestamp: raw.timestamp,
         })
     }
@@ -126,12 +177,18 @@ impl LobbyChat {
     /// Devolve se algo mudou.
     pub fn merge_messages(&mut self, messages: impl IntoIterator<Item = LobbyChatMessage>) -> bool {
         let mut changed = false;
-        for message in messages {
+        for mut message in messages {
             match self.messages.iter_mut().find(|m| m.id == message.id) {
-                Some(existing) if *existing == message => {}
                 Some(existing) => {
-                    *existing = message;
-                    changed = true;
+                    // A LCU não manda o nome: o que o agente já achou fica.
+                    if message.game_name.is_empty() {
+                        message.game_name.clone_from(&existing.game_name);
+                        message.tag_line.clone_from(&existing.tag_line);
+                    }
+                    if *existing != message {
+                        *existing = message;
+                        changed = true;
+                    }
                 }
                 None => {
                     self.messages.push(message);
@@ -150,6 +207,39 @@ impl LobbyChat {
         }
         changed
     }
+
+    /// Preenche o Riot ID das mensagens sem nome com o que `name` achar pelo
+    /// `puuid`. Devolve se algo mudou.
+    pub fn fill_names(&mut self, name: impl Fn(&str) -> Option<(String, String)>) -> bool {
+        let mut changed = false;
+        for message in &mut self.messages {
+            if !message.game_name.is_empty() || message.from_puuid.is_empty() {
+                continue;
+            }
+            if let Some((game_name, tag_line)) = name(&message.from_puuid) {
+                if !game_name.is_empty() {
+                    message.game_name = game_name;
+                    message.tag_line = tag_line;
+                    changed = true;
+                }
+            }
+        }
+        changed
+    }
+
+    /// Os `puuid` de quem mandou mensagem e ainda está sem nome.
+    pub fn unnamed_senders(&self) -> Vec<String> {
+        let mut puuids: Vec<String> = Vec::new();
+        for message in &self.messages {
+            if message.game_name.is_empty()
+                && !message.from_puuid.is_empty()
+                && !puuids.contains(&message.from_puuid)
+            {
+                puuids.push(message.from_puuid.clone());
+            }
+        }
+        puuids
+    }
 }
 
 /// A mensagem como a LCU manda, só com os campos usados.
@@ -164,7 +254,15 @@ struct LcuMessage {
     #[serde(default)]
     from_puuid: String,
     #[serde(default)]
+    from_id: String,
+    #[serde(default)]
     timestamp: String,
+}
+
+/// As mensagens da sala `id`, cruas (`GET .../{id}/messages`).
+pub async fn messages(lcu: &LcuClient, id: &str) -> Result<Value, LcuError> {
+    lcu.get::<Value>(&format!("{}/messages", chat::conversation_path(id)))
+        .await
 }
 
 /// A sala do lobby aberta agora e as mensagens dela, cruas, pelo REST
@@ -331,6 +429,50 @@ mod tests {
         assert!(mensagens[1].from_me);
         let uma = LobbyChatMessage::list_from_json(&mensagem("4", "amigo", "chat", t), None);
         assert_eq!(uma.len(), 1);
+    }
+
+    #[test]
+    fn le_os_avisos_de_entrada_e_saida() {
+        let t = "2026-11-07T20:00:00.000Z";
+        let entrou = json!({"id": "s1", "type": "system", "body": "joined_room", "fromId": "ana@br1.pvp.net", "fromPuuid": "", "timestamp": t});
+        let m = LobbyChatMessage::from_json(&entrou, Some(EU)).unwrap();
+        assert_eq!(m.kind, LobbyChatMessageKind::Joined);
+        assert_eq!(m.body, "");
+        // Sem `fromPuuid`, pelo `fromId`.
+        assert_eq!(m.from_puuid, "ana");
+        let saiu = mensagem("s2", EU, "system", t);
+        assert!(LobbyChatMessage::from_json(&saiu, Some(EU)).is_none());
+        let mut saiu = saiu;
+        saiu["body"] = json!("left_room");
+        let m = LobbyChatMessage::from_json(&saiu, Some(EU)).unwrap();
+        assert_eq!(m.kind, LobbyChatMessageKind::Left);
+        assert!(m.from_me);
+    }
+
+    #[test]
+    fn o_nome_achado_fica_quando_a_mensagem_volta() {
+        let t = "2026-11-07T20:00:00.000Z";
+        let mut sala = LobbyChat::new("grupo@sec");
+        let ler =
+            || LobbyChatMessage::from_json(&mensagem("a", "ana", "chat", t), Some(EU)).unwrap();
+        sala.merge_messages([ler()]);
+        assert_eq!(sala.unnamed_senders(), ["ana"]);
+        assert!(sala.fill_names(|p| (p == "ana").then(|| ("Ana".into(), "br1".into()))));
+        // A releitura traz a mesma mensagem sem nome: nada muda.
+        assert!(!sala.merge_messages([ler()]));
+        assert_eq!(sala.messages[0].game_name, "Ana");
+        assert!(sala.unnamed_senders().is_empty());
+    }
+
+    #[test]
+    fn reconhece_a_sala_do_lobby_pelo_id() {
+        assert!(room_belongs_to("grupo-1@sec.br1.pvp.net", "grupo-1"));
+        assert!(room_belongs_to(
+            "GRUPO-1@sec.br1.pvp.net",
+            "grupo-1@sec.br1.pvp.net"
+        ));
+        assert!(!room_belongs_to("grupo-2@sec.br1.pvp.net", "grupo-1"));
+        assert!(!room_belongs_to("", ""));
     }
 
     #[test]

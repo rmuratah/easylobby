@@ -182,7 +182,8 @@ function champSelectChat(v: unknown): v is ChampSelectChat | null {
 }
 function lobbyChat(v: unknown): v is LobbyChat | null {
   return v === null || (object(v) && list(v.messages, (m): m is LobbyChatMessage => object(m) &&
-    strings(m, ['id', 'body', 'fromPuuid', 'timestamp']) && typeof m.fromMe === 'boolean'));
+    strings(m, ['id', 'body', 'fromPuuid', 'gameName', 'tagLine', 'timestamp']) && typeof m.fromMe === 'boolean' &&
+    (m.kind === 'chat' || m.kind === 'joined' || m.kind === 'left')));
 }
 function receivedInvitation(v: unknown): v is ReceivedInvitation {
   return object(v) && strings(v, ['invitationId', 'fromSummonerName']) && uints(v, ['fromSummonerId', 'queueId']) &&
