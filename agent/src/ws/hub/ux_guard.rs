@@ -12,6 +12,11 @@
 //! quando a conexão cai, e só age nas fases que o app cobre: no pós-jogo, por
 //! exemplo, a UI oficial fica como estiver (#180).
 //!
+//! Durante a partida (`InProgress`) a guarda também fecha a UI (#349): ela
+//! sobe no fim da seleção (veja abaixo) e o LoL a mostra na partida. É o que
+//! a opção da Riot "fechar o client durante a partida" faz. Na reconexão
+//! (`Reconnect`) a UI fica como estiver, para o jogador poder voltar.
+//!
 //! Ao conectar, o primeiro `kill-ux` também sai daqui, depois da espera de
 //! `ReconnectConfig::kill_ux_delay` ([`Hub::schedule_kill_ux`]): fechar a UI
 //! enquanto o Vanguard inicializa fecha o LoL com o erro VAN7003. Durante a
@@ -30,7 +35,7 @@
 //! que caia na passagem para `GAME_STARTING` vira esquiva do jogador, sem
 //! mensagem nenhuma. Nos últimos [`SPARE_BEFORE_GAME`] da finalização e no
 //! `GAME_STARTING` a janela só fica escondida; a UI é fechada de novo quando
-//! o jogador volta ao lobby depois da partida.
+//! a partida começa (`InProgress`) e quando o jogador volta ao lobby.
 
 use std::time::Duration;
 
@@ -81,7 +86,7 @@ pub(super) struct UxGuard {
 pub(super) fn reopens_ux(phase: Option<GameflowPhase>) -> bool {
     matches!(
         phase,
-        Some(GameflowPhase::ReadyCheck | GameflowPhase::ChampSelect)
+        Some(GameflowPhase::ReadyCheck | GameflowPhase::ChampSelect | GameflowPhase::InProgress)
     )
 }
 
@@ -105,6 +110,7 @@ fn covered(phase: Option<GameflowPhase>) -> bool {
                 | GameflowPhase::Matchmaking
                 | GameflowPhase::ReadyCheck
                 | GameflowPhase::ChampSelect
+                | GameflowPhase::InProgress
         )
     )
 }
@@ -300,6 +306,9 @@ mod tests {
     fn fases_que_reabrem_e_fases_cobertas() {
         assert!(reopens_ux(Some(GameflowPhase::ReadyCheck)));
         assert!(reopens_ux(Some(GameflowPhase::ChampSelect)));
+        // A UI sobe no fim da seleção e o LoL a mostra na partida (#349).
+        assert!(reopens_ux(Some(GameflowPhase::InProgress)));
+        assert!(!reopens_ux(Some(GameflowPhase::GameStart)));
         assert!(!reopens_ux(Some(GameflowPhase::Matchmaking)));
         assert!(!reopens_ux(None));
         for phase in [
@@ -307,12 +316,15 @@ mod tests {
             GameflowPhase::Matchmaking,
             GameflowPhase::ReadyCheck,
             GameflowPhase::ChampSelect,
+            GameflowPhase::InProgress,
         ] {
             assert!(covered(Some(phase)), "{phase:?}");
         }
-        // No pós-jogo e na partida a UI oficial fica como estiver.
+        // Abrindo a partida, na reconexão e no pós-jogo a UI oficial fica
+        // como estiver.
         for phase in [
-            GameflowPhase::InProgress,
+            GameflowPhase::GameStart,
+            GameflowPhase::Reconnect,
             GameflowPhase::WaitingForStats,
             GameflowPhase::PreEndOfGame,
             GameflowPhase::EndOfGame,
