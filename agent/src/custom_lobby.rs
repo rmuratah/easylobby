@@ -229,53 +229,44 @@ impl CustomLobby {
     }
 }
 
+/// Lê uma vaga de `customTeam100`/`customTeam200`/`customSpectators`.
+///
+/// Cada campo é lido sozinho e cai no padrão quando vem `null`, negativo ou
+/// em outro tipo: um campo estranho num bot não pode sumir com a vaga
+/// inteira (#313). Um item que nem é objeto fica de fora.
 fn member(value: &Value) -> Option<CustomMember> {
-    let raw = RawMember::deserialize(value).ok()?;
-    let bot = raw.is_bot.then(|| CustomBot {
-        uuid: if raw.bot_uuid.is_empty() {
-            raw.bot_id.clone()
-        } else {
-            raw.bot_uuid.clone()
-        },
-        champion_id: raw.bot_champion_id,
-        position: Position::from_lcu(raw.bot_position.as_deref()),
-        difficulty: BotDifficulty::from_lcu(&raw.bot_difficulty),
-        internal_name: raw.summoner_internal_name.clone(),
+    value.as_object()?;
+    let text = |key: &str| value.get(key).and_then(Value::as_str).unwrap_or_default();
+    let number = |key: &str| {
+        value
+            .get(key)
+            .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()))
+            .unwrap_or_default()
+    };
+    let flag = |key: &str| value.get(key).and_then(Value::as_bool).unwrap_or(false);
+    let is_bot = flag("isBot");
+    let bot = is_bot.then(|| CustomBot {
+        uuid: [text("botUuid"), text("botId")]
+            .into_iter()
+            .find(|id| !id.is_empty())
+            .unwrap_or_default()
+            .to_owned(),
+        champion_id: u32::try_from(number("botChampionId")).unwrap_or_default(),
+        position: Position::from_lcu(value.get("botPosition").and_then(Value::as_str)),
+        difficulty: BotDifficulty::from_lcu(text("botDifficulty")),
+        internal_name: text("summonerInternalName").to_owned(),
     });
     Some(CustomMember {
-        puuid: if raw.is_bot { String::new() } else { raw.puuid },
-        summoner_id: raw.summoner_id,
-        summoner_icon_id: raw.summoner_icon_id,
-        is_leader: raw.is_leader,
+        puuid: if is_bot {
+            String::new()
+        } else {
+            text("puuid").to_owned()
+        },
+        summoner_id: number("summonerId"),
+        summoner_icon_id: u32::try_from(number("summonerIconId")).unwrap_or_default(),
+        is_leader: flag("isLeader"),
         bot,
     })
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RawMember {
-    #[serde(default)]
-    puuid: String,
-    #[serde(default)]
-    summoner_id: u64,
-    #[serde(default)]
-    summoner_icon_id: u32,
-    #[serde(default)]
-    is_leader: bool,
-    #[serde(default)]
-    is_bot: bool,
-    #[serde(default)]
-    bot_champion_id: u32,
-    #[serde(default)]
-    bot_difficulty: String,
-    #[serde(default)]
-    bot_position: Option<String>,
-    #[serde(default)]
-    bot_uuid: String,
-    #[serde(default)]
-    bot_id: String,
-    #[serde(default)]
-    summoner_internal_name: String,
 }
 
 /// Corpo de adicionar ou mudar um bot.
@@ -403,6 +394,46 @@ mod tests {
                  "botPosition": "NONE", "botId": "id-annie", "summonerInternalName": "Bot Annie"},
             ],
         })
+    }
+
+    /// A LoL manda todo bot com `summonerIconId` -1 (#313, gravado no LoL
+    /// real): o bot não pode sumir da equipe por isso.
+    #[test]
+    fn bot_com_icone_negativo_aparece() {
+        let custom = CustomLobby::from_game_config(&json!({
+            "isCustom": true,
+            "customTeam100": [
+                {"puuid": "eu", "summonerId": 1, "summonerIconId": 29, "isLeader": true, "isBot": false},
+            ],
+            "customTeam200": [
+                {"puuid": "", "summonerId": 0, "summonerIconId": -1, "isLeader": false,
+                 "isBot": true, "botChampionId": 63, "botDifficulty": "RSINTRO",
+                 "botPosition": "TOP", "botUuid": "uuid-brand", "summonerInternalName": "Brand bot",
+                 "subteamIndex": null, "teamId": 200},
+                {"isBot": true, "botChampionId": null, "botDifficulty": null,
+                 "botPosition": null, "botUuid": null, "summonerIconId": -1},
+            ],
+        }))
+        .unwrap();
+        assert_eq!(custom.team2.len(), 2);
+        let brand = &custom.team2[0];
+        assert_eq!(brand.summoner_icon_id, 0);
+        let bot = brand.bot.as_ref().unwrap();
+        assert_eq!(
+            (
+                bot.uuid.as_str(),
+                bot.champion_id,
+                bot.position,
+                bot.difficulty
+            ),
+            ("uuid-brand", 63, Position::Top, BotDifficulty::Intro)
+        );
+        // Campos `null` caem no padrão em vez de tirar o bot.
+        let empty = custom.team2[1].bot.as_ref().unwrap();
+        assert_eq!(
+            (empty.champion_id, empty.difficulty),
+            (0, BotDifficulty::Unknown)
+        );
     }
 
     #[test]
