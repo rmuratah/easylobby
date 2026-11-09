@@ -21,6 +21,7 @@ import { LobbyOpenToggle } from './LobbyOpenToggle';
 import { LobbyLinkButton } from './LobbyLinkButton';
 import { LobbyMemberMenu } from './LobbyMemberMenu';
 import { PracticeLobby } from './PracticeLobby';
+import { ArenaTeams } from './ArenaTeams';
 import { isTutorialQueue } from '../agent/training';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
@@ -308,6 +309,11 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
         </div>
       </header>
 
+      {/* Arena (#224): vagas em equipes, com convidar e trocar de vaga em cada vaga livre. */}
+      {lobby.subteams ? (
+        <ArenaTeams lobby={lobby} state={state} localName={localName} send={send} picker={picker} onPicker={setPicker}
+          canSwap={!state.readyCheck && !matchmaking && phase === 'Lobby' && !!localMember} />
+      ) : (
       <ul aria-label="Jogadores no lobby" className="flex min-h-0 flex-1 flex-col gap-3">
         {lobby.members.map((member, index) => {
           const me = member.puuid === summoner?.puuid;
@@ -377,6 +383,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
           </li>
         ))}
       </ul>
+      )}
       {invites.error && picker === null && <p role="alert" className="text-body text-danger">{invites.error}</p>}
       {picker !== null && <InvitePicker invites={invites} groups={state.friendGroups} recent={state.recentPlayers}
         loadRecent={loadRecent} onClose={closePicker} />}

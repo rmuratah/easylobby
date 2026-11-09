@@ -15,3 +15,7 @@ export const PlusIcon = ({ size }: { size?: number }) => <Icon size={size}><path
 export const CrownIcon = ({ size }: { size?: number }) => (
   <Icon size={size}><path d="m2 7 4.5 4L12 4l5.5 7L22 7l-2 12H4L2 7Z" /></Icon>
 );
+/** Duas setas opostas: trocar de vaga no lobby da Arena (#224). */
+export const SwapIcon = ({ size }: { size?: number }) => (
+  <Icon size={size}><path d="M7 4 3 8l4 4M3 8h14M17 12l4 4-4 4M21 16H7" /></Icon>
+);
