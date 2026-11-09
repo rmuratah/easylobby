@@ -6,6 +6,7 @@ import { queuePenalty } from '../agent/matchmaking';
 import { pendingChoices, restrictionReasons } from '../agent/lobbyRestrictions';
 import { playerName } from '../agent/friends';
 import { cx } from './base/cx';
+import { useDismiss } from '../agent/useDismiss';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type QueueCommand = Extract<Command, { type: 'startQueue' | 'stopQueue' }>;
@@ -56,6 +57,8 @@ export function QueuePanel({ connection, send }: Props) {
 function QueueActions({ state, send }: { state: AgentState; send: AgentClient['send'] }) {
   const { matchmaking, lobby, summoner, gameflowPhase: phase } = state;
   const [feedback, setFeedback] = useState<Feedback>({ status: 'idle', message: '' });
+  // O erro some sozinho depois de alguns segundos (#335).
+  useDismiss(feedback.status === 'error', feedback.message, () => setFeedback({ status: 'idle', message: '' }));
   const inFlight = useRef(false);
   const mounted = useRef(false);
   const startRef = useRef<HTMLButtonElement>(null);
