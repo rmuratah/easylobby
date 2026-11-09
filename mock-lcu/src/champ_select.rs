@@ -48,7 +48,8 @@ pub fn parse_route(path: &str) -> Option<ActionRoute> {
     })
 }
 
-/// `PATCH .../actions/{id}`: marca o campeão do corpo na ação.
+/// `PATCH .../actions/{id}`: marca o campeão do corpo na ação. Com
+/// `completed: true` no corpo, também confirma, como a LCU (#311).
 pub fn hover(state: &LcuState, action_id: u64, body: &Value) -> (Response, Vec<EventFixture>) {
     let Some(champion) = body["championId"].as_i64() else {
         return (
@@ -56,20 +57,11 @@ pub fn hover(state: &LcuState, action_id: u64, body: &Value) -> (Response, Vec<E
             Vec::new(),
         );
     };
+    let complete_too = body["completed"] == true;
     change(state, action_id, |session, action| {
-        if action["completed"] == true {
-            return Err(Response::error(400, "Action has already been completed"));
-        }
-        action["championId"] = json!(champion);
-        if action["type"] == "pick" {
-            let in_progress = action["isInProgress"] == true;
-            if let Some(player) = local_player(session, &action["actorCellId"]) {
-                if in_progress {
-                    player["championId"] = json!(champion);
-                } else {
-                    player["championPickIntent"] = json!(champion);
-                }
-            }
+        mark_action(session, action, champion)?;
+        if complete_too {
+            complete_action(session, action)?;
         }
         Ok(())
     })
@@ -77,27 +69,47 @@ pub fn hover(state: &LcuState, action_id: u64, body: &Value) -> (Response, Vec<E
 
 /// `POST .../actions/{id}/complete`: confirma a ação em andamento.
 pub fn complete(state: &LcuState, action_id: u64) -> (Response, Vec<EventFixture>) {
-    change(state, action_id, |session, action| {
-        if action["completed"] == true {
-            return Err(Response::error(400, "Action has already been completed"));
-        }
-        if action["isInProgress"] != true {
-            return Err(Response::error(400, "Action is not in progress"));
-        }
-        let champion = action["championId"].as_i64().unwrap_or(0);
-        if champion <= 0 {
-            return Err(Response::error(400, "No champion selected"));
-        }
-        action["completed"] = json!(true);
-        action["isInProgress"] = json!(false);
-        if action["type"] == "pick" {
-            if let Some(player) = local_player(session, &action["actorCellId"]) {
+    change(state, action_id, complete_action)
+}
+
+fn mark_action(session: &mut Value, action: &mut Value, champion: i64) -> Result<(), Response> {
+    if action["completed"] == true {
+        return Err(Response::error(400, "Action has already been completed"));
+    }
+    action["championId"] = json!(champion);
+    if action["type"] == "pick" {
+        let in_progress = action["isInProgress"] == true;
+        if let Some(player) = local_player(session, &action["actorCellId"]) {
+            if in_progress {
                 player["championId"] = json!(champion);
-                player["championPickIntent"] = json!(0);
+            } else {
+                player["championPickIntent"] = json!(champion);
             }
         }
-        Ok(())
-    })
+    }
+    Ok(())
+}
+
+fn complete_action(session: &mut Value, action: &mut Value) -> Result<(), Response> {
+    if action["completed"] == true {
+        return Err(Response::error(400, "Action has already been completed"));
+    }
+    if action["isInProgress"] != true {
+        return Err(Response::error(400, "Action is not in progress"));
+    }
+    let champion = action["championId"].as_i64().unwrap_or(0);
+    if champion <= 0 {
+        return Err(Response::error(400, "No champion selected"));
+    }
+    action["completed"] = json!(true);
+    action["isInProgress"] = json!(false);
+    if action["type"] == "pick" {
+        if let Some(player) = local_player(session, &action["actorCellId"]) {
+            player["championId"] = json!(champion);
+            player["championPickIntent"] = json!(0);
+        }
+    }
+    Ok(())
 }
 
 /// Aplica `f` na ação `action_id` da sessão atual (e na sessão) e devolve o

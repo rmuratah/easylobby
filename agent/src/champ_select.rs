@@ -746,13 +746,44 @@ pub async fn hover(lcu: &LcuClient, action_id: u32, champion_id: u32) -> Result<
     .map(|_| ())
 }
 
-/// Confirma o ban ou o pick de `champion_id` na ação `action_id`: marca o
-/// campeão e confirma, como o botão do client oficial.
-pub async fn confirm(lcu: &LcuClient, action_id: u32, champion_id: u32) -> Result<(), LcuError> {
-    hover(lcu, action_id, champion_id).await?;
+/// Confirma o ban ou o pick de `champion_id` na ação `action_id`, como o
+/// botão do client oficial, e confere na sessão que a LCU confirmou.
+///
+/// No LoL real, o `POST .../complete` pode responder `2xx` sem confirmar o
+/// ban (#311). Por isso: primeiro o `PATCH` com o campeão e
+/// `completed: true`, que é como os clients da LCU confirmam; se a sessão
+/// ainda mostra a ação aberta, o `POST .../complete`. Devolve se a ação ficou
+/// confirmada; `Ok(false)` quando a LCU aceitou os pedidos mas não confirmou.
+pub async fn confirm(lcu: &LcuClient, action_id: u32, champion_id: u32) -> Result<bool, LcuError> {
+    let patched = lcu
+        .patch::<_, Option<Value>>(
+            &action_path(action_id),
+            &json!({ "championId": champion_id, "completed": true }),
+        )
+        .await;
+    if patched.is_ok() && action_completed(lcu, action_id).await? {
+        return Ok(true);
+    }
+    if patched.is_err() {
+        // O PATCH recusado pode não ter marcado o campeão: marca antes do POST.
+        hover(lcu, action_id, champion_id).await?;
+    }
     lcu.post::<_, Option<Value>>(&complete_action_path(action_id), &json!({}))
-        .await
-        .map(|_| ())
+        .await?;
+    action_completed(lcu, action_id).await
+}
+
+/// Se a ação `action_id` está confirmada na sessão atual da LCU. Fora da
+/// seleção, ou sem a ação, conta como confirmada: não há mais o que fazer.
+async fn action_completed(lcu: &LcuClient, action_id: u32) -> Result<bool, LcuError> {
+    let Some(session) = current_session(lcu).await? else {
+        return Ok(true);
+    };
+    Ok(session
+        .actions
+        .iter()
+        .find(|a| a.id == action_id)
+        .is_none_or(|a| a.completed))
 }
 
 #[cfg(test)]
