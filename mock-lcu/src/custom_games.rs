@@ -212,6 +212,7 @@ fn event(uri: &str, event_type: &str, data: Value) -> EventFixture {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use easylobby_agent::custom_game_list::join_body;
     use easylobby_agent::fixtures::FixtureSet;
 
     fn state() -> LcuState {
@@ -235,9 +236,10 @@ mod tests {
         let s = state();
         let status = |id, body| join(&s, id, &body).0.status;
         assert_eq!(status(9, json!({})), 404);
-        assert_eq!(status(1002, json!({"password": "errada"})), 403);
+        let with_password = |password| join_body(password, false);
+        assert_eq!(status(1002, with_password("errada")), 403);
         assert_eq!(status(1003, json!({})), 409);
-        let (response, events) = join(&s, 1002, &json!({"password": PASSWORD}));
+        let (response, events) = join(&s, 1002, &with_password(PASSWORD));
         assert_eq!(response.status, 204);
         let lobby = &events.last().unwrap().data;
         assert_eq!(lobby["gameConfig"]["customLobbyName"], "ARAM fechado");
