@@ -58,7 +58,7 @@ impl Hub {
     }
 
     /// Muda o estado com `f` só se a conexão ainda é a `session`.
-    fn update_in_session(
+    pub(super) fn update_in_session(
         &self,
         session: u64,
         f: impl FnOnce(&mut Shared) -> Option<ServerMessage>,
@@ -74,7 +74,7 @@ impl Hub {
         applied
     }
 
-    fn client_and_session(&self) -> Option<(LcuClient, u64, Option<String>)> {
+    pub(super) fn client_and_session(&self) -> Option<(LcuClient, u64, Option<String>)> {
         let shared = self.lock();
         let client = shared.client.clone()?;
         let puuid = shared.state.summoner.as_ref().map(|s| s.puuid.clone());

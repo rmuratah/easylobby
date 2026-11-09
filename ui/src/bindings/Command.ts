@@ -40,6 +40,8 @@ export type Command =
   | { "type": "switchTeam", team: CustomTeam, }
   | { "type": "spectate" }
   | { "type": "startCustomGame" }
+  | { "type": "refreshCustomGames" }
+  | { "type": "joinCustomGame", id: number, password?: string, asSpectator?: boolean, }
   | { "type": "hoverChampion", actionId: number, championId: number, }
   | { "type": "confirmAction", actionId: number, championId: number, }
   | { "type": "setSummonerSpells", spell1Id: number, spell2Id: number, }

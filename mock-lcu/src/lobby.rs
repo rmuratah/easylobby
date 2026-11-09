@@ -57,7 +57,7 @@ const POSITIONS: [&str; 7] = [
 ];
 
 /// Lista de filas da LCU, usada para validar o `queueId`.
-const QUEUES: &str = "/lol-game-queues/v1/queues";
+pub const QUEUES: &str = "/lol-game-queues/v1/queues";
 
 /// Invocador logado, usado quando não há lobby gravado para servir de
 /// modelo.
@@ -70,7 +70,7 @@ pub const CUSTOM_START_CHAMP_SELECT: &str = "/lol-lobby/v1/lobby/custom/start-ch
 /// personalizada (`isCustom`) da lista gravada com esse modo, como a 3140
 /// do Modo de Treino (#209). Com `mapId` e `mutators.id` (#262), prefere a
 /// fila do mesmo mapa com esse `gameTypeConfig.id` (o tipo de seleção).
-fn custom_queue_id(state: &LcuState, body: &Value) -> Option<u64> {
+pub fn custom_queue_id(state: &LcuState, body: &Value) -> Option<u64> {
     let config = body.pointer("/customGameLobby/configuration")?;
     let mode = config.get("gameMode").and_then(Value::as_str)?;
     let map_id = config.get("mapId").and_then(Value::as_u64);
