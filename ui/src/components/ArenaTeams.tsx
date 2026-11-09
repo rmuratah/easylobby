@@ -2,6 +2,7 @@ import type { AgentClient } from '../agent/client';
 import { arenaTeams } from '../agent/arenaTeams';
 import { assetUrl } from '../agent/assets';
 import { memberName } from '../agent/friends';
+import { awayMembers } from '../agent/lobbyRestrictions';
 import { useCommand } from '../agent/useCommand';
 import type { AgentState } from '../bindings/AgentState';
 import type { Lobby } from '../bindings/Lobby';
@@ -43,6 +44,8 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMe
   const me = state.summoner?.puuid;
   const name = (member: LobbyMember) => member.puuid === me ? localName : memberName(member, state.friends);
   const size = lobby.subteams?.size ?? 0;
+  // Quem ainda está na tela de fim de jogo (#346) fica esmaecido, como no client oficial.
+  const away = new Set(awayMembers(lobby, state.gameflowPhase).map(member => member.puuid));
   function moveTo(slot: SubteamSlot, label: string) {
     if (!canSwap || swap.pending) return;
     void swap.run({ type: 'setSubteamSlot', team: slot.team, position: slot.position },
@@ -68,6 +71,7 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMe
                   if (member) {
                     const isMe = member.puuid === me;
                     const displayName = name(member);
+                    const isAway = away.has(member.puuid);
                     return (
                       <li key={p} aria-label={`${displayName}, ${slotName}`}
                         className={cx('relative flex min-h-12 items-center gap-3 rounded-tile px-2 py-2', isMe ? 'bg-accent-soft' : 'bg-raised',
@@ -78,8 +82,9 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMe
                             onClick={() => onOpenProfile(member.puuid)}
                             className={`absolute inset-0 cursor-pointer rounded-tile ${focusRing}`} />
                         )}
-                        <Avatar name={displayName} src={assetUrl('profileIcon', member.summonerIconId)} size={36} className="ring-2 ring-surface" />
-                        <div className="min-w-0 flex-1">
+                        <Avatar name={displayName} src={assetUrl('profileIcon', member.summonerIconId)} size={36}
+                          className={cx('ring-2 ring-surface', isAway && 'opacity-40 grayscale')} />
+                        <div className={cx('min-w-0 flex-1', isAway && 'opacity-60')}>
                           <p className="flex items-center gap-1.5">
                             <span className="truncate text-body font-semibold">{displayName}</span>
                             {member.isLeader && (
@@ -89,7 +94,10 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMe
                               </span>
                             )}
                           </p>
-                          <p className="truncate text-caption text-muted">{isMe ? 'Você · ' : ''}Nível {member.summonerLevel}</p>
+                          <p className="truncate text-caption text-muted">
+                            {isAway ? <span className="font-semibold text-warn">Ainda não voltou ao lobby</span>
+                              : <>{isMe ? 'Você · ' : ''}Nível {member.summonerLevel}</>}
+                          </p>
                         </div>
                         {/* Tornar líder e remover do grupo (#267): só o líder, nas vagas dos outros. */}
                         {lobby.isLeader && !isMe && (

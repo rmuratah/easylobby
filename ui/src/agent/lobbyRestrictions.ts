@@ -1,5 +1,6 @@
 import type { Lobby } from '../bindings/Lobby';
 import type { LobbyMember } from '../bindings/LobbyMember';
+import type { GameflowPhase } from '../bindings/GameflowPhase';
 import { draftComplete, draftFromSlots } from './quickPlay';
 
 /** Texto para um motivo que o agente mandou sem tradução (código novo da LCU). */
@@ -34,4 +35,20 @@ export function pendingChoices(lobby: Lobby | null, me: string | undefined, name
   });
   const what = lobby.showQuickPlaySlots ? 'as duas posições e um campeão para cada uma' : 'as posições primária e secundária';
   return missing.map(member => member.puuid === me ? `Escolha ${what}.` : `${nameOf(member)} ainda não escolheu ${what}.`);
+}
+
+/**
+ * Membros que ainda não voltaram ao lobby (#346): depois da partida, quem está
+ * na tela de fim de jogo continua no grupo, mas a busca só libera quando todos
+ * voltam. Só na fase `Lobby`, porque na fila e na seleção a LCU marca todos
+ * como não prontos. A personalizada fica de fora.
+ */
+export function awayMembers(lobby: Lobby | null, phase: GameflowPhase | null): LobbyMember[] {
+  if (!lobby || lobby.custom || phase !== 'Lobby') return [];
+  return lobby.members.filter(member => !member.ready);
+}
+
+/** O aviso para cada membro de {@link awayMembers}. */
+export function awayReasons(away: LobbyMember[], me: string | undefined, nameOf: (member: LobbyMember) => string): string[] {
+  return away.map(member => member.puuid === me ? 'Você ainda não voltou ao lobby.' : `${nameOf(member)} ainda não voltou ao lobby.`);
 }

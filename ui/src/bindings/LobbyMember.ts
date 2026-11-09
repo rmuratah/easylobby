@@ -60,4 +60,13 @@ export type LobbyMember = {
    * Tag do Riot ID (depois do `#`). Vazia junto com `game_name`.
    */
   tagLine: string,
+  /**
+   * `false` com o jogador fora do lobby (#346): depois de uma partida, os
+   * outros membros continuam no grupo mas só voltam ao lobby ao sair da
+   * tela de fim de jogo, e até lá o client oficial mostra o card
+   * transparente e "Os jogadores não estão prontos". Sai de `ready` e de
+   * `showGhostedBanner` da LCU. Só vale na fase `Lobby`: na fila e na
+   * seleção a LCU manda `ready` falso para todos.
+   */
+  ready: boolean,
 };

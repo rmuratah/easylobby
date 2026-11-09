@@ -122,6 +122,22 @@ describe('matchmaking pelo /ws', () => {
     expect(button('Cancelar busca')).toBeDisabled();
   });
 
+  it('mostra quem ainda não voltou ao lobby depois da partida (#346)', () => {
+    render(<App />);
+    const away = { ...testLobby.members[0], puuid: 'amigo', summonerId: 2, ready: false, gameName: 'Games e Musica', tagLine: 'BR1', isLeader: false };
+    hello({ lobby: { ...testLobby, canStartActivity: false, members: [...testLobby.members, away] }, gameflowPhase: 'Lobby' });
+    expect(button('Iniciar busca')).toBeDisabled();
+    expect(panel().getByText('Os jogadores não estão prontos:')).toBeInTheDocument();
+    const reasons = within(panel().getByRole('list', { name: 'Motivos da fila bloqueada' })).getAllByRole('listitem');
+    expect(reasons.map(r => r.textContent)).toEqual(['Games e Musica#BR1 ainda não voltou ao lobby.']);
+    expect(lobbyPanel().getAllByText('Ainda não voltou ao lobby')).toHaveLength(1);
+    // Ao voltar, o aviso some e a busca libera.
+    hello({ lobby: { ...testLobby, members: [...testLobby.members, { ...away, ready: true }] }, gameflowPhase: 'Lobby' });
+    expect(lobbyPanel().queryByText('Ainda não voltou ao lobby')).not.toBeInTheDocument();
+    expect(panel().queryByText('Os jogadores não estão prontos:')).not.toBeInTheDocument();
+    expect(button('Iniciar busca')).toBeEnabled();
+  });
+
   it('mostra o motivo da fila bloqueada que a LCU mandou (#227)', () => {
     render(<App />);
     const restrictions = [
