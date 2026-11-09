@@ -11,9 +11,11 @@
 //!   o tutorial vêm invisíveis);
 //! - `gameSelectCategory` `kPvP` ou `kVersusAI` (fica de fora o que é
 //!   personalizada, `CreateCustom`, e treino, `kTraining`);
-//! - nem TFT (`TFT`, outro jogo) nem Arena (`CHERRY`, com duplas e seleção
-//!   próprias), que ficam para issues separadas. A exceção é a Arena 3x6
-//!   (1750), que tem lugar fixo na tela de escolha de modo (#209).
+//! - nem TFT (`TFT`, outro jogo).
+//!
+//! A Arena (`CHERRY`) entra como as outras filas (#154): a Arena 3x6 (1750)
+//! tem lugar fixo na tela de escolha de modo (#209) e as outras Arenas
+//! abertas (Arena da Bravura, 1740) vão para o mesmo card na UI.
 //!
 //! As filas fixas da tela de escolha de modo ([`MODE_SCREEN_QUEUES`], #209)
 //! vêm mesmo fechadas, com `available: false`, para a UI acinzentar o modo
@@ -21,7 +23,8 @@
 //!
 //! Na gravação do patch 16.22 sobram as cinco filas de [`Queue`], a ARAM:
 //! Desordem (2400, modo `KIWI`), a Jade (4310, e 4320 contra IA), o
-//! cooperativo contra IA (870, 880 e 890) e a Arena 3x6 (1750), fechada.
+//! cooperativo contra IA (870, 880 e 890), a Arena 3x6 (1750), fechada, e a
+//! Arena da Bravura (1740), aberta.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -39,10 +42,10 @@ pub const ARAM_MODE_GROUP: &str = "kARAM";
 
 /// Modos de jogo que não entram na lista mesmo disponíveis (menos as filas
 /// de [`MODE_SCREEN_QUEUES`]).
-const EXCLUDED_GAME_MODES: [&str; 2] = ["TFT", "CHERRY"];
+const EXCLUDED_GAME_MODES: [&str; 1] = ["TFT"];
 
-/// `queueId` da Arena 3x6 (`CHERRY`), a única Arena da tela de escolha de
-/// modo (#209).
+/// `queueId` da Arena 3x6 (`CHERRY`), a Arena com lugar fixo na tela de
+/// escolha de modo (#209).
 pub const ARENA_3X6_QUEUE_ID: u32 = 1750;
 
 /// Filas com lugar fixo na tela de escolha de modo (#209, #210): vêm na
@@ -221,7 +224,7 @@ mod tests {
         let ids: Vec<u32> = queues.iter().map(|q| q.queue_id).collect();
         assert_eq!(
             ids,
-            [400, 420, 440, 450, 480, 870, 880, 890, 1750, 2400, 4310, 4320]
+            [400, 420, 440, 450, 480, 870, 880, 890, 1740, 1750, 2400, 4310, 4320]
         );
         for queue in Queue::ALL {
             let found = queues.iter().find(|q| q.queue_id == queue.id()).unwrap();
@@ -236,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn arena_3x6_fechada_vem_acinzentada_e_as_outras_arenas_ficam_de_fora() {
+    fn arena_3x6_fechada_vem_acinzentada_e_a_arena_da_bravura_aberta_entra() {
         let queues = from_json(&recorded()).unwrap();
         let arena = queues
             .iter()
@@ -245,10 +248,15 @@ mod tests {
         assert_eq!(arena.name, "Arena 3x6");
         assert_eq!(arena.game_mode, "CHERRY");
         assert!(!arena.available);
-        // A Arena da Bravura (1740) estava aberta, mas não é da tela.
+        // A Arena da Bravura (1740) estava aberta e entra (#154); as Arenas
+        // fechadas que não são fixas ficam de fora.
+        let bravura = queues.iter().find(|q| q.queue_id == 1740).unwrap();
+        assert_eq!(bravura.name, "Arena da Bravura");
+        assert_eq!(bravura.game_mode, "CHERRY");
+        assert!(bravura.available);
         assert!(!queues
             .iter()
-            .any(|q| [1700, 1710, 1740].contains(&q.queue_id)));
+            .any(|q| [1700, 1704, 1710].contains(&q.queue_id)));
     }
 
     #[test]
@@ -333,7 +341,6 @@ mod tests {
             with("gameSelectCategory", json!("CreateCustom")),
             with("gameSelectCategory", json!("kTraining")),
             with("gameMode", json!("TFT")),
-            with("gameMode", json!("CHERRY")),
             "lixo",
             {"sem": "id"},
         ]);

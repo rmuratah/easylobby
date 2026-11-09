@@ -86,7 +86,7 @@ const trainingModes: GameMode[] = [
   },
 ];
 
-/** `queueId` com lugar fixo na tela; o resto das filas abertas vai para o card Summoner's Rift Clássico. */
+/** `queueId` com lugar fixo na tela; o resto das filas abertas vai para o card Summoner's Rift Clássico (a Arena, para o card Arena). */
 const fixedQueueIds = new Set([...pvpModes, ...coopModes].flatMap(mode => mode.submodes.map(s => s.queueId)));
 
 function fixedMode(mode: FixedMode, queues: GameQueue[]): GameMode {
@@ -98,7 +98,23 @@ function fixedMode(mode: FixedMode, queues: GameQueue[]): GameMode {
     const command = createLobbyCommand(listed ? queueKey(listed) : fixed.queue ?? `fila-${fixed.queueId}`);
     return { queueId: fixed.queueId, name: fixed.name, description: fixed.description, available, command };
   });
+  // As outras Arenas abertas (Arena da Bravura, #154) entram no card Arena, depois da fixa.
+  if (mode.id === 'arena') submodes.push(...queues.filter(q => isOtherArena(q)).map((q): Submode => ({
+    queueId: q.queueId,
+    name: q.name || q.description || `Arena ${q.queueId}`,
+    description: q.description && q.description !== q.name ? q.description : 'Arena por tempo limitado.',
+    available: true,
+    command: createLobbyCommand(queueKey(q)),
+  })));
   return { id: mode.id, name: mode.name, description: mode.description, icon: mode.icon, available: submodes.some(s => s.available), submodes };
+}
+
+/** `gameMode` da Arena na LCU. */
+const ARENA_GAME_MODE = 'CHERRY';
+
+/** Arena aberta sem lugar fixo na tela (#154): vai para o card Arena, não para o de eventos. */
+function isOtherArena(q: GameQueue) {
+  return q.available && !q.versusAi && q.gameMode === ARENA_GAME_MODE && !fixedQueueIds.has(q.queueId);
 }
 
 type EventsCard = Pick<GameMode, 'name' | 'icon' | 'description'> & {
@@ -119,7 +135,7 @@ const eventsCards: Record<'events' | 'coopEvents', EventsCard> = {
 
 function eventsMode(id: 'events' | 'coopEvents', queues: GameQueue[]): GameMode | null {
   const { nameFromDescription, submodeDescription, ...card } = eventsCards[id];
-  const submodes = queues.filter(q => q.available && !fixedQueueIds.has(q.queueId)).map((q): Submode => ({
+  const submodes = queues.filter(q => q.available && !fixedQueueIds.has(q.queueId) && !isOtherArena(q)).map((q): Submode => ({
     queueId: q.queueId,
     name: (nameFromDescription && q.description) || q.name || q.description || `Fila ${q.queueId}`,
     description: submodeDescription ?? (q.description && q.description !== q.name ? q.description : 'Modo por tempo limitado.'),

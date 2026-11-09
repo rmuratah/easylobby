@@ -397,7 +397,7 @@ impl LcuQueue {
         } else if self.game_mode == "TFT" {
             "TFT (outro jogo)"
         } else if self.game_mode == "CHERRY" {
-            "Arena fora da 3x6 (sem tela no app)"
+            "Arena"
         } else if self.category.is_empty() {
             "sem categoria na LCU"
         } else {
@@ -535,7 +535,7 @@ fn build_report(list: &Value, app: &[AppQueue], patch: &str) -> Report {
     // 2. Card de eventos.
     let events: Vec<&GameQueue> = agent
         .iter()
-        .filter(|q| q.available && !app_ids.contains(&q.queue_id))
+        .filter(|q| q.available && !app_ids.contains(&q.queue_id) && q.game_mode != "CHERRY")
         .collect();
     let _ = writeln!(
         md,
@@ -614,6 +614,8 @@ fn build_report(list: &Value, app: &[AppQueue], patch: &str) -> Report {
             "fixa"
         } else if events.iter().any(|e| e.queue_id == q.id) {
             "eventos"
+        } else if q.game_mode == "CHERRY" && agent.iter().any(|a| a.queue_id == q.id) {
+            "card Arena"
         } else {
             "não"
         };

@@ -7,7 +7,7 @@ const queue = (queueId: number, name: string, extra: Partial<GameQueue> = {}): G
   queueId, queue: null, name, description: name, gameMode: 'CLASSIC', modeGroup: 'kOther', mapId: 11,
   versusAi: false, ranked: false, showPositionSelector: false, limitedTime: false, available: true, ...extra,
 });
-/** As filas como o agente lista na gravação 16.22, com a Arena 3x6 fechada. */
+/** As filas como o agente lista na gravação 16.22, com a Arena 3x6 fechada e a Arena da Bravura aberta. */
 const recorded: GameQueue[] = [
   queue(400, 'Normal', { queue: 'normalDraft', description: 'Escolha alternada' }),
   queue(420, 'Ranqueada Solo/Duo', { queue: 'rankedSolo' }),
@@ -17,6 +17,7 @@ const recorded: GameQueue[] = [
   queue(870, 'Introdução', { versusAi: true }),
   queue(880, 'Iniciante', { versusAi: true }),
   queue(890, 'Intermediário', { versusAi: true }),
+  queue(1740, 'Arena da Bravura', { gameMode: 'CHERRY' }),
   queue(1750, 'Arena 3x6', { gameMode: 'CHERRY', available: false }),
   queue(2400, 'ARAM: Desordem', { gameMode: 'KIWI' }),
   queue(4310, '5v5 Clássico', { gameMode: 'JADE', description: '5v5 Clássico' }),
@@ -32,7 +33,7 @@ describe('abas da tela de escolha de modo', () => {
     expect(summary(tab(tabs, 'pvp'))).toEqual([
       ["Summoner's Rift", true, [[480, true], [400, true], [440, true], [420, true]]],
       ['ARAM', true, [[450, true], [2400, true]]],
-      ['Arena', false, [[1750, false]]],
+      ['Arena', true, [[1750, false], [1740, true]]],
       ["Summoner's Rift Clássico", true, [[4310, true]]],
     ]);
     expect(summary(tab(tabs, 'coop'))).toEqual([
@@ -44,6 +45,14 @@ describe('abas da tela de escolha de modo', () => {
       ['Tutorial', { type: 'startTutorial' }],
       ['Modo de Treino', { type: 'startPracticeTool' }],
     ]);
+  });
+
+  it('põe as outras Arenas abertas no card Arena, e não no de eventos (#154)', () => {
+    const arena = tab(buildModeTabs(recorded), 'pvp').modes.find(m => m.id === 'arena')!;
+    expect(arena.submodes[1]).toMatchObject({ name: 'Arena da Bravura', description: 'Arena por tempo limitado.', available: true,
+      command: { type: 'createLobbyById', queueId: 1740 } });
+    const closed = buildModeTabs(recorded.map(q => q.queueId === 1740 ? { ...q, available: false } : q));
+    expect(summary(tab(closed, 'pvp')).find(([name]) => name === 'Arena')).toEqual(['Arena', false, [[1750, false]]]);
   });
 
   it('mostra a fila clássica do Co-op pela descrição, com descrição curta', () => {
@@ -108,7 +117,8 @@ describe('abas da tela de escolha de modo', () => {
     const aram = tab(blockCurrentQueue(buildModeTabs(recorded), 2400), 'pvp').modes.find(m => m.id === 'aram')!;
     expect(aram.available).toBe(true);
     expect(aram.submodes.map(s => [s.queueId, s.available, !!s.current])).toEqual([[450, true, false], [2400, false, true]]);
-    const arenaOpen = recorded.map(q => q.queueId === 1750 ? { ...q, available: true } : q);
+    // Só a Arena 3x6 aberta: a Arena da Bravura fechada não entra.
+    const arenaOpen = recorded.filter(q => q.queueId !== 1740).map(q => q.queueId === 1750 ? { ...q, available: true } : q);
     const arena = tab(blockCurrentQueue(buildModeTabs(arenaOpen), 1750), 'pvp').modes.find(m => m.id === 'arena')!;
     expect(arena.available).toBe(false);
     expect(arena.submodes[0].current).toBe(true);
