@@ -86,7 +86,7 @@ export function QuickPlaySlots({ member, mine, canEdit, state, send, notes }: Pr
   );
   return (
     <div className="relative flex shrink-0 flex-col items-end gap-1">
-      <ul aria-label={mine ? 'Suas posições e campeões' : 'Posições e campeões'} className="flex gap-3">
+      <ul aria-label={mine ? 'Suas posições e campeões' : 'Posições e campeões'} className="flex gap-4">
         {pair.map((slot, i) => {
           const index = i as 0 | 1;
           const saved = member.playerSlots[index];
@@ -98,16 +98,16 @@ export function QuickPlaySlots({ member, mine, canEdit, state, send, notes }: Pr
               <SlotButton editable={editable} label={`${slotLabels[index]}: ${slot.championId ? championName(slot.championId) : 'sem campeão'}`}
                 expanded={isOpen('champion')} disabled={command.pending} onClick={() => toggle('champion')}>
                 <span className="relative block">
-                  <ChampionIcon id={slot.championId || null} size={48} />
+                  <ChampionIcon id={slot.championId || null} size={64} />
                   {!slot.championId && <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-title text-muted">?</span>}
                 </span>
               </SlotButton>
               <span className="flex flex-col items-start gap-1">
                 <SlotButton editable={editable} label={`${slotLabels[index]}: ${positionNames[slot.position]}`}
                   expanded={isOpen('position')} disabled={command.pending} onClick={() => toggle('position')}>
-                  <span className={cx('relative flex size-6 items-center justify-center rounded-control-sm bg-raised',
+                  <span className={cx('relative flex size-8 items-center justify-center rounded-control-sm bg-raised',
                     slot.position === 'unselected' ? 'text-muted' : 'text-ink')}>
-                    <PositionIcon position={slot.position} size={15} />
+                    <PositionIcon position={slot.position} size={20} />
                     {scarce.includes(slot.position) && <ScarceMark className="absolute -right-1 -top-1" />}
                   </span>
                 </SlotButton>
@@ -117,12 +117,12 @@ export function QuickPlaySlots({ member, mine, canEdit, state, send, notes }: Pr
                       <SlotButton key={spell} editable={editable} disabled={command.pending} expanded={isOpen('spells', spell)}
                         label={`${slotLabels[index]}, feitiço ${spell === 0 ? 'D' : 'F'}: ${spellName(state.summonerSpellCatalog, (spell === 0 ? saved.spell1Id : saved.spell2Id) || null)}`}
                         onClick={() => toggle('spells', spell)}>
-                        <SpellIcon id={(spell === 0 ? saved.spell1Id : saved.spell2Id) || null} size={18} />
+                        <SpellIcon id={(spell === 0 ? saved.spell1Id : saved.spell2Id) || null} size={26} />
                       </SlotButton>
                     ))}
                     <SlotButton editable={editable} disabled={command.pending} label={`${slotLabels[index]}: runas`}
                       expanded={isOpen('runes')} onClick={() => toggle('runes')}>
-                      <RuneIcon kind="perk" id={saved.keystoneId} size={18} />
+                      <RuneIcon kind="perk" id={saved.keystoneId} size={26} />
                     </SlotButton>
                   </span>
                 )}
