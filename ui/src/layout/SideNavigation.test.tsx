@@ -12,16 +12,19 @@ describe('SideNavigation', () => {
     expect(screen.getByRole('heading', { name: 'easylobby' })).toHaveAttribute('data-tauri-drag-region');
     const buttons = Array.from(navigation.querySelectorAll('button'));
     expect(buttons.map(button => button.getAttribute('aria-label') ?? button.textContent)).toEqual([
-      'Início', 'Grupo', 'Perfil', 'Conversas', 'Tema claro', 'Tema escuro', 'Configurações — em breve',
+      'Início', 'Grupo', 'Perfil', 'Conversas', 'Loja — em breve', 'Tema claro', 'Tema escuro', 'Configurações — em breve',
     ]);
     expect(screen.getByRole('button', { name: 'Início' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Configurações — em breve' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Loja — em breve' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Loja — em breve' }));
+    expect(onNavigate).not.toHaveBeenCalled();
     for (const button of buttons) expect(button).not.toHaveAttribute('data-tauri-drag-region');
     fireEvent.click(screen.getByRole('button', { name: 'Grupo' }));
     expect(onNavigate).toHaveBeenCalledWith('flow');
     const nav = container.querySelector('nav')!;
     expect(Array.from(nav.children).map(child => child.tagName === 'BUTTON' ? child.getAttribute('aria-label') : 'divisor'))
-      .toEqual(['Início', 'Grupo', 'divisor', 'Perfil', 'Conversas']);
+      .toEqual(['Início', 'Grupo', 'divisor', 'Perfil', 'Conversas', 'Loja — em breve']);
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
     expect(onNavigate).toHaveBeenCalledWith('profile');
     fireEvent.click(screen.getByRole('button', { name: 'Conversas' }));
