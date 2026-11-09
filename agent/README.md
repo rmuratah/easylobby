@@ -229,6 +229,16 @@ Jogue a sessão pela UI oficial (lobby, fila, ready check, champ select, chat) e
 
 Antes de salvar, o `Sanitizer` troca puuid, ids (inclusive o `gameId` das partidas), nomes, tags e nomes de grupos de amigos por valores `fake-...` (o mesmo valor real vira sempre o mesmo falso, então as relações continuam valendo), troca o texto das mensagens de chat e apaga tokens, senhas e a senha do lockfile. Para passar uma gravação antiga pelo sanitizer atual, use `--ressanitizar tests/fixtures/<patch>`. Para descobrir onde a LCU guarda algo que os tópicos do easylobby não mostram, `--todos-eventos` grava os eventos de todos os tópicos (também sanitizados); essa gravação é para conferir, não para commitar. O teste `fixtures_validas` falha se algum conjunto tiver dado que o sanitizer trocaria ou texto com cara de id ou token real. Mesmo assim, **confira os arquivos antes de commitar.**
 
+## Comparar as filas do client com as do app
+
+Para auditar as filas (#283), com o LoL aberto e logado:
+
+```bash
+cargo run -p easylobby-agent --example comparar_filas
+```
+
+Grava em `filas-lol/` (ou `--saida <pasta>`) a lista crua de `/lol-game-queues/v1/queues` (`filas-<patch>.json`) e `comparacao-filas-<patch>.md`, com as filas fixas da tela de escolha de modo (`ui/src/agent/gameModes.ts`) lado a lado com o nome e o mapa do client, as que caem no card de eventos, as abertas no client que o app não mostra (com o motivo) e a lista inteira da LCU. Sem o LoL, `--arquivo agent/tests/fixtures/16.22/rest.json` compara uma lista já gravada; `--mock` usa o mock-lcu.
+
 ## Ícones e imagens (`assets`)
 
 O servidor do `/ws` também serve as imagens do jogo em `http://127.0.0.1:47800/assets/<tipo>/<id>` (#29), com o mesmo `id` que a LCU manda. Os tipos são o `AssetKind` gerado em `ui/src/bindings/`: `champion` (`championId`), `profileIcon` (`profileIconId`), `summonerSpell` (`spell1Id`/`spell2Id`), `perk` (`perkIds`), `perkStyle` (`primaryStyleId`/`subStyleId`), `item` (os `items` do histórico) e `rankedEmblem`, o emblema de elo, com `id` de 1 (Ferro) a 10 (Desafiante), na ordem de `RANKED_TIERS`.

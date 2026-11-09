@@ -20,3 +20,5 @@ Thumbs.db
 
 # Segredos: o lockfile do LoL nunca deve ser commitado
 lockfile
+# Saída do example comparar_filas (#283)
+filas-lol/
