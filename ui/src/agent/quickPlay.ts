@@ -4,6 +4,7 @@ import type { Command } from '../bindings/Command';
 import type { PlayerSlot } from '../bindings/PlayerSlot';
 import type { PlayerSlotInput } from '../bindings/PlayerSlotInput';
 import type { Position } from '../bindings/Position';
+import type { SlotRunesInput } from '../bindings/SlotRunesInput';
 
 /** Posições que valem num slot do Jogo Dinâmico (#218), na ordem do client oficial: sem preenchimento. */
 export const SLOT_POSITIONS: readonly Position[] = ['top', 'jungle', 'middle', 'bottom', 'utility'];
@@ -53,7 +54,7 @@ export function sameDraft(a: SlotPair, b: SlotPair): boolean {
 }
 
 /** O que mudar além da posição e do campeão num slot: os feitiços ou a página de runas. */
-export type SlotExtras = { index: 0 | 1; spells?: [number, number]; runePageId?: number };
+export type SlotExtras = { index: 0 | 1; spells?: [number, number]; runePageId?: number; runes?: SlotRunesInput };
 
 /** Comando `setPlayerSlots` com os dois slots. Feitiços e runas em `null` ficam com o que o agente decidir. */
 export function slotsCommand(pair: SlotPair, extras?: SlotExtras): Extract<Command, { type: 'setPlayerSlots' }> {
@@ -65,6 +66,7 @@ export function slotsCommand(pair: SlotPair, extras?: SlotExtras): Extract<Comma
       spell1Id: mine?.spells?.[0] ?? null,
       spell2Id: mine?.spells?.[1] ?? null,
       runePageId: mine?.runePageId ?? null,
+      runes: mine?.runes ?? null,
     };
   });
   return { type: 'setPlayerSlots', slots };

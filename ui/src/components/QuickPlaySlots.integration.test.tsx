@@ -7,6 +7,7 @@ import type { Lobby } from '../bindings/Lobby';
 import type { PlayerSlot } from '../bindings/PlayerSlot';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { testLobby, testState } from '../test/lobby';
+import { testFullRuneCatalog } from '../test/runes';
 
 class Socket {
   static OPEN = 1;
@@ -36,7 +37,7 @@ afterEach(() => { configure({ defaultHidden: false }); vi.unstubAllGlobals(); })
 
 const slot = (championId: number, position: PlayerSlot['position'], spells: [number, number] = [4, 14]): PlayerSlot => ({
   championId, skinId: championId * 1000, position, spell1Id: spells[0], spell2Id: spells[1],
-  runeStyleId: 8000, runeSubStyleId: 8300, keystoneId: 8010,
+  runeStyleId: 8000, runeSubStyleId: 8300, keystoneId: 8010, perkIds: [8010, 9111, 9104, 8299, 8345, 8347, 5005, 5008, 5001],
 });
 const swiftplay = (playerSlots: PlayerSlot[] = []): Lobby => ({
   ...testLobby, queueId: 480, queue: 'swiftplay', maxLobbySize: 5, showPositionSelector: false, showQuickPlaySlots: true,
@@ -78,8 +79,8 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     fireEvent.click(dialog().getByRole('button', { name: 'Aatrox' }));
 
     expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
-      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null },
-      { championId: 266, position: 'top', spell1Id: null, spell2Id: null, runePageId: null },
+      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
+      { championId: 266, position: 'top', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
     ] });
     expect(panel().getByRole('status')).toHaveTextContent('Salvando posições e campeões');
     act(() => socket().receive({ type: 'lobby', lobby: swiftplay([slot(22, 'bottom'), slot(266, 'top')]) }));
@@ -95,16 +96,45 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     open(/^Segunda posição: Topo/);
     fireEvent.click(dialog().getByRole('button', { name: 'Atirador (prioritária)' }));
     expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
-      { championId: 22, position: 'top', spell1Id: null, spell2Id: null, runePageId: null },
-      { championId: 266, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null },
+      { championId: 22, position: 'top', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
+      { championId: 266, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
     ] });
     await ok();
 
     open(/^Segunda posição, feitiço F: Incendiar/);
     fireEvent.click(dialog().getByRole('button', { name: 'Teleporte' }));
     expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
-      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null },
-      { championId: 266, position: 'top', spell1Id: 4, spell2Id: 12, runePageId: null },
+      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
+      { championId: 266, position: 'top', spell1Id: 4, spell2Id: 12, runePageId: null, runes: null },
+    ] });
+  });
+
+  it('edita as runas do slot no pop-up e salva (#331)', () => {
+    render(<App />);
+    const runed = { ...slot(266, 'top'), runeStyleId: 8000, runeSubStyleId: 8100, keystoneId: 101,
+      perkIds: [101, 111, 121, 131, 211, 231, 5008, 5010, 5011] };
+    hello({ lobby: swiftplay([slot(22, 'bottom'), runed]), gameflowPhase: 'Lobby', championCatalog: champions,
+      runeCatalog: testFullRuneCatalog });
+    open(/^Segunda posição: runas/);
+    const editor = within(dialog().getByRole('form', { name: 'Editar runas' }));
+    // Começa com as runas do slot, e o nome aparece no hover.
+    expect(editor.getByRole('button', { name: 'Pressione o Ataque' })).toHaveAttribute('aria-pressed', 'true');
+    expect(editor.getByRole('button', { name: 'Ritmo Fatal' })).toHaveAttribute('title', 'Ritmo Fatal');
+    fireEvent.click(editor.getByRole('button', { name: 'Ritmo Fatal' }));
+    // Trocar a árvore primária esvazia as linhas dela: o Salvar trava até completar.
+    const primaryTree = within(editor.getByRole('group', { name: 'Árvore primária' }));
+    fireEvent.click(primaryTree.getByRole('button', { name: 'Dominação' }));
+    expect(editor.getByRole('button', { name: 'Salvar' })).toBeDisabled();
+    fireEvent.click(primaryTree.getByRole('button', { name: 'Precisão' }));
+    // A secundária volta vazia: escolhe as duas de novo.
+    for (const name of ['Ritmo Fatal', 'Triunfo', 'Lenda: Espontaneidade', 'Golpe de Misericórdia', 'Golpe Desleal', 'Caçador Voraz']) {
+      fireEvent.click(editor.getByRole('button', { name }));
+    }
+    fireEvent.click(editor.getByRole('button', { name: 'Salvar' }));
+    expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
+      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
+      { championId: 266, position: 'top', spell1Id: null, spell2Id: null, runePageId: null,
+        runes: { perkIds: [102, 111, 121, 131, 211, 231, 5008, 5010, 5011], styleId: 8000, subStyleId: 8100 } },
     ] });
   });
 

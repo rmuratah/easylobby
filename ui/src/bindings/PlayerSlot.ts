@@ -31,4 +31,10 @@ export type PlayerSlot = {
    * Runa principal (a primeira da página), `0` sem runas.
    */
   keystoneId: number,
+  /**
+   * Todas as runas do slot, na ordem da página (principal, 3 da
+   * primária, 2 da secundária e 3 fragmentos), para editar (#331).
+   * Vazia sem runas.
+   */
+  perkIds: Array<number>,
 };

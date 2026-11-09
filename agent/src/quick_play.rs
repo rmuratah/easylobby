@@ -71,6 +71,10 @@ pub struct PlayerSlot {
     pub rune_sub_style_id: u32,
     /// Runa principal (a primeira da página), `0` sem runas.
     pub keystone_id: u32,
+    /// Todas as runas do slot, na ordem da página (principal, 3 da
+    /// primária, 2 da secundária e 3 fragmentos), para editar (#331).
+    /// Vazia sem runas.
+    pub perk_ids: Vec<u32>,
     /// `perks` como a LCU mandou, para devolver igual quando o slot não muda.
     #[serde(skip)]
     #[ts(skip)]
@@ -93,7 +97,25 @@ pub struct PlayerSlotInput {
     /// recomendadas.
     #[ts(type = "number | null")]
     pub rune_page_id: Option<u64>,
+    /// Runas editadas na hora para o slot (#331), sem página salva. Vale
+    /// mais que `runePageId`. `null` segue as regras de `runePageId`.
+    #[serde(default)]
+    pub runes: Option<SlotRunesInput>,
 }
+
+/// Runas de um slot escolhidas no editor (#331), na ordem de
+/// [`PlayerSlot::perk_ids`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct SlotRunesInput {
+    pub perk_ids: Vec<u32>,
+    pub style_id: u32,
+    pub sub_style_id: u32,
+}
+
+/// Quantas runas uma página completa tem: principal, 3 da primária, 2 da
+/// secundária e 3 fragmentos.
+pub const SLOT_PERK_COUNT: usize = 9;
 
 /// Por que uma lista de slots não vale.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,6 +132,9 @@ pub enum InvalidSlots {
     RepeatedChampion,
     /// Só um dos feitiços, um feitiço `0` ou os dois iguais.
     Spells,
+    /// Runas editadas incompletas: sem as 9 runas, sem árvore ou com as duas
+    /// árvores iguais.
+    Runes,
 }
 
 impl std::fmt::Display for InvalidSlots {
@@ -121,6 +146,7 @@ impl std::fmt::Display for InvalidSlots {
             InvalidSlots::NoChampion => "escolha um campeão para cada posição",
             InvalidSlots::RepeatedChampion => "os dois campeões são iguais",
             InvalidSlots::Spells => "escolha dois feitiços diferentes",
+            InvalidSlots::Runes => "escolha uma runa em cada linha das duas árvores",
         })
     }
 }
@@ -143,6 +169,16 @@ pub fn check_slots(slots: &[PlayerSlotInput]) -> Result<(), InvalidSlots> {
             (None, None) => {}
             (Some(d), Some(f)) if d != 0 && f != 0 && d != f => {}
             _ => return Err(InvalidSlots::Spells),
+        }
+        if let Some(runes) = &slot.runes {
+            if runes.perk_ids.len() != SLOT_PERK_COUNT
+                || runes.perk_ids.contains(&0)
+                || runes.style_id == 0
+                || runes.sub_style_id == 0
+                || runes.style_id == runes.sub_style_id
+            {
+                return Err(InvalidSlots::Runes);
+            }
         }
     }
     if a.position == b.position {
@@ -260,6 +296,7 @@ impl PlayerSlot {
                 .as_ref()
                 .and_then(|r| r.perk_ids.first().copied())
                 .unwrap_or(0),
+            perk_ids: runes.map(|r| r.perk_ids).unwrap_or_default(),
             perks,
         })
     }
@@ -278,7 +315,7 @@ impl PlayerSlot {
 pub fn needs_recommendation(input: &PlayerSlotInput, current: Option<&PlayerSlot>) -> bool {
     let kept =
         current.is_some_and(|c| c.champion_id == input.champion_id && c.position == input.position);
-    !kept && (input.spell1_id.is_none() || input.rune_page_id.is_none())
+    !kept && (input.spell1_id.is_none() || (input.rune_page_id.is_none() && input.runes.is_none()))
 }
 
 /// Monta o slot no formato da LCU.
@@ -286,7 +323,8 @@ pub fn needs_recommendation(input: &PlayerSlotInput, current: Option<&PlayerSlot
 /// - Feitiços: os escolhidos; senão os do slot atual, se o campeão e a
 ///   posição não mudaram; senão os recomendados; senão
 ///   [`default_spells`].
-/// - Runas: as da página escolhida; senão as do slot atual, se o campeão e
+/// - Runas: as editadas (#331); senão as da página escolhida; senão as do
+///   slot atual, se o campeão e
 ///   a posição não mudaram; senão as recomendadas; senão a página em uso.
 /// - Skin: a do slot atual com o mesmo campeão, senão a padrão.
 pub fn build_slot(
@@ -312,9 +350,13 @@ pub fn build_slot(
             sub_style_id: page.sub_style_id,
         })
     };
-    let perks = input
-        .rune_page_id
-        .and_then(page_runes)
+    let edited = input.runes.as_ref().map(|r| SlotRunes {
+        perk_ids: r.perk_ids.clone(),
+        style_id: r.style_id,
+        sub_style_id: r.sub_style_id,
+    });
+    let perks = edited
+        .or_else(|| input.rune_page_id.and_then(page_runes))
         .map(|r| r.to_perks())
         .or_else(|| {
             kept.filter(|c| !c.perks.is_empty())
@@ -449,7 +491,56 @@ mod tests {
             spell1_id: None,
             spell2_id: None,
             rune_page_id: None,
+            runes: None,
         }
+    }
+
+    #[test]
+    fn runas_editadas_valem_mais_que_a_pagina_e_precisam_estar_completas() {
+        let runes = SlotRunesInput {
+            perk_ids: vec![8010, 9111, 9104, 8299, 8444, 8451, 5008, 5008, 5011],
+            style_id: 8000,
+            sub_style_id: 8400,
+        };
+        let edited = PlayerSlotInput {
+            runes: Some(runes.clone()),
+            rune_page_id: Some(1),
+            ..input(1, Position::Top)
+        };
+        let slot = build_slot(&edited, None, None, None);
+        let perks = SlotRunes::from_perks(slot["perks"].as_str().unwrap()).unwrap();
+        assert_eq!(perks.perk_ids, runes.perk_ids);
+        assert_eq!((perks.style_id, perks.sub_style_id), (8000, 8400));
+        // Com as runas editadas, só os feitiços pedem a recomendação.
+        assert!(needs_recommendation(&edited, None));
+        let with_spells = PlayerSlotInput {
+            spell1_id: Some(4),
+            spell2_id: Some(14),
+            ..edited.clone()
+        };
+        assert!(!needs_recommendation(&with_spells, None));
+
+        let other = input(2, Position::Jungle);
+        assert_eq!(check_slots(&[edited.clone(), other.clone()]), Ok(()));
+        let incomplete = PlayerSlotInput {
+            runes: Some(SlotRunesInput {
+                perk_ids: vec![8010],
+                ..runes.clone()
+            }),
+            ..edited.clone()
+        };
+        assert_eq!(
+            check_slots(&[incomplete, other.clone()]),
+            Err(InvalidSlots::Runes)
+        );
+        let same_tree = PlayerSlotInput {
+            runes: Some(SlotRunesInput {
+                sub_style_id: 8000,
+                ..runes
+            }),
+            ..edited
+        };
+        assert_eq!(check_slots(&[same_tree, other]), Err(InvalidSlots::Runes));
     }
 
     fn slot_json(champion_id: u32, position: &str, perks: &str) -> Value {
@@ -511,6 +602,7 @@ mod tests {
         assert_eq!(slots[0].keystone_id, 8010);
         assert_eq!(slots[1].champion_id, 0);
         assert_eq!(slots[1].keystone_id, 0);
+        assert!(slots[1].perk_ids.is_empty());
         assert!(PlayerSlot::list_from_json(&json!(null)).is_empty());
 
         // `perks` não vai para a UI.
@@ -518,7 +610,8 @@ mod tests {
         assert_eq!(
             ui,
             json!({"championId": 22, "skinId": 22003, "position": "bottom", "spell1Id": 4, "spell2Id": 14,
-                   "runeStyleId": 8000, "runeSubStyleId": 8300, "keystoneId": 8010})
+                   "runeStyleId": 8000, "runeSubStyleId": 8300, "keystoneId": 8010,
+                   "perkIds": [8010, 9111, 9104, 8299, 8345, 8347, 5005, 5008, 5001]})
         );
     }
 
