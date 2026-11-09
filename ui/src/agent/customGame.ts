@@ -1,4 +1,5 @@
 import type { AramMap } from '../bindings/AramMap';
+import type { CustomGameListing } from '../bindings/CustomGameListing';
 import type { CustomGameOptions } from '../bindings/CustomGameOptions';
 import type { CustomGameSettings } from '../bindings/CustomGameSettings';
 import type { CustomMap } from '../bindings/CustomMap';
@@ -122,4 +123,27 @@ export function customLobbySummary(settings: CustomGameSettings, teamSize: numbe
     settings.pickType ? pickTypeName(settings.map, settings.pickType) : null,
     settings.gameMode === PRACTICE_TOOL ? 'Modo de Treino' : null,
   ].filter(Boolean).join(' · ');
+}
+
+/** Nome do mapa de uma personalizada da lista (#264), ou "Mapa N" num mapa que o app não conhece. */
+export function listingMapName(game: Pick<CustomGameListing, 'map' | 'mapId'>): string {
+  return game.map ? customMapNames[game.map] : `Mapa ${game.mapId}`;
+}
+
+/** Tipo de jogo de uma personalizada da lista: o nome do client, ou o `gameType` cru da LCU. */
+export function listingModeName(game: Pick<CustomGameListing, 'map' | 'pickType' | 'gameType'>): string {
+  return game.pickType ? pickTypeName(game.map, game.pickType) : game.gameType || '—';
+}
+
+/** Se as equipes da personalizada já estão cheias. */
+export function listingFull(game: Pick<CustomGameListing, 'players' | 'maxPlayers'>): boolean {
+  return game.maxPlayers > 0 && game.players >= game.maxPlayers;
+}
+
+/** Busca na lista pelo nome da partida ou do dono, sem diferenciar maiúsculas nem acentos. */
+export function filterListings(games: readonly CustomGameListing[], query: string): CustomGameListing[] {
+  const normalize = (text: string) => text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+  const wanted = normalize(query.trim());
+  if (!wanted) return [...games];
+  return games.filter(game => normalize(game.name).includes(wanted) || normalize(game.owner).includes(wanted));
 }

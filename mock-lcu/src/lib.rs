@@ -24,6 +24,7 @@
 //! - [`chat`]: mandar mensagem e marcar a conversa ativa no chat 1:1 (#31).
 //! - [`perks`]: páginas de runas: criar, editar, apagar e aplicar, e as
 //!   árvores de runas (#26).
+//! - [`custom_games`]: lista de personalizadas abertas e entrar nelas (#264).
 //! - [`swaps`]: trocas de campeão, de vez e de cargo na seleção (#25).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
@@ -36,6 +37,7 @@ pub mod champ_select;
 pub mod champions;
 pub mod chat;
 pub mod custom;
+pub mod custom_games;
 pub mod invitations;
 pub mod lobby;
 pub mod matchmaking;
@@ -739,6 +741,20 @@ async fn handle_request(
             for event in events {
                 emit(&shared, event);
             }
+            response
+        }
+        // Personalizadas abertas (#264).
+        (&Method::GET, custom_games::CUSTOM_GAMES) => custom_games::list(&shared.state()),
+        (&Method::POST, custom_games::REFRESH) => {
+            let (response, events) = custom_games::refresh(&shared.state());
+            emit_all(&shared, events);
+            response
+        }
+        (&Method::POST, p) if custom_games::join_route(p).is_some() => {
+            let id = custom_games::join_route(p).unwrap_or_default();
+            let body = read_json(request).await;
+            let (response, events) = custom_games::join(&shared.state(), id, &body);
+            emit_all(&shared, events);
             response
         }
         // Link para entrar no lobby (#226).

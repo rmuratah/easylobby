@@ -10,6 +10,7 @@
 mod champ_select;
 mod champ_select_chat;
 mod chat;
+mod custom_games;
 mod custom_lobby;
 mod exit;
 mod friends;
@@ -484,6 +485,7 @@ impl Hub {
                 self.set_match_history(None);
                 self.set_match_details(None);
                 self.set_player_profile(None);
+                self.set_custom_games(None);
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
                 });
@@ -592,6 +594,13 @@ impl Hub {
             }
             PICKABLE_CHAMPIONS_PATH | BANNABLE_CHAMPIONS_PATH | SUBSET_CHAMPIONS_PATH => {
                 self.apply_champ_select_champions_event(event)
+            }
+            // Lista de personalizadas abertas (#264).
+            crate::custom_game_list::CUSTOM_GAMES_PATH if deleted => {}
+            crate::custom_game_list::CUSTOM_GAMES_PATH => {
+                if let Some(games) = crate::custom_game_list::from_json(&event.data) {
+                    self.set_custom_games(Some(games));
+                }
             }
             RECEIVED_INVITATIONS_PATH if deleted => self.set_received_invitations(Vec::new()),
             RECEIVED_INVITATIONS_PATH => {

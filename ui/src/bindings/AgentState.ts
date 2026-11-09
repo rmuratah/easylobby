@@ -5,6 +5,7 @@ import type { ChampSelectChat } from "./ChampSelectChat";
 import type { ChampionCatalog } from "./ChampionCatalog";
 import type { ChampionMastery } from "./ChampionMastery";
 import type { Conversation } from "./Conversation";
+import type { CustomGameListing } from "./CustomGameListing";
 import type { Friend } from "./Friend";
 import type { FriendGroup } from "./FriendGroup";
 import type { GameQueue } from "./GameQueue";
@@ -69,6 +70,11 @@ export type AgentState = {
    * Sala de chat do grupo no lobby (#206), ou `null` sem lobby.
    */
   lobbyChat: LobbyChat | null,
+  /**
+   * Personalizadas abertas (#264), depois de um `refreshCustomGames`, ou
+   * `null`.
+   */
+  customGames: Array<CustomGameListing> | null,
   /**
    * Seleção de campeões em andamento (#22), ou `null`.
    */

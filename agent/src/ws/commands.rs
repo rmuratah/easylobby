@@ -65,6 +65,19 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::SwitchTeam { team } => hub.switch_team(team).await,
         Command::Spectate => hub.spectate().await,
         Command::StartCustomGame => hub.start_custom_game().await,
+        Command::RefreshCustomGames => hub.refresh_custom_games().await,
+        Command::JoinCustomGame {
+            id,
+            password,
+            as_spectator,
+        } => {
+            hub.join_custom_game(
+                id,
+                password.as_deref().unwrap_or_default(),
+                as_spectator.unwrap_or(false),
+            )
+            .await
+        }
 
         // Seleção de campeões
         Command::HoverChampion {

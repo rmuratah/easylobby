@@ -7,6 +7,7 @@ import type { ChampionCatalog } from "./ChampionCatalog";
 import type { ChampionMastery } from "./ChampionMastery";
 import type { CommandResult } from "./CommandResult";
 import type { Conversation } from "./Conversation";
+import type { CustomGameListing } from "./CustomGameListing";
 import type { Friend } from "./Friend";
 import type { FriendGroup } from "./FriendGroup";
 import type { GameQueue } from "./GameQueue";
@@ -54,6 +55,7 @@ export type ServerMessage =
   | { "type": "playableChampions", playableChampions: Array<number> | null, }
   | { "type": "tutorial", tutorial: Array<TutorialPart> | null, }
   | { "type": "availableBots", availableBots: Array<number> | null, }
+  | { "type": "customGames", customGames: Array<CustomGameListing> | null, }
   | { "type": "champSelect", champSelect: ChampSelect | null, }
   | { "type": "champSelectChat", champSelectChat: ChampSelectChat | null, }
   | { "type": "lobbyChat", lobbyChat: LobbyChat | null, }

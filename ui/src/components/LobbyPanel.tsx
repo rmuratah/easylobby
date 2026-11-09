@@ -25,7 +25,7 @@ import { ArenaTeams } from './ArenaTeams';
 import { isTutorialQueue } from '../agent/training';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
-type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' | 'startTutorial' | 'startPracticeTool' | 'createCustomGame' }>;
+type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' | 'startTutorial' | 'startPracticeTool' | 'createCustomGame' | 'joinCustomGame' }>;
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 const selectClass = `h-10 rounded-tile border border-control bg-raised px-3 text-body text-ink transition-colors disabled:cursor-not-allowed disabled:text-muted ${focusRing}`;
@@ -139,7 +139,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
   async function execute(command: LobbyCommand): Promise<Outcome> {
     if (inFlight.current || (command.type === 'createLobby' || command.type === 'createLobbyById'
       ? !canCreate || commandKey(command) === currentKey
-      : command.type === 'startTutorial' || command.type === 'startPracticeTool' || command.type === 'createCustomGame' ? !canCreate || !!lobby
+      : command.type === 'startTutorial' || command.type === 'startPracticeTool' || command.type === 'createCustomGame' || command.type === 'joinCustomGame' ? !canCreate || !!lobby
       : command.type === 'leaveLobby' ? !canLeave
       : !canSetPositions || !validPositions(command.first, command.second)
         || (command.first === saved.first && command.second === saved.second))) return 'skipped';
@@ -149,6 +149,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
     setFeedback({ status: 'pending', message: command.type === 'setPositions' ? 'Salvando posições…' : command.type === 'leaveLobby' ? 'Saindo do lobby…'
       : command.type === 'startTutorial' ? 'Iniciando o Tutorial…' : command.type === 'startPracticeTool' ? 'Iniciando o Modo de Treino…'
       : command.type === 'createCustomGame' ? 'Criando a partida personalizada…'
+      : command.type === 'joinCustomGame' ? 'Entrando na partida personalizada…'
       : lobby ? 'Trocando fila…' : 'Criando lobby…' });
     try {
       const result = await send(command);
@@ -166,7 +167,8 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
           ? 'Posições salvas.' : command.type === 'leaveLobby'
           ? 'Saída do lobby confirmada.' : command.type === 'startTutorial' ? 'Tutorial iniciado.'
           : command.type === 'startPracticeTool' ? 'Modo de Treino iniciado.'
-          : command.type === 'createCustomGame' ? 'Partida personalizada criada.' : 'Lobby atualizado pelo agente.' });
+          : command.type === 'createCustomGame' ? 'Partida personalizada criada.'
+          : command.type === 'joinCustomGame' ? 'Você entrou na partida personalizada.' : 'Lobby atualizado pelo agente.' });
         return 'ok';
       }
       setFeedback({ status: 'error', message: result.code === 'notConnected'
@@ -227,7 +229,9 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
       <ModeSelect queues={state.queues} canCreate={canCreate} pending={pending} restriction={restriction}
         descriptionId={descriptionId} feedback={feedbackLine} tutorial={state.tutorial} summonerName={summoner?.gameName || summoner?.displayName}
         onCreate={command => { void execute(command); }} onStart={command => { void execute(command); }}
-        onCreateCustom={options => { void execute({ type: 'createCustomGame', options }); }} />
+        onCreateCustom={options => { void execute({ type: 'createCustomGame', options }); }}
+        customJoin={{ games: state.customGames, send,
+          onJoin: (id, password) => { void execute({ type: 'joinCustomGame', id, ...(password ? { password } : {}) }); } }} />
     );
   }
   // No lobby, "Trocar modo" abre a mesma tela para trocar a fila (#231); na busca ou na partida, volta ao lobby.

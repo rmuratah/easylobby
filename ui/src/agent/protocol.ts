@@ -49,6 +49,7 @@ import type { PlayerProfile } from '../bindings/PlayerProfile';
 import type { MatchPlayer } from '../bindings/MatchPlayer';
 import type { MatchResult } from '../bindings/MatchResult';
 import type { RecentPlayer } from '../bindings/RecentPlayer';
+import type { CustomGameListing } from '../bindings/CustomGameListing';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
 const errorCodes = {
@@ -110,6 +111,13 @@ function customGameSettings(v: unknown): boolean {
     (v.map === null || typeof v.map === 'string') && (v.pickType === null || typeof v.pickType === 'string') &&
     (v.spectators === null || typeof v.spectators === 'string');
 }
+// Personalizadas abertas (#264).
+function customGameListing(v: unknown): v is CustomGameListing {
+  return object(v) && uint(v.id) && ['name', 'owner', 'gameType'].every(k => typeof v[k] === 'string') &&
+    ['mapId', 'players', 'maxPlayers', 'spectators', 'maxSpectators'].every(k => uint(v[k])) &&
+    nullableString(v.map) && nullableString(v.pickType) && nullableString(v.spectatorPolicy) && typeof v.hasPassword === 'boolean';
+}
+const customGames = (v: unknown): v is CustomGameListing[] | null => v === null || list(v, customGameListing);
 function customLobby(v: unknown): v is CustomLobby {
   return object(v) && customGameSettings(v.settings) && uint(v.teamSize) && Array.isArray(v.team1) && v.team1.every(customMember) &&
     Array.isArray(v.team2) && v.team2.every(customMember) &&
@@ -273,7 +281,7 @@ function lobbyLink(v: unknown): v is LobbyLink | null {
 }
 function state(v: unknown): v is AgentState {
   return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) && lobbyLink(v.lobbyLink) &&
-    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && nullableIds(v.availableBots) && lobbyChat(v.lobbyChat) && champSelect(v.champSelect) &&
+    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && nullableIds(v.availableBots) && lobbyChat(v.lobbyChat) && customGames(v.customGames) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
@@ -300,6 +308,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'playableChampions': valid = nullableIds(v.playableChampions); break;
     case 'tutorial': valid = tutorial(v.tutorial); break;
     case 'availableBots': valid = nullableIds(v.availableBots); break;
+    case 'customGames': valid = customGames(v.customGames); break;
     case 'champSelect': valid = champSelect(v.champSelect); break;
     case 'champSelectChat': valid = champSelectChat(v.champSelectChat); break;
     case 'lobbyChat': valid = lobbyChat(v.lobbyChat); break;

@@ -8,6 +8,11 @@ import { cx } from './base/cx';
 import { CustomGameForm } from './CustomGameForm';
 import { customOptionsProblem, customOptionsSummary, defaultCustomOptions } from '../agent/customGame';
 import type { CustomGameOptions } from '../bindings/CustomGameOptions';
+import type { CustomGameListing } from '../bindings/CustomGameListing';
+import type { AgentClient } from '../agent/client';
+import { CustomGameBrowser } from './CustomGameBrowser';
+import { Segmented } from './base/Segmented';
+import { listingMapName, listingModeName } from '../agent/customGame';
 
 type Props = {
   queues: GameQueue[];
@@ -32,7 +37,18 @@ type Props = {
   summonerName?: string;
   /** Cria a partida personalizada da aba Personalizada (#262). */
   onCreateCustom?: (options: CustomGameOptions) => void;
+  /**
+   * "Entrar" da aba Personalizada (#264): a lista de personalizadas abertas
+   * (`null` antes da primeira busca), o canal para atualizar a lista e entrar
+   * numa delas com a senha (vazia sem senha). Sem isso, a aba só cria.
+   */
+  customJoin?: {
+    games: CustomGameListing[] | null;
+    send: AgentClient['send'];
+    onJoin: (id: number, password: string) => void;
+  };
 };
+type CustomView = 'create' | 'join';
 type Selection = { tab: ModeTabId; mode: GameMode['id'] | null; queueId: number | null };
 
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
@@ -79,7 +95,7 @@ function selectionOf(tabs: ModeTab[], queueId: number | undefined): Selection {
 
 const currentQueueText = 'Você já está nesta fila.';
 
-export function ModeSelect({ queues, canCreate, pending, restriction, descriptionId, feedback, onCreate, onStart, tutorial = null, lobby, summonerName, onCreateCustom }: Props) {
+export function ModeSelect({ queues, canCreate, pending, restriction, descriptionId, feedback, onCreate, onStart, tutorial = null, lobby, summonerName, onCreateCustom, customJoin }: Props) {
   const allTabs = buildModeTabs(queues);
   // Tutorial, Modo de Treino e personalizada não trocam a fila de um lobby.
   // A fila atual do lobby não pode ser escolhida (#239).
@@ -110,6 +126,14 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
     }
   }
   const customProblem = customOptionsProblem(customOptions);
+  // Criar ou entrar numa personalizada aberta (#264).
+  const [customView, setCustomView] = useState<CustomView>('create');
+  const joining = isCustom && !!customJoin && customView === 'join';
+  const [joinChoice, setJoinChoice] = useState<number | null>(null);
+  const [joinPassword, setJoinPassword] = useState('');
+  // A partida escolhida some da tela se sair da lista numa atualização.
+  const joinGame = customJoin?.games?.find(g => g.id === joinChoice) ?? null;
+  const joinBlocked = !joinGame || (joinGame.hasPassword && !joinPassword);
   // Tutorial (#228): a parte escolhida nos cards; sem escolha, a primeira liberada que falta.
   const [tutorialChoice, setTutorialChoice] = useState<number | null>(null);
   const parts = tutorialCards(tutorial);
@@ -125,7 +149,15 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
   function choose(mode: GameMode, submode: Submode | null) {
     setSelection({ tab: tab.id, mode: mode.id, queueId: submode?.queueId ?? null });
   }
+  function chooseGame(id: number) {
+    if (id !== joinChoice) setJoinPassword('');
+    setJoinChoice(id);
+  }
   function confirm() {
+    if (joining) {
+      if (joinGame && !joinBlocked) customJoin?.onJoin(joinGame.id, joinGame.hasPassword ? joinPassword : '');
+      return;
+    }
     if (isCustom) {
       if (!customProblem) onCreateCustom?.({ ...customOptions, name: customOptions.name.trim() });
       return;
@@ -159,7 +191,16 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
 
       {isCustom ? (
         <div role="tabpanel" id={`${baseId}-panel`} aria-labelledby={`${baseId}-tab-${tab.id}`} className="flex-1">
-          <CustomGameForm options={customOptions} onChange={setCustomOptions} locked={locked} problem={customProblem} />
+          {customJoin && (
+            <Segmented label="Criar ou entrar" className="mb-5" value={customView} onChange={setCustomView}
+              options={[{ value: 'create', label: 'Criar' }, { value: 'join', label: 'Entrar' }]} />
+          )}
+          {joining && customJoin ? (
+            <CustomGameBrowser games={customJoin.games} selectedId={joinGame?.id ?? null} onSelect={chooseGame}
+              locked={locked} send={customJoin.send} />
+          ) : (
+            <CustomGameForm options={customOptions} onChange={setCustomOptions} locked={locked} problem={customProblem} />
+          )}
         </div>
       ) : (
       <div role="tabpanel" id={`${baseId}-panel`} aria-labelledby={`${baseId}-tab-${tab.id}`}
@@ -227,7 +268,28 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
       )}
 
       <footer className="flex flex-wrap items-center gap-4 rounded-panel surface p-4 shadow-soft">
-        {isCustom ? (
+        {joining ? (
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+            <div className="min-w-[12rem] flex-1">
+              <p className="text-caption font-semibold uppercase tracking-wider text-muted">Entrar na personalizada</p>
+              <p className="truncate text-body font-semibold" aria-live="polite">{joinGame ? joinGame.name || 'Sem nome' : 'Escolha uma partida da lista'}</p>
+              {joinGame && (
+                <p className="truncate text-caption text-muted">
+                  {[joinGame.owner, listingMapName(joinGame), listingModeName(joinGame), `${joinGame.players}/${joinGame.maxPlayers} jogadores`].filter(Boolean).join(' · ')}
+                </p>
+              )}
+            </div>
+            {joinGame?.hasPassword && (
+              <div className="flex w-48 max-w-full flex-col gap-1">
+                <label htmlFor={`${baseId}-join-password`} className="text-caption font-semibold uppercase tracking-wider text-muted">Senha</label>
+                <input id={`${baseId}-join-password`} type="password" value={joinPassword} disabled={locked} autoComplete="off"
+                  onChange={event => setJoinPassword(event.target.value)}
+                  onKeyDown={event => { if (event.key === 'Enter') confirm(); }}
+                  className={`h-10 w-full min-w-0 rounded-control border border-control bg-raised px-3 text-body text-ink disabled:cursor-not-allowed ${focusRing}`} />
+              </div>
+            )}
+          </div>
+        ) : isCustom ? (
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-tile bg-primary-gradient text-body font-semibold tracking-wide text-on-accent">PE</span>
             <div className="min-w-0">
@@ -258,8 +320,8 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
           </button>
         )}
         <button type="button" className={primaryPill} aria-describedby={descriptionId} aria-busy={pending}
-          disabled={isCustom ? !!customProblem || locked : !current || locked || unchanged} onClick={confirm}>
-          {isCustom ? 'Confirmar' : isTraining ? 'Iniciar' : lobby ? 'Trocar fila' : 'Criar lobby'}
+          disabled={joining ? joinBlocked || locked : isCustom ? !!customProblem || locked : !current || locked || unchanged} onClick={confirm}>
+          {joining ? 'Entrar' : isCustom ? 'Confirmar' : isTraining ? 'Iniciar' : lobby ? 'Trocar fila' : 'Criar lobby'}
         </button>
       </footer>
       <p id={descriptionId} className="text-caption text-muted">{restriction}</p>

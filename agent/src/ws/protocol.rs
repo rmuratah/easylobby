@@ -52,6 +52,7 @@ use crate::champ_select_chat::ChampSelectChat;
 use crate::champions::{ChampSelectChampions, ChampionCatalog};
 use crate::chat::Conversation;
 use crate::custom_game::CustomGameOptions;
+use crate::custom_game_list::CustomGameListing;
 use crate::custom_lobby::{BotDifficulty, CustomTeam};
 use crate::friends::{Friend, FriendGroup};
 use crate::gameflow::GameflowPhase;
@@ -148,6 +149,13 @@ pub enum ServerMessage {
     /// ordem de id. Chega quando o jogador entra numa personalizada pela
     /// primeira vez na conexão. `null` com o LoL fechado ou antes disso.
     AvailableBots { available_bots: Option<Vec<u32>> },
+    /// Mudou a lista de personalizadas abertas (#264): chega depois de um
+    /// `refreshCustomGames` e quando a LCU traz a lista nova pelo WAMP.
+    /// Sempre a lista inteira, na ordem da LCU. `null` antes do primeiro
+    /// `refreshCustomGames` da conexão e com o LoL fechado.
+    CustomGames {
+        custom_games: Option<Vec<CustomGameListing>>,
+    },
 
     // Seleção de campeões
     /// A seleção de campeões (#22) abriu ou mudou: hover, ban, pick, troca
@@ -295,6 +303,9 @@ pub struct AgentState {
     pub available_bots: Option<Vec<u32>>,
     /// Sala de chat do grupo no lobby (#206), ou `null` sem lobby.
     pub lobby_chat: Option<LobbyChat>,
+    /// Personalizadas abertas (#264), depois de um `refreshCustomGames`, ou
+    /// `null`.
+    pub custom_games: Option<Vec<CustomGameListing>>,
 
     // Seleção de campeões
     /// Seleção de campeões em andamento (#22), ou `null`.
@@ -603,6 +614,30 @@ pub enum Command {
     /// pelas mensagens de sempre. Responde `notConnected` com o LoL fechado e
     /// `lcu` se a LCU recusar.
     StartCustomGame,
+    /// Pede a lista de personalizadas abertas (#264): `POST
+    /// /lol-lobby/v1/custom-games/refresh` e `GET /lol-lobby/v1/custom-games`.
+    /// A lista chega numa mensagem `customGames` antes da resposta (e de novo
+    /// se a LCU trouxer a lista nova depois). Responde `notConnected` com o
+    /// LoL fechado e `lcu` se a LCU recusar.
+    RefreshCustomGames,
+    /// Entra na personalizada `id` da lista (#264): `POST
+    /// /lol-lobby/v1/custom-games/{id}/join`, com a senha e, com
+    /// `asSpectator`, como espectador. O lobby dela chega numa mensagem
+    /// `lobby` antes da resposta. Sem senha numa partida que a lista diz ter
+    /// senha, ou com senha de mais de 64 caracteres, responde
+    /// `invalidCommand` sem falar com a LCU. Responde `notConnected` com o
+    /// LoL fechado e `lcu` se a LCU recusar (senha errada, partida cheia ou
+    /// que já fechou).
+    JoinCustomGame {
+        #[ts(type = "number")]
+        id: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        password: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        as_spectator: Option<bool>,
+    },
 
     // Seleção de campeões
     /// Marca o campeão `championId` na ação `actionId` da seleção (#23), sem
@@ -896,6 +931,7 @@ mod tests {
                     "tutorial": null,
                     "availableBots": null,
                     "lobbyChat": null,
+                    "customGames": null,
                     "champSelect": null,
                     "receivedInvitations": [],
                     "recentPlayers": [],
@@ -1080,6 +1116,26 @@ mod tests {
             (
                 json!({"type": "promoteLobbyMember", "summonerId": 42}),
                 Command::PromoteLobbyMember { summoner_id: 42 },
+            ),
+            (
+                json!({"type": "refreshCustomGames"}),
+                Command::RefreshCustomGames,
+            ),
+            (
+                json!({"type": "joinCustomGame", "id": 6_123_456_789u64}),
+                Command::JoinCustomGame {
+                    id: 6_123_456_789,
+                    password: None,
+                    as_spectator: None,
+                },
+            ),
+            (
+                json!({"type": "joinCustomGame", "id": 7, "password": "segredo", "asSpectator": true}),
+                Command::JoinCustomGame {
+                    id: 7,
+                    password: Some("segredo".into()),
+                    as_spectator: Some(true),
+                },
             ),
         ] {
             assert_eq!(serde_json::from_value::<Command>(json).unwrap(), command);
