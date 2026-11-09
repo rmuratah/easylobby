@@ -25,4 +25,13 @@ export type CustomGameOptions = {
    */
   teamSize: number,
   spectators: SpectatorPolicy,
+  /**
+   * "Esconder da lista de saguões públicos" (#270).
+   */
+  hideFromPublicList: boolean,
+  /**
+   * "Intervalo de espectador" (#270): quem assiste vê a partida com
+   * atraso. O client oficial deixa ligado.
+   */
+  spectatorDelay: boolean,
 };

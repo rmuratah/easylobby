@@ -638,6 +638,8 @@ mod tests {
             pick_type: CustomPickType::BlindPick,
             team_size: 5,
             spectators: SpectatorPolicy::None,
+            hide_from_public_list: false,
+            spectator_delay: true,
         }
     }
 

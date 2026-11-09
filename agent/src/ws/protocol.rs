@@ -474,9 +474,10 @@ pub enum Command {
     /// Cria uma partida personalizada com as opções do formulário (#262): o
     /// mesmo `POST /lol-lobby/v2/lobby` do Modo de Treino, com
     /// `customGameLobby`, e deixa o jogador no lobby dela, com as equipes e as
-    /// opções em `lobby.custom`. Qualquer mapa aceita qualquer tipo de
-    /// seleção. Nome vazio ou com mais de 64 caracteres, ou equipe fora de 1 a
-    /// 5, responde `invalidCommand` sem falar com a LCU. A partida começa com
+    /// opções em `lobby.custom`. O Rift Clássico (#270) só aceita às cegas e
+    /// alternada; os outros mapas aceitam qualquer tipo de seleção. Nome vazio
+    /// ou com mais de 64 caracteres, tipo de seleção que o mapa não aceita ou
+    /// equipe fora de 1 a 5 responde `invalidCommand` sem falar com a LCU. A partida começa com
     /// `startCustomGame`. Responde `notConnected` com o LoL fechado e `lcu` se
     /// a LCU recusar criar.
     CreateCustomGame { options: CustomGameOptions },
@@ -975,6 +976,7 @@ mod tests {
             "type": "createCustomGame", "options": {
                 "name": "Partida de Fulano", "password": "", "map": "summonersRift",
                 "pickType": "draftMode", "teamSize": 5, "spectators": "lobbyOnly",
+                "hideFromPublicList": false, "spectatorDelay": true,
             },
         }}))
         .unwrap();
@@ -988,6 +990,8 @@ mod tests {
                     pick_type: CustomPickType::DraftMode,
                     team_size: 5,
                     spectators: SpectatorPolicy::LobbyOnly,
+                    hide_from_public_list: false,
+                    spectator_delay: true,
                 }
             }
         );

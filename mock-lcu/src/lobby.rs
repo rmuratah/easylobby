@@ -787,6 +787,8 @@ mod tests {
             pick_type: CustomPickType::TournamentDraft,
             team_size: 3,
             spectators: SpectatorPolicy::LobbyOnly,
+            hide_from_public_list: false,
+            spectator_delay: true,
         };
         let (response, _) = create(&s, &options.body());
         assert_eq!(response.status, 200);
