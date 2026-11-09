@@ -15,6 +15,8 @@
 //!   (#11)
 //! - [`ux`]: fecha a UI oficial ao conectar (`kill-ux`) e reabre
 //!   (`launch-ux`) (#12)
+//! - [`ux_window`]: esconde a janela da UI oficial enquanto o `kill-ux`
+//!   espera o Vanguard (#286)
 //! - [`lobby`]: lobby e escolha de fila (#17)
 //! - [`queues`]: filas disponíveis para criar lobby, lidas da LCU (#146)
 //! - [`training`]: Tutorial e Modo de Treino da aba Treinamento (#209)
@@ -77,6 +79,7 @@ pub mod summoner_spells;
 pub mod swaps;
 pub mod training;
 pub mod ux;
+pub mod ux_window;
 pub mod wamp;
 pub mod ws;
 

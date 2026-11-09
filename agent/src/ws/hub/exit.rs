@@ -87,10 +87,12 @@ impl Hub {
             ExitAction::QuitClient => {
                 // A guarda não precisa mais fechar nada.
                 self.set_ux_guard(false);
+                self.stop_hiding(None, false);
                 ux::quit_client(&client).await?;
             }
             ExitAction::LaunchUx => {
                 self.set_ux_guard(false);
+                self.stop_hiding(None, true);
                 ux::launch_ux(&client).await?;
             }
         }

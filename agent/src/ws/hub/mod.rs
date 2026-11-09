@@ -213,8 +213,10 @@ impl Hub {
 
     /// Reabre a UI oficial pela conexão atual (comando `launchUx`, #13).
     pub async fn launch_ux(&self) -> CommandResult {
-        // O jogador quer a UI oficial: o agente para de fechá-la (#188).
+        // O jogador quer a UI oficial: o agente para de fechá-la (#188) e
+        // mostra de novo a janela, se a escondeu (#286).
         self.set_ux_guard(false);
+        self.stop_hiding(None, true);
         let Some(client) = self.client() else {
             return CommandResult::error(ErrorCode::NotConnected, "o LoL não está aberto");
         };
@@ -450,6 +452,8 @@ impl Hub {
                     shared.ux_guard.active = false;
                     shared.lobby_chat_join = (String::new(), 0);
                 }
+                // O LoL fechou ou reiniciou: as janelas escondidas se foram.
+                self.stop_hiding(None, false);
                 self.set_summoner(None);
                 self.set_gameflow_phase(None);
                 self.set_ready_check(None);
