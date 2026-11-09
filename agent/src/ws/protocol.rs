@@ -500,6 +500,26 @@ pub enum Command {
     /// chega numa mensagem `lobby` antes da resposta. Responde
     /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
     SetLobbyOpen { open: bool },
+    /// Remove o jogador `summoner_id` do grupo (#267): `POST
+    /// /lol-lobby/v2/lobby/members/{summonerId}/kick`. Só o líder pode, e
+    /// só com outro jogador do lobby (vale também nas equipes e entre os
+    /// espectadores da personalizada): fora de lobby, sem ser o líder, com
+    /// o próprio jogador ou com quem não está no lobby responde
+    /// `invalidCommand` sem falar com a LCU. O lobby novo chega numa
+    /// mensagem `lobby` antes da resposta. Responde `notConnected` com o LoL
+    /// fechado e `lcu` se a LCU recusar.
+    KickLobbyMember {
+        #[ts(type = "number")]
+        summoner_id: u64,
+    },
+    /// Passa a liderança do grupo para o jogador `summoner_id` (#267):
+    /// `POST /lol-lobby/v2/lobby/members/{summonerId}/promote`. Mesmas
+    /// regras e respostas de `kickLobbyMember`. Depois disso o jogador
+    /// logado deixa de ser o líder (`isLeader` falso no lobby novo).
+    PromoteLobbyMember {
+        #[ts(type = "number")]
+        summoner_id: u64,
+    },
     /// Gera o link para outra pessoa entrar no lobby (#226), o do botão
     /// "copiar link" do client oficial: `GET
     /// /lol-lobby/v2/ags/agsActivityId` e o código em `/lol-lobby/v2/ags/
@@ -1025,6 +1045,18 @@ mod tests {
         )
         .unwrap();
         assert_eq!(msg.command, Command::SetLobbyOpen { open: true });
+        for (json, command) in [
+            (
+                json!({"type": "kickLobbyMember", "summonerId": 42}),
+                Command::KickLobbyMember { summoner_id: 42 },
+            ),
+            (
+                json!({"type": "promoteLobbyMember", "summonerId": 42}),
+                Command::PromoteLobbyMember { summoner_id: 42 },
+            ),
+        ] {
+            assert_eq!(serde_json::from_value::<Command>(json).unwrap(), command);
+        }
         let msg: ClientMessage = serde_json::from_value(json!(
             {"id": 9, "command": {"type": "setSubteamSlot", "team": 2, "position": 1}}
         ))

@@ -335,6 +335,87 @@ async fn abre_e_fecha_o_lobby() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+#[tokio::test]
+async fn lider_remove_e_passa_a_lideranca() {
+    let dir = temp_dir("membros");
+    let mock = start_mock(&dir).await;
+    let url = start_agent(&dir).await;
+    let mut ui = tokio_tungstenite::connect_async(&url).await.unwrap().0;
+    wait_summoner(&mut ui).await;
+
+    send(
+        &mut ui,
+        1,
+        Command::CreateLobby {
+            queue: Queue::NormalDraft,
+        },
+    )
+    .await;
+    let (_, result) = until_response(&mut ui, 1).await;
+    assert_eq!(result, CommandResult::Ok);
+
+    // Dois amigos entram; o agente precisa ver os dois antes do comando.
+    let first = mock.join_lobby_member().expect("o primeiro amigo entra");
+    let second = mock.join_lobby_member().expect("o segundo amigo entra");
+    loop {
+        if let ServerMessage::Lobby { lobby: Some(lobby) } = recv(&mut ui).await {
+            if lobby.members.len() == 3 {
+                break;
+            }
+        }
+    }
+
+    // Remover: o amigo some da lista antes da resposta.
+    send(&mut ui, 2, Command::KickLobbyMember { summoner_id: first }).await;
+    let (before, result) = until_response(&mut ui, 2).await;
+    assert_eq!(result, CommandResult::Ok);
+    let lobby = last_lobby(&before);
+    assert_eq!(lobby.members.len(), 2);
+    assert!(lobby.members.iter().all(|m| m.summoner_id != first));
+    assert!(lobby.is_leader);
+
+    // Quem não está mais no lobby é recusado sem falar com a LCU.
+    send(
+        &mut ui,
+        3,
+        Command::PromoteLobbyMember { summoner_id: first },
+    )
+    .await;
+    let (_, result) = until_response(&mut ui, 3).await;
+    assert!(is_error(&result, ErrorCode::InvalidCommand), "{result:?}");
+
+    // Passar a liderança: o jogador logado vira membro.
+    send(
+        &mut ui,
+        4,
+        Command::PromoteLobbyMember {
+            summoner_id: second,
+        },
+    )
+    .await;
+    let (before, result) = until_response(&mut ui, 4).await;
+    assert_eq!(result, CommandResult::Ok);
+    let lobby = last_lobby(&before);
+    assert!(!lobby.is_leader);
+    let leader = lobby.members.iter().find(|m| m.is_leader).unwrap();
+    assert_eq!(leader.summoner_id, second);
+
+    // Sem ser mais o líder, o agente recusa.
+    send(
+        &mut ui,
+        5,
+        Command::KickLobbyMember {
+            summoner_id: second,
+        },
+    )
+    .await;
+    let (_, result) = until_response(&mut ui, 5).await;
+    assert!(is_error(&result, ErrorCode::InvalidCommand), "{result:?}");
+
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// O último lobby antes da resposta.
 fn last_lobby(messages: &[ServerMessage]) -> easylobby_agent::lobby::Lobby {
     messages
