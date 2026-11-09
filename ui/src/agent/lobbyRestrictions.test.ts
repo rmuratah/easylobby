@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GENERIC_RESTRICTION, pendingChoices, restrictionReasons } from './lobbyRestrictions';
+import { GENERIC_RESTRICTION, awayMembers, awayReasons, pendingChoices, restrictionReasons } from './lobbyRestrictions';
 import type { Lobby } from '../bindings/Lobby';
 import type { LobbyMember } from '../bindings/LobbyMember';
 import { testLobby } from '../test/lobby';
@@ -44,5 +44,29 @@ describe('escolhas que faltam antes da busca (#334)', () => {
     expect(pendingChoices({ ...testLobby, showPositionSelector: false }, 'local', nameOf)).toEqual([]);
     expect(pendingChoices({ ...testLobby, orderedPositions: true }, 'local', nameOf)).toEqual([]);
     expect(pendingChoices(null, 'local', nameOf)).toEqual([]);
+  });
+});
+
+describe('quem ainda não voltou ao lobby (#346)', () => {
+  const member = (overrides: Partial<LobbyMember>): LobbyMember => ({ ...testLobby.members[0], ...overrides });
+  const lobby: Lobby = { ...testLobby, members: [
+    member({}), member({ puuid: 'amigo', summonerId: 2, ready: false }), member({ puuid: 'outro', summonerId: 3 }),
+  ] };
+  it('lista quem não está pronto só na fase de lobby', () => {
+    expect(awayMembers(lobby, 'Lobby').map(m => m.puuid)).toEqual(['amigo']);
+    expect(awayMembers(lobby, 'Matchmaking')).toEqual([]);
+    expect(awayMembers(lobby, 'ChampSelect')).toEqual([]);
+    expect(awayMembers(null, 'Lobby')).toEqual([]);
+  });
+  it('deixa a personalizada de fora', () => {
+    const custom = { ...lobby, custom: {} as Lobby['custom'] };
+    expect(awayMembers(custom, 'Lobby')).toEqual([]);
+  });
+  it('avisa pelo nome, e o próprio jogador como você', () => {
+    const away = awayMembers({ ...lobby, members: [member({ ready: false }), member({ puuid: 'amigo', summonerId: 2, ready: false })] }, 'Lobby');
+    expect(awayReasons(away, 'local', m => `Jogador ${m.summonerId}`)).toEqual([
+      'Você ainda não voltou ao lobby.',
+      'Jogador 2 ainda não voltou ao lobby.',
+    ]);
   });
 });

@@ -489,6 +489,13 @@ pub struct LobbyMember {
     pub game_name: String,
     /// Tag do Riot ID (depois do `#`). Vazia junto com `game_name`.
     pub tag_line: String,
+    /// `false` com o jogador fora do lobby (#346): depois de uma partida, os
+    /// outros membros continuam no grupo mas só voltam ao lobby ao sair da
+    /// tela de fim de jogo, e até lá o client oficial mostra o card
+    /// transparente e "Os jogadores não estão prontos". Sai de `ready` e de
+    /// `showGhostedBanner` da LCU. Só vale na fase `Lobby`: na fila e na
+    /// seleção a LCU manda `ready` falso para todos.
+    pub ready: bool,
 }
 
 impl Lobby {
@@ -524,6 +531,7 @@ impl Lobby {
                     ranked: None,
                     game_name: String::new(),
                     tag_line: String::new(),
+                    ready: m.ready && !m.show_ghosted_banner,
                 }
             })
             .collect::<Vec<LobbyMember>>();
@@ -724,6 +732,15 @@ struct RawMember {
     subteam_index: Option<u32>,
     #[serde(default)]
     intra_subteam_position: Option<u32>,
+    /// Sem o campo, o jogador conta como no lobby.
+    #[serde(default = "default_true")]
+    ready: bool,
+    #[serde(default)]
+    show_ghosted_banner: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl RawMember {
@@ -978,6 +995,23 @@ mod tests {
     }
 
     #[test]
+    fn quem_ainda_nao_voltou_ao_lobby() {
+        let lobby = Lobby::from_json(&json!({
+            "gameConfig": {"queueId": 2400},
+            "members": [
+                {"puuid": "lider", "ready": true, "showGhostedBanner": false},
+                {"puuid": "fim-de-jogo", "ready": false, "showGhostedBanner": true},
+                {"puuid": "so-ready", "ready": false},
+                {"puuid": "so-fantasma", "ready": true, "showGhostedBanner": true},
+                {"puuid": "sem-campo"},
+            ],
+        }))
+        .unwrap();
+        let ready: Vec<bool> = lobby.members.iter().map(|m| m.ready).collect();
+        assert_eq!(ready, [true, false, false, false, true]);
+    }
+
+    #[test]
     fn nomes_dos_cargos() {
         for position in Position::ALL {
             assert_eq!(Position::from_lcu(Some(position.lcu_name())), position);
@@ -1064,6 +1098,7 @@ mod tests {
                 ranked: None,
                 game_name: "Ana".into(),
                 tag_line: "BR1".into(),
+                ready: false,
             }],
             can_invite: true,
             invitations: vec![LobbyInvitation {
@@ -1106,6 +1141,7 @@ mod tests {
                     "ranked": null,
                     "gameName": "Ana",
                     "tagLine": "BR1",
+                    "ready": false,
                 }],
                 "canInvite": true,
                 "invitations": [{"puuid": "amigo", "summonerId": 4, "state": "Pending"}],

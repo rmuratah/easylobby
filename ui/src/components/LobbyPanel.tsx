@@ -24,6 +24,7 @@ import { PracticeLobby } from './PracticeLobby';
 import { ArenaTeams } from './ArenaTeams';
 import { isTutorialQueue } from '../agent/training';
 import { useDismiss } from '../agent/useDismiss';
+import { awayMembers } from '../agent/lobbyRestrictions';
 
 type Props = {
   connection: ConnectionSnapshot;
@@ -69,6 +70,8 @@ function positionsComplete(first: Position, second: Position) {
 function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send: AgentClient['send']; onOpenProfile?: (puuid: string) => void }) {
   const { lobby, matchmaking, summoner, gameflowPhase: phase } = state;
   const localMember = summoner?.puuid ? lobby?.members.find(member => member.puuid === summoner.puuid) : undefined;
+  // Quem ainda está na tela de fim de jogo (#346): o card fica esmaecido, como no client oficial.
+  const away = new Set(awayMembers(lobby, phase).map(member => member.puuid));
   const first = localMember?.firstPosition ?? 'unselected';
   const second = localMember?.secondPosition ?? 'unselected';
   const contextKey = `${lobby?.queueId}:${lobby?.showPositionSelector}:${localMember?.puuid}`;
@@ -330,6 +333,7 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
         {lobby.members.map((member, index) => {
           const me = member.puuid === summoner?.puuid;
           const name = me ? localName : memberName(member, state.friends);
+          const isAway = away.has(member.puuid);
           return (
             <li key={member.puuid} style={{ animationDelay: `${index * 70}ms` }}
               className={cx('relative flex min-h-20 flex-1 items-center gap-4 rounded-panel px-4 py-3 transition-all duration-200 animate-fade-up',
@@ -342,12 +346,12 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                   onClick={() => onOpenProfile(member.puuid)}
                   className={`absolute inset-0 cursor-pointer rounded-panel ${focusRing}`} />
               )}
-              <div className={cx('shrink-0 rounded-full p-1', me ? 'bg-primary-gradient' : 'bg-raised')}>
+              <div className={cx('shrink-0 rounded-full p-1 transition-opacity', me ? 'bg-primary-gradient' : 'bg-raised', isAway && 'opacity-40 grayscale')}>
                 <Avatar name={me && summoner?.gameName ? summoner.gameName : name} src={assetUrl('profileIcon', member.summonerIconId)}
                   size={me ? 64 : 56} className="ring-2 ring-surface" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className={cx('flex items-center gap-2 transition-opacity', isAway && 'opacity-50')}>
                   <h3 className={cx('truncate font-semibold', me ? 'text-section' : 'text-body')}>{name}</h3>
                   {member.isLeader && (
                     <span role="img" aria-label="Líder do grupo" title="Líder do grupo"
@@ -357,7 +361,13 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                   )}
                 </div>
                 {me && <p className="truncate text-caption text-muted">Você</p>}
-                <div className="flex flex-wrap items-center gap-x-2">
+                {isAway && (
+                  <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-gold-soft px-2.5 py-1 text-caption font-semibold text-warn">
+                    <span aria-hidden="true" className="tracking-widest">•••</span>
+                    Ainda não voltou ao lobby
+                  </p>
+                )}
+                <div className={cx('flex flex-wrap items-center gap-x-2 transition-opacity', isAway && 'opacity-50')}>
                   <span className="mt-2 inline-block rounded-full bg-raised px-2.5 py-1 text-caption font-semibold text-muted">Nível {member.summonerLevel}</span>
                   <LobbyRank ranked={member.ranked} queueId={lobby.queueId} />
                 </div>
