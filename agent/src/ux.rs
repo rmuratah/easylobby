@@ -24,6 +24,10 @@ pub const KILL_UX: &str = "/riotclient/kill-ux";
 /// Reabre a UI oficial.
 pub const LAUNCH_UX: &str = "/riotclient/launch-ux";
 
+/// Minimiza a UI oficial sem fechá-la. É o plano B do esconderijo
+/// ([`crate::ux_window`]) quando ele não pode começar (#286).
+pub const MINIMIZE_UX: &str = "/riotclient/ux-minimize";
+
 /// Encerra o LoL inteiro (o `LeagueClient` e, se estiver aberta, a UI
 /// oficial), do jeito que o próprio client faz ao clicar em fechar.
 pub const QUIT_CLIENT: &str = "/process-control/v1/process/quit";
@@ -41,6 +45,11 @@ pub async fn kill_ux(client: &LcuClient) -> Result<(), LcuError> {
 /// Reabre a UI oficial (`POST /riotclient/launch-ux`).
 pub async fn launch_ux(client: &LcuClient) -> Result<(), LcuError> {
     client.send::<()>(Method::POST, LAUNCH_UX, None).await
+}
+
+/// Minimiza a UI oficial (`POST /riotclient/ux-minimize`).
+pub async fn minimize_ux(client: &LcuClient) -> Result<(), LcuError> {
+    client.send::<()>(Method::POST, MINIMIZE_UX, None).await
 }
 
 /// Encerra o LoL (`POST /process-control/v1/process/quit`). A LCU responde

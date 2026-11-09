@@ -332,6 +332,12 @@ pub(crate) fn list_processes() -> Vec<ProcessInfo> {
     }
 }
 
+/// Pid e nome de cada processo, pela Toolhelp, sem abrir nenhum (#286).
+#[cfg(windows)]
+pub(crate) fn process_names() -> Vec<(u32, String)> {
+    windows::snapshot()
+}
+
 /// Fora do Windows (o mock-lcu no Linux ou no macOS) não há Vanguard; o
 /// `sysinfo` lê o `/proc` e serve.
 #[cfg(not(windows))]
@@ -373,7 +379,8 @@ fn list_processes_sysinfo() -> Vec<ProcessInfo> {
 
 /// Lista de processos no Windows sem tocar na memória de ninguém.
 ///
-/// É o único `unsafe` do agente: as chamadas da API do Windows. Cada handle é
+/// Com o `ux_window::windows`, é o único `unsafe` do agente: as chamadas da
+/// API do Windows. Cada handle é
 /// fechado no mesmo bloco em que foi aberto.
 #[cfg(windows)]
 #[allow(unsafe_code)]
@@ -414,7 +421,7 @@ mod windows {
     }
 
     /// Pid e nome de cada processo, pela Toolhelp. Não abre os processos.
-    fn snapshot() -> Vec<(u32, String)> {
+    pub(super) fn snapshot() -> Vec<(u32, String)> {
         let mut processes = Vec::new();
         // SAFETY: a Toolhelp devolve um handle próprio ou INVALID_HANDLE_VALUE;
         // `entry` tem o `dwSize` que a API exige e vive até o fim do bloco; o

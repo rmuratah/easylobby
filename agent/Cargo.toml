@@ -36,6 +36,9 @@ windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_Threading",
+    # Esconder a janela da UI oficial (`ux_window`, #286).
+    "Win32_UI_Accessibility",
+    "Win32_UI_WindowsAndMessaging",
 ] }
 
 [dev-dependencies]
