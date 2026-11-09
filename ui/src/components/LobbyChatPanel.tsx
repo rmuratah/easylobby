@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { messageTime } from '../agent/chat';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
-import { playerName } from '../agent/friends';
+import { memberName, playerName } from '../agent/friends';
 import type { AgentState } from '../bindings/AgentState';
 import type { LobbyChat } from '../bindings/LobbyChat';
 import type { LobbyChatMessage } from '../bindings/LobbyChatMessage';
@@ -11,7 +11,7 @@ type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 function senderName(state: AgentState, message: LobbyChatMessage): string {
   if (message.fromMe) return 'Você';
   const member = state.lobby?.members.find(m => m.puuid === message.fromPuuid);
-  return playerName(message.fromPuuid, member?.summonerId ?? 0, state.friends);
+  return member ? memberName(member, state.friends) : playerName(message.fromPuuid, 0, state.friends);
 }
 
 const cardClass = 'flex w-full min-w-0 flex-col gap-2 rounded-panel surface p-4 text-ink shadow-soft animate-fade-up';

@@ -3,7 +3,7 @@ import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import { lobbyQueueName, queueKey, type QueueKey } from '../agent/queueOptions';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
-import { playerName } from '../agent/friends';
+import { memberName } from '../agent/friends';
 import { FRIEND_DRAG_TYPE, useLobbyInvite } from '../agent/lobbyInvite';
 import { InvitePicker } from './LobbyInvites';
 import { isPosition, positionNames, validPositions } from '../agent/positions';
@@ -326,7 +326,7 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
       <ul aria-label="Jogadores no lobby" className="flex min-h-0 flex-1 flex-col gap-3">
         {lobby.members.map((member, index) => {
           const me = member.puuid === summoner?.puuid;
-          const name = me ? localName : playerName(member.puuid, member.summonerId, state.friends);
+          const name = me ? localName : memberName(member, state.friends);
           return (
             <li key={member.puuid} style={{ animationDelay: `${index * 70}ms` }}
               className={cx('relative flex min-h-20 flex-1 items-center gap-4 rounded-panel px-4 py-3 transition-all duration-200 animate-fade-up',
