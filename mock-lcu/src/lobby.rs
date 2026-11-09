@@ -100,12 +100,14 @@ pub fn custom_queue_id(state: &LcuState, body: &Value) -> Option<u64> {
 
 /// `POST /lol-lobby/v2/lobby` com `{"queueId": N}`: cria o lobby, ou troca a
 /// fila do lobby atual. Com `customGameLobby` (o Modo de Treino, #209), cria
-/// a personalizada na fila personalizada do mesmo modo.
+/// a personalizada na fila personalizada `queueId`.
 pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
-    let queue_id = body
-        .get("queueId")
-        .and_then(Value::as_u64)
-        .or_else(|| custom_queue_id(state, body));
+    // Como o LoL real (16.22, #330): a personalizada sem `queueId` volta
+    // 500 `INVALID_LOBBY`, mesmo com o `customGameLobby` completo.
+    if body.get("customGameLobby").is_some() && body.get("queueId").is_none() {
+        return (Response::error(500, "INVALID_LOBBY"), Vec::new());
+    }
+    let queue_id = body.get("queueId").and_then(Value::as_u64);
     let Some(queue_id) = queue_id else {
         return (
             Response::error(400, "mock-lcu: o corpo precisa de \"queueId\""),
@@ -857,9 +859,18 @@ mod tests {
     fn modo_de_treino_cria_a_personalizada_e_inicia() {
         let mut s = state("16.22");
         assert_eq!(start_custom_champ_select(&s).0.status, 404);
-        let body = json!({
+        // Sem `queueId`, a personalizada volta 500 INVALID_LOBBY, como no LoL real (#330).
+        let without_queue = json!({
             "customGameLobby": {"configuration": {"gameMode": "PRACTICETOOL", "mapId": 11}},
             "isCustom": true
+        });
+        let (response, events) = create(&s, &without_queue);
+        assert_eq!(response.status, 500);
+        assert!(events.is_empty());
+        let body = json!({
+            "customGameLobby": {"configuration": {"gameMode": "PRACTICETOOL", "mapId": 11}},
+            "isCustom": true,
+            "queueId": 3140
         });
         let (response, events) = create(&s, &body);
         assert_eq!(response.status, 200);

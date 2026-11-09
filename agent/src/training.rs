@@ -35,6 +35,9 @@ pub const CUSTOM_START_CHAMP_SELECT_PATH: &str = "/lol-lobby/v1/lobby/custom/sta
 /// Modo de jogo do Modo de Treino.
 pub const PRACTICE_TOOL_GAME_MODE: &str = "PRACTICETOOL";
 
+/// Fila personalizada do Modo de Treino, obrigatória no corpo de criar (#330).
+pub const PRACTICE_TOOL_QUEUE: u32 = 3140;
+
 /// Uma parte do Tutorial, como os cards do client oficial mostram (#228).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -132,13 +135,14 @@ pub async fn next_tutorial(lcu: &LcuClient) -> u32 {
 /// Corpo do `POST /lol-lobby/v2/lobby` que cria a personalizada do Modo de
 /// Treino, com a senha `password`.
 pub fn practice_tool_body(password: &str) -> Value {
-    // `mutators.id` 1 é o que o Modo de Treino manda desde o #209.
+    // A fila 3140 é obrigatória (#330); o `gameTypeConfig.id` dela é 19.
     lobby_body(&LobbyConfig {
+        queue_id: PRACTICE_TOOL_QUEUE,
         name: "Modo de Treino",
         password,
         game_mode: PRACTICE_TOOL_GAME_MODE,
         map_id: 11,
-        mutator_id: 1,
+        mutator_id: 19,
         team_size: 5,
         spectators: SpectatorPolicy::None,
         extras: None,
@@ -250,6 +254,7 @@ mod tests {
         assert_eq!(config["mapId"], 11);
         assert_eq!(body["customGameLobby"]["lobbyPassword"], "segredo");
         assert_eq!(body["isCustom"], true);
+        assert_eq!(body["queueId"], 3140);
         assert!(practice_tool_password().len() > 2);
     }
 }
