@@ -10,6 +10,7 @@ import type { SubteamSlot } from '../bindings/SubteamSlot';
 import { Avatar } from './base';
 import { cx } from './base/cx';
 import { CrownIcon, PlusIcon, SwapIcon } from './home/icons';
+import { LobbyMemberMenu } from './LobbyMemberMenu';
 
 type Props = {
   lobby: Lobby;
@@ -18,6 +19,8 @@ type Props = {
   send: AgentClient['send'];
   /** Se dá para trocar de vaga agora (fase de lobby, fora da busca). */
   canSwap: boolean;
+  /** Se o líder pode passar a liderança ou remover alguém agora (#267). */
+  canManageMembers: boolean;
   /** Vaga com a lista de convite aberta, contada de 0 em todas as equipes. */
   picker: number | null;
   onPicker: (index: number | null) => void;
@@ -31,7 +34,7 @@ const iconButton = `flex size-9 shrink-0 items-center justify-center rounded-ful
  * client oficial. Cada vaga livre tem convidar e trocar de vaga, para o
  * jogador montar a própria equipe dentro do lobby.
  */
-export function ArenaTeams({ lobby, state, localName, send, canSwap, picker, onPicker }: Props) {
+export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMembers, picker, onPicker }: Props) {
   const swap = useCommand(send);
   const layout = arenaTeams(lobby);
   if (!layout) return null;
@@ -51,7 +54,7 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, picker, onP
           const mine = team.slots.some(s => s.member?.puuid === me);
           return (
             <li key={team.team} aria-label={teamName} style={{ animationDelay: `${t * 70}ms` }}
-              className={cx('flex min-w-0 flex-col gap-2 rounded-panel p-3 animate-fade-up',
+              className={cx('relative flex min-w-0 flex-col gap-2 rounded-panel p-3 animate-fade-up has-[[aria-haspopup=menu][aria-expanded=true]]:z-20',
                 mine ? 'bg-surface shadow-lift ring-2 ring-accent/30' : 'surface shadow-soft')}>
               <h3 className="flex items-center justify-between gap-2 px-1 text-caption font-semibold uppercase tracking-[0.06em] text-muted">
                 {teamName}
@@ -65,7 +68,7 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, picker, onP
                     const memberName = name(member);
                     return (
                       <li key={p} aria-label={`${memberName}, ${slotName}`}
-                        className={cx('flex min-h-12 items-center gap-3 rounded-tile px-2 py-2', isMe ? 'bg-accent-soft' : 'bg-raised')}>
+                        className={cx('relative flex min-h-12 items-center gap-3 rounded-tile px-2 py-2', isMe ? 'bg-accent-soft' : 'bg-raised')}>
                         <Avatar name={memberName} src={assetUrl('profileIcon', member.summonerIconId)} size={36} className="ring-2 ring-surface" />
                         <div className="min-w-0 flex-1">
                           <p className="flex items-center gap-1.5">
@@ -79,6 +82,10 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, picker, onP
                           </p>
                           <p className="truncate text-caption text-muted">{isMe ? 'Você · ' : ''}Nível {member.summonerLevel}</p>
                         </div>
+                        {/* Tornar líder e remover do grupo (#267): só o líder, nas vagas dos outros. */}
+                        {lobby.isLeader && !isMe && (
+                          <LobbyMemberMenu name={memberName} summonerId={member.summonerId} send={send} disabled={!canManageMembers} align="start" />
+                        )}
                       </li>
                     );
                   }

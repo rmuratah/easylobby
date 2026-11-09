@@ -48,8 +48,10 @@
 //! [`LobbyMember::subteam`]. O jogador troca de vaga com
 //! `PUT /lol-lobby/v2/lobby/subteamData`, mandando
 //! `{"subteamIndex": N, "intraSubteamPosition": M}`. Os índices vão para a
-//! UI como a LCU manda; a gravação 16.22 não tem um lobby da Arena, então
-//! ainda falta confirmar no LoL real se começam em 0 ou em 1.
+//! UI como a LCU manda. No LoL real (#303) os índices começam em 1 e o
+//! `gameConfig` traz o lobby inteiro como uma equipe só (`maxTeamSize` 18,
+//! `numberOfTeamsInLobby` 1); o tamanho das equipes sai de
+//! [`arena_team_size`].
 //!
 //! O [`Lobby`] guarda só o que a tela de lobby usa. Os outros campos da
 //! resposta são ignorados, então um campo novo num patch não quebra a
@@ -582,14 +584,25 @@ impl Lobby {
 /// A personalizada fica de fora: as equipes dela vêm em [`Lobby::custom`].
 /// Com `numberOfTeamsInLobby` em 1 (como a lista de filas manda a Arena), o
 /// número de equipes sai de `maxLobbySize / maxTeamSize`.
+///
+/// A LCU manda a Arena como uma equipe só do tamanho do lobby (#303): a 1750
+/// vem com `maxTeamSize` 18 e `numberOfTeamsInLobby` 1. Nesse caso o tamanho
+/// da equipe sai de [`arena_team_size`].
 fn subteam_layout(config: &RawGameConfig, members: &[LobbyMember]) -> Option<SubteamLayout> {
     if config.is_custom {
         return None;
     }
-    let has_subteams = config.game_mode == ARENA_GAME_MODE
+    let is_arena = config.game_mode == ARENA_GAME_MODE;
+    let has_subteams = is_arena
         || config.number_of_teams_in_lobby > 1
         || members.iter().any(|m| m.subteam.is_some());
-    let size = config.max_team_size;
+    let whole_lobby_is_one_team =
+        config.number_of_teams_in_lobby <= 1 && config.max_team_size >= config.max_lobby_size;
+    let size = if is_arena && whole_lobby_is_one_team {
+        arena_team_size(config.max_lobby_size)
+    } else {
+        config.max_team_size
+    };
     if !has_subteams || size == 0 {
         return None;
     }
@@ -599,6 +612,18 @@ fn subteam_layout(config: &RawGameConfig, members: &[LobbyMember]) -> Option<Sub
         config.max_lobby_size.div_ceil(size)
     };
     (count > 0).then_some(SubteamLayout { count, size })
+}
+
+/// Jogadores por equipe na Arena (#303), pelo tamanho do lobby, já que a LCU
+/// não manda: 3 quando o lobby divide em trios (18 na Arena 3x6, 6 equipes de
+/// 3, como no client oficial) e 2 nas outras (16 na Arena de duplas, 8
+/// equipes de 2).
+fn arena_team_size(max_lobby_size: u32) -> u32 {
+    if max_lobby_size > 0 && max_lobby_size.is_multiple_of(3) {
+        3
+    } else {
+        2
+    }
 }
 
 /// O lobby como a LCU manda, só com os campos usados.
@@ -1142,6 +1167,42 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(pequeno.max_lobby_size, 18);
+    }
+
+    #[test]
+    fn arena_com_o_lobby_inteiro_numa_equipe() {
+        // Como a LCU manda no LoL real (#303, lido no LoL em 09/11/2026):
+        // `maxTeamSize` e `numPlayersPerTeam` do tamanho do lobby e
+        // `numberOfTeamsInLobby` 1. Tem que virar 6 equipes de 3, não 1
+        // equipe de 18. O líder sozinho veio na equipe 1, vaga 3.
+        let lobby = Lobby::from_json(&json!({
+            "gameConfig": {
+                "queueId": 1750, "gameMode": "CHERRY", "isCustom": false,
+                "maxLobbySize": 18, "maxTeamSize": 18, "numPlayersPerTeam": 18,
+                "numberOfTeamsInLobby": 1,
+            },
+            "members": [{"puuid": "eu", "isLeader": true, "subteamIndex": 1, "intraSubteamPosition": 3}],
+        }))
+        .unwrap();
+        assert_eq!(lobby.subteams, Some(SubteamLayout { count: 6, size: 3 }));
+        assert_eq!(
+            lobby.members[0].subteam,
+            Some(SubteamSlot {
+                team: 1,
+                position: 3
+            })
+        );
+        assert_eq!(lobby.max_lobby_size, 18);
+
+        // A Arena de duplas: 8 equipes de 2.
+        let duplas = Lobby::from_json(&json!({
+            "gameConfig": {
+                "queueId": 1700, "gameMode": "CHERRY",
+                "maxLobbySize": 16, "maxTeamSize": 16, "numberOfTeamsInLobby": 1,
+            },
+        }))
+        .unwrap();
+        assert_eq!(duplas.subteams, Some(SubteamLayout { count: 8, size: 2 }));
     }
 
     #[test]
