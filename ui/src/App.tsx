@@ -33,8 +33,11 @@ export default function App() {
   const { theme, setPreference } = useTheme();
   /** Última conversa aberta: o botão Conversas volta para ela (#251). */
   const [chatWith, setChatWith] = useState<string | null>(null);
-  /** Amigo cujo perfil está aberto (#255) e a página para onde o "Voltar" leva. */
-  const [profileOf, setProfileOf] = useState<{ puuid: string; back: 'main' | Page } | null>(null);
+  /**
+   * Jogador cujo perfil está aberto (#255), os perfis abertos antes dele, por
+   * um jogador do placar (#308), e a página para onde o último "Voltar" leva.
+   */
+  const [profileOf, setProfileOf] = useState<{ puuid: string; previous: string[]; back: 'main' | Page } | null>(null);
   const screen = mainScreen(connection);
   const view = connectionView(connection);
   const ready = view.screen === null;
@@ -67,9 +70,27 @@ export default function App() {
     setChatWith(id);
     setNavigation({ screen, page: 'conversations' });
   };
-  const openFriendProfile = (puuid: string) => {
-    setProfileOf({ puuid, back: page === 'friendProfile' ? profileOf?.back ?? 'main' : page });
+  const summoner = connection.status === 'connected' && connection.state?.lcu.state === 'connected'
+    ? connection.state.summoner : null;
+  const openPlayerProfile = (puuid: string) => {
+    // O jogador logado tem a própria página de perfil.
+    if (puuid === summoner?.puuid) {
+      setNavigation({ screen, page: 'profile' });
+      return;
+    }
+    if (page === 'friendProfile' && profileOf) {
+      if (profileOf.puuid === puuid) return;
+      setProfileOf({ puuid, previous: [...profileOf.previous, profileOf.puuid], back: profileOf.back });
+    } else {
+      setProfileOf({ puuid, previous: [], back: page });
+    }
     setNavigation({ screen, page: 'friendProfile' });
+  };
+  const closePlayerProfile = () => {
+    if (!profileOf) return;
+    const previous = profileOf.previous.at(-1);
+    if (previous) setProfileOf({ ...profileOf, puuid: previous, previous: profileOf.previous.slice(0, -1) });
+    else setNavigation({ screen, page: profileOf.back });
   };
   const found = screen === 'found';
   // Início (#128) e lobby (#129) no layout de referência: cartões lado a lado quando há largura.
@@ -81,8 +102,6 @@ export default function App() {
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
     : found ? 'Partida encontrada' : screen === 'champSelect' ? 'Seleção de campeões'
       : screen === 'other' ? 'Partida' : 'Início';
-  const summoner = connection.status === 'connected' && connection.state?.lcu.state === 'connected'
-    ? connection.state.summoner : null;
   return (
     // Margens e espaços vazios também arrastam a janela (#299). Sem valor, o
     // atributo só vale para cliques no próprio elemento, não nos filhos.
@@ -111,10 +130,10 @@ export default function App() {
               </div>}
               {screen !== 'home' && !playable && <button type="button" className="nav-button self-start" onClick={() => setNavigation({ screen, page: 'flow' })}>Voltar para {title}</button>}
             </section>
-            {activePage === 'profile' && <section aria-label="Perfil"><ProfilePage connection={connection} send={connection.send} /></section>}
-            {activePage === 'friendProfile' && profileOf && <section aria-label="Perfil do amigo">
+            {activePage === 'profile' && <section aria-label="Perfil"><ProfilePage connection={connection} send={connection.send} onOpenProfile={openPlayerProfile} /></section>}
+            {activePage === 'friendProfile' && profileOf && <section aria-label="Perfil do jogador">
               <FriendProfilePage key={profileOf.puuid} connection={connection} send={connection.send} puuid={profileOf.puuid}
-                onBack={() => setNavigation({ screen, page: profileOf.back })} onChat={openConversation} />
+                onBack={closePlayerProfile} onChat={openConversation} onOpenProfile={openPlayerProfile} />
             </section>}
             {/* Sempre montada: o rascunho e a conversa escolhida sobrevivem à navegação. */}
             <section aria-label="Conversas" hidden={activePage !== 'conversations'} className="min-h-0 flex-1">
@@ -136,7 +155,7 @@ export default function App() {
                 <p className="max-w-md text-section text-muted">Este espaço vai ganhar uma nova função numa futura atualização. Para jogar, use “Jogar” na barra lateral.</p>
               </article>}
               <div hidden={homeReserved} className="contents">
-                <LobbyPanel connection={connection} send={connection.send} />
+                <LobbyPanel connection={connection} send={connection.send} onOpenProfile={openPlayerProfile} />
               </div>
               {/* Coluna da direita com largura, só da altura do conteúdo (sem sobra); embaixo, presa à borda, quando a janela é estreita. */}
               <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 flex h-fit flex-col gap-4 self-start @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
@@ -175,7 +194,7 @@ export default function App() {
             {sidebar.open && <SidebarToggle open onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
             {/* Convites recebidos ficam aqui, sem seção própria; convidar é pelo lobby (#206). */}
             <InvitationsPanel connection={connection} send={connection.send} />
-            <FriendsList connection={connection} onOpenProfile={friend => openFriendProfile(friend.puuid)} renderActions={friend => (
+            <FriendsList connection={connection} onOpenProfile={friend => openPlayerProfile(friend.puuid)} renderActions={friend => (
               // A área inteira à direita da linha abre a conversa, não só o ícone (#255).
               <ChatButton friend={friend} unread={unreadFrom(friend.id)} onOpen={openConversation}
                 className="h-auto! w-14 rounded-control! hover:bg-line/40!" />

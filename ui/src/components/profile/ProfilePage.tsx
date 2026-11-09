@@ -20,7 +20,12 @@ import {
 import { Avatar, Button, EmptyState, Segmented, Spinner } from '../base';
 import { cx } from '../base/cx';
 
-type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
+type Props = {
+  connection: ConnectionSnapshot;
+  send: AgentClient['send'];
+  /** Abre o perfil de outro jogador clicado no placar (#308). Sem ele, os nomes não são clicáveis. */
+  onOpenProfile?: (puuid: string) => void;
+};
 type Tab = 'overview' | 'history';
 
 /** O que a página mostra de um jogador: o logado ou outro (#255). */
@@ -44,7 +49,7 @@ function connectedState(connection: ConnectionSnapshot): AgentState | null {
  * Perfil do jogador logado (#173): cabeçalho fixo e as abas Visão geral
  * (ranks, maestria e resumo) e Histórico (partidas, filtro e placar).
  */
-export function ProfilePage({ connection, send }: Props) {
+export function ProfilePage({ connection, send, onOpenProfile }: Props) {
   const state = connectedState(connection);
   if (!state?.summoner) {
     return <EmptyState title="Perfil indisponível" description="Abra o LoL e entre na sua conta para ver o perfil." />;
@@ -53,7 +58,7 @@ export function ProfilePage({ connection, send }: Props) {
     summoner: state.summoner, ranked: state.ranked, championMasteries: state.championMasteries,
     matchHistory: state.matchHistory, loaded: false, privateProfile: false, loadMore: { type: 'loadMoreMatches' },
   };
-  return <ProfileView state={state} data={data} send={send} />;
+  return <ProfileView state={state} data={data} send={send} onOpenProfile={onOpenProfile} />;
 }
 
 /** Intervalo de atualização do "há N min" do status do amigo. */
@@ -64,7 +69,7 @@ const CLOCK_INTERVAL_MS = 30_000;
  * Pede o perfil ao abrir e de novo a cada amigo novo; o cabeçalho mostra o
  * status dele e o botão de conversar.
  */
-export function FriendProfilePage({ connection, send, puuid, onBack, onChat }: Props & {
+export function FriendProfilePage({ connection, send, puuid, onBack, onChat, onOpenProfile }: Props & {
   puuid: string; onBack: () => void; onChat: (conversationId: string) => void;
 }) {
   const state = connectedState(connection);
@@ -115,13 +120,13 @@ export function FriendProfilePage({ connection, send, puuid, onBack, onChat }: P
   return (
     <div className="flex flex-col gap-4">
       {back}
-      <ProfileView state={state} data={data} send={send} extra={extra} />
+      <ProfileView state={state} data={data} send={send} extra={extra} onOpenProfile={onOpenProfile} />
     </div>
   );
 }
 
-function ProfileView({ state, data, send, extra }: {
-  state: AgentState; data: ProfileData; send: AgentClient['send']; extra?: ReactNode;
+function ProfileView({ state, data, send, extra, onOpenProfile }: {
+  state: AgentState; data: ProfileData; send: AgentClient['send']; extra?: ReactNode; onOpenProfile?: (puuid: string) => void;
 }) {
   const [tab, setTab] = useState<Tab>('overview');
   const id = useId();
@@ -168,7 +173,7 @@ function ProfileView({ state, data, send, extra }: {
         <Overview state={state} data={data} />
       </div>
       <div role="tabpanel" id={`${id}-history`} aria-labelledby={`${id}-history-tab`} hidden={tab !== 'history'}>
-        <History state={state} data={data} send={send} />
+        <History state={state} data={data} send={send} onOpenProfile={onOpenProfile} />
       </div>
     </div>
   );
@@ -299,7 +304,9 @@ function TierEmblem({ tier }: { tier: string | null }) {
   );
 }
 
-function History({ state, data, send }: { state: AgentState; data: ProfileData; send: AgentClient['send'] }) {
+function History({ state, data, send, onOpenProfile }: {
+  state: AgentState; data: ProfileData; send: AgentClient['send']; onOpenProfile?: (puuid: string) => void;
+}) {
   const [filter, setFilter] = useState<MatchFilter>('all');
   const [open, setOpen] = useState<number | null>(null);
   const [now] = useState(() => Date.now());
@@ -333,7 +340,7 @@ function History({ state, data, send }: { state: AgentState; data: ProfileData; 
               {open === match.gameId && (
                 <div id={`placar-${match.gameId}`} className="mt-2">
                   {state.matchDetails?.gameId === match.gameId
-                    ? <Scoreboard state={state} details={state.matchDetails} highlight={data.summoner.puuid} />
+                    ? <Scoreboard state={state} details={state.matchDetails} highlight={data.summoner.puuid} onOpenProfile={onOpenProfile} />
                     : details.feedback.status === 'error'
                       ? <p role="alert" className="text-body text-danger">{details.feedback.message}</p>
                       : <p className="flex items-center gap-2 text-body text-muted"><Spinner size={18} label={null} /> Carregando o placar…</p>}
@@ -407,8 +414,14 @@ function Items({ items, size = 24 }: { items: number[]; size?: number }) {
   );
 }
 
-/** Placar com os dois times; a linha de `highlight` (o dono do perfil) fica destacada. */
-function Scoreboard({ state, details, highlight }: { state: AgentState; details: MatchDetails; highlight: string }) {
+/**
+ * Placar com os dois times; a linha de `highlight` (o dono do perfil) fica
+ * destacada. Com `onOpenProfile`, o nome dos outros jogadores abre o perfil
+ * deles (#308); quem veio sem `puuid` (perfil privado) não é clicável.
+ */
+function Scoreboard({ state, details, highlight, onOpenProfile }: {
+  state: AgentState; details: MatchDetails; highlight: string; onOpenProfile?: (puuid: string) => void;
+}) {
   const teams = [100, 200].map(teamId => details.players.filter(p => p.teamId === teamId));
   const me = highlight;
   return (
@@ -423,7 +436,11 @@ function Scoreboard({ state, details, highlight }: { state: AgentState; details:
               <tr><th>Jogador</th><th>K/D/A</th><th>CS</th><th>Dano</th><th>Itens</th></tr>
             </thead>
             <tbody>
-              {players.map(p => <ScoreRow key={`${p.teamId}-${p.puuid}-${p.championId}`} state={state} player={p} me={p.puuid !== '' && p.puuid === me} />)}
+              {players.map(p => {
+                const isOwner = p.puuid !== '' && p.puuid === me;
+                return <ScoreRow key={`${p.teamId}-${p.puuid}-${p.championId}`} state={state} player={p} me={isOwner}
+                  onOpen={onOpenProfile && p.puuid !== '' && !isOwner ? () => onOpenProfile(p.puuid) : undefined} />;
+              })}
             </tbody>
           </table>
         );
@@ -432,17 +449,24 @@ function Scoreboard({ state, details, highlight }: { state: AgentState; details:
   );
 }
 
-function ScoreRow({ state, player: p, me }: { state: AgentState; player: MatchPlayer; me: boolean }) {
+function ScoreRow({ state, player: p, me, onOpen }: { state: AgentState; player: MatchPlayer; me: boolean; onOpen?: () => void }) {
   const champion = championName(state, p.championId);
+  const riotId = p.tagLine ? `${p.gameName}#${p.tagLine}` : p.gameName;
+  const content = <>
+    <Avatar name={champion} src={assetUrl('champion', p.championId)} size={28} shape="rounded" />
+    <span className={cx('truncate text-ink', onOpen && 'group-hover:underline')} title={riotId}>
+      {p.gameName || champion}
+    </span>
+  </>;
   return (
     <tr className={cx(me && 'bg-accent-soft')}>
       <td className="py-1 pr-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <Avatar name={champion} src={assetUrl('champion', p.championId)} size={28} shape="rounded" />
-          <span className="truncate text-ink" title={p.tagLine ? `${p.gameName}#${p.tagLine}` : p.gameName}>
-            {p.gameName || champion}
-          </span>
-        </div>
+        {onOpen
+          ? <button type="button" onClick={onOpen} aria-label={`Ver perfil de ${riotId || champion}`}
+            className="group -mx-1 flex min-w-0 max-w-full items-center gap-2 rounded-control-sm px-1 text-left hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
+            {content}
+          </button>
+          : <div className="flex min-w-0 items-center gap-2">{content}</div>}
       </td>
       <td className="whitespace-nowrap px-1 font-semibold text-ink">{p.kills}/{p.deaths}/{p.assists}</td>
       <td className="px-1 text-muted">{p.cs}</td>

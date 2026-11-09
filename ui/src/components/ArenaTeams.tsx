@@ -24,6 +24,8 @@ type Props = {
   /** Vaga com a lista de convite aberta, contada de 0 em todas as equipes. */
   picker: number | null;
   onPicker: (index: number | null) => void;
+  /** Abre o perfil de outro jogador ao clicar na vaga dele (#308). */
+  onOpenProfile?: (puuid: string) => void;
 };
 
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
@@ -34,7 +36,7 @@ const iconButton = `flex size-9 shrink-0 items-center justify-center rounded-ful
  * client oficial. Cada vaga livre tem convidar e trocar de vaga, para o
  * jogador montar a própria equipe dentro do lobby.
  */
-export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMembers, picker, onPicker }: Props) {
+export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMembers, picker, onPicker, onOpenProfile }: Props) {
   const swap = useCommand(send);
   const layout = arenaTeams(lobby);
   if (!layout) return null;
@@ -68,7 +70,14 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMe
                     const memberName = name(member);
                     return (
                       <li key={p} aria-label={`${memberName}, ${slotName}`}
-                        className={cx('relative flex min-h-12 items-center gap-3 rounded-tile px-2 py-2', isMe ? 'bg-accent-soft' : 'bg-raised')}>
+                        className={cx('relative flex min-h-12 items-center gap-3 rounded-tile px-2 py-2', isMe ? 'bg-accent-soft' : 'bg-raised',
+                          !isMe && onOpenProfile && 'transition-colors hover:bg-line/40')}>
+                        {/* A vaga de outro jogador abre o perfil dele (#308); o menu do líder fica por cima. */}
+                        {!isMe && onOpenProfile && (
+                          <button type="button" aria-label={`Ver perfil de ${memberName}`} title={`Ver perfil de ${memberName}`}
+                            onClick={() => onOpenProfile(member.puuid)}
+                            className={`absolute inset-0 cursor-pointer rounded-tile ${focusRing}`} />
+                        )}
                         <Avatar name={memberName} src={assetUrl('profileIcon', member.summonerIconId)} size={36} className="ring-2 ring-surface" />
                         <div className="min-w-0 flex-1">
                           <p className="flex items-center gap-1.5">
