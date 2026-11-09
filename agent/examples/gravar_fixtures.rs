@@ -20,6 +20,10 @@
 //! cargo run -p easylobby-agent --example gravar_fixtures -- --ressanitizar agent/tests/fixtures/16.22
 //! ```
 //!
+//! Para descobrir onde a LCU guarda algo que os tópicos acima não mostram,
+//! `--todos-eventos` grava os eventos de todos os tópicos (também
+//! sanitizados). Essa gravação serve para conferir; não commite.
+//!
 //! Este example não usa `kill-ux`: deixe a UI oficial aberta e jogue a sessão
 //! por ela. Confira os arquivos antes de commitar.
 
@@ -123,6 +127,10 @@ struct Args {
     out: Option<PathBuf>,
     seconds: Option<u64>,
     resanitize: Option<PathBuf>,
+    /// Grava os eventos de todos os tópicos, não só os do easylobby, para
+    /// descobrir onde a LCU guarda algo novo. A gravação é para conferir, não
+    /// para commitar.
+    all_events: bool,
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -131,6 +139,7 @@ fn parse_args() -> Result<Args, String> {
         out: None,
         seconds: None,
         resanitize: None,
+        all_events: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -142,8 +151,9 @@ fn parse_args() -> Result<Args, String> {
                 args.seconds = Some(value()?.parse().map_err(|_| "--segundos inválido")?)
             }
             "--ressanitizar" => args.resanitize = Some(PathBuf::from(value()?)),
+            "--todos-eventos" => args.all_events = true,
             "-h" | "--help" => {
-                println!("uso: gravar_fixtures [--patch 14.22] [--saida pasta] [--segundos N]");
+                println!("uso: gravar_fixtures [--patch 14.22] [--saida pasta] [--segundos N] [--todos-eventos]");
                 println!("     gravar_fixtures --ressanitizar pasta");
                 std::process::exit(0);
             }
@@ -162,6 +172,7 @@ struct Recorder {
     events: Vec<EventFixture>,
     phase: String,
     started: Instant,
+    all_events: bool,
 }
 
 impl Recorder {
@@ -330,7 +341,8 @@ impl Recorder {
     /// fase quando o evento é uma mudança de fase do gameflow.
     fn on_event(&mut self, payload: &Value) -> Option<String> {
         let uri = payload.get("uri")?.as_str()?;
-        if !wanted_event(uri) {
+        let excluded = EVENT_EXCLUDED.iter().any(|p| uri.starts_with(p));
+        if excluded || !(self.all_events || wanted_event(uri)) {
             return None;
         }
         let event_type = payload
@@ -392,6 +404,7 @@ async fn run() -> Result<(), String> {
         events: Vec::new(),
         phase: "None".into(),
         started: Instant::now(),
+        all_events: args.all_events,
     };
 
     // A fase atual vem antes da primeira foto, para marcar as respostas.
