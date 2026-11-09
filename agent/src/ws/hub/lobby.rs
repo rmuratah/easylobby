@@ -791,6 +791,7 @@ mod tests {
             spell1_id: None,
             spell2_id: None,
             rune_page_id: None,
+            runes: None,
         }
     }
 
