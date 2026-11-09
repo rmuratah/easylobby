@@ -341,10 +341,15 @@ impl ChampSelect {
             })
             .collect();
 
+        // No planejamento a LCU já marca o ban do jogador como em andamento
+        // (`isInProgress`), mas ainda não aceita confirmar: a vez só começa
+        // em `BAN_PICK` (#311).
+        let planning = raw.timer.phase == ChampSelectPhase::Planning;
         let pending_action = actions
             .iter()
             .find(|a| {
                 a.actor_cell_id == local
+                    && !planning
                     && a.is_in_progress
                     && !a.completed
                     && matches!(
@@ -687,7 +692,8 @@ impl std::error::Error for InvalidAction {}
 ///
 /// - a ação existe, é do jogador logado, é um ban ou um pick e não foi
 ///   confirmada;
-/// - confirmar só na vez da ação (`isInProgress`);
+/// - confirmar só na vez da ação (`isInProgress`, fora da etapa
+///   `PLANNING`, em que a LCU já marca o ban como em andamento);
 /// - marcar um ban também só na vez dele; marcar um pick vale antes da vez,
 ///   como intenção.
 pub fn check_action(
@@ -719,7 +725,10 @@ pub fn check_action(
     }
     let early_pick_intent =
         intent == ActionIntent::Hover && action.action_type == ChampSelectActionType::Pick;
-    if !action.is_in_progress && !early_pick_intent {
+    // No planejamento o ban já vem `isInProgress`, mas a vez só começa em
+    // `BAN_PICK` (#311).
+    let in_turn = action.is_in_progress && cs.timer.phase != ChampSelectPhase::Planning;
+    if !in_turn && !early_pick_intent {
         return Err(InvalidAction::NotYourTurn);
     }
     Ok(())
@@ -940,6 +949,28 @@ mod tests {
         assert_eq!(check(13, Confirm), Err(InvalidAction::NotYourTurn));
         assert_eq!(check(1, Hover), Err(InvalidAction::NotYourTurn));
         assert_eq!(check(1, Confirm), Err(InvalidAction::NotYourTurn));
+
+        // Planejamento da ranqueada (gravação 16.22): o ban já vem
+        // `isInProgress`, mas ainda não é a vez dele (#311). Só vale marcar
+        // a intenção de pick.
+        let mut raw = session();
+        raw["timer"]["phase"] = json!("PLANNING");
+        raw["actions"][0][1]["completed"] = json!(false);
+        raw["actions"][0][1]["isInProgress"] = json!(true);
+        raw["actions"][4][0]["isInProgress"] = json!(false);
+        let cs = ChampSelect::from_json_at(&raw, 0).unwrap();
+        assert_eq!(cs.pending_action, None);
+        let check = |action, intent| check_action(Some(&cs), action, 121, intent);
+        assert_eq!(check(1, Hover), Err(InvalidAction::NotYourTurn));
+        assert_eq!(check(1, Confirm), Err(InvalidAction::NotYourTurn));
+        assert_eq!(check(13, Hover), Ok(()));
+        assert_eq!(check(13, Confirm), Err(InvalidAction::NotYourTurn));
+        // Começaram os bans: agora o ban é a vez do jogador.
+        raw["timer"]["phase"] = json!("BAN_PICK");
+        let cs = ChampSelect::from_json_at(&raw, 0).unwrap();
+        assert_eq!(cs.pending_action.as_ref().map(|a| a.id), Some(1));
+        let check = |action, intent| check_action(Some(&cs), action, 121, intent);
+        assert_eq!(check(1, Confirm), Ok(()));
 
         // Ação que não é ban nem pick, do próprio jogador.
         let mut raw = session();
