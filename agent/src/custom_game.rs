@@ -30,9 +30,11 @@
 //! seleção respondem `invalidCommand`.
 //!
 //! "Esconder da lista de saguões públicos" e "Intervalo de espectador" (#270)
-//! vão em `configuration.isPrivate` e `configuration.spectatorDelayEnabled`.
-//! Os nomes não estão documentados e precisam ser conferidos no LoL real (o
-//! estado do lobby da LCU já mostra `isNoSpectateDelay`).
+//! vão em `configuration.isPrivate` e em
+//! `gameCustomization.spectatorGridDelayEnabled`. O segundo é o nome que a LCU
+//! mostra em `/lol-lobby/v1/parties/gamemode` (gravação do #271), com o valor
+//! em texto (`"true"` ou `"false"`); o primeiro ainda precisa ser conferido no
+//! LoL real.
 //!
 //! Depois de criada, a personalizada mostra no lobby o nome, o mapa, o tipo de
 //! seleção e quem pode assistir ([`CustomGameSettings`]), lidos do
@@ -289,9 +291,10 @@ pub(crate) fn lobby_body(config: &LobbyConfig) -> Value {
         "isCustom": true
     });
     if let Some(extras) = &config.extras {
-        let configuration = &mut body["customGameLobby"]["configuration"];
-        configuration["isPrivate"] = json!(extras.private);
-        configuration["spectatorDelayEnabled"] = json!(extras.spectator_delay);
+        body["customGameLobby"]["configuration"]["isPrivate"] = json!(extras.private);
+        body["gameCustomization"] = json!({
+            "spectatorGridDelayEnabled": extras.spectator_delay.to_string()
+        });
     }
     body
 }
@@ -367,7 +370,10 @@ mod tests {
         assert_eq!(config["teamSize"], 3);
         assert_eq!(config["spectatorPolicy"], "FriendsAllowed");
         assert_eq!(config["isPrivate"], true);
-        assert_eq!(config["spectatorDelayEnabled"], false);
+        assert_eq!(
+            body["gameCustomization"]["spectatorGridDelayEnabled"],
+            "false"
+        );
         assert_eq!(body["customGameLobby"]["lobbyName"], "Partida de Fulano");
         assert_eq!(body["customGameLobby"]["lobbyPassword"], "segredo");
         assert_eq!(body["isCustom"], true);
