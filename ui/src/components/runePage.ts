@@ -67,7 +67,7 @@ export function newDraft(catalog: RuneCatalog, name: string): RuneDraft {
  * `RunePage.selectedPerkIds`. Runas que não batem com a linha (página
  * incompleta ou de outro patch) ficam sem escolha.
  */
-export function draftFromPage(catalog: RuneCatalog, page: RunePage): RuneDraft {
+export function draftFromPage(catalog: RuneCatalog, page: Pick<RunePage, 'name' | 'primaryStyleId' | 'subStyleId' | 'selectedPerkIds'>): RuneDraft {
   const primary = findStyle(catalog, page.primaryStyleId);
   const sub = findStyle(catalog, page.subStyleId);
   const pSlots = primarySlots(primary);

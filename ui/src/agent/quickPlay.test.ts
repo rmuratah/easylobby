@@ -6,7 +6,7 @@ import {
 } from './quickPlay';
 
 const slot = (championId: number, position: PlayerSlot['position']): PlayerSlot => ({
-  championId, skinId: 0, position, spell1Id: 4, spell2Id: 14, runeStyleId: 0, runeSubStyleId: 0, keystoneId: 0,
+  championId, skinId: 0, position, spell1Id: 4, spell2Id: 14, runeStyleId: 0, runeSubStyleId: 0, keystoneId: 0, perkIds: [],
 });
 
 describe('slots do Jogo Dinâmico', () => {
@@ -34,8 +34,8 @@ describe('slots do Jogo Dinâmico', () => {
   it('monta o comando com feitiços e runas só no slot que mudou', () => {
     const pair: SlotPair = [{ championId: 22, position: 'bottom' }, { championId: 266, position: 'top' }];
     expect(slotsCommand(pair, { index: 1, spells: [4, 12] })).toEqual({ type: 'setPlayerSlots', slots: [
-      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null },
-      { championId: 266, position: 'top', spell1Id: 4, spell2Id: 12, runePageId: null },
+      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
+      { championId: 266, position: 'top', spell1Id: 4, spell2Id: 12, runePageId: null, runes: null },
     ] });
     expect(slotsCommand(pair, { index: 0, runePageId: 7 }).slots[0].runePageId).toBe(7);
   });

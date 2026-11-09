@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AgentClient } from './client';
 import type { Command } from '../bindings/Command';
+import { useDismiss } from './useDismiss';
 
 export type CommandFeedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
 export type CommandTexts = { pending: string; success?: string; failure: string };
@@ -16,6 +17,8 @@ export function useCommand(send: AgentClient['send']) {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
+  // O erro some sozinho depois de alguns segundos (#335).
+  useDismiss(feedback.status === 'error', feedback.message, () => setFeedback({ status: 'idle', message: '' }));
   async function run(command: Command, texts: CommandTexts): Promise<boolean> {
     setFeedback({ status: 'pending', message: texts.pending });
     try {
