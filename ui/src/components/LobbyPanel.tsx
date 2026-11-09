@@ -231,7 +231,7 @@ function LobbyActions({ state, send }: { state: AgentState; send: AgentClient['s
         onCreate={command => { void execute(command); }} onStart={command => { void execute(command); }}
         onCreateCustom={options => { void execute({ type: 'createCustomGame', options }); }}
         customJoin={{ games: state.customGames, send,
-          onJoin: (id, password) => { void execute({ type: 'joinCustomGame', id, ...(password ? { password } : {}) }); } }} />
+          onJoin: (partyId, password) => { void execute({ type: 'joinCustomGame', partyId, ...(password ? { password } : {}) }); } }} />
     );
   }
   // No lobby, "Trocar modo" abre a mesma tela para trocar a fila (#231); na busca ou na partida, volta ao lobby.

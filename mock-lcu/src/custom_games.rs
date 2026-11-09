@@ -4,14 +4,14 @@
 //!   lista de [`games`], com uma aberta, uma com senha e uma cheia.
 //! - `POST` [`REFRESH`] responde 204 e manda a lista pelo WAMP, como a LCU
 //!   faz quando a lista nova chega do servidor.
-//! - `POST` `/lol-lobby/v1/custom-games/{id}/join` confere a senha
-//!   ([`PASSWORD`] na partida com senha) e as vagas e põe o jogador no lobby
-//!   da partida, sem ser o líder. Senha errada responde 403; partida cheia,
-//!   409; id que não está na lista, 404.
+//! - `POST` `/lol-lobby/v2/party/{partyId}/join` com `{"lobbyPassword"}`
+//!   confere a senha ([`PASSWORD`] na partida com senha) e as vagas e põe o
+//!   jogador no lobby da partida, sem ser o líder. Senha errada responde 403;
+//!   partida cheia, 409; `partyId` que não está na lista, 404.
 //!
-//! A lista ainda não foi gravada no LoL real: os campos seguem o esquema
-//! `LolLobbyLobbyCustomGame` da LCU, e os valores de `gameType` e as
-//! respostas de erro são suposições do mock.
+//! O formato da lista segue a gravação do LoL real (#264): `id` 0 em todas,
+//! `gameType` `"CUSTOM"`, `spectatorPolicy` `"ALL"`/`"NONE"` e o `partyId`
+//! de cada partida. As respostas de erro do `join` são suposições do mock.
 
 use easylobby_agent::fixtures::EventFixture;
 use serde_json::{json, Value};
@@ -37,22 +37,22 @@ const FALLBACK_QUEUE: u64 = 3100;
 pub fn games() -> Value {
     json!([
         {
-            "filledPlayerSlots": 3, "filledSpectatorSlots": 0, "gameType": "DRAFT_MODE",
-            "hasPassword": false, "id": 1001, "lobbyName": "5v5 da firma", "mapId": 11,
-            "maxPlayerSlots": 10, "maxSpectatorSlots": 4, "ownerDisplayName": "Ahri Mid",
-            "passbackUrl": "", "spectatorPolicy": "AllAllowed"
+            "filledPlayerSlots": 3, "filledSpectatorSlots": 0, "gameType": "CUSTOM",
+            "hasPassword": false, "id": 0, "lobbyName": "5v5 da firma", "mapId": 11,
+            "maxPlayerSlots": 10, "maxSpectatorSlots": 15, "ownerDisplayName": "Ahri Mid #BR1",
+            "partyId": "mock-party-1001", "passbackUrl": "", "spectatorPolicy": "ALL"
         },
         {
-            "filledPlayerSlots": 2, "filledSpectatorSlots": 1, "gameType": "ALL_RANDOM",
-            "hasPassword": true, "id": 1002, "lobbyName": "ARAM fechado", "mapId": 12,
-            "maxPlayerSlots": 10, "maxSpectatorSlots": 4, "ownerDisplayName": "Garen Top",
-            "passbackUrl": "", "spectatorPolicy": "FriendsAllowed"
+            "filledPlayerSlots": 2, "filledSpectatorSlots": 1, "gameType": "CUSTOM",
+            "hasPassword": true, "id": 0, "lobbyName": "ARAM fechado", "mapId": 12,
+            "maxPlayerSlots": 10, "maxSpectatorSlots": 15, "ownerDisplayName": "Garen Top #BR1",
+            "partyId": "mock-party-1002", "passbackUrl": "", "spectatorPolicy": "ALL"
         },
         {
-            "filledPlayerSlots": 2, "filledSpectatorSlots": 0, "gameType": "BLIND_PICK",
-            "hasPassword": false, "id": 1003, "lobbyName": "1v1 no meio", "mapId": 11,
-            "maxPlayerSlots": 2, "maxSpectatorSlots": 2, "ownerDisplayName": "Yasuo 0/10",
-            "passbackUrl": "", "spectatorPolicy": "NotAllowed"
+            "filledPlayerSlots": 2, "filledSpectatorSlots": 0, "gameType": "CUSTOM",
+            "hasPassword": false, "id": 0, "lobbyName": "1v1 no meio", "mapId": 11,
+            "maxPlayerSlots": 2, "maxSpectatorSlots": 15, "ownerDisplayName": "Yasuo #0010",
+            "partyId": "mock-party-1003", "passbackUrl": "", "spectatorPolicy": "NONE"
         }
     ])
 }
@@ -80,47 +80,42 @@ pub fn refresh(state: &LcuState) -> (Response, Vec<EventFixture>) {
     )
 }
 
-/// O id de `/lol-lobby/v1/custom-games/{id}/join`, ou `None` se `path` não é
-/// esse caminho.
-pub fn join_route(path: &str) -> Option<u64> {
-    path.strip_prefix(CUSTOM_GAMES)?
-        .strip_prefix('/')?
-        .strip_suffix("/join")?
-        .parse()
-        .ok()
+/// Começo do caminho de entrar no grupo de uma partida.
+const PARTY: &str = "/lol-lobby/v2/party/";
+
+/// O `partyId` de `/lol-lobby/v2/party/{partyId}/join`, ou `None` se `path`
+/// não é esse caminho.
+pub fn join_route(path: &str) -> Option<&str> {
+    path.strip_prefix(PARTY)?
+        .strip_suffix("/join")
+        .filter(|id| !id.is_empty() && !id.contains('/'))
 }
 
-/// `POST` `/lol-lobby/v1/custom-games/{id}/join`.
-pub fn join(state: &LcuState, id: u64, body: &Value) -> (Response, Vec<EventFixture>) {
+/// `POST` `/lol-lobby/v2/party/{partyId}/join`.
+pub fn join(state: &LcuState, party_id: &str, body: &Value) -> (Response, Vec<EventFixture>) {
     let listing = list(state).body;
     let Some(game) = listing
         .as_array()
-        .and_then(|games| games.iter().find(|g| g["id"].as_u64() == Some(id)))
+        .and_then(|games| games.iter().find(|g| g["partyId"] == json!(party_id)))
         .cloned()
     else {
-        return error(404, "CUSTOM_GAME_NOT_FOUND");
+        return error(404, "PARTY_NOT_FOUND");
     };
-    let password = body["password"].as_str().unwrap_or_default();
+    let password = body["lobbyPassword"].as_str().unwrap_or_default();
     if game["hasPassword"] == json!(true) && password != PASSWORD {
         return error(403, "WRONG_PASSWORD");
     }
-    let as_spectator = body["asSpectator"].as_bool().unwrap_or(false);
     let count = |key: &str| game[key].as_u64().unwrap_or(0);
-    let full = if as_spectator {
-        count("filledSpectatorSlots") >= count("maxSpectatorSlots")
-    } else {
-        count("filledPlayerSlots") >= count("maxPlayerSlots")
-    };
-    if full {
+    if count("filledPlayerSlots") >= count("maxPlayerSlots") {
         return error(409, "CUSTOM_GAME_FULL");
     }
 
     let map_id = game["mapId"].as_u64().unwrap_or(11);
-    let mutator = match game["gameType"].as_str() {
-        Some("DRAFT_MODE") => 18,
-        Some("ALL_RANDOM") => 21,
-        Some("TOURNAMENT_DRAFT") => 6,
-        _ => 19,
+    // A lista não diz o tipo de seleção: o mock usa às cegas.
+    let mutator = 19;
+    let spectators = match game["spectatorPolicy"].as_str() {
+        Some("NONE") => "NotAllowed",
+        _ => "AllAllowed",
     };
     let mode = match map_id {
         12 => "ARAM",
@@ -133,7 +128,7 @@ pub fn join(state: &LcuState, id: u64, body: &Value) -> (Response, Vec<EventFixt
                 "gameMode": mode,
                 "mapId": map_id,
                 "mutators": {"id": mutator},
-                "spectatorPolicy": game["spectatorPolicy"],
+                "spectatorPolicy": spectators,
                 "teamSize": (count("maxPlayerSlots") / 2).max(1)
             },
             "lobbyName": game["lobbyName"]
@@ -165,10 +160,6 @@ pub fn join(state: &LcuState, id: u64, body: &Value) -> (Response, Vec<EventFixt
         if let Some(team) = lobby["gameConfig"]["customTeam100"].as_array_mut() {
             for member in team.iter_mut() {
                 member["isLeader"] = json!(false);
-            }
-            if as_spectator {
-                let me = std::mem::take(team);
-                lobby["gameConfig"]["customSpectators"] = json!(me);
             }
         }
     }
@@ -224,22 +215,21 @@ mod tests {
     #[test]
     fn rota_de_entrar() {
         assert_eq!(
-            join_route("/lol-lobby/v1/custom-games/1001/join"),
-            Some(1001)
+            join_route("/lol-lobby/v2/party/mock-party-1001/join"),
+            Some("mock-party-1001")
         );
+        assert_eq!(join_route("/lol-lobby/v2/party//join"), None);
         assert_eq!(join_route("/lol-lobby/v1/custom-games/refresh"), None);
-        assert_eq!(join_route("/lol-lobby/v1/custom-games/x/join"), None);
     }
 
     #[test]
     fn entra_conferindo_senha_e_vagas() {
         let s = state();
         let status = |id, body| join(&s, id, &body).0.status;
-        assert_eq!(status(9, json!({})), 404);
-        let with_password = |password| join_body(password, false);
-        assert_eq!(status(1002, with_password("errada")), 403);
-        assert_eq!(status(1003, json!({})), 409);
-        let (response, events) = join(&s, 1002, &with_password(PASSWORD));
+        assert_eq!(status("outro", json!({})), 404);
+        assert_eq!(status("mock-party-1002", join_body("errada")), 403);
+        assert_eq!(status("mock-party-1003", json!({})), 409);
+        let (response, events) = join(&s, "mock-party-1002", &join_body(PASSWORD));
         assert_eq!(response.status, 204);
         let lobby = &events.last().unwrap().data;
         assert_eq!(lobby["gameConfig"]["customLobbyName"], "ARAM fechado");

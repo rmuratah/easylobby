@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { filterListings, listingFull, listingMapName, listingModeName } from '../agent/customGame';
+import { filterListings, listingFull, listingMapName } from '../agent/customGame';
 import type { AgentClient } from '../agent/client';
 import { useCommand } from '../agent/useCommand';
 import type { CustomGameListing } from '../bindings/CustomGameListing';
@@ -9,8 +9,8 @@ import { cx } from './base/cx';
 type Props = {
   /** A lista do agente; `null` antes da primeira busca. */
   games: CustomGameListing[] | null;
-  selectedId: number | null;
-  onSelect: (id: number) => void;
+  selectedId: string | null;
+  onSelect: (partyId: string) => void;
   locked: boolean;
   send: AgentClient['send'];
 };
@@ -62,32 +62,30 @@ export function CustomGameBrowser({ games, selectedId, onSelect, locked, send }:
         <p className="text-body text-muted">Nenhuma personalizada encontrada para “{query.trim()}”.</p>
       ) : (
         <fieldset aria-label="Personalizadas abertas" disabled={locked} className="flex flex-col gap-1.5">
-          <div aria-hidden="true" className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_4.5rem_4.5rem_1.5rem] gap-3 px-3 @min-[48rem]:grid">
-            <span className={head}>Nome</span><span className={head}>Dono</span><span className={head}>Mapa</span>
-            <span className={head}>Modo</span><span className={head}>Jogadores</span><span className={head}>Espect.</span><span />
+          <div aria-hidden="true" className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_4.5rem_4.5rem_1.5rem] gap-3 px-3 @min-[48rem]:grid">
+            <span className={head}>Nome</span><span className={head}>Dono</span><span className={head}>Mapa</span><span className={head}>Jogadores</span><span className={head}>Espect.</span><span />
           </div>
           {shown.map(game => {
             const full = listingFull(game);
-            const selected = game.id === selectedId;
+            const selected = game.partyId === selectedId;
             return (
-              <label key={game.id} title={full ? 'Partida cheia' : undefined}
+              <label key={game.partyId} title={full ? 'Partida cheia' : undefined}
                 className={cx('grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 rounded-tile px-3 py-2.5 transition-colors',
-                  '@min-[48rem]:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_4.5rem_4.5rem_1.5rem]',
+                  '@min-[48rem]:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_4.5rem_4.5rem_1.5rem]',
                   selected ? 'bg-accent-soft ring-2 ring-accent' : 'surface',
                   full || locked ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-raised', full && 'opacity-60')}>
                 <input type="radio" name={`${baseId}-game`} className="sr-only" checked={selected} disabled={full}
-                  onChange={() => onSelect(game.id)}
+                  onChange={() => onSelect(game.partyId)}
                   aria-label={`${game.name || 'Sem nome'}, de ${game.owner || 'dono desconhecido'}${game.hasPassword ? ', com senha' : ''}${full ? ', cheia' : ''}`} />
                 <span className="truncate text-body font-semibold">{game.name || 'Sem nome'}</span>
                 <span className="text-right text-caption text-muted @min-[48rem]:hidden">
                   {game.players}/{game.maxPlayers}{game.hasPassword && ' · com senha'}
                 </span>
                 <span className="col-span-2 truncate text-caption text-muted @min-[48rem]:hidden">
-                  {[game.owner, listingMapName(game), listingModeName(game)].filter(Boolean).join(' · ')}
+                  {[game.owner, listingMapName(game)].filter(Boolean).join(' · ')}
                 </span>
                 <span className="hidden truncate text-body @min-[48rem]:block">{game.owner}</span>
                 <span className="hidden truncate text-body @min-[48rem]:block">{listingMapName(game)}</span>
-                <span className="hidden truncate text-body @min-[48rem]:block">{listingModeName(game)}</span>
                 <span className="hidden text-body tabular-nums @min-[48rem]:block">{game.players}/{game.maxPlayers}</span>
                 <span className="hidden text-body tabular-nums @min-[48rem]:block">{game.spectators}/{game.maxSpectators}</span>
                 <span className="hidden text-muted @min-[48rem]:flex" title={game.hasPassword ? 'Com senha' : undefined}>

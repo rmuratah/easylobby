@@ -130,11 +130,6 @@ export function listingMapName(game: Pick<CustomGameListing, 'map' | 'mapId'>): 
   return game.map ? customMapNames[game.map] : `Mapa ${game.mapId}`;
 }
 
-/** Tipo de jogo de uma personalizada da lista: o nome do client, ou o `gameType` cru da LCU. */
-export function listingModeName(game: Pick<CustomGameListing, 'map' | 'pickType' | 'gameType'>): string {
-  return game.pickType ? pickTypeName(game.map, game.pickType) : game.gameType || '—';
-}
-
 /** Se as equipes da personalizada já estão cheias. */
 export function listingFull(game: Pick<CustomGameListing, 'players' | 'maxPlayers'>): boolean {
   return game.maxPlayers > 0 && game.players >= game.maxPlayers;

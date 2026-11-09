@@ -12,7 +12,7 @@ import type { CustomGameListing } from '../bindings/CustomGameListing';
 import type { AgentClient } from '../agent/client';
 import { CustomGameBrowser } from './CustomGameBrowser';
 import { Segmented } from './base/Segmented';
-import { listingMapName, listingModeName } from '../agent/customGame';
+import { listingMapName } from '../agent/customGame';
 
 type Props = {
   queues: GameQueue[];
@@ -45,7 +45,7 @@ type Props = {
   customJoin?: {
     games: CustomGameListing[] | null;
     send: AgentClient['send'];
-    onJoin: (id: number, password: string) => void;
+    onJoin: (partyId: string, password: string) => void;
   };
 };
 type CustomView = 'create' | 'join';
@@ -129,10 +129,10 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
   // Criar ou entrar numa personalizada aberta (#264).
   const [customView, setCustomView] = useState<CustomView>('create');
   const joining = isCustom && !!customJoin && customView === 'join';
-  const [joinChoice, setJoinChoice] = useState<number | null>(null);
+  const [joinChoice, setJoinChoice] = useState<string | null>(null);
   const [joinPassword, setJoinPassword] = useState('');
   // A partida escolhida some da tela se sair da lista numa atualização.
-  const joinGame = customJoin?.games?.find(g => g.id === joinChoice) ?? null;
+  const joinGame = customJoin?.games?.find(g => g.partyId === joinChoice) ?? null;
   const joinBlocked = !joinGame || (joinGame.hasPassword && !joinPassword);
   // Tutorial (#228): a parte escolhida nos cards; sem escolha, a primeira liberada que falta.
   const [tutorialChoice, setTutorialChoice] = useState<number | null>(null);
@@ -149,13 +149,13 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
   function choose(mode: GameMode, submode: Submode | null) {
     setSelection({ tab: tab.id, mode: mode.id, queueId: submode?.queueId ?? null });
   }
-  function chooseGame(id: number) {
-    if (id !== joinChoice) setJoinPassword('');
-    setJoinChoice(id);
+  function chooseGame(partyId: string) {
+    if (partyId !== joinChoice) setJoinPassword('');
+    setJoinChoice(partyId);
   }
   function confirm() {
     if (joining) {
-      if (joinGame && !joinBlocked) customJoin?.onJoin(joinGame.id, joinGame.hasPassword ? joinPassword : '');
+      if (joinGame && !joinBlocked) customJoin?.onJoin(joinGame.partyId, joinGame.hasPassword ? joinPassword : '');
       return;
     }
     if (isCustom) {
@@ -196,7 +196,7 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
               options={[{ value: 'create', label: 'Criar' }, { value: 'join', label: 'Entrar' }]} />
           )}
           {joining && customJoin ? (
-            <CustomGameBrowser games={customJoin.games} selectedId={joinGame?.id ?? null} onSelect={chooseGame}
+            <CustomGameBrowser games={customJoin.games} selectedId={joinGame?.partyId ?? null} onSelect={chooseGame}
               locked={locked} send={customJoin.send} />
           ) : (
             <CustomGameForm options={customOptions} onChange={setCustomOptions} locked={locked} problem={customProblem} />
@@ -275,7 +275,7 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
               <p className="truncate text-body font-semibold" aria-live="polite">{joinGame ? joinGame.name || 'Sem nome' : 'Escolha uma partida da lista'}</p>
               {joinGame && (
                 <p className="truncate text-caption text-muted">
-                  {[joinGame.owner, listingMapName(joinGame), listingModeName(joinGame), `${joinGame.players}/${joinGame.maxPlayers} jogadores`].filter(Boolean).join(' · ')}
+                  {[joinGame.owner, listingMapName(joinGame), `${joinGame.players}/${joinGame.maxPlayers} jogadores`].filter(Boolean).join(' · ')}
                 </p>
               )}
             </div>
