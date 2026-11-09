@@ -23,6 +23,7 @@ import { LobbyMemberMenu } from './LobbyMemberMenu';
 import { PracticeLobby } from './PracticeLobby';
 import { ArenaTeams } from './ArenaTeams';
 import { isTutorialQueue } from '../agent/training';
+import { useDismiss } from '../agent/useDismiss';
 
 type Props = {
   connection: ConnectionSnapshot;
@@ -95,6 +96,8 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
   // Os recentes mudam a cada partida; o pop-up pede de novo ao abrir (#206). Um erro deixa a lista anterior.
   const loadRecent = useCallback(() => { Promise.resolve().then(() => send({ type: 'loadRecentPlayers' })).catch(() => {}); }, [send]);
   const [feedback, setFeedback] = useState<Feedback>({ status: 'idle', message: '' });
+  // O erro some sozinho depois de alguns segundos (#335).
+  useDismiss(feedback.status === 'error', feedback.message, () => setFeedback({ status: 'idle', message: '' }));
   const inFlight = useRef(false);
   const mounted = useRef(false);
   const desired = useRef<Desired>({});

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AgentClient } from './client';
+import { useDismiss } from './useDismiss';
 import { friendDisplayName } from './friends';
 import { freeSlots, invitableFriends, isOpenInvitation } from './invitations';
 import type { AgentState } from '../bindings/AgentState';
@@ -42,6 +43,8 @@ export function useLobbyInvite(state: AgentState, send: AgentClient['send']): Lo
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   const [done, setDone] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState('');
+  // O erro some sozinho depois de alguns segundos (#335).
+  useDismiss(!!error, error, () => setError(''));
   const inFlight = useRef(new Set<string>());
   const mounted = useRef(false);
   useEffect(() => {
