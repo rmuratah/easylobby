@@ -5,6 +5,7 @@ import { AGENT_URL } from '../agent/client';
 import { AUTO_SAVE_DELAY_MS } from './LobbyPanel';
 import { queueNames } from '../agent/queues';
 import type { AgentState } from '../bindings/AgentState';
+import type { CustomGameListing } from '../bindings/CustomGameListing';
 import type { ClientMessage } from '../bindings/ClientMessage';
 import type { GameflowPhase } from '../bindings/GameflowPhase';
 import type { GameQueue } from '../bindings/GameQueue';
@@ -392,6 +393,60 @@ describe('lobby pelo único /ws do App', () => {
     fireEvent.click(radio("Summoner's Rift"));
     expect(pick).toHaveValue('blindPick');
     expect(panel().queryByRole('combobox', { name: 'Seleção de mapas' })).not.toBeInTheDocument();
+  });
+
+  it('lista as personalizadas abertas e entra numa com senha (#264)', async () => {
+    const games: CustomGameListing[] = [
+      { id: 1001, name: '5v5 da firma', owner: 'Ahri Mid', mapId: 11, map: 'summonersRift', gameType: 'DRAFT_MODE', pickType: 'draftMode',
+        players: 3, maxPlayers: 10, spectators: 0, maxSpectators: 4, spectatorPolicy: 'all', hasPassword: false },
+      { id: 1002, name: 'ARAM fechado', owner: 'Garen Top', mapId: 12, map: 'howlingAbyss', gameType: 'ALL_RANDOM', pickType: 'allRandom',
+        players: 2, maxPlayers: 10, spectators: 1, maxSpectators: 4, spectatorPolicy: 'friendsOnly', hasPassword: true },
+      { id: 1003, name: '1v1 no meio', owner: 'Yasuo', mapId: 11, map: 'summonersRift', gameType: 'BLIND_PICK', pickType: 'blindPick',
+        players: 2, maxPlayers: 2, spectators: 0, maxSpectators: 2, spectatorPolicy: 'none', hasPassword: false },
+    ];
+    render(<App />);
+    hello();
+    fireEvent.click(panel().getByRole('tab', { name: 'Personalizada' }));
+    fireEvent.click(button('Entrar'));
+    // A primeira visita busca a lista sozinha.
+    expect(request().command).toEqual({ type: 'refreshCustomGames' });
+    expect(panel().getByRole('status')).toHaveTextContent('Buscando personalizadas');
+    act(() => socket().receive({ type: 'customGames', customGames: games }));
+    await ok();
+    expect(panel().getByRole('radio', { name: /^5v5 da firma, de Ahri Mid$/ })).toBeEnabled();
+    expect(panel().getByRole('radio', { name: /^ARAM fechado, de Garen Top, com senha$/ })).toBeEnabled();
+    // Cheia aparece, mas não dá para escolher.
+    expect(panel().getByRole('radio', { name: /1v1 no meio.*cheia/ })).toBeDisabled();
+
+    // Busca pelo nome ou pelo dono, sem acento.
+    const search = panel().getByRole('searchbox', { name: 'Buscar personalizada' });
+    fireEvent.change(search, { target: { value: 'garen' } });
+    expect(panel().queryByRole('radio', { name: /5v5 da firma/ })).not.toBeInTheDocument();
+    fireEvent.change(search, { target: { value: 'ninguém' } });
+    expect(panel().getByText(/Nenhuma personalizada encontrada/)).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: '' } });
+
+    // O rodapé leva a partida escolhida; com senha, pede a senha antes de entrar.
+    const enter = () => panel().getAllByRole('button', { name: 'Entrar' }).at(-1)!;
+    expect(enter()).toBeDisabled();
+    fireEvent.click(panel().getByRole('radio', { name: /ARAM fechado/ }));
+    expect(panel().getByText('Garen Top · Abismo Uivante · Todos aleatórios · 2/10 jogadores')).toBeInTheDocument();
+    expect(enter()).toBeDisabled();
+    fireEvent.change(panel().getByLabelText('Senha'), { target: { value: 'senha' } });
+    fireEvent.click(enter());
+    expect(request().command).toEqual({ type: 'joinCustomGame', id: 1002, password: 'senha' });
+    expect(panel().getByRole('status')).toHaveTextContent('Entrando na partida personalizada');
+    await ok();
+    expect(panel().getByRole('status')).toHaveTextContent('Você entrou na partida personalizada');
+
+    // Sem senha, o comando vai sem o campo; o Atualizar pede a lista de novo.
+    fireEvent.click(panel().getByRole('radio', { name: /5v5 da firma/ }));
+    expect(panel().queryByLabelText('Senha')).not.toBeInTheDocument();
+    fireEvent.click(enter());
+    expect(request().command).toEqual({ type: 'joinCustomGame', id: 1001 });
+    await ok();
+    fireEvent.click(button('Atualizar'));
+    expect(request().command).toEqual({ type: 'refreshCustomGames' });
   });
 
   it('não mostra a aba Personalizada ao trocar a fila de um lobby', () => {

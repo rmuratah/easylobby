@@ -5,6 +5,7 @@ import {
   testChampSelect, testConversation, testFriend, testInvitation, testMatchmaking, testReadyCheck, testRuneCatalog, testRunePages,
   testSummonerSpellCatalog, testChampionCatalog,
 } from '../test/events';
+import type { CustomGameListing } from '../bindings/CustomGameListing';
 import type { AgentState } from '../bindings/AgentState';
 import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { GameQueue } from '../bindings/GameQueue';
@@ -62,6 +63,11 @@ beforeEach(() => {
   client.start();
 });
 afterEach(() => { client.stop(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+const testCustomGame: CustomGameListing = {
+  id: 6123456789, name: '5v5 da firma', owner: 'Ahri Mid', mapId: 11, map: 'summonersRift', gameType: 'DRAFT_MODE',
+  pickType: 'draftMode', players: 3, maxPlayers: 10, spectators: 0, maxSpectators: 4, spectatorPolicy: 'all', hasPassword: true,
+};
 
 describe('canal do agente', () => {
   it('aguarda hello, aplica eventos e substitui o estado inteiro na ressincronização', () => {
@@ -248,6 +254,7 @@ describe('eventos de estado do agente', () => {
     [{ type: 'matchDetails', matchDetails: { ...testMatch, remake: false, players: [testMatch.player] } },
       { matchDetails: { ...testMatch, remake: false, players: [testMatch.player] } }],
     [{ type: 'playerProfile', playerProfile: testPlayerProfile }, { playerProfile: testPlayerProfile }],
+    [{ type: 'customGames', customGames: [testCustomGame] }, { customGames: [testCustomGame] }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
     socket().receive(hello({ lobby: testLobby }));
     socket().receive(message);

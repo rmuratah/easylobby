@@ -19,6 +19,7 @@ const emptyState: AgentState = {
   champSelect: null,
   champSelectChat: null,
   lobbyChat: null,
+  customGames: null,
   summonerSpellCatalog: null,
   championCatalog: null,
   champSelectChampions: { pickable: null, bannable: null, subset: null },
