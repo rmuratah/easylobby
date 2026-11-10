@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { ConnectionSnapshot } from '../agent/client';
 import { assetUrl } from '../agent/assets';
-import { friendDisplayName, groupFriends, memberName, playerName } from '../agent/friends';
+import { friendDisplayName, groupFriends, memberName } from '../agent/friends';
 import { isOpenInvitation } from '../agent/invitations';
 import { friendTarget, type InviteTarget, type LobbyInvite } from '../agent/lobbyInvite';
 import type { Friend } from '../bindings/Friend';
@@ -283,7 +283,8 @@ const statusText: Record<GroupEntry['status'], string> = {
   OnHold: 'Convite em espera',
   Accepted: 'No grupo',
   Declined: 'Recusou o convite',
-  Kicked: 'Saiu do grupo',
+  Kicked: 'Expulso do grupo',
+  Left: 'Saiu do grupo',
   Error: 'Convite não entregue',
   Unknown: 'Convite enviado',
 };
@@ -315,7 +316,7 @@ export function LobbyGroupCard({ connection }: { connection: ConnectionSnapshot 
     ...lobby.members.filter(m => m.puuid !== me)
       .map(m => ({ puuid: m.puuid, name: memberName(m, state.friends), status: 'member' as const })),
     ...lobby.invitations.filter(i => !lobby.members.some(m => m.puuid === i.puuid))
-      .map(i => ({ puuid: i.puuid, name: playerName(i.puuid, i.summonerId, state.friends), status: i.state })),
+      .map(i => ({ puuid: i.puuid, name: memberName(i, state.friends), status: i.state })),
   ];
   return (
     <section aria-label="Grupo" className="flex w-full flex-col gap-2 rounded-panel surface p-4 text-ink shadow-soft animate-fade-up">

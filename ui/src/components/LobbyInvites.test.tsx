@@ -48,7 +48,7 @@ describe('convidar pelo lobby', () => {
     // Convites aceitos fecham o pop-up.
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     // Até o convite aparecer no lobby, Ana não volta para a lista; recusado, ela volta.
-    rerender(<LobbyPanel connection={connected({ lobby: { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 2001, state: 'Declined' }] } })} send={send} />);
+    rerender(<LobbyPanel connection={connected({ lobby: { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 2001, state: 'Declined', gameName: '', tagLine: '' }] } })} send={send} />);
     fireEvent.click(lobby().getAllByRole('button', { name: 'Convidar amigo' })[0]);
     expect(within(screen.getByRole('dialog')).getByRole('checkbox', { name: 'Convidar Ana#BR1' })).toBeEnabled();
     fireEvent.keyDown(document, { key: 'Escape' });
@@ -100,7 +100,7 @@ describe('convidar pelo lobby', () => {
       { puuid: 'rafa', summonerId: 3001, gameName: 'Rafinha', tagLine: 'BR1', summonerName: '', championId: 64, playedAt: '2026-11-07T20:00:00.000Z' },
       { puuid: 'ana', summonerId: 2001, gameName: 'Ana', tagLine: 'BR1', summonerName: '', championId: null, playedAt: '2026-11-07T19:00:00.000Z' },
     ];
-    render(<LobbyPanel connection={connected({ recentPlayers, lobby: { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 2001, state: 'Pending' }] } })} send={send} />);
+    render(<LobbyPanel connection={connected({ recentPlayers, lobby: { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 2001, state: 'Pending', gameName: '', tagLine: '' }] } })} send={send} />);
     fireEvent.click(lobby().getAllByRole('button', { name: 'Convidar amigo' })[0]);
     await act(async () => {});
     expect(send).toHaveBeenCalledWith({ type: 'loadRecentPlayers' });
@@ -146,7 +146,7 @@ describe('convidar pelo lobby', () => {
     const { rerender } = render(<LobbyPanel connection={connected({})} send={send} />);
     await drop('caio');
     expect(lobby().getByRole('alert')).toHaveTextContent('Caio#BR1 não pode ser convidado agora');
-    rerender(<LobbyPanel connection={connected({ lobby: { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 2001, state: 'Pending' }] } })} send={send} />);
+    rerender(<LobbyPanel connection={connected({ lobby: { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 2001, state: 'Pending', gameName: '', tagLine: '' }] } })} send={send} />);
     await drop('ana');
     expect(lobby().getByRole('alert')).toHaveTextContent('Ana#BR1 já foi convidado.');
     rerender(<LobbyPanel connection={connected({ gameflowPhase: 'Matchmaking' })} send={send} />);
@@ -157,7 +157,7 @@ describe('convidar pelo lobby', () => {
 
   it('o aviso de "já foi convidado" não passa para o próximo lobby', async () => {
     const send = ok();
-    const pending = { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 2001, state: 'Pending' as const }] };
+    const pending = { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 2001, state: 'Pending' as const, gameName: '', tagLine: '' }] };
     const { rerender } = render(<LobbyPanel connection={connected({ lobby: pending })} send={send} />);
     await drop('ana');
     expect(lobby().getByRole('alert')).toHaveTextContent('Ana#BR1 já foi convidado.');
@@ -183,13 +183,23 @@ describe('card do grupo', () => {
     render(<LobbyGroupCard connection={connected({ lobby: { ...flexLobby,
       members: [testLobby.members[0], { ...member, puuid: 'ana', summonerId: 2001 }],
       invitations: [
-        { puuid: 'ana', summonerId: 2001, state: 'Accepted' },
-        { puuid: 'bia', summonerId: 2002, state: 'Pending' },
-        { puuid: 'caio', summonerId: 2003, state: 'Declined' },
+        { puuid: 'ana', summonerId: 2001, state: 'Accepted', gameName: '', tagLine: '' },
+        { puuid: 'bia', summonerId: 2002, state: 'Pending', gameName: '', tagLine: '' },
+        { puuid: 'caio', summonerId: 2003, state: 'Declined', gameName: '', tagLine: '' },
       ] } })} />);
     expect(screen.getByRole('heading', { name: 'Grupo (3)' })).toBeInTheDocument();
     expect(within(screen.getByRole('list', { name: 'Convidados' })).getAllByRole('listitem').map(item => item.textContent))
       .toEqual(['Ana#BR1No grupo', '…Bia#BR1Convite pendente', 'Caio#BR1Recusou o convite']);
+  });
+
+  it('mostra o Riot ID de quem não é amigo e "Saiu do grupo" para quem saiu (#356)', () => {
+    render(<LobbyGroupCard connection={connected({ friends: [], lobby: { ...flexLobby,
+      invitations: [
+        { puuid: 'outro', summonerId: 3001, state: 'Left', gameName: 'Rafinha Lover', tagLine: 'mrt' },
+        { puuid: 'sem-nome', summonerId: 3002, state: 'Kicked', gameName: '', tagLine: '' },
+      ] } })} />);
+    expect(within(screen.getByRole('list', { name: 'Convidados' })).getAllByRole('listitem').map(item => item.textContent))
+      .toEqual(['Rafinha Lover#mrtSaiu do grupo', 'JogadorExpulso do grupo']);
   });
 
   it('sem convidados, explica como convidar; sem lobby, some', () => {

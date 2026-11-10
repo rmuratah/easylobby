@@ -384,11 +384,18 @@ pub struct SubteamSlot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct LobbyInvitation {
-    /// Quem foi convidado. A UI cruza com a lista de amigos para o nome.
+    /// Quem foi convidado.
     pub puuid: String,
     #[ts(type = "number")]
     pub summoner_id: u64,
     pub state: InvitationState,
+    /// Riot ID de quem foi convidado (#356), como em
+    /// [`LobbyMember::game_name`]: o agente busca pelo `puuid`, então chega
+    /// vazio primeiro. Vazio também se a LCU não respondeu; aí a UI procura
+    /// na lista de amigos.
+    pub game_name: String,
+    /// Tag do Riot ID (depois do `#`). Vazia junto com `game_name`.
+    pub tag_line: String,
 }
 
 /// Estado de um convite enviado, como a LCU manda.
@@ -404,6 +411,10 @@ pub enum InvitationState {
     Declined,
     /// O jogador entrou e foi expulso do lobby.
     Kicked,
+    /// O jogador entrou e saiu do lobby (#356). A LCU não tem esse estado:
+    /// ela põe `Declined` no convite de quem sai, e o agente troca por este
+    /// quando o jogador já esteve em `members`.
+    Left,
     /// Em espera (lobby cheio, por exemplo).
     OnHold,
     /// A LCU não conseguiu entregar.
@@ -416,12 +427,13 @@ pub enum InvitationState {
 
 impl InvitationState {
     /// Todos os estados, com [`InvitationState::Unknown`] no fim.
-    pub const ALL: [InvitationState; 8] = [
+    pub const ALL: [InvitationState; 9] = [
         InvitationState::Requested,
         InvitationState::Pending,
         InvitationState::Accepted,
         InvitationState::Declined,
         InvitationState::Kicked,
+        InvitationState::Left,
         InvitationState::OnHold,
         InvitationState::Error,
         InvitationState::Unknown,
@@ -435,6 +447,7 @@ impl InvitationState {
             InvitationState::Accepted => "Accepted",
             InvitationState::Declined => "Declined",
             InvitationState::Kicked => "Kicked",
+            InvitationState::Left => "Left",
             InvitationState::OnHold => "OnHold",
             InvitationState::Error => "Error",
             InvitationState::Unknown => "Unknown",
@@ -551,6 +564,8 @@ impl Lobby {
                 puuid: i.to_puuid,
                 summoner_id: i.to_summoner_id,
                 state: InvitationState::from_lcu(&i.state),
+                game_name: String::new(),
+                tag_line: String::new(),
             })
             .collect();
         let local_member = raw.local_member.as_ref();
@@ -1118,6 +1133,8 @@ mod tests {
                 puuid: "amigo".into(),
                 summoner_id: 4,
                 state: InvitationState::Pending,
+                game_name: String::new(),
+                tag_line: String::new(),
             }],
             is_open: true,
             restrictions: Vec::new(),
@@ -1157,7 +1174,7 @@ mod tests {
                     "ready": false,
                 }],
                 "canInvite": true,
-                "invitations": [{"puuid": "amigo", "summonerId": 4, "state": "Pending"}],
+                "invitations": [{"puuid": "amigo", "summonerId": 4, "state": "Pending", "gameName": "", "tagLine": ""}],
                 "isOpen": true,
                 "restrictions": [],
                 "custom": null,

@@ -88,7 +88,7 @@ function lobbyMember(v: unknown): v is LobbyMember {
     Array.isArray(v.playerSlots) && v.playerSlots.every(playerSlot);
 }
 const invitationStates = {
-  Requested: true, Pending: true, Accepted: true, Declined: true, Kicked: true, OnHold: true, Error: true, Unknown: true,
+  Requested: true, Pending: true, Accepted: true, Declined: true, Kicked: true, Left: true, OnHold: true, Error: true, Unknown: true,
 } satisfies Record<InvitationState, true>;
 function lobbyInvitation(v: unknown): v is LobbyInvitation {
   return object(v) && typeof v.puuid === 'string' && uint(v.summonerId) &&

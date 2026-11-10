@@ -29,17 +29,17 @@ function deferred() {
 describe('regras de convite', () => {
   it('desconta membros e convites em aberto das vagas', () => {
     const lobby: Lobby = { ...flexLobby, invitations: [
-      { puuid: 'ana', summonerId: 0, state: 'Pending' },
-      { puuid: 'bia', summonerId: 0, state: 'Declined' },
+      { puuid: 'ana', summonerId: 0, state: 'Pending', gameName: '', tagLine: '' },
+      { puuid: 'bia', summonerId: 0, state: 'Declined', gameName: '', tagLine: '' },
     ] };
     expect(freeSlots(lobby)).toBe(3);
-    expect(freeSlots({ ...testLobby, invitations: [{ puuid: 'ana', summonerId: 0, state: 'Pending' }] })).toBe(0);
+    expect(freeSlots({ ...testLobby, invitations: [{ puuid: 'ana', summonerId: 0, state: 'Pending', gameName: '', tagLine: '' }] })).toBe(0);
   });
 
   it('oferece só amigos online no PC, fora do grupo e sem convite em aberto', () => {
-    const lobby: Lobby = { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 0, state: 'Pending' }] };
+    const lobby: Lobby = { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 0, state: 'Pending', gameName: '', tagLine: '' }] };
     expect(invitableFriends(lobby, [ana, bia, caio, davi]).map(f => f.puuid)).toEqual(['bia']);
-    const declined: Lobby = { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 0, state: 'Declined' }] };
+    const declined: Lobby = { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 0, state: 'Declined', gameName: '', tagLine: '' }] };
     expect(invitableFriends(declined, [ana, bia]).map(f => f.puuid)).toEqual(['ana', 'bia']);
     const semLol = friend({ id: 'eva', puuid: 'eva', gameName: 'Eva', summonerId: 0 });
     expect(invitableFriends(flexLobby, [semLol, bia]).map(f => f.puuid)).toEqual(['bia']);
