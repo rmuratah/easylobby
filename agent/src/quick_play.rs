@@ -101,6 +101,12 @@ pub struct PlayerSlotInput {
     /// mais que `runePageId`. `null` segue as regras de `runePageId`.
     #[serde(default)]
     pub runes: Option<SlotRunesInput>,
+    /// Skin escolhida para o slot (#403). Precisa ser do campeão do slot
+    /// (`skinId / 1000 == championId`). `null` mantém a skin do slot quando
+    /// o campeão não muda, e senão usa a padrão.
+    #[serde(default)]
+    #[ts(type = "number | null")]
+    pub skin_id: Option<u32>,
 }
 
 /// Runas de um slot escolhidas no editor (#331), na ordem de
@@ -135,6 +141,8 @@ pub enum InvalidSlots {
     /// Runas editadas incompletas: sem as 9 runas, sem árvore ou com as duas
     /// árvores iguais.
     Runes,
+    /// Skin de outro campeão (#403).
+    Skin,
 }
 
 impl std::fmt::Display for InvalidSlots {
@@ -147,6 +155,7 @@ impl std::fmt::Display for InvalidSlots {
             InvalidSlots::RepeatedChampion => "os dois campeões são iguais",
             InvalidSlots::Spells => "escolha dois feitiços diferentes",
             InvalidSlots::Runes => "escolha uma runa em cada linha das duas árvores",
+            InvalidSlots::Skin => "essa skin não é do campeão escolhido",
         })
     }
 }
@@ -170,6 +179,12 @@ pub fn check_slots(slots: &[PlayerSlotInput]) -> Result<(), InvalidSlots> {
             (Some(d), Some(f)) if d != 0 && f != 0 && d != f => {}
             _ => return Err(InvalidSlots::Spells),
         }
+        if slot
+            .skin_id
+            .is_some_and(|skin| !skin_of(skin, slot.champion_id))
+        {
+            return Err(InvalidSlots::Skin);
+        }
         if let Some(runes) = &slot.runes {
             if runes.perk_ids.len() != SLOT_PERK_COUNT
                 || runes.perk_ids.contains(&0)
@@ -188,6 +203,12 @@ pub fn check_slots(slots: &[PlayerSlotInput]) -> Result<(), InvalidSlots> {
         return Err(InvalidSlots::RepeatedChampion);
     }
     Ok(())
+}
+
+/// Se `skin_id` é uma skin de `champion_id`: a LCU numera as skins de cada
+/// campeão a partir de `championId * 1000` (a padrão).
+pub const fn skin_of(skin_id: u32, champion_id: u32) -> bool {
+    skin_id / 1000 == champion_id
 }
 
 /// Uma página de runas no formato dos slots.
@@ -326,7 +347,8 @@ pub fn needs_recommendation(input: &PlayerSlotInput, current: Option<&PlayerSlot
 /// - Runas: as editadas (#331); senão as da página escolhida; senão as do
 ///   slot atual, se o campeão e
 ///   a posição não mudaram; senão as recomendadas; senão a página em uso.
-/// - Skin: a do slot atual com o mesmo campeão, senão a padrão.
+/// - Skin: a escolhida (#403); senão a do slot atual com o mesmo campeão;
+///   senão a padrão.
 pub fn build_slot(
     input: &PlayerSlotInput,
     current: Option<&PlayerSlot>,
@@ -374,9 +396,15 @@ pub fn build_slot(
                 .map(|r| r.to_perks())
         })
         .unwrap_or_default();
-    let skin_id = current
-        .filter(|c| c.champion_id == input.champion_id && c.skin_id != 0)
-        .map_or(input.champion_id * 1000, |c| c.skin_id);
+    let skin_id = input
+        .skin_id
+        .filter(|&skin| skin_of(skin, input.champion_id))
+        .or_else(|| {
+            current
+                .filter(|c| c.champion_id == input.champion_id && c.skin_id != 0)
+                .map(|c| c.skin_id)
+        })
+        .unwrap_or(input.champion_id * 1000);
     json!({
         "championId": input.champion_id,
         "positionPreference": input.position.lcu_name(),
@@ -492,6 +520,7 @@ mod tests {
             spell2_id: None,
             rune_page_id: None,
             runes: None,
+            skin_id: None,
         }
     }
 
@@ -712,6 +741,32 @@ mod tests {
         assert_eq!(
             built["perks"],
             r#"{"perkIds":[8214,8226],"perkStyle":8200,"perkSubStyle":8300}"#
+        );
+
+        // Skin escolhida (#403): vale mais que a do slot; de outro campeão, não vale.
+        let skin = PlayerSlotInput {
+            skin_id: Some(22010),
+            ..input(22, Position::Bottom)
+        };
+        assert_eq!(
+            build_slot(&skin, Some(&current), Some(&pages()), None)["skinId"],
+            22010
+        );
+        let base = PlayerSlotInput {
+            skin_id: Some(22000),
+            ..input(22, Position::Bottom)
+        };
+        assert_eq!(
+            build_slot(&base, Some(&current), Some(&pages()), None)["skinId"],
+            22000
+        );
+        let wrong = PlayerSlotInput {
+            skin_id: Some(266001),
+            ..input(22, Position::Bottom)
+        };
+        assert_eq!(
+            check_slots(&[wrong, input(266, Position::Top)]),
+            Err(InvalidSlots::Skin)
         );
 
         // Sem recomendação: feitiços da posição e a página em uso.

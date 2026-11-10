@@ -4,10 +4,11 @@ import type { AgentClient } from '../agent/client';
 import { searchChampions } from '../agent/champSelect';
 import { positionNames } from '../agent/positions';
 import {
-  draftComplete, draftFromSlots, missingScarcePosition, SLOT_POSITIONS, sameDraft, slotChampions, slotsCommand,
+  draftComplete, draftFromSlots, missingScarcePosition, SLOT_POSITIONS, sameDraft, slotChampions, slotSkins, slotsCommand,
   withChampion, withPosition, type SlotExtras, type SlotPair,
 } from '../agent/quickPlay';
 import { spellName, spellsForQueue, spellUnlocked, withSpell } from '../agent/summonerSpells';
+import { assetUrl } from '../agent/assets';
 import { useCommand } from '../agent/useCommand';
 import type { AgentState } from '../bindings/AgentState';
 import type { LobbyMember } from '../bindings/LobbyMember';
@@ -38,7 +39,7 @@ type Props = {
   notes?: HTMLElement | null;
 };
 
-type Open = { index: 0 | 1; kind: 'champion' | 'position' | 'spells' | 'runes'; spell?: 0 | 1 };
+type Open = { index: 0 | 1; kind: 'champion' | 'position' | 'spells' | 'runes' | 'skin'; spell?: 0 | 1 };
 const slotLabels = ['Primeira posição', 'Segunda posição'] as const;
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 
@@ -132,6 +133,11 @@ export function QuickPlaySlots({ member, mine, canEdit, state, send, notes }: Pr
                       expanded={isOpen('runes')} onClick={() => toggle('runes')}>
                       <RuneIcon kind="perk" id={saved.keystoneId} size={26} />
                     </SlotButton>
+                    {/* Skin do campeão no slot (#403). */}
+                    <SlotButton editable={editable} disabled={command.pending} label={`${slotLabels[index]}: skin`}
+                      expanded={isOpen('skin')} onClick={() => toggle('skin')}>
+                      <SkinThumb id={saved.skinId || saved.championId * 1000} size={26} />
+                    </SlotButton>
                   </span>
                 )}
               </span>
@@ -169,6 +175,11 @@ export function QuickPlaySlots({ member, mine, canEdit, state, send, notes }: Pr
               <RuneChoice state={state} onChoose={runePageId => choose(pair, { index: open.index, runePageId })} />
             </>
           )}
+          {open.kind === 'skin' && member.playerSlots[open.index] && (
+            <SkinChoice state={state} send={send} championId={member.playerSlots[open.index].championId}
+              current={member.playerSlots[open.index].skinId}
+              onChoose={skinId => choose(pair, { index: open.index, skinId })} />
+          )}
         </Popover>
       )}
     </div>
@@ -182,6 +193,7 @@ function popoverTitle(open: Open): string {
     case 'champion': return `Campeão da ${slot}`;
     case 'spells': return `Feitiço ${open.spell === 1 ? 'F' : 'D'} da ${slot}`;
     case 'runes': return `Runas da ${slot}`;
+    case 'skin': return `Skin da ${slot}`;
   }
 }
 
@@ -305,6 +317,54 @@ function SpellChoice({ state, current, onChoose }: { state: AgentState; current:
           </li>
         );
       })}
+    </ul>
+  );
+}
+
+/** Miniatura da skin: o recorte de cima da arte de carregamento. */
+function SkinThumb({ id, size }: { id: number; size: number }) {
+  return (
+    <span className="block overflow-hidden rounded-full bg-raised" style={{ width: size, height: size }}>
+      <img src={assetUrl('skin', id)} alt="" aria-hidden="true" className="h-full w-full object-cover object-top"
+        onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />
+    </span>
+  );
+}
+
+/** Skins da conta para o campeão do slot (#403), pedidas ao abrir; a padrão está sempre na lista. */
+function SkinChoice({ state, send, championId, current, onChoose }: {
+  state: AgentState; send: AgentClient['send']; championId: number; current: number; onChoose: (skinId: number) => void;
+}) {
+  const load = useCommand(send);
+  const { run } = load;
+  useEffect(() => {
+    void run({ type: 'openChampionSkins', championId }, { pending: 'Carregando as skins…', failure: 'carregar as skins' });
+    // `run` muda a cada render; as skins são pedidas de novo só para outro campeão.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [championId]);
+  const loaded = state.championSkins?.championId === championId;
+  const skins = slotSkins(state.championSkins, championId);
+  if (!loaded) {
+    return <p className={cx('px-1 text-body', load.feedback.status === 'error' ? 'text-danger' : 'text-muted')}>
+      {load.feedback.status === 'error' ? load.feedback.message : 'Carregando as skins…'}
+    </p>;
+  }
+  const selected = current || championId * 1000;
+  return (
+    <ul aria-label="Skins" className="grid max-h-80 grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2 overflow-y-auto pr-1">
+      {skins.map(skin => (
+        <li key={skin.id}>
+          <button type="button" aria-pressed={selected === skin.id} onClick={() => onChoose(skin.id)}
+            aria-label={skin.isBase ? `${skin.name} (padrão)` : skin.name} title={skin.name}
+            className={cx('flex w-full flex-col gap-1 rounded-control border-2 border-transparent p-1 text-left hover:bg-raised aria-pressed:border-accent aria-pressed:bg-accent-soft', focusRing)}>
+            <span className="block aspect-[308/560] w-full overflow-hidden rounded-control-sm bg-raised">
+              <img src={assetUrl('skin', skin.id)} alt="" loading="lazy" className="h-full w-full object-cover"
+                onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />
+            </span>
+            <span className="line-clamp-2 px-0.5 text-caption font-semibold text-ink">{skin.name}</span>
+          </button>
+        </li>
+      ))}
     </ul>
   );
 }

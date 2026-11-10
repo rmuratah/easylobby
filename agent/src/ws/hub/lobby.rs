@@ -809,6 +809,7 @@ mod tests {
             spell2_id: None,
             rune_page_id: None,
             runes: None,
+            skin_id: None,
         }
     }
 

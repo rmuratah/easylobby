@@ -1,5 +1,7 @@
 import type { Champion } from '../bindings/Champion';
 import type { ChampionCatalog } from '../bindings/ChampionCatalog';
+import type { ChampionSkins } from '../bindings/ChampionSkins';
+import type { CollectionSkin } from '../bindings/CollectionSkin';
 import type { Command } from '../bindings/Command';
 import type { PlayerSlot } from '../bindings/PlayerSlot';
 import type { PlayerSlotInput } from '../bindings/PlayerSlotInput';
@@ -53,8 +55,8 @@ export function sameDraft(a: SlotPair, b: SlotPair): boolean {
   return a.every((slot, i) => slot.championId === b[i].championId && slot.position === b[i].position);
 }
 
-/** O que mudar além da posição e do campeão num slot: os feitiços ou a página de runas. */
-export type SlotExtras = { index: 0 | 1; spells?: [number, number]; runePageId?: number; runes?: SlotRunesInput };
+/** O que mudar além da posição e do campeão num slot: os feitiços, a página de runas ou a skin (#403). */
+export type SlotExtras = { index: 0 | 1; spells?: [number, number]; runePageId?: number; runes?: SlotRunesInput; skinId?: number };
 
 /** Comando `setPlayerSlots` com os dois slots. Feitiços e runas em `null` ficam com o que o agente decidir. */
 export function slotsCommand(pair: SlotPair, extras?: SlotExtras): Extract<Command, { type: 'setPlayerSlots' }> {
@@ -67,9 +69,16 @@ export function slotsCommand(pair: SlotPair, extras?: SlotExtras): Extract<Comma
       spell2Id: mine?.spells?.[1] ?? null,
       runePageId: mine?.runePageId ?? null,
       runes: mine?.runes ?? null,
+      skinId: mine?.skinId ?? null,
     };
   });
   return { type: 'setPlayerSlots', slots };
+}
+
+/** Skins que dá para pôr num slot (#403): as da conta, com a padrão sempre, e só as do campeão. */
+export function slotSkins(skins: ChampionSkins | null, championId: number): CollectionSkin[] {
+  if (!skins || skins.championId !== championId) return [];
+  return skins.skins.filter(skin => skin.isBase || skin.owned);
 }
 
 /** Se a fila pede uma posição prioritária e nenhuma das duas escolhidas é. */
