@@ -312,6 +312,10 @@ function SpellChoice({ state, current, onChoose }: { state: AgentState; current:
 const runeButton = cx('flex items-center justify-center rounded-full p-0.5 transition-colors hover:bg-raised',
   'aria-pressed:bg-accent-soft aria-pressed:ring-2 aria-pressed:ring-accent', focusRing);
 
+/** Linha de runas em grade: cada ícone no centro de uma parte igual da largura. */
+const runeRow = 'grid justify-items-center gap-1';
+const columns = (count: number) => ({ gridTemplateColumns: `repeat(${Math.max(count, 1)}, minmax(0, 1fr))` });
+
 /**
  * Editor compacto das runas de um slot (#331): só os ícones, com o nome no
  * hover (e para o leitor de tela), e o botão Salvar no fim. Começa com as
@@ -329,7 +333,7 @@ function SlotRuneEditor({ catalog, slot, onSave }: { catalog: RuneCatalog; slot:
   function row(perks: number[], label: string, selected: (id: number) => boolean, choose: (id: number) => void, size: number) {
     const anySelected = perks.some(selected);
     return (
-      <div role="group" aria-label={label} className="flex flex-wrap gap-1">
+      <div role="group" aria-label={label} className={runeRow} style={columns(perks.length)}>
         {perks.map(id => (
           <button key={id} type="button" aria-pressed={selected(id)} aria-label={perkName(id)} title={perkName(id)}
             onClick={() => choose(id)} className={runeButton}>
@@ -341,7 +345,7 @@ function SlotRuneEditor({ catalog, slot, onSave }: { catalog: RuneCatalog; slot:
   }
   function styles(options: RuneStyle[], selected: number, label: string, choose: (id: number) => void) {
     return (
-      <div role="group" aria-label={label} className="flex flex-wrap gap-1">
+      <div role="group" aria-label={label} className={runeRow} style={columns(options.length)}>
         {options.map(style => (
           <button key={style.id} type="button" aria-pressed={style.id === selected} aria-label={style.name} title={style.name}
             onClick={() => choose(style.id)} className={runeButton}>
@@ -355,15 +359,19 @@ function SlotRuneEditor({ catalog, slot, onSave }: { catalog: RuneCatalog; slot:
   return (
     <form aria-label="Editar runas" className="flex flex-col gap-2"
       onSubmit={event => { event.preventDefault(); if (!problem) onSave(slotRunes(draft)); }}>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex min-w-0 flex-col gap-1.5">
+      {/* Duas colunas da mesma altura, como no client oficial: a primária à
+          esquerda e a secundária com os fragmentos à direita. Cada linha divide
+          a largura em partes iguais, e as linhas se espalham na altura, para
+          os ícones formarem uma grade e as colunas, dois retângulos (#401). */}
+      <div className="grid grid-cols-2">
+        <div className="flex min-w-0 flex-col justify-between gap-1.5 pr-3">
           {styles(catalog.styles, draft.primaryStyleId, 'Árvore primária', id => setDraft(withPrimary(catalog, draft, id)))}
           {primarySlots(primary).map((slot, index) => (
             <div key={`p${index}`}>{row(slot.perks, slot.kind === 'keystone' ? 'Runa principal' : `Primária, linha ${index}`,
               id => draft.primary[index] === id, id => setDraft(withPrimaryPerk(draft, index, id)), slot.kind === 'keystone' ? 34 : 26)}</div>
           ))}
         </div>
-        <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex min-w-0 flex-col justify-between gap-1.5 border-l border-line pl-3">
           {styles(allowedSubStyles(catalog, primary), draft.subStyleId, 'Árvore secundária', id => setDraft(withSubStyle(draft, id)))}
           {subSlots(sub).map((slot, index) => (
             <div key={`s${index}`}>{row(slot.perks, `Secundária, linha ${index + 1}`,
