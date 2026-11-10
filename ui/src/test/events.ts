@@ -46,7 +46,7 @@ export const testRunePages: RunePages = {
 };
 export const testRuneCatalog: RuneCatalog = {
   styles: [{ id: 8100, name: 'Dominação', allowedSubStyles: [8300], slots: [] }],
-  perks: [{ id: 8112, name: 'Eletrocutar', shortDesc: 'Dano extra' }],
+  perks: [{ id: 8112, name: 'Eletrocutar', shortDesc: 'Dano extra', longDesc: 'Dano extra.\n\nTempo de Recarga: 20s' }],
 };
 export const testSummonerSpellCatalog: SummonerSpellCatalog = {
   spells: [{ id: 4, name: 'Flash', description: 'Teleporta.', summonerLevel: 7, gameModes: ['CLASSIC'], queues: ['rankedSolo'] }],

@@ -10,4 +10,10 @@ export type Perk = {
    * Descrição curta, em texto puro (sem as marcações da Riot).
    */
   shortDesc: string,
+  /**
+   * Descrição completa, para o tooltip da runa (#420): texto puro, com
+   * as quebras de linha da Riot (`<br>`) como `\n`. Vazia quando o
+   * `perks.json` não traz.
+   */
+  longDesc: string,
 };

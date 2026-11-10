@@ -17,17 +17,9 @@ import { cx } from './base/cx';
 import { ScarceMark } from './ScarceMark';
 import { ChampionIcon } from './ChampSelectPanel';
 import { PositionIcon } from './PositionIcon';
-import { RuneIcon } from './RunePagesPanel';
+import { RuneIcon, RunePageEditor } from './RuneEditor';
 import { SpellIcon } from './SummonerSpellsPicker';
 import type { PlayerSlot } from '../bindings/PlayerSlot';
-import type { RuneCatalog } from '../bindings/RuneCatalog';
-import type { RunePage } from '../bindings/RunePage';
-import type { RuneStyle } from '../bindings/RuneStyle';
-import type { SlotRunesInput } from '../bindings/SlotRunesInput';
-import {
-  allowedSubStyles, draftFromPage, draftProblem, draftToInput, findStyle, newDraft, primarySlots, statSlots, subSlots,
-  withPrimary, withPrimaryPerk, withStatPerk, withSubPerk, withSubStyle, type RuneDraft,
-} from './runePage';
 
 type Props = {
   member: LobbyMember;
@@ -287,8 +279,10 @@ function SlotsDialog({ open, onOpen, onClose, pair, savedSlot, state, send, pend
               {tab === 'runes' && saved && (state.runeCatalog
                 // Editor das runas do slot (#331), com as que ele já tem. Uma página salva só carrega no editor: nada
                 // vai para o LoL sem o Salvar (#417).
-                ? <SlotRuneEditor key={`${index}:${saved.championId}:${saved.perkIds.join(',')}`} catalog={state.runeCatalog} slot={saved}
-                  pages={state.runePages?.pages ?? []} onSave={runes => onSave(pair, { index, runes })} />
+                ? <RunePageEditor key={`${index}:${saved.championId}:${saved.perkIds.join(',')}`} catalog={state.runeCatalog}
+                  runePages={state.runePages} send={send}
+                  slot={{ current: { perkIds: saved.perkIds, styleId: saved.runeStyleId, subStyleId: saved.runeSubStyleId },
+                    onSave: runes => onSave(pair, { index, runes }) }} />
                 : <p className="px-1 text-body text-muted">Carregando runas…</p>)}
             </div>
           </section>
@@ -555,110 +549,3 @@ function SkinChoice({ state, send, championId, current, onChoose }: {
   );
 }
 
-const runeButton = cx('flex items-center justify-center rounded-full p-0.5 transition-colors hover:bg-raised',
-  'aria-pressed:bg-accent-soft aria-pressed:ring-2 aria-pressed:ring-accent', focusRing);
-
-/** Linha de runas em grade: cada ícone no centro de uma parte igual da largura. */
-const runeRow = 'grid justify-items-center gap-1';
-const columns = (count: number) => ({ gridTemplateColumns: `repeat(${Math.max(count, 1)}, minmax(0, 1fr))` });
-
-/**
- * Editor compacto das runas de um slot (#331): só os ícones, com o nome no
- * hover (e para o leitor de tela), e o botão Salvar no fim. Começa com as
- * runas que o slot já tem; sem elas, numa página nova.
- */
-function SlotRuneEditor({ catalog, slot, pages, onSave }: {
-  catalog: RuneCatalog; slot: PlayerSlot | undefined; pages: RunePage[]; onSave: (runes: SlotRunesInput) => void;
-}) {
-  const [draft, setDraft] = useState<RuneDraft>(() => slot && slot.perkIds.length
-    ? draftFromPage(catalog, { name: 'Slot', primaryStyleId: slot.runeStyleId, subStyleId: slot.runeSubStyleId, selectedPerkIds: slot.perkIds })
-    : newDraft(catalog, 'Slot'));
-  const pageId = useId();
-  const savedPages = pages.filter(page => !page.isTemporary && page.isValid);
-  const primary = findStyle(catalog, draft.primaryStyleId);
-  const sub = findStyle(catalog, draft.subStyleId);
-  const problem = draftProblem(draft);
-  const perkName = (id: number) => catalog.perks.find(p => p.id === id)?.name ?? `Runa ${id}`;
-
-  function row(perks: number[], label: string, selected: (id: number) => boolean, choose: (id: number) => void, size: number) {
-    const anySelected = perks.some(selected);
-    return (
-      <div role="group" aria-label={label} className={runeRow} style={columns(perks.length)}>
-        {perks.map(id => (
-          <button key={id} type="button" aria-pressed={selected(id)} aria-label={perkName(id)} title={perkName(id)}
-            onClick={() => choose(id)} className={runeButton}>
-            <RuneIcon kind="perk" id={id} size={size} className={cx(anySelected && !selected(id) && 'opacity-50 grayscale')} />
-          </button>
-        ))}
-      </div>
-    );
-  }
-  function styles(options: RuneStyle[], selected: number, label: string, choose: (id: number) => void) {
-    return (
-      <div role="group" aria-label={label} className={runeRow} style={columns(options.length)}>
-        {options.map(style => (
-          <button key={style.id} type="button" aria-pressed={style.id === selected} aria-label={style.name} title={style.name}
-            onClick={() => choose(style.id)} className={runeButton}>
-            <RuneIcon kind="perkStyle" id={style.id} size={34} className={cx(style.id !== selected && 'opacity-60')} />
-          </button>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <form aria-label="Editar runas" className="flex min-h-[26rem] flex-1 flex-col gap-3"
-      onSubmit={event => { event.preventDefault(); if (!problem) onSave(slotRunes(draft)); }}>
-      {/* Uma página salva só preenche o editor (#417): o slot muda no Salvar, como qualquer edição. */}
-      {savedPages.length > 0 && (
-        <label htmlFor={pageId} className="flex flex-wrap items-center gap-2 text-caption font-semibold uppercase tracking-[0.06em] text-muted">
-          Carregar página salva
-          <select id={pageId} value="" onChange={event => {
-            const page = savedPages.find(p => p.id === Number(event.target.value));
-            if (page) setDraft(draftFromPage(catalog, page));
-          }} className={cx('h-9 min-w-0 flex-1 rounded-control border border-control bg-raised px-3 text-body font-medium normal-case tracking-normal text-ink', focusRing)}>
-            <option value="" disabled>Escolha uma página para editar</option>
-            {savedPages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}
-          </select>
-        </label>
-      )}
-      {/* Duas colunas da mesma altura, como no client oficial: a primária à
-          esquerda e a secundária com os fragmentos à direita. Cada linha divide
-          a largura em partes iguais, e as linhas se espalham na altura, para
-          os ícones formarem uma grade e as colunas, dois retângulos (#401). */}
-      <div className="grid flex-1 grid-cols-2">
-        <div className="flex min-w-0 flex-col justify-between gap-2 pr-4">
-          {styles(catalog.styles, draft.primaryStyleId, 'Árvore primária', id => setDraft(withPrimary(catalog, draft, id)))}
-          {primarySlots(primary).map((slot, index) => (
-            <div key={`p${index}`}>{row(slot.perks, slot.kind === 'keystone' ? 'Runa principal' : `Primária, linha ${index}`,
-              id => draft.primary[index] === id, id => setDraft(withPrimaryPerk(draft, index, id)), slot.kind === 'keystone' ? 60 : 46)}</div>
-          ))}
-        </div>
-        <div className="flex min-w-0 flex-col justify-between gap-2 border-l border-line pl-4">
-          {styles(allowedSubStyles(catalog, primary), draft.subStyleId, 'Árvore secundária', id => setDraft(withSubStyle(draft, id)))}
-          {subSlots(sub).map((slot, index) => (
-            <div key={`s${index}`}>{row(slot.perks, `Secundária, linha ${index + 1}`,
-              id => draft.sub.some(pick => pick.row === index && pick.perkId === id), id => setDraft(withSubPerk(draft, index, id)), 42)}</div>
-          ))}
-          {statSlots(primary).map((slot, index) => (
-            <div key={`f${index}`}>{row(slot.perks, slot.label || `Fragmento ${index + 1}`,
-              id => draft.stats[index] === id, id => setDraft(withStatPerk(draft, index, id)), 30)}</div>
-          ))}
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-2 border-t border-line pt-2">
-        <p className={cx('min-w-0 text-caption', problem ? 'text-warn' : 'text-muted')}>{problem ?? 'Passe o mouse para ver o nome.'}</p>
-        <button type="submit" disabled={!!problem}
-          className={cx('inline-flex h-9 shrink-0 items-center rounded-full bg-accent px-4 text-caption font-semibold text-on-accent disabled:cursor-not-allowed disabled:bg-raised disabled:text-muted', focusRing)}>
-          Salvar
-        </button>
-      </div>
-    </form>
-  );
-}
-
-/** Runas do rascunho no formato do comando, na ordem da página. */
-function slotRunes(draft: RuneDraft): SlotRunesInput {
-  const { primaryStyleId, subStyleId, selectedPerkIds } = draftToInput(draft);
-  return { perkIds: selectedPerkIds, styleId: primaryStyleId, subStyleId };
-}
