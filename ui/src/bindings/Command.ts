@@ -66,6 +66,8 @@ export type Command =
   | { "type": "inviteToLobby", invitees: Array<Invitee>, }
   | { "type": "inviteByRiotId", gameName: string, tagLine: string, }
   | { "type": "loadRecentPlayers" }
+  | { "type": "loadSuggestedPlayers" }
+  | { "type": "dismissSuggestedPlayer", summonerId: number, }
   | { "type": "sendChatMessage", conversationId: string, body: string, }
   | { "type": "setActiveConversation", conversationId: string | null, }
   | { "type": "loadMoreMatches" }

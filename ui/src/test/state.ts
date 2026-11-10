@@ -28,6 +28,7 @@ const emptyState: AgentState = {
   friends: [],
   friendGroups: [],
   recentPlayers: [],
+  suggestedPlayers: [],
   receivedInvitations: [],
   conversations: [],
   ranked: null,

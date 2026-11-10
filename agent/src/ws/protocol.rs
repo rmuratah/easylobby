@@ -67,7 +67,7 @@ use crate::match_history::{MatchDetails, MatchHistory};
 use crate::matchmaking::Matchmaking;
 use crate::patch_notes::PatchNotes;
 use crate::player_profile::PlayerProfile;
-use crate::players::RecentPlayer;
+use crate::players::{RecentPlayer, SuggestedPlayer};
 use crate::queues::GameQueue;
 use crate::quick_play::PlayerSlotInput;
 use crate::ranked::RankedStats;
@@ -220,6 +220,13 @@ pub enum ServerMessage {
     /// `loadRecentPlayers`. Sempre a lista inteira, a partida mais nova
     /// primeiro. Vazia com o LoL fechado.
     RecentPlayers { recent_players: Vec<RecentPlayer> },
+    /// Os jogadores que o client oficial sugere convidar mudaram (#377),
+    /// relidos pelo `loadSuggestedPlayers` ou depois de um
+    /// `dismissSuggestedPlayer`. Sempre a lista inteira, na ordem da LCU.
+    /// Vazia com o LoL fechado.
+    SuggestedPlayers {
+        suggested_players: Vec<SuggestedPlayer>,
+    },
     /// Os convites de lobby recebidos mudaram (#32): chegou um, ou um foi
     /// aceito, recusado ou cancelado. Sempre a lista inteira dos pendentes;
     /// vazia quando não há nenhum e com o LoL fechado.
@@ -361,6 +368,9 @@ pub struct AgentState {
     pub friend_groups: Vec<FriendGroup>,
     /// Jogadores das partidas recentes (#206), a partida mais nova primeiro.
     pub recent_players: Vec<RecentPlayer>,
+    /// Jogadores que o client oficial sugere convidar (#377), na ordem da
+    /// LCU. Vazia até a UI pedir com `loadSuggestedPlayers`.
+    pub suggested_players: Vec<SuggestedPlayer>,
     /// Convites de lobby recebidos e ainda pendentes (#32).
     pub received_invitations: Vec<ReceivedInvitation>,
     /// Conversas 1:1 abertas (#31), cada uma com o histórico da sessão. Sem
@@ -863,6 +873,21 @@ pub enum Command {
     /// numa mensagem `recentPlayers` antes da resposta. Responde
     /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
     LoadRecentPlayers,
+    /// Relê os jogadores sugeridos (#377), para a seção "Sugeridos" do
+    /// convite (a UI pede ao abrir o pop-up): `GET
+    /// /lol-suggested-players/v1/suggested-players`. A lista chega numa
+    /// mensagem `suggestedPlayers` antes da resposta. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
+    LoadSuggestedPlayers,
+    /// Dispensa o sugerido `summoner_id` (#377): `DELETE
+    /// /lol-suggested-players/v1/suggested-players/{summonerId}`. A lista sem
+    /// ele chega numa mensagem `suggestedPlayers` antes da resposta. Responde
+    /// `invalidCommand` sem falar com a LCU se ele não está na lista,
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar.
+    DismissSuggestedPlayer {
+        #[ts(type = "number")]
+        summoner_id: u64,
+    },
     /// Manda `body` na conversa 1:1 `conversationId` (#31): o `id` de uma
     /// [`Conversation`], que é o `pid` do amigo no chat. Se a conversa ainda
     /// não estava aberta, a LCU abre e ela chega numa mensagem
@@ -1009,6 +1034,7 @@ mod tests {
                     "champSelect": null,
                     "receivedInvitations": [],
                     "recentPlayers": [],
+                    "suggestedPlayers": [],
                     "conversations": [],
                     "champSelectChat": null,
                     "runePages": null,
@@ -1202,6 +1228,14 @@ mod tests {
                     summoner_id: 42,
                     allowed: true,
                 },
+            ),
+            (
+                json!({"type": "loadSuggestedPlayers"}),
+                Command::LoadSuggestedPlayers,
+            ),
+            (
+                json!({"type": "dismissSuggestedPlayer", "summonerId": 42}),
+                Command::DismissSuggestedPlayer { summoner_id: 42 },
             ),
             (
                 json!({"type": "refreshCustomGames"}),

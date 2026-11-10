@@ -501,6 +501,7 @@ impl Hub {
                 self.set_friends(Vec::new());
                 self.set_friend_groups(Vec::new());
                 self.set_recent_players(Vec::new());
+                self.set_suggested_players(Vec::new());
                 self.set_ranked(None);
                 self.set_champion_masteries(Vec::new());
                 self.set_match_history(None);

@@ -60,6 +60,8 @@ import type { PlayerProfile } from '../bindings/PlayerProfile';
 import type { MatchPlayer } from '../bindings/MatchPlayer';
 import type { MatchResult } from '../bindings/MatchResult';
 import type { RecentPlayer } from '../bindings/RecentPlayer';
+import type { SuggestedPlayer } from '../bindings/SuggestedPlayer';
+import type { SuggestedPlayerReason } from '../bindings/SuggestedPlayerReason';
 import type { CustomGameListing } from '../bindings/CustomGameListing';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
@@ -236,6 +238,11 @@ function recentPlayer(v: unknown): v is RecentPlayer {
   return object(v) && uint(v.summonerId) && strings(v, ['puuid', 'gameName', 'tagLine', 'summonerName', 'playedAt']) &&
     (v.championId === null || uint(v.championId));
 }
+const suggestedReasons: readonly string[] = ['friendOfFriend', 'previousPremade', 'victoriousComrade', 'onlineFriend', 'other'] satisfies SuggestedPlayerReason[];
+function suggestedPlayer(v: unknown): v is SuggestedPlayer {
+  return object(v) && uint(v.summonerId) && strings(v, ['puuid', 'gameName', 'tagLine', 'summonerName', 'commonFriendName']) &&
+    typeof v.reason === 'string' && suggestedReasons.includes(v.reason);
+}
 // Perfil (#171, #172, #174, #175).
 function rankedEntry(v: unknown): v is RankedEntry {
   return object(v) && nullableString(v.tier) && nullableString(v.division) &&
@@ -357,7 +364,7 @@ function state(v: unknown): v is AgentState {
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
-    champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) &&
+    champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) && list(v.suggestedPlayers, suggestedPlayer) &&
     ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory) &&
     matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && patchNotes(v.patchNotes) &&
     collection(v.collection) && championSkins(v.championSkins) &&
@@ -398,6 +405,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'friends': valid = list(v.friends, friend); break;
     case 'friendGroups': valid = list(v.friendGroups, friendGroup); break;
     case 'recentPlayers': valid = list(v.recentPlayers, recentPlayer); break;
+    case 'suggestedPlayers': valid = list(v.suggestedPlayers, suggestedPlayer); break;
     case 'ranked': valid = ranked(v.ranked); break;
     case 'championMasteries': valid = list(v.championMasteries, championMastery); break;
     case 'matchHistory': valid = matchHistory(v.matchHistory); break;

@@ -9,8 +9,18 @@ import type { Friend } from '../bindings/Friend';
 /** Tipo do arrasto de um amigo da lista de amigos para o lobby (#206); leva o `puuid`. */
 export const FRIEND_DRAG_TYPE = 'application/x-easylobby-friend';
 
-/** Quem convidar: um amigo, um jogador recente ou achado pelo nome. */
-export type InviteTarget = { puuid: string; summonerId: number; name: string };
+/**
+ * Quem convidar: um amigo, um jogador recente, um sugerido ou achado pelo
+ * nome. `key` identifica o alvo quando não há `puuid` (sugerido sem `puuid`,
+ * #377); sem ele, vale o `puuid`.
+ */
+export type InviteTarget = { puuid: string; summonerId: number; name: string; key?: string };
+
+/** O que identifica o alvo na seleção e nos convites em envio. */
+export const targetKey = (target: InviteTarget) => target.key ?? target.puuid;
+
+/** A `key` de um alvo sem `puuid`, pelo `summonerId`. */
+export const summonerKey = (summonerId: number) => `invocador-${summonerId}`;
 
 export type LobbyInvite = {
   /** Se dá para convidar agora: lobby aberto a convites, na fase de lobby e com vaga. */
@@ -60,8 +70,8 @@ export function useLobbyInvite(state: AgentState, send: AgentClient['send']): Lo
     return () => { mounted.current = false; };
   }, []);
 
-  const reflected = (puuid: string) => !lobby
-    || lobby.invitations.some(i => i.puuid === puuid) || lobby.members.some(m => m.puuid === puuid);
+  const reflected = (key: string) => !lobby
+    || [...lobby.invitations, ...lobby.members].some(p => p.puuid === key || summonerKey(p.summonerId) === key);
   if ([...done].some(reflected)) setDone(new Set([...done].filter(puuid => !reflected(puuid))));
 
   const slots = lobby ? freeSlots(lobby) - done.size : 0;
@@ -69,9 +79,9 @@ export function useLobbyInvite(state: AgentState, send: AgentClient['send']): Lo
   const candidates = canInvite && lobby ? invitableFriends(lobby, friends).filter(f => !done.has(f.puuid)) : [];
 
   async function inviteMany(selected: InviteTarget[]): Promise<boolean> {
-    const batch = selected.filter(f => !inFlight.current.has(f.puuid) && !done.has(f.puuid));
+    const batch = selected.filter(f => !inFlight.current.has(targetKey(f)) && !done.has(targetKey(f)));
     if (batch.length === 0) return false;
-    const puuids = batch.map(f => f.puuid);
+    const puuids = batch.map(targetKey);
     for (const puuid of puuids) inFlight.current.add(puuid);
     setPending(current => new Set([...current, ...puuids]));
     setError('');

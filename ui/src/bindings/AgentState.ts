@@ -28,6 +28,7 @@ import type { ReceivedInvitation } from "./ReceivedInvitation";
 import type { RecentPlayer } from "./RecentPlayer";
 import type { RuneCatalog } from "./RuneCatalog";
 import type { RunePages } from "./RunePages";
+import type { SuggestedPlayer } from "./SuggestedPlayer";
 import type { Summoner } from "./Summoner";
 import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
 import type { TutorialPart } from "./TutorialPart";
@@ -122,6 +123,11 @@ export type AgentState = {
    * Jogadores das partidas recentes (#206), a partida mais nova primeiro.
    */
   recentPlayers: Array<RecentPlayer>,
+  /**
+   * Jogadores que o client oficial sugere convidar (#377), na ordem da
+   * LCU. Vazia até a UI pedir com `loadSuggestedPlayers`.
+   */
+  suggestedPlayers: Array<SuggestedPlayer>,
   /**
    * Convites de lobby recebidos e ainda pendentes (#32).
    */

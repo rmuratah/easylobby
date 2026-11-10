@@ -135,6 +135,10 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
             tag_line,
         } => hub.invite_by_riot_id(&game_name, &tag_line).await,
         Command::LoadRecentPlayers => hub.load_recent_players().await,
+        Command::LoadSuggestedPlayers => hub.load_suggested_players().await,
+        Command::DismissSuggestedPlayer { summoner_id } => {
+            hub.dismiss_suggested_player(summoner_id).await
+        }
         Command::SendChatMessage {
             conversation_id,
             body,

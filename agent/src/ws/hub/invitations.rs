@@ -2,7 +2,7 @@
 
 use super::{not_connected, Hub, Resource, Shared, Stamp};
 use crate::invitations::{self, InvitationError, Invitee, ReceivedInvitation};
-use crate::players::RecentPlayer;
+use crate::players::{self, RecentPlayer, SuggestedPlayer};
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 
 impl Hub {
@@ -140,6 +140,68 @@ impl Hub {
         }
     }
 
+    /// Comando `loadSuggestedPlayers` (#377): relê os jogadores que o client
+    /// oficial sugere convidar.
+    pub async fn load_suggested_players(&self) -> CommandResult {
+        let Some((client, session, me)) = ({
+            let shared = self.lock();
+            shared.client.clone().map(|client| {
+                let me = shared.state.summoner.as_ref().map_or(0, |s| s.summoner_id);
+                (client, shared.session, me)
+            })
+        }) else {
+            return not_connected();
+        };
+        match players::suggested(&client, me).await {
+            Ok(list) => {
+                self.update(|shared| {
+                    if shared.session != session {
+                        return None;
+                    }
+                    write_suggested_players(shared, list)
+                });
+                CommandResult::Ok
+            }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
+    /// Comando `dismissSuggestedPlayer` (#377): tira o jogador da lista de
+    /// sugeridos na LCU e publica a lista sem ele antes de devolver.
+    pub async fn dismiss_suggested_player(&self, summoner_id: u64) -> CommandResult {
+        let (client, listed) = {
+            let shared = self.lock();
+            let listed = shared
+                .state
+                .suggested_players
+                .iter()
+                .any(|p| p.summoner_id == summoner_id);
+            (shared.client.clone(), listed)
+        };
+        let Some(client) = client else {
+            return not_connected();
+        };
+        if !listed {
+            return CommandResult::error(
+                ErrorCode::InvalidCommand,
+                "esse jogador não está nos sugeridos",
+            );
+        }
+        if let Err(error) = players::dismiss_suggested(&client, summoner_id).await {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        self.update(|shared| {
+            let mut list = shared.state.suggested_players.clone();
+            list.retain(|p| p.summoner_id != summoner_id);
+            write_suggested_players(shared, list)
+        });
+        CommandResult::Ok
+    }
+
+    pub fn set_suggested_players(&self, suggested_players: Vec<SuggestedPlayer>) {
+        self.update(|shared| write_suggested_players(shared, suggested_players));
+    }
+
     pub fn set_recent_players(&self, recent_players: Vec<RecentPlayer>) {
         self.update(|shared| {
             if shared.state.recent_players == recent_players {
@@ -149,6 +211,17 @@ impl Hub {
             Some(ServerMessage::RecentPlayers { recent_players })
         });
     }
+}
+
+fn write_suggested_players(
+    shared: &mut Shared,
+    suggested_players: Vec<SuggestedPlayer>,
+) -> Option<ServerMessage> {
+    if shared.state.suggested_players == suggested_players {
+        return None;
+    }
+    shared.state.suggested_players = suggested_players.clone();
+    Some(ServerMessage::SuggestedPlayers { suggested_players })
 }
 
 /// Troca os convites recebidos, contando a escrita mesmo quando nada muda
@@ -192,6 +265,36 @@ mod tests {
                 })
                 .collect(),
         )
+    }
+
+    #[tokio::test]
+    async fn sugeridos_pedem_o_lol_e_so_dispensam_quem_esta_na_lista() {
+        let hub = Hub::new();
+        let code = |result: CommandResult| match result {
+            CommandResult::Error { code, .. } => Some(code),
+            CommandResult::Ok => None,
+        };
+        assert_eq!(
+            code(hub.load_suggested_players().await),
+            Some(ErrorCode::NotConnected)
+        );
+        assert_eq!(
+            code(hub.dismiss_suggested_player(10).await),
+            Some(ErrorCode::NotConnected)
+        );
+        let (_, mut rx) = hub.subscribe();
+        let list = crate::players::suggested_from_json(
+            &serde_json::json!([{"summonerId": 10, "reason": "FriendOfFriend"}]),
+            0,
+        );
+        hub.set_suggested_players(list.clone());
+        assert_eq!(hub.state().suggested_players, list);
+        assert_eq!(
+            rx.recv().await.unwrap(),
+            ServerMessage::SuggestedPlayers {
+                suggested_players: list
+            }
+        );
     }
 
     #[tokio::test]

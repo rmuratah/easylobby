@@ -4,11 +4,13 @@ import type { ConnectionSnapshot } from '../agent/client';
 import { assetUrl } from '../agent/assets';
 import { friendDisplayName, groupFriends, memberName } from '../agent/friends';
 import { isOpenInvitation } from '../agent/invitations';
-import { friendTarget, type InviteTarget, type LobbyInvite } from '../agent/lobbyInvite';
+import { friendTarget, summonerKey, targetKey, type InviteTarget, type LobbyInvite } from '../agent/lobbyInvite';
 import type { Friend } from '../bindings/Friend';
 import type { FriendGroup } from '../bindings/FriendGroup';
 import type { InvitationState } from '../bindings/InvitationState';
 import type { RecentPlayer } from '../bindings/RecentPlayer';
+import type { SuggestedPlayer } from '../bindings/SuggestedPlayer';
+import type { SuggestedPlayerReason } from '../bindings/SuggestedPlayerReason';
 import { Avatar, Button } from './base';
 import { cx } from './base/cx';
 
@@ -24,11 +26,30 @@ function matchesFilter(friend: Friend, name: string, tag: string): boolean {
 /** Chaves das seções que não são pastas de amigos. */
 const BY_NAME = 'por-nome';
 const RECENT = 'recentes';
+const SUGGESTED = 'sugeridos';
+
+/** Por que o LoL sugere o jogador (#377). */
+function suggestedReason(player: SuggestedPlayer): string {
+  const reasons: Record<SuggestedPlayerReason, string> = {
+    friendOfFriend: player.commonFriendName ? `Amigo de ${player.commonFriendName}` : 'Amigo de um amigo',
+    previousPremade: 'Já jogou em grupo com você',
+    victoriousComrade: 'Venceu uma partida com você',
+    onlineFriend: 'Amigo online',
+    other: 'Sugerido pelo LoL',
+  };
+  return reasons[player.reason];
+}
+
+/** O alvo de convite de um sugerido; sem `puuid`, identificado pelo `summonerId`. */
+function suggestedTarget(player: SuggestedPlayer): InviteTarget {
+  return { puuid: player.puuid, summonerId: player.summonerId, name: recentName(player),
+    key: player.puuid || summonerKey(player.summonerId) };
+}
 
 /** Base para filtrar um jogador recente com o mesmo filtro dos amigos. */
 const emptyName = { name: '' } as Friend;
 
-function recentName(player: RecentPlayer): string {
+function recentName(player: Pick<RecentPlayer, 'gameName' | 'summonerName' | 'tagLine'>): string {
   const name = player.gameName || player.summonerName || 'Jogador';
   return player.tagLine ? `${name}#${player.tagLine}` : name;
 }
@@ -55,13 +76,19 @@ function ClearButton({ label, onClick }: { label: string; onClick: () => void })
  * oficial: filtro por nome de jogo e tagline, os amigos disponíveis nas
  * pastas da lista de amigos (recolhíveis), marcar vários e "Enviar convites".
  */
-export function InvitePicker({ invites, groups, recent, loadRecent, onClose }: {
+export function InvitePicker({ invites, groups, recent, loadRecent, suggested = [], loadSuggested, dismissSuggested, onClose }: {
   invites: LobbyInvite;
   groups: FriendGroup[];
   /** Jogadores das partidas recentes, para a seção "Recentes". */
   recent: RecentPlayer[];
   /** Pede ao agente os recentes de novo; chamado ao abrir. */
   loadRecent: () => void;
+  /** Jogadores que o LoL sugere convidar, para a seção "Sugeridos" (#377). */
+  suggested?: SuggestedPlayer[];
+  /** Pede ao agente os sugeridos de novo; chamado ao abrir. */
+  loadSuggested?: () => void;
+  /** Dispensa um sugerido; devolve o erro para mostrar, ou `null`. */
+  dismissSuggested?: (summonerId: number) => Promise<string | null>;
   onClose: () => void;
 }) {
   const titleId = useId();
@@ -78,7 +105,11 @@ export function InvitePicker({ invites, groups, recent, loadRecent, onClose }: {
   const [sending, setSending] = useState(false);
   const mounted = useRef(true);
 
+  const [dismissing, setDismissing] = useState<ReadonlySet<number>>(new Set());
+  const [dismissError, setDismissError] = useState('');
+
   useEffect(() => { loadRecent(); }, [loadRecent]);
+  useEffect(() => { loadSuggested?.(); }, [loadSuggested]);
 
   useEffect(() => {
     mounted.current = true;
@@ -95,6 +126,10 @@ export function InvitePicker({ invites, groups, recent, loadRecent, onClose }: {
   const folders = groupFriends(invites.candidates.filter(f => matchesFilter(f, name, tag)), groups);
   const recentPlayers = recent.filter(p => !invites.taken(p.puuid) && matchesFilter(
     { ...emptyName, gameName: p.gameName || p.summonerName, tagLine: p.tagLine }, name, tag));
+  const inLobby = (player: SuggestedPlayer) => invites.taken(suggestedTarget(player).key!)
+    || (!!player.puuid && invites.taken(player.puuid));
+  const suggestedPlayers = suggested.filter(p => !inLobby(p) && matchesFilter(
+    { ...emptyName, gameName: p.gameName || p.summonerName, tagLine: p.tagLine }, name, tag));
   // Quem saiu da lista (convidado, ficou offline) sai da seleção; o mesmo jogador pode estar nas duas listas.
   const targets = new Map<string, InviteTarget>();
   for (const friend of invites.candidates) if (selected.has(friend.puuid)) targets.set(friend.puuid, friendTarget(friend));
@@ -102,6 +137,11 @@ export function InvitePicker({ invites, groups, recent, loadRecent, onClose }: {
     if (selected.has(player.puuid) && !targets.has(player.puuid) && !invites.taken(player.puuid)) {
       targets.set(player.puuid, { puuid: player.puuid, summonerId: player.summonerId, name: recentName(player) });
     }
+  }
+  for (const player of suggested) {
+    const target = suggestedTarget(player);
+    const key = targetKey(target);
+    if (selected.has(key) && !targets.has(key) && !inLobby(player)) targets.set(key, target);
   }
   const chosen = [...targets.values()];
   const full = chosen.length >= invites.slots;
@@ -142,12 +182,22 @@ export function InvitePicker({ invites, groups, recent, loadRecent, onClose }: {
     if (ok) setByNameSent(riotId);
   }
 
-  function playerRow(key: string, puuid: string, title: string, subtitle: ReactNode, iconName: string, iconSrc: string | undefined, label: string) {
+  async function dismiss(player: SuggestedPlayer) {
+    if (!dismissSuggested || dismissing.has(player.summonerId)) return;
+    setDismissing(current => new Set([...current, player.summonerId]));
+    setDismissError('');
+    // Fechado o pop-up no meio, os estados abaixo somem com ele.
+    const error = await dismissSuggested(player.summonerId);
+    setDismissing(current => new Set([...current].filter(id => id !== player.summonerId)));
+    if (error) setDismissError(`Não foi possível dispensar ${recentName(player)}: ${error}`);
+  }
+
+  function playerRow(key: string, puuid: string, title: string, subtitle: ReactNode, iconName: string, iconSrc: string | undefined, label: string, extra?: ReactNode) {
     const checked = selected.has(puuid);
     const busy = invites.pending(puuid);
     return (
-      <li key={key}>
-        <label className={cx('flex items-center gap-3 rounded-control px-2 py-1.5',
+      <li key={key} className="flex items-center gap-1">
+        <label className={cx('flex min-w-0 flex-1 items-center gap-3 rounded-control px-2 py-1.5',
           (checked || !full) && !busy ? 'cursor-pointer hover:bg-raised' : 'opacity-60')}>
           <input type="checkbox" checked={checked} disabled={busy || (!checked && full)}
             onChange={() => toggleFriend(puuid)} aria-label={`Convidar ${label}`}
@@ -158,6 +208,7 @@ export function InvitePicker({ invites, groups, recent, loadRecent, onClose }: {
             {subtitle && <span className="truncate text-caption text-muted">{subtitle}</span>}
           </span>
         </label>
+        {extra}
       </li>
     );
   }
@@ -216,6 +267,30 @@ export function InvitePicker({ invites, groups, recent, loadRecent, onClose }: {
               </section>
             );
           })()}
+          {suggestedPlayers.length > 0 && (() => {
+            const open = isOpen(SUGGESTED, false);
+            return (
+              <section aria-label="Sugeridos" className="flex flex-col gap-1">
+                {sectionHeader(SUGGESTED, 'Sugeridos', open, suggestedPlayers.length)}
+                {open && (
+                  <ul className="flex flex-col">
+                    {suggestedPlayers.map(player => {
+                      const display = recentName(player);
+                      const key = targetKey(suggestedTarget(player));
+                      return playerRow(`sugerido-${player.summonerId}`, key, player.gameName || display, suggestedReason(player),
+                        player.gameName || display, undefined, display,
+                        dismissSuggested && (
+                          <Button size="sm" variant="ghost" loading={dismissing.has(player.summonerId)}
+                            aria-label={`Dispensar ${display}`} onClick={() => { void dismiss(player); }}>
+                            Dispensar
+                          </Button>
+                        ));
+                    })}
+                  </ul>
+                )}
+              </section>
+            );
+          })()}
           {(recentPlayers.length > 0 || !filtering) && (() => {
             const open = isOpen(RECENT, true);
             return (
@@ -260,6 +335,7 @@ export function InvitePicker({ invites, groups, recent, loadRecent, onClose }: {
           })}
         </div>
         {invites.error && <p role="alert" className="px-1 text-body text-danger">{invites.error}</p>}
+        {dismissError && <p role="alert" className="px-1 text-body text-danger">{dismissError}</p>}
         <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
           <span className="text-caption text-muted">
             {full && chosen.length > 0 ? `Limite de vagas: ${invites.slots}` : `${chosen.length} selecionado${chosen.length === 1 ? '' : 's'}`}

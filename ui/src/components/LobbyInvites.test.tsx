@@ -116,6 +116,37 @@ describe('convidar pelo lobby', () => {
     expect(send).toHaveBeenCalledWith({ type: 'inviteToLobby', invitees: [{ summonerId: 3001, puuid: 'rafa' }] });
   });
 
+  it('mostra os sugeridos com o motivo, convida e dispensa', async () => {
+    const send = vi.fn(async (command: Parameters<AgentClient['send']>[0]): Promise<CommandResult> =>
+      command.type === 'dismissSuggestedPlayer' && command.summonerId === 4002
+        ? { status: 'error', code: 'lcu', message: 'a LCU recusou' } : { status: 'ok' });
+    const suggestedPlayers = [
+      { summonerId: 4001, puuid: '', gameName: 'Duda', tagLine: 'BR1', summonerName: '', reason: 'friendOfFriend' as const, commonFriendName: 'Ana' },
+      { summonerId: 4002, puuid: 'leo', gameName: 'Léo', tagLine: 'BR1', summonerName: '', reason: 'previousPremade' as const, commonFriendName: '' },
+      // Já está no grupo: fica de fora.
+      { summonerId: 2001, puuid: 'ana', gameName: 'Ana', tagLine: 'BR1', summonerName: '', reason: 'onlineFriend' as const, commonFriendName: '' },
+    ];
+    render(<LobbyPanel connection={connected({ suggestedPlayers, lobby: { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 2001, state: 'Pending', gameName: '', tagLine: '' }] } })} send={send} />);
+    fireEvent.click(lobby().getAllByRole('button', { name: 'Convidar amigo' })[0]);
+    await act(async () => {});
+    expect(send).toHaveBeenCalledWith({ type: 'loadSuggestedPlayers' });
+    const picker = within(screen.getByRole('dialog', { name: 'Convidar amigos' }));
+    const section = within(picker.getByRole('region', { name: 'Sugeridos' }));
+    expect(section.getAllByRole('checkbox').map(b => b.getAttribute('aria-label'))).toEqual(['Convidar Duda#BR1', 'Convidar Léo#BR1']);
+    expect(section.getByText('Amigo de Ana')).toBeVisible();
+    expect(section.getByText('Já jogou em grupo com você')).toBeVisible();
+
+    // Dispensar: o erro da LCU aparece no pop-up.
+    await act(async () => fireEvent.click(section.getByRole('button', { name: 'Dispensar Léo#BR1' })));
+    expect(send).toHaveBeenCalledWith({ type: 'dismissSuggestedPlayer', summonerId: 4002 });
+    expect(picker.getByRole('alert')).toHaveTextContent('Não foi possível dispensar Léo#BR1: a LCU recusou');
+
+    // Convidar um sugerido sem puuid: vai só com o summonerId.
+    fireEvent.click(section.getByRole('checkbox', { name: 'Convidar Duda#BR1' }));
+    await act(async () => fireEvent.click(picker.getByRole('button', { name: 'Enviar convites' })));
+    expect(send).toHaveBeenCalledWith({ type: 'inviteToLobby', invitees: [{ summonerId: 4001, puuid: '' }] });
+  });
+
   it('as pastas de amigos abrem e fecham', () => {
     const amigos = { id: 7, name: 'Fiotes', priority: 1, collapsed: true };
     render(<LobbyPanel connection={connected({ friends: [ana, { ...bia, groupId: 7, groupName: 'Fiotes' }], friendGroups: [{ id: 0, name: '**Default', priority: 0, collapsed: false }, amigos] })} send={ok()} />);
