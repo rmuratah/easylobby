@@ -26,6 +26,11 @@ export type ChampSelectPlayer = {
    */
   assignedPosition: Position,
   /**
+   * O cargo veio do preenchimento automático (autofill, #360): o jogador
+   * não escolheu essa posição no lobby. O `isAutofilled` da LCU.
+   */
+  isAutofilled: boolean,
+  /**
    * Campeão escolhido (ou em hover na vez do jogador), ou `null`.
    */
   championId: number | null,

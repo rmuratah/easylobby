@@ -121,6 +121,9 @@ struct Shared {
     lobby_ranks: lobby_ranks::LobbyRanks,
     /// A partida ao vivo e o que já foi buscado dela (#268).
     live_game: live_game::LiveGameSync,
+    /// Id da seleção em que o jogador marcou o aviso de autofill como visto
+    /// (#360). Enquanto for a mesma seleção, o aviso fica escondido.
+    autofill_ack: Option<String>,
 }
 
 /// Recurso do estado que um comando relê ou muda pelo REST.
@@ -199,6 +202,7 @@ impl Hub {
                     champion_skins_request: None,
                     lobby_ranks: lobby_ranks::LobbyRanks::default(),
                     live_game: live_game::LiveGameSync::default(),
+                    autofill_ack: None,
                 }),
                 tx,
             }),

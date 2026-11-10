@@ -101,4 +101,10 @@ export type ChampSelect = {
    * Rerolls que o jogador logado ainda tem.
    */
   rerollsRemaining: number,
+  /**
+   * Mostrar o aviso de autofill (#360): o jogador logado caiu numa
+   * posição que não escolheu (`isAutofilled` dele) e ainda não marcou o
+   * aviso como visto com o comando `ackAutofill` nesta seleção.
+   */
+  autofillNotice: boolean,
 };

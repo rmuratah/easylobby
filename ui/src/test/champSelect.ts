@@ -6,7 +6,7 @@ import { testState } from './lobby';
 import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 
 const player = (cellId: number, change: Partial<ChampSelectPlayer> = {}): ChampSelectPlayer => ({
-  cellId, isLocalPlayer: false, gameName: null, tagLine: null, assignedPosition: 'unselected', championId: null,
+  cellId, isLocalPlayer: false, gameName: null, tagLine: null, assignedPosition: 'unselected', isAutofilled: false, championId: null,
   championPickIntent: null, selectedSkinId: null, spell1Id: null, spell2Id: null, ...change,
 });
 
@@ -35,6 +35,7 @@ export const draftChampSelect: ChampSelect = {
   benchChampions: [],
   allowRerolling: false,
   rerollsRemaining: 0,
+  autofillNotice: false,
 };
 
 /** Estado do agente durante a seleção, com o catálogo de campeões. */
