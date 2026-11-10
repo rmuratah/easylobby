@@ -10,6 +10,7 @@
 mod champ_select;
 mod champ_select_chat;
 mod chat;
+mod collection;
 mod custom_games;
 mod custom_lobby;
 mod exit;
@@ -113,6 +114,9 @@ struct Shared {
     /// `puuid` do último `openPlayerProfile` (#255). Um perfil que chega
     /// depois de outro ter sido pedido é descartado.
     player_profile_request: Option<String>,
+    /// Campeão do último `openChampionSkins` (#369). Skins que chegam
+    /// depois de outro campeão ter sido pedido são descartadas.
+    champion_skins_request: Option<u32>,
     /// Elo dos outros membros do lobby, já buscado (#275).
     lobby_ranks: lobby_ranks::LobbyRanks,
     /// A partida ao vivo e o que já foi buscado dela (#268).
@@ -192,6 +196,7 @@ impl Hub {
                     ux_guard: ux_guard::UxGuard::default(),
                     lobby_chat_sync: lobby_chat::LobbyChatSync::default(),
                     player_profile_request: None,
+                    champion_skins_request: None,
                     lobby_ranks: lobby_ranks::LobbyRanks::default(),
                     live_game: live_game::LiveGameSync::default(),
                 }),
@@ -497,6 +502,8 @@ impl Hub {
                 self.set_match_history(None);
                 self.set_match_details(None);
                 self.set_player_profile(None);
+                self.set_collection(None);
+                self.set_champion_skins(None);
                 self.set_custom_games(None);
                 self.set_wallet(None);
                 self.stop_live_game();

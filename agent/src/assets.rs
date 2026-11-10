@@ -13,6 +13,8 @@
 //! GET http://127.0.0.1:47800/assets/perkStyle/8000      -> PNG da árvore Precisão
 //! GET http://127.0.0.1:47800/assets/item/3071           -> PNG da Cutelo Negro
 //! GET http://127.0.0.1:47800/assets/rankedEmblem/4      -> PNG do emblema do Ouro
+//! GET http://127.0.0.1:47800/assets/skin/266001         -> retrato da skin (ou do croma)
+//! GET http://127.0.0.1:47800/assets/skinSplash/266001   -> splash art da skin
 //! ```
 //!
 //! O `id` é o mesmo que a LCU manda (`championId`, `profileIconId`,
@@ -116,10 +118,16 @@ pub enum AssetKind {
     Item,
     /// Emblema de elo, pela posição do tier em [`RANKED_TIERS`] (1 a 10).
     RankedEmblem,
+    /// Retrato de uma skin (a imagem da tela de carregamento), pelo id da
+    /// skin, para a Coleção (#369). Com o id de um croma, a imagem do
+    /// campeão naquele croma.
+    Skin,
+    /// Splash art de uma skin, pelo id da skin (#369).
+    SkinSplash,
 }
 
 impl AssetKind {
-    pub const ALL: [AssetKind; 7] = [
+    pub const ALL: [AssetKind; 9] = [
         AssetKind::Champion,
         AssetKind::ProfileIcon,
         AssetKind::SummonerSpell,
@@ -127,6 +135,8 @@ impl AssetKind {
         AssetKind::PerkStyle,
         AssetKind::Item,
         AssetKind::RankedEmblem,
+        AssetKind::Skin,
+        AssetKind::SkinSplash,
     ];
 
     /// Nome no caminho da URL e da pasta do cache.
@@ -139,6 +149,8 @@ impl AssetKind {
             AssetKind::PerkStyle => "perkStyle",
             AssetKind::Item => "item",
             AssetKind::RankedEmblem => "rankedEmblem",
+            AssetKind::Skin => "skin",
+            AssetKind::SkinSplash => "skinSplash",
         }
     }
 
@@ -157,6 +169,7 @@ impl AssetKind {
             AssetKind::PerkStyle => "perkstyles.json",
             AssetKind::Item => "items.json",
             AssetKind::RankedEmblem => "",
+            AssetKind::Skin | AssetKind::SkinSplash => "skins.json",
         }
     }
 
@@ -164,6 +177,8 @@ impl AssetKind {
     fn path_field(self) -> &'static str {
         match self {
             AssetKind::Champion => "squarePortraitPath",
+            AssetKind::Skin => "loadScreenPath",
+            AssetKind::SkinSplash => "splashPath",
             _ => "iconPath",
         }
     }
@@ -486,6 +501,9 @@ fn version_key(version: &str) -> Option<(u32, u32)> {
 /// Caminhos fora de `/lol-game-data/assets/` ou com `..` ficam de fora.
 fn parse_index(kind: AssetKind, bytes: &[u8]) -> Result<Index, String> {
     let value: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    if matches!(kind, AssetKind::Skin | AssetKind::SkinSplash) {
+        return parse_skins_index(kind, &value);
+    }
     let items = match &value {
         Value::Array(items) => items,
         Value::Object(object) => match object.get("styles") {
@@ -505,6 +523,46 @@ fn parse_index(kind: AssetKind, bytes: &[u8]) -> Result<Index, String> {
         };
         if let Some(relative) = game_data_path(path) {
             index.insert(id, relative);
+        }
+    }
+    Ok(index)
+}
+
+/// Índice de `skins.json` (#369): um objeto com uma entrada por skin, pelo
+/// id em texto. O retrato é `loadScreenPath` (ou `tilePath`, quando a skin
+/// não tem) e o splash é `splashPath`. Os cromas ficam em `chromas` de cada
+/// skin, com a imagem em `chromaPath`, e entram só no índice de
+/// [`AssetKind::Skin`].
+fn parse_skins_index(kind: AssetKind, value: &Value) -> Result<Index, String> {
+    let skins: Vec<&Value> = match value {
+        Value::Object(object) => object.values().collect(),
+        Value::Array(items) => items.iter().collect(),
+        _ => return Err("índice sem lista de skins".into()),
+    };
+    let mut index = Index::new();
+    let mut insert = |item: &Value, fields: &[&str]| {
+        let id = item.get("id").and_then(Value::as_i64);
+        let path = fields
+            .iter()
+            .find_map(|field| item.get(*field).and_then(Value::as_str));
+        if let (Some(id), Some(relative)) = (id, path.and_then(game_data_path)) {
+            index.insert(id, relative);
+        }
+    };
+    for skin in skins {
+        match kind {
+            AssetKind::SkinSplash => insert(skin, &["splashPath", "uncenteredSplashPath"]),
+            _ => {
+                insert(skin, &["loadScreenPath", "tilePath"]);
+                for chroma in skin
+                    .get("chromas")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    insert(chroma, &["chromaPath"]);
+                }
+            }
         }
     }
     Ok(index)
@@ -691,6 +749,27 @@ mod tests {
             index[&3071],
             "assets/items/icons2d/3071_fighter_t3_blackcleaver.png"
         );
+
+        let skins = br#"{
+            "266000": {"id": 266000, "loadScreenPath": "/lol-game-data/assets/ASSETS/Characters/Aatrox/Skins/Base/AatroxLoadScreen.jpg",
+                       "splashPath": "/lol-game-data/assets/v1/champion-splashes/266/266000.jpg", "chromas": null},
+            "266001": {"id": 266001, "tilePath": "/lol-game-data/assets/v1/champion-tiles/266/266001.jpg",
+                       "splashPath": "/lol-game-data/assets/v1/champion-splashes/266/266001.jpg",
+                       "chromas": [{"id": 266010, "chromaPath": "/lol-game-data/assets/v1/champion-chroma-images/266/266010.png"}]},
+            "266002": {"id": 266002, "loadScreenPath": "https://exemplo.com/x.jpg"}
+        }"#;
+        let index = parse_index(AssetKind::Skin, skins).unwrap();
+        assert_eq!(index.len(), 3);
+        assert_eq!(
+            index[&266000],
+            "assets/characters/aatrox/skins/base/aatroxloadscreen.jpg"
+        );
+        assert_eq!(index[&266001], "v1/champion-tiles/266/266001.jpg");
+        assert_eq!(index[&266010], "v1/champion-chroma-images/266/266010.png");
+        let index = parse_index(AssetKind::SkinSplash, skins).unwrap();
+        assert_eq!(index.len(), 2);
+        assert_eq!(index[&266001], "v1/champion-splashes/266/266001.jpg");
+        assert!(parse_index(AssetKind::Skin, b"12").is_err());
 
         assert!(parse_index(AssetKind::Perk, b"{}").is_err());
         assert!(parse_index(AssetKind::Perk, b"nao e json").is_err());

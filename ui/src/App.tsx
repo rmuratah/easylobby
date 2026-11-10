@@ -25,6 +25,7 @@ import { ConnectionScreen } from './components/connection/ConnectionScreen';
 import { SummonerHeader } from './components/home/SummonerHeader';
 import { PatchNotesCard } from './components/home/PatchNotesCard';
 import { FriendProfilePage, ProfilePage } from './components/profile/ProfilePage';
+import { CollectionPage } from './components/collection/CollectionPage';
 import { EmptyState } from './components/base';
 import { totalUnread } from './agent/chat';
 
@@ -137,6 +138,7 @@ export default function App() {
               {screen !== 'home' && !playable && <button type="button" className="nav-button self-start" onClick={() => setNavigation({ screen, page: 'flow' })}>Voltar para {title}</button>}
             </section>
             {activePage === 'profile' && <section aria-label="Perfil"><ProfilePage connection={connection} send={connection.send} onOpenProfile={openPlayerProfile} /></section>}
+            {activePage === 'collection' && <section aria-label="Coleção"><CollectionPage connection={connection} send={connection.send} /></section>}
             {activePage === 'friendProfile' && profileOf && <section aria-label="Perfil do jogador">
               <FriendProfilePage key={profileOf.puuid} connection={connection} send={connection.send} puuid={profileOf.puuid}
                 onBack={closePlayerProfile} onChat={openConversation} onOpenProfile={openPlayerProfile} />

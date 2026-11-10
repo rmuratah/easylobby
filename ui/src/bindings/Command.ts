@@ -70,4 +70,6 @@ export type Command =
   | { "type": "openMatchDetails", gameId: number, }
   | { "type": "openPlayerProfile", puuid: string, }
   | { "type": "loadMorePlayerMatches" }
+  | { "type": "openCollection" }
+  | { "type": "openChampionSkins", championId: number, }
   | { "type": "openPatchNotes" };

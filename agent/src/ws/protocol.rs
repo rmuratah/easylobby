@@ -51,6 +51,7 @@ use crate::champ_select::ChampSelect;
 use crate::champ_select_chat::ChampSelectChat;
 use crate::champions::{ChampSelectChampions, ChampionCatalog};
 use crate::chat::Conversation;
+use crate::collection::{ChampionSkins, Collection};
 use crate::custom_game::CustomGameOptions;
 use crate::custom_game_list::CustomGameListing;
 use crate::custom_lobby::{BotDifficulty, CustomTeam};
@@ -268,6 +269,16 @@ pub enum ServerMessage {
     /// Sempre a partida inteira. `null` fora de partida e com o LoL fechado.
     LiveGame { live_game: Option<LiveGame> },
 
+    // Coleção
+    /// A coleção de campeões da conta (#369), pedida com `openCollection`.
+    /// Fica no estado até ser pedida de novo. `null` com o LoL fechado.
+    Collection { collection: Option<Collection> },
+    /// As skins de um campeão (#369), pedidas com `openChampionSkins`. Fica
+    /// no estado até outro campeão ser pedido. `null` com o LoL fechado.
+    ChampionSkins {
+        champion_skins: Option<ChampionSkins>,
+    },
+
     // Início
     /// As notas da atualização atual do LoL (#301), lidas ao conectar. Ficam
     /// no estado quando o LoL fecha. `null` enquanto o agente não conectou
@@ -372,6 +383,12 @@ pub struct AgentState {
     // Partida ao vivo
     /// A partida em andamento (#268), ou `null` fora de partida.
     pub live_game: Option<LiveGame>,
+
+    // Coleção
+    /// Última coleção pedida com `openCollection` (#369), ou `null`.
+    pub collection: Option<Collection>,
+    /// Últimas skins pedidas com `openChampionSkins` (#369), ou `null`.
+    pub champion_skins: Option<ChampionSkins>,
 
     // Início
     /// Notas da atualização atual do LoL (#301), ou `null`.
@@ -878,6 +895,21 @@ pub enum Command {
     /// recusar.
     LoadMorePlayerMatches,
 
+    // Coleção
+    /// Lê a coleção de campeões da conta (#369): todos os campeões do jogo,
+    /// os que a conta tem e os que não tem, com as contagens de skins. A
+    /// coleção chega numa mensagem `collection` antes da resposta. Responde
+    /// `notConnected` com o LoL fechado ou antes do invocador carregar e
+    /// `lcu` se a LCU recusar.
+    OpenCollection,
+    /// Lê as skins do campeão `championId` (#369), com os cromas de cada
+    /// uma e o que a conta tem. As skins chegam numa mensagem
+    /// `championSkins` antes da resposta. Se outro campeão for pedido antes
+    /// destas chegarem, estas são descartadas. Responde `invalidCommand`
+    /// para `championId` `0`, `notConnected` com o LoL fechado ou antes do
+    /// invocador carregar e `lcu` se a LCU recusar.
+    OpenChampionSkins { champion_id: u32 },
+
     // Início
     /// Abre a página de `patchNotes.url` (#301) no navegador padrão. Responde
     /// `notFound` sem notas no estado e `launchFailed` se não deu para abrir
@@ -975,6 +1007,8 @@ mod tests {
                     "matchDetails": null,
                     "playerProfile": null,
                     "liveGame": null,
+                    "collection": null,
+                    "championSkins": null,
                     "patchNotes": null,
                     "wallet": null,
                 },
@@ -1477,6 +1511,18 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(msg.command, Command::OpenPatchNotes);
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 18,
+            "command": {"type": "openCollection"},
+        }))
+        .unwrap();
+        assert_eq!(msg.command, Command::OpenCollection);
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 19,
+            "command": {"type": "openChampionSkins", "championId": 266},
+        }))
+        .unwrap();
+        assert_eq!(msg.command, Command::OpenChampionSkins { champion_id: 266 });
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 14,
             "command": {"type": "inviteToLobby", "invitees": [{"summonerId": 1003, "puuid": "p"}]},

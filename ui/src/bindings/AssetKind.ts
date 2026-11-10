@@ -10,4 +10,6 @@ export type AssetKind =
   | "perk"
   | "perkStyle"
   | "item"
-  | "rankedEmblem";
+  | "rankedEmblem"
+  | "skin"
+  | "skinSplash";
