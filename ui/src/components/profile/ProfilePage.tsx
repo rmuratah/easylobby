@@ -19,6 +19,7 @@ import {
 } from '../../agent/profile';
 import { Avatar, Button, EmptyState, Segmented, Spinner } from '../base';
 import { cx } from '../base/cx';
+import { CopyRiotIdButton } from './CopyRiotIdButton';
 
 type Props = {
   connection: ConnectionSnapshot;
@@ -141,9 +142,12 @@ function ProfileView({ state, data, send, extra, onOpenProfile }: {
       <header className="flex flex-wrap items-center gap-4 rounded-panel surface card p-5 shadow-soft animate-fade-up">
         <Avatar name={name} src={assetUrl('profileIcon', summoner.profileIconId)} size={72} />
         <div className="min-w-0">
-          <h2 className="break-words text-title font-semibold text-ink">
-            {name}{summoner.gameName && summoner.tagLine && <span className="font-medium text-muted">#{summoner.tagLine}</span>}
-          </h2>
+          <div className="flex items-center">
+            <h2 className="min-w-0 break-words text-title font-semibold text-ink">
+              {name}{summoner.gameName && summoner.tagLine && <span className="font-medium text-muted">#{summoner.tagLine}</span>}
+            </h2>
+            {summoner.gameName && summoner.tagLine && <CopyRiotIdButton gameName={summoner.gameName} tagLine={summoner.tagLine} />}
+          </div>
           <div className="mt-1 flex flex-wrap gap-2">
             <p className="w-fit rounded-full bg-raised px-3 py-1 text-caption font-semibold text-muted">Nível {summoner.summonerLevel}</p>
             {data.privateProfile && <p className="w-fit rounded-full bg-raised px-3 py-1 text-caption font-semibold text-muted">Perfil privado</p>}

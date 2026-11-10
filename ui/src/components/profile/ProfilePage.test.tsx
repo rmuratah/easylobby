@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FriendProfilePage, ProfilePage } from './ProfilePage';
 import { testFriend } from '../../test/events';
@@ -47,6 +47,26 @@ describe('ProfilePage', () => {
     expect(screen.getByText('287.450 pontos', { exact: false })).toBeInTheDocument();
     expect(screen.getByText('Últimas 2 partidas')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Visão geral' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('copia nome#tag pelo ícone ao lado do nome', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    setup();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copiar Jogador#BR1' })); });
+    expect(writeText).toHaveBeenCalledWith('Jogador#BR1');
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('Jogador #BR1');
+    expect(status).toHaveTextContent('Copiado para a área de transferência');
+  });
+
+  it('se a cópia falhar, mostra o Riot ID para copiar à mão', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn(() => Promise.reject(new Error('negado'))) }, configurable: true,
+    });
+    setup();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copiar Jogador#BR1' })); });
+    expect(screen.getByRole('status')).toHaveTextContent('Não deu para copiar');
   });
 
   it('filtra o histórico, carrega mais e abre o placar', () => {
