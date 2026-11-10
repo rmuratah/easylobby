@@ -70,6 +70,10 @@ use crate::rest::{LcuClient, LcuError};
 /// Endpoint (e URI dos eventos WAMP) do lobby.
 pub const LOBBY_PATH: &str = "/lol-lobby/v2/lobby";
 
+/// Volta ao lobby da última partida, com o mesmo grupo e a mesma fila, no
+/// pós-jogo (#180). É o "Jogar novamente" do client oficial.
+pub const PLAY_AGAIN_PATH: &str = "/lol-lobby/v2/play-again";
+
 /// Endpoint dos cargos do jogador logado (#18).
 pub const POSITION_PREFERENCES_PATH: &str =
     "/lol-lobby/v2/lobby/members/localMember/position-preferences";
@@ -793,6 +797,15 @@ pub async fn create_lobby_by_id(lcu: &LcuClient, queue_id: u32) -> Result<Option
 /// Sai do lobby (`DELETE /lol-lobby/v2/lobby`).
 pub async fn leave_lobby(lcu: &LcuClient) -> Result<(), LcuError> {
     lcu.delete::<Option<Value>>(LOBBY_PATH).await.map(|_| ())
+}
+
+/// Volta ao lobby depois da partida (`POST /lol-lobby/v2/play-again`,
+/// #180), com o mesmo grupo e a mesma fila. A LCU responde sem corpo; o lobby
+/// chega pelo WAMP (ou por [`current_lobby`]).
+pub async fn play_again(lcu: &LcuClient) -> Result<(), LcuError> {
+    lcu.send::<Option<Value>>(reqwest::Method::POST, PLAY_AGAIN_PATH, None)
+        .await
+        .map(|_| ())
 }
 
 /// Escolhe os cargos do jogador logado

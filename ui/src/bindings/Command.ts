@@ -19,6 +19,7 @@ export type Command =
   | { "type": "launchUx" }
   | { "type": "createLobby", queue: Queue, }
   | { "type": "leaveLobby" }
+  | { "type": "playAgain" }
   | { "type": "setPositions", first: Position, second: Position, }
   | { "type": "setPositionOrder", positions: Array<Position>, }
   | { "type": "startQueue" }

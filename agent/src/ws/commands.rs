@@ -23,6 +23,7 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::CreateLobby { queue } => hub.create_lobby(queue).await,
         Command::CreateLobbyById { queue_id } => hub.create_lobby_by_id(queue_id).await,
         Command::LeaveLobby => hub.leave_lobby().await,
+        Command::PlayAgain => hub.play_again().await,
         Command::SetPositions { first, second } => hub.set_positions(first, second).await,
         Command::SetPositionOrder { positions } => hub.set_position_order(&positions).await,
         Command::StartQueue => hub.start_queue().await,

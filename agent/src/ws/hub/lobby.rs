@@ -227,6 +227,22 @@ impl Hub {
         }
     }
 
+    /// Volta ao lobby da última partida no pós-jogo (comando `playAgain`,
+    /// #180), com o mesmo grupo e a mesma fila. Relê o lobby e publica antes
+    /// de devolver, sem esperar o evento do WAMP.
+    pub async fn play_again(&self) -> CommandResult {
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        match lobby::play_again(&client).await {
+            Ok(()) => {
+                self.refresh_lobby().await;
+                CommandResult::Ok
+            }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
     /// Escolhe os cargos do jogador logado (comando `setPositions`, #18).
     /// Relê o lobby pelo REST e publica antes de devolver, sem esperar o
     /// evento do WAMP.
@@ -728,6 +744,7 @@ mod tests {
         for result in [
             hub.create_lobby(Queue::RankedSolo).await,
             hub.leave_lobby().await,
+            hub.play_again().await,
             hub.set_positions(Position::Top, Position::Jungle).await,
             hub.set_position_order(&[Position::Fill]).await,
             hub.start_tutorial(None).await,
