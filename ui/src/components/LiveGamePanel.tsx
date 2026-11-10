@@ -80,7 +80,7 @@ function TeamTable({ state, team, queueName, onOpenProfile }: {
   const blue = team.teamId === 100;
   const name = blue ? 'Equipe azul' : 'Equipe vermelha';
   return (
-    <div className="overflow-x-auto rounded-panel surface shadow-soft">
+    <div className="overflow-x-auto rounded-panel surface card shadow-soft">
       {/* Larguras fixas: as colunas das duas equipes ficam alinhadas. */}
       <table className="w-full min-w-[62rem] table-fixed border-collapse text-caption">
         <colgroup>

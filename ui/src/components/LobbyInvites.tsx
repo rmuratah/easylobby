@@ -177,7 +177,7 @@ export function InvitePicker({ invites, groups, recent, loadRecent, onClose }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4 animate-fade-up"
       onPointerDown={event => { if (event.target === event.currentTarget) onClose(); }}>
       <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId}
-        className="flex max-h-[min(40rem,calc(100vh-2rem))] w-full max-w-md flex-col gap-3 rounded-panel surface p-5 text-ink shadow-lift">
+        className="flex max-h-[min(40rem,calc(100vh-2rem))] w-full max-w-md flex-col gap-3 rounded-panel surface card p-5 text-ink shadow-lift">
         <div className="flex items-center justify-between gap-2">
           <h2 id={titleId} className="px-1 text-section font-semibold">Convidar amigos</h2>
           <ClearButton label="Fechar" onClick={onClose} />
@@ -319,7 +319,7 @@ export function LobbyGroupCard({ connection }: { connection: ConnectionSnapshot 
       .map(i => ({ puuid: i.puuid, name: memberName(i, state.friends), status: i.state })),
   ];
   return (
-    <section aria-label="Grupo" className="flex w-full flex-col gap-2 rounded-panel surface p-4 text-ink shadow-soft animate-fade-up">
+    <section aria-label="Grupo" className="flex w-full flex-col gap-2 rounded-panel surface card p-4 text-ink shadow-soft animate-fade-up">
       <h2 className="px-1 text-section font-semibold">Grupo ({entries.length})</h2>
       {entries.length === 0
         ? <p className="px-1 text-body text-muted">Ninguém convidado ainda. Use o “+” de uma vaga livre ou arraste um amigo para o lobby.</p>

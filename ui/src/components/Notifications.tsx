@@ -50,7 +50,7 @@ export function Notifications({ connection, quiet = false, sidebarOpen = false, 
     <section aria-label="Notificações"
       className={cx('fixed right-4 top-[8.5rem] z-50 flex max-w-[calc(100vw-2rem)] flex-col gap-2', quiet ? 'w-64' : 'w-80')}>
       {matchFound && (
-        <div role="alert" className="rounded-card border-2 border-accent bg-surface p-3 text-ink shadow-[0_8px_24px_-12px_var(--el-overlay)]">
+        <div role="alert" className="rounded-card border-2 border-accent bg-surface card p-3 text-ink shadow-[0_8px_24px_-12px_var(--el-overlay)]">
           <p className="font-semibold text-accent-ink">Partida encontrada!</p>
           <p className="text-caption text-muted">Aceite ou recuse no painel da partida.</p>
         </div>
@@ -106,7 +106,7 @@ function Notice({ title, text, compact = false, onDismiss, onOpen, openLabel }: 
     <p className={cx('break-words text-caption text-muted', compact ? 'line-clamp-1' : 'line-clamp-2')}>{text}</p>
   </>;
   return (
-    <div role="status" className={cx('flex items-start gap-2 rounded-card border border-line bg-surface text-ink shadow-[0_8px_24px_-12px_var(--el-overlay)]',
+    <div role="status" className={cx('flex items-start gap-2 rounded-card border border-edge bg-surface card text-ink shadow-[0_8px_24px_-12px_var(--el-overlay)]',
       compact ? 'px-3 py-2' : 'p-3')}>
       {onOpen
         ? <button type="button" onClick={onOpen} aria-label={openLabel} title={openLabel}

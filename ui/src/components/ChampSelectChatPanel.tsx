@@ -17,7 +17,7 @@ function senderName(champSelect: ChampSelect, message: ChampSelectChatMessage): 
 /** Chat do time na seleção de campeões (#27). */
 export function ChampSelectChatPanel(props: Props) {
   if (!props.chat) return (
-    <section aria-label="Chat do time" className="flex min-w-0 flex-col gap-2 rounded-card border border-line bg-surface p-3 text-ink">
+    <section aria-label="Chat do time" className="flex min-w-0 flex-col gap-2 rounded-card border border-edge bg-surface card p-3 text-ink">
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Chat do time</h3>
       <p className="text-muted">Aguardando a sala do chat abrir…</p>
       <input aria-label="Mensagem para o time" disabled />
@@ -73,7 +73,7 @@ function OpenChat({ champSelect, chat, send }: Props & { chat: ChampSelectChat }
   }
 
   return (
-    <section aria-label="Chat do time" className="flex min-w-0 flex-col gap-2 rounded-card border border-line bg-surface p-3 text-ink">
+    <section aria-label="Chat do time" className="flex min-w-0 flex-col gap-2 rounded-card border border-edge bg-surface card p-3 text-ink">
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Chat do time</h3>
       {messages.length === 0 ? <p className="text-muted">Nenhuma mensagem ainda.</p>
           : (

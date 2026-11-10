@@ -34,7 +34,7 @@ function ChatLine({ state, message }: { state: AgentState; message: LobbyChatMes
   );
 }
 
-const cardClass = 'flex w-full min-w-0 flex-col gap-2 rounded-panel surface p-4 text-ink shadow-soft animate-fade-up';
+const cardClass = 'flex w-full min-w-0 flex-col gap-2 rounded-panel surface card p-4 text-ink shadow-soft animate-fade-up';
 
 /**
  * Chat do grupo no lobby (#206), embaixo da busca de partida e do card do grupo.

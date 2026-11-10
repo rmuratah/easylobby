@@ -43,7 +43,7 @@ export function LobbyPanel({ connection, send, onOpenProfile }: Props) {
   const lcu = state?.lcu;
   if (connection.status !== 'connected' || !state || lcu?.state !== 'connected') {
     return (
-      <section aria-label="Lobby" className="flex w-full flex-col gap-2 rounded-card border border-line bg-surface p-5 text-ink">
+      <section aria-label="Lobby" className="flex w-full flex-col gap-2 rounded-card border border-edge bg-surface card p-5 text-ink">
         <h2 className="text-section font-semibold">Lobby</h2>
         <p className="text-body text-muted">Aguarde a conexão com o agente e o League of Legends. Confira o lobby após reconectar antes de tentar novamente.</p>
       </section>
@@ -338,7 +338,7 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
           const isAway = away.has(member.puuid);
           return (
             <li key={member.puuid} style={{ animationDelay: `${index * 70}ms` }}
-              className={cx('relative flex min-h-20 flex-1 items-center gap-4 rounded-panel px-4 py-3 transition-all duration-200 animate-fade-up',
+              className={cx('relative flex min-h-20 flex-1 items-center gap-4 rounded-panel card px-4 py-3 transition-all duration-200 animate-fade-up',
                 // O card do jogador fica por cima dos outros para a escolha de campeão aberta nele não ficar escondida.
                 me ? 'z-10 bg-surface shadow-lift ring-2 ring-accent/30' : 'surface shadow-soft hover:-translate-y-0.5 hover:shadow-lift')}>
               {/* O card de outro jogador inteiro abre o perfil dele (#308). O botão fica por baixo dos
@@ -357,14 +357,14 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                   <h3 className={cx('truncate font-semibold', me ? 'text-section' : 'text-body')}>{name}</h3>
                   {member.isLeader && (
                     <span role="img" aria-label="Líder do grupo" title="Líder do grupo"
-                      className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gold-soft text-warn">
+                      className="flex size-6 shrink-0 items-center justify-center rounded-full bg-copper-soft text-warn">
                       <CrownIcon size={14} />
                     </span>
                   )}
                 </div>
                 {me && <p className="truncate text-caption text-muted">Você</p>}
                 {isAway && (
-                  <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-gold-soft px-2.5 py-1 text-caption font-semibold text-warn">
+                  <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-copper-soft px-2.5 py-1 text-caption font-semibold text-warn">
                     <span aria-hidden="true" className="tracking-widest">•••</span>
                     Ainda não voltou ao lobby
                   </p>
@@ -425,7 +425,7 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
       {/* Fila sem posições (ARAM, Arena, Co-op, eventos): nada no lugar, como no client oficial. A fila troca pelo "Trocar modo" (#231). */}
       <div className="grid items-stretch gap-4">
         {lobby.showPositionSelector ? (
-          <fieldset className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface p-4 shadow-soft animate-fade-up" disabled={!canSetPositions}>
+          <fieldset className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface card p-4 shadow-soft animate-fade-up" disabled={!canSetPositions}>
             <legend className="sr-only">Suas posições</legend>
             <h3 aria-hidden="true" className="px-1 text-section font-semibold">Suas posições</h3>
             <p className="px-1 text-caption text-muted">As posições na lista de jogadores são confirmadas pelo agente.</p>
@@ -463,7 +463,7 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
             )}
           </fieldset>
         ) : lobby.showQuickPlaySlots ? (
-          <div className="flex h-full min-w-0 flex-col gap-2 rounded-panel surface p-4 shadow-soft animate-fade-up">
+          <div className="flex h-full min-w-0 flex-col gap-2 rounded-panel surface card p-4 shadow-soft animate-fade-up">
             <h3 className="px-1 text-section font-semibold">Suas posições e campeões</h3>
             <p className="px-1 text-caption text-muted">No Jogo Dinâmico, escolha as duas posições e um campeão para cada uma no seu card, acima.</p>
             <div ref={setSlotNotes} className="flex flex-col gap-1 px-1" />

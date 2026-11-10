@@ -5,5 +5,5 @@ type Props = HTMLAttributes<HTMLElement> & { as?: "div" | "section" | "article" 
 
 /** Superfície com borda; sem sombra (sombra só em sobreposições). */
 export function Card({ as: Tag = "div", className, ...rest }: Props) {
-  return <Tag className={cx("rounded-card border border-line bg-surface", className)} {...rest} />;
+  return <Tag className={cx("rounded-card border border-edge bg-surface card", className)} {...rest} />;
 }

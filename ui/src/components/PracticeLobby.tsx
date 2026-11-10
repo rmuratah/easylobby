@@ -110,7 +110,7 @@ export function PracticeLobby({ lobby, state, send, canLeave, leaving, onLeave, 
           const members = custom[team];
           const free = Math.max(0, custom.teamSize - members.length);
           return (
-            <section key={team} aria-label={teamNames[team]} className="flex min-w-0 flex-col gap-2 rounded-panel surface p-3 shadow-soft">
+            <section key={team} aria-label={teamNames[team]} className="flex min-w-0 flex-col gap-2 rounded-panel surface card p-3 shadow-soft">
               <header className="flex items-center justify-between gap-2 px-1">
                 <h3 className="text-section font-semibold">{teamNames[team]}</h3>
                 <span className="text-caption text-muted">{members.length} / {custom.teamSize}</span>
@@ -152,7 +152,7 @@ export function PracticeLobby({ lobby, state, send, canLeave, leaving, onLeave, 
       </div>
 
       {showSpectators && (
-        <section aria-label="Espectadores" className="flex flex-col gap-2 rounded-panel surface p-3 shadow-soft">
+        <section aria-label="Espectadores" className="flex flex-col gap-2 rounded-panel surface card p-3 shadow-soft">
           <header className="flex flex-wrap items-center justify-between gap-2 px-1">
             <div className="min-w-0">
               <h3 className="text-section font-semibold">Espectadores</h3>
@@ -180,7 +180,7 @@ export function PracticeLobby({ lobby, state, send, canLeave, leaving, onLeave, 
         </section>
       )}
 
-      <footer className="flex flex-wrap items-center justify-between gap-3 rounded-panel surface p-4 shadow-soft">
+      <footer className="flex flex-wrap items-center justify-between gap-3 rounded-panel surface card p-4 shadow-soft">
         <p className="min-w-0 flex-1 text-caption text-muted">
           {lobby.isLeader ? 'Monte as equipes e inicie a partida.' : 'Aguarde o líder iniciar a partida.'}
         </p>
@@ -225,7 +225,7 @@ function PlayerRow({ member, me, state, send, manage = false, disabled = false }
       {me && <span className="text-caption text-muted">Você</span>}
       {member.isLeader && (
         <span role="img" aria-label="Líder do grupo" title="Líder do grupo"
-          className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gold-soft text-warn">
+          className="flex size-6 shrink-0 items-center justify-center rounded-full bg-copper-soft text-warn">
           <CrownIcon size={14} />
         </span>
       )}
@@ -311,7 +311,7 @@ function ChampionPicker({ state, current, title, onChoose, onClose }: {
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
       onPointerDown={event => { if (event.target === event.currentTarget) onClose(); }}>
       <div role="dialog" aria-modal="true" aria-labelledby={titleId}
-        className="flex max-h-[80vh] w-[min(36rem,100%)] flex-col gap-3 rounded-panel bg-surface p-4 text-ink shadow-lift animate-fade-up">
+        className="flex max-h-[80vh] w-[min(36rem,100%)] flex-col gap-3 rounded-panel bg-surface card p-4 text-ink shadow-lift animate-fade-up">
         <header className="flex items-center justify-between gap-2">
           <h3 id={titleId} className="text-section font-semibold">{title}</h3>
           <button type="button" aria-label="Fechar" onClick={onClose}

@@ -13,7 +13,7 @@ export function SummonerHeader({ summoner, ranked }: { summoner: Summoner; ranke
   const name = summoner.gameName || summoner.displayName || 'Invocador';
   return (
     <section aria-label="Invocador logado"
-      className="group relative flex h-full flex-col items-center overflow-hidden rounded-panel surface pb-5 shadow-soft text-center animate-fade-up"
+      className="group relative flex h-full flex-col items-center overflow-hidden rounded-panel surface card pb-5 shadow-soft text-center animate-fade-up"
       style={{ animationDelay: '80ms' }}>
       <div aria-hidden="true" className="h-20 w-full shrink-0 bg-hero-art" />
       <div className="relative -mt-10 rounded-full bg-primary-gradient p-1 shadow-soft transition-transform duration-500 group-hover:scale-105">

@@ -40,7 +40,7 @@ export function CustomGameForm({ options, onChange, locked, problem }: Props) {
         {FORM_MAPS.map(map => {
           const selected = options.map === map;
           return (
-            <label key={map} className={cx('flex cursor-pointer items-center gap-4 rounded-panel p-4 transition-all',
+            <label key={map} className={cx('flex cursor-pointer items-center gap-4 rounded-panel card p-4 transition-all',
               selected ? 'bg-accent-soft ring-2 ring-accent' : 'surface shadow-soft hover:-translate-y-0.5 hover:shadow-lift',
               locked && 'cursor-not-allowed')}>
               <input type="radio" name={`${baseId}-map`} className="sr-only" checked={selected}

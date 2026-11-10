@@ -45,7 +45,7 @@ export function ChampSelectPanel({ connection, send, onOpenRunes }: Props) {
   if (!state.champSelect) {
     if (state.gameflowPhase !== 'ChampSelect') return null;
     return (
-      <section aria-label="Seleção de campeões" className="rounded-card border border-line bg-surface p-5 text-ink">
+      <section aria-label="Seleção de campeões" className="rounded-card border border-edge bg-surface card p-5 text-ink">
         <p role="status" className="text-body text-muted">Carregando a seleção de campeões…</p>
       </section>
     );
@@ -132,7 +132,7 @@ function turnLabel(champSelect: ChampSelect): string {
 
 function ChampSelectStatus({ champSelect }: { champSelect: ChampSelect }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card border border-line bg-surface px-5 py-3 text-ink">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card border border-edge bg-surface card px-5 py-3 text-ink">
       <div className="flex min-w-0 flex-1 flex-col">
         <p className="text-caption text-muted">Etapa: <strong className="font-semibold text-ink">{champSelectPhaseLabels[champSelect.timer.phase]}</strong></p>
         <p role="status" className="text-section font-semibold text-accent-ink">{turnLabel(champSelect)}</p>
@@ -302,7 +302,7 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect }: Gri
   }, []);
   const first = shown.find(item => item.available);
   return (
-    <section aria-label={label} className="flex min-w-0 flex-col gap-3 rounded-card border border-line bg-surface p-4 text-ink">
+    <section aria-label={label} className="flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
       <div className="flex flex-wrap items-center gap-3">
         <h3 className="text-section font-semibold">{label}</h3>
         <input ref={searchRef} type="search" aria-label="Buscar campeão" placeholder="Digite para buscar" value={query}

@@ -138,7 +138,7 @@ function ProfileView({ state, data, send, extra, onOpenProfile }: {
   ];
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex flex-wrap items-center gap-4 rounded-panel surface p-5 shadow-soft animate-fade-up">
+      <header className="flex flex-wrap items-center gap-4 rounded-panel surface card p-5 shadow-soft animate-fade-up">
         <Avatar name={name} src={assetUrl('profileIcon', summoner.profileIconId)} size={72} />
         <div className="min-w-0">
           <h2 className="break-words text-title font-semibold text-ink">
@@ -193,7 +193,7 @@ function Overview({ state, data }: { state: AgentState; data: ProfileData }) {
         <RankCard title="Ranqueada Solo/Duo" entry={data.ranked?.soloDuo ?? null} missing={missing} />
         <RankCard title="Ranqueada Flex" entry={data.ranked?.flex ?? null} missing={missing} />
       </section>
-      <section aria-labelledby="perfil-maestria" className="rounded-panel surface p-5 shadow-soft">
+      <section aria-labelledby="perfil-maestria" className="rounded-panel surface card p-5 shadow-soft">
         <h3 id="perfil-maestria" className="text-section font-semibold text-ink">Maestria</h3>
         {data.championMasteries.length === 0
           ? <p className="mt-3 text-body text-muted">Nenhuma maestria para mostrar.</p>
@@ -213,7 +213,7 @@ function Overview({ state, data }: { state: AgentState; data: ProfileData }) {
             })}
           </ol>}
       </section>
-      <section aria-labelledby="perfil-resumo" className="rounded-panel surface p-5 shadow-soft">
+      <section aria-labelledby="perfil-resumo" className="rounded-panel surface card p-5 shadow-soft">
         <h3 id="perfil-resumo" className="text-section font-semibold text-ink">Últimas {stats.games} partidas</h3>
         {stats.games === 0
           ? <p className="mt-3 text-body text-muted">{emptyHistory(data)}</p>
@@ -263,7 +263,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 function RankCard({ title, entry, missing }: { title: string; entry: RankedEntry | null; missing: string }) {
   const rate = entry ? winRate(entry.wins, entry.losses) : null;
   return (
-    <article aria-label={title} className="flex items-center gap-4 rounded-panel surface p-5 shadow-soft">
+    <article aria-label={title} className="flex items-center gap-4 rounded-panel surface card p-5 shadow-soft">
       <TierEmblem tier={entry?.tier ?? null} />
       <div className="min-w-0">
         <h3 className="text-caption font-semibold text-muted">{title}</h3>
@@ -370,7 +370,7 @@ function MatchRow({ state, match, now, open, onToggle }: {
   return (
     <button type="button" aria-expanded={open} aria-controls={`placar-${match.gameId}`} onClick={onToggle}
       aria-label={`${resultText[match.result]} com ${champion}, ${queueLabel(match.queueId, state.queues)}, ${p.kills}/${p.deaths}/${p.assists}`}
-      className={cx('flex w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-card border-l-4 bg-surface p-3 text-left shadow-soft',
+      className={cx('flex w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-card border-l-4 bg-surface card p-3 text-left shadow-soft',
         'hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         match.result === 'win' ? 'border-accent' : match.result === 'loss' ? 'border-danger' : 'border-line')}>
       <div className="w-28 shrink-0">

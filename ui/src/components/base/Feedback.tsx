@@ -29,7 +29,7 @@ export function EmptyState({ title, description, icon, action, className }: Prop
 /** Falha anunciada a leitores de tela: o que aconteceu e como resolver, sem pedir desculpas. */
 export function ErrorMessage({ title, description, action, className }: Omit<Props, "icon">) {
   return (
-    <div role="alert" className={cx("flex flex-col gap-2 rounded-card border border-danger bg-surface p-4", className)}>
+    <div role="alert" className={cx("flex flex-col gap-2 rounded-card border border-danger bg-surface card p-4", className)}>
       <p className="text-body font-semibold text-danger">{title}</p>
       {description && <p className="text-body text-ink">{description}</p>}
       {action && <div>{action}</div>}
