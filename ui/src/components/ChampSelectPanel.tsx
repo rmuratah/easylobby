@@ -85,6 +85,7 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
   return (
     <section aria-label="Seleção de campeões" className="champ-select text-ink">
       <ChampSelectStatus champSelect={champSelect} />
+      <AutofillNotice champSelect={champSelect} send={send} />
       <div className="champ-select-board">
         <div className="flex min-w-0 flex-col gap-4">
           <TeamList label="Seu time" players={champSelect.myTeam} ally acting={acting} catalog={catalog}
@@ -147,6 +148,36 @@ function ChampSelectStatus({ champSelect }: { champSelect: ChampSelect }) {
   );
 }
 
+/**
+ * Aviso de autofill (#360), como o do client oficial: o jogador caiu numa
+ * posição que não escolheu. "Entendi" marca como visto, e o agente esconde o
+ * aviso até o fim desta seleção.
+ */
+function AutofillNotice({ champSelect, send }: { champSelect: ChampSelect; send: AgentClient['send'] }) {
+  const ack = useCommand(send);
+  const me = champSelect.myTeam.find(player => player.isLocalPlayer);
+  if (!champSelect.autofillNotice || !me) return null;
+  const position = me.assignedPosition !== 'unselected' && me.assignedPosition !== 'fill'
+    ? positionNames[me.assignedPosition] : null;
+  return (
+    <section aria-label="Aviso de autofill"
+      className="flex flex-wrap items-center gap-3 rounded-card border border-accent bg-accent-soft px-5 py-3 text-ink">
+      {me.assignedPosition !== 'unselected' && <PositionIcon position={me.assignedPosition} size={24} />}
+      <div className="min-w-0 flex-1">
+        <p className="text-body font-semibold">
+          {position ? `Você foi colocado em ${position} (autofill).` : 'Você foi colocado numa posição que não escolheu (autofill).'}
+        </p>
+        <p className="text-caption text-muted">O time precisava dessa posição. Na próxima partida, a fila tenta te dar uma das suas.</p>
+        {ack.feedback.status === 'error' && <p role="alert" className="text-caption text-danger">{ack.feedback.message}</p>}
+      </div>
+      <Button size="sm" loading={ack.pending}
+        onClick={() => void ack.run({ type: 'ackAutofill' }, { pending: '', failure: 'marcar o aviso como visto' })}>
+        Entendi
+      </Button>
+    </section>
+  );
+}
+
 type TeamProps = {
   label: string;
   players: ChampSelectPlayer[];
@@ -184,6 +215,11 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions 
                   <p className="text-caption text-muted">
                     {champion ? championName(catalog, champion) + (intent ? ' (intenção)' : '') : 'Sem campeão'}
                     {ally && player.assignedPosition !== 'unselected' && ` · ${positionNames[player.assignedPosition]}`}
+                    {ally && player.isAutofilled && (
+                      <span title="Posição de autofill: o jogador não escolheu esta posição" className="ml-1 inline-flex items-center gap-0.5 align-middle font-semibold text-accent-ink">
+                        <PositionIcon position="fill" size={12} />(autofill)
+                      </span>
+                    )}
                     {acting.has(player.cellId) && ' · na vez'}
                   </p>
                   {renderActions?.(player)}

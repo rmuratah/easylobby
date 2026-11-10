@@ -774,6 +774,13 @@ pub enum Command {
     /// fechado e `lcu` se a LCU recusar (por exemplo, na espera entre duas
     /// trocas).
     SwapBenchChampion { champion_id: u32 },
+    /// Marca o aviso de autofill como visto (#360): `champSelect.
+    /// autofillNotice` fica falso até o fim desta seleção (a mensagem
+    /// `champSelect` chega antes da resposta) e o agente avisa a LCU com `PUT
+    /// /lol-lobby/v1/autofill-displayed`. Responde `invalidCommand` fora da
+    /// seleção, `notConnected` com o LoL fechado e `lcu` se a LCU recusar (o
+    /// aviso continua escondido).
+    AckAutofill,
     /// Manda `body` na sala de chat do time na seleção de campeões (#27).
     /// Não precisa dizer a sala: vai para a que está aberta. A mensagem
     /// chega numa `champSelectChat` antes da resposta quando a LCU devolve a
@@ -1399,6 +1406,12 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(msg.command, Command::RerollChampion);
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 18,
+            "command": {"type": "ackAutofill"},
+        }))
+        .unwrap();
+        assert_eq!(msg.command, Command::AckAutofill);
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 17,
             "command": {"type": "swapBenchChampion", "championId": 266},
