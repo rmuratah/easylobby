@@ -192,6 +192,9 @@ impl Hub {
         if context.custom.is_spectator(&context.me) {
             return invalid("você já está assistindo");
         }
+        if !context.custom.has_other_player(&context.me) {
+            return invalid("só dá para assistir com outro jogador na personalizada");
+        }
         if context.custom.spectators.len() >= context.custom.max_spectators as usize {
             return invalid("as vagas de espectador estão cheias");
         }
@@ -422,12 +425,18 @@ mod tests {
                 ..
             }
         ));
+        // Sozinho (com bots), a LCU não deixa assistir (#409).
         hub.apply(event(
             LOBBY_PATH,
             EventType::Update,
             with("LobbyAllowed", json!([])),
         ))
         .await;
+        assert!(is_invalid(&hub.spectate().await), "sem outro jogador");
+        let mut with_friend = with("LobbyAllowed", json!([]));
+        with_friend["gameConfig"]["customTeam200"] = json!([{"puuid": "amigo"}]);
+        hub.apply(event(LOBBY_PATH, EventType::Update, with_friend))
+            .await;
         assert!(matches!(
             hub.spectate().await,
             CommandResult::Error {
