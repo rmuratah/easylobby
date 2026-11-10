@@ -65,6 +65,9 @@ describe('CollectionPage (#369)', () => {
     const grid = screen.getByRole('list', { name: 'Grade de campeões' });
     expect(within(grid).getAllByRole('button')).toHaveLength(3);
     expect(within(grid).getByRole('button', { name: 'Ahri, na rotação gratuita, 0 de 1 skins' })).toHaveTextContent('Grátis');
+    // Card em pé com a tela de carregamento da skin padrão (#394).
+    const aatrox = within(grid).getByRole('button', { name: /^Aatrox, na conta/ });
+    expect([...aatrox.querySelectorAll('img')].map(img => img.getAttribute('src'))).toContainEqual(expect.stringMatching(/\/assets\/skin\/266000$/));
 
     fireEvent.click(screen.getByRole('button', { name: 'Não tenho' }));
     expect(within(grid).getAllByRole('button').map(b => b.textContent)).toEqual(['GrátisAhri0/1 skins', 'Wukong']);

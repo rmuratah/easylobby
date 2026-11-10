@@ -168,8 +168,9 @@ pub fn collection_from_json(
         .filter_map(|raw| {
             let id = as_u32(&raw["id"]);
             let name = raw["name"].as_str().unwrap_or_default();
-            // `-1` é o "Nenhum" da LCU; `0` não é campeão.
-            if id == 0 || name.is_empty() {
+            // `-1` é o "Nenhum" da LCU; `0` não é campeão. As versões dos
+            // modos especiais (#394) também ficam de fora.
+            if id == 0 || name.is_empty() || is_special_mode(raw) {
                 return None;
             }
             let owned = is_owned(raw);
@@ -203,13 +204,17 @@ pub fn collection_from_json(
             })
         })
         .collect();
+    // O mesmo campeão duas vezes (uma versão de modo especial com outro
+    // `id` ou com o modo entre parênteses no nome, #394): fica o que não
+    // tem parênteses e, entre eles, o de menor `id`.
+    list.sort_by_cached_key(|c| (base_name(&c.name), c.name.contains('('), c.id));
+    list.dedup_by_key(|c| base_name(&c.name));
     list.sort_by_cached_key(|c| (c.name.to_lowercase(), c.id));
-    list.dedup_by_key(|c| c.id);
 
     let owned_champions = count(list.iter().filter(|c| c.owned));
     let total_champions = count(list.iter());
-    let owned_skins = skin_counts.values().map(|(owned, _)| owned).sum();
-    let total_skins = skin_counts.values().map(|(_, total)| total).sum();
+    let owned_skins = list.iter().map(|c| c.owned_skins).sum();
+    let total_skins = list.iter().map(|c| c.total_skins).sum();
     Some(Collection {
         champions: list,
         owned_champions,
@@ -308,6 +313,28 @@ fn rarity(raw: &Value) -> Option<String> {
     let stem = file.split('.').next()?.to_ascii_lowercase();
     let valid = !stem.is_empty() && stem.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
     valid.then_some(stem)
+}
+
+/// Maior `id` de um campeão normal. Os campeões do jogo têm `id` de 1 a
+/// pouco menos de 1000; as versões dos modos especiais (Bots do Juízo
+/// Final, Enxame...) usam `id`s bem maiores.
+const MAX_CHAMPION_ID: u32 = 9_999;
+
+/// Versão de um campeão só de um modo especial (#394), que a LCU manda
+/// junto com os normais: `id` fora da faixa dos campeões, escondida do
+/// client (`isVisibleInClient: false`) ou com apelido de modo
+/// (`Ruby_Jinx`, `Strawberry_Aurora`; os normais não têm `_`).
+fn is_special_mode(raw: &Value) -> bool {
+    as_u32(&raw["id"]) > MAX_CHAMPION_ID
+        || raw["isVisibleInClient"] == false
+        || raw["alias"].as_str().is_some_and(|a| a.contains('_'))
+}
+
+/// Nome para achar o mesmo campeão repetido: minúsculo, sem o que vem entre
+/// parênteses ("Jinx (Modo Clássico)" -> "jinx") e sem espaços nas pontas.
+fn base_name(name: &str) -> String {
+    let base = name.split('(').next().unwrap_or(name);
+    base.trim().to_lowercase()
 }
 
 /// A skin padrão tem o `id` do campeão vezes 1000 (`266000` para o Aatrox).
@@ -422,6 +449,29 @@ mod tests {
         assert!(wukong.rented && !wukong.owned);
         assert_eq!(wukong.alias, "MonkeyKing");
         assert_eq!((wukong.owned_skins, wukong.total_skins), (0, 0));
+    }
+
+    #[test]
+    fn sem_as_versoes_dos_modos_especiais() {
+        let champions = json!([
+            {"id": 222, "name": "Jinx", "alias": "Jinx", "ownership": {"owned": true}},
+            {"id": 66622, "name": "Jinx", "alias": "Ruby_Jinx", "ownership": {"owned": true}},
+            {"id": 893, "name": "Aurora", "alias": "Strawberry_Aurora", "ownership": {"owned": true}},
+            {"id": 894, "name": "Aurora", "alias": "Aurora", "ownership": {"owned": false}},
+            {"id": 950, "name": "Escondido", "alias": "Escondido", "isVisibleInClient": false},
+            {"id": 7, "name": "Tahm Kench (Modo Clássico)", "alias": "TahmKenchClassic"},
+            {"id": 223, "name": "Tahm Kench", "alias": "TahmKench", "ownership": {"owned": true}}
+        ]);
+        let skins = json!([
+            {"id": 222001, "championId": 222, "isBase": false, "ownership": {"owned": true}},
+            {"id": 66622001, "championId": 66622, "isBase": false, "ownership": {"owned": true}}
+        ]);
+        let collection = collection_from_json(&champions, &skins, None).unwrap();
+        let ids: Vec<u32> = collection.champions.iter().map(|c| c.id).collect();
+        assert_eq!(ids, [894, 222, 223]);
+        assert_eq!(collection.total_champions, 3);
+        assert_eq!(collection.owned_champions, 2);
+        assert_eq!((collection.owned_skins, collection.total_skins), (1, 1));
     }
 
     #[test]
