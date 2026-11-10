@@ -36,7 +36,7 @@ impl Detector {
 /// foco em alguns casos; por isso a janela fica por cima de tudo por um
 /// instante e, se mesmo assim não ganhar o foco, o ícone pisca na barra de
 /// tarefas.
-fn raise_main_window(app: &AppHandle) -> tauri::Result<()> {
+pub(crate) fn raise_main_window(app: &AppHandle) -> tauri::Result<()> {
     let Some(window) = app.get_webview_window("main") else {
         return Ok(());
     };

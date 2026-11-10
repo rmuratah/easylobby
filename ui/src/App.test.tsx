@@ -7,6 +7,7 @@ import App from './App';
 import { useAgent } from './agent/useAgent';
 import type { LcuStatus } from './bindings/LcuStatus';
 import { makeState } from './test/state';
+import { champSelectState, draftChampSelect } from './test/champSelect';
 
 vi.mock('./agent/useAgent');
 function connected(lcu: LcuStatus) {
@@ -164,6 +165,35 @@ describe('telas confirmadas pelo agente', () => {
     rerender(<App />);
     expect(screen.getByText('Carregando a seleção de campeões…')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
+  });
+});
+
+describe('vez do jogador na seleção (#431)', () => {
+  const send = vi.fn();
+  function snapshot(pendingAction: typeof draftChampSelect.pendingAction, championId: number | null = null) {
+    vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, send,
+      state: makeState({ ...champSelectState, champSelect: { ...draftChampSelect, pendingAction: pendingAction && { ...pendingAction, championId } } }) });
+  }
+  const ban = draftChampSelect.pendingAction;
+  it('volta para a seleção quando chega a vez de banir ou escolher', () => {
+    snapshot(null);
+    const { rerender } = render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
+    expect(screen.getByRole('region', { name: 'Perfil' })).toBeInTheDocument();
+    snapshot(ban);
+    rerender(<App />);
+    expect(screen.queryByRole('region', { name: 'Perfil' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Seleção de campeões' })).toBeVisible();
+    // Mudar o hover não tira o jogador de onde ele foi depois.
+    fireEvent.click(screen.getByRole('button', { name: 'Coleção' }));
+    snapshot(ban, 62);
+    rerender(<App />);
+    expect(screen.getByRole('region', { name: 'Coleção' })).toBeInTheDocument();
+    // A vez de escolher é outra ação: volta de novo.
+    snapshot(ban && { ...ban, id: 4, type: 'pick' });
+    rerender(<App />);
+    expect(screen.queryByRole('region', { name: 'Coleção' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Seleção de campeões' })).toBeVisible();
   });
 });
 
