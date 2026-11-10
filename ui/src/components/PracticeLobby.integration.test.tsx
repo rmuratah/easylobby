@@ -151,6 +151,20 @@ describe('lobby da partida personalizada (#262 e #263)', () => {
   });
 });
 
+describe('Assistir só com outro jogador na personalizada (#409)', () => {
+  const settings = { name: 'Sozinho', gameMode: 'CLASSIC', mapId: 11, map: 'summonersRift', pickType: 'blindPick', spectators: 'all' } as const;
+  const friend: CustomMember = { puuid: 'amigo', summonerId: 2, summonerIconId: 2, isLeader: false, bot: null };
+
+  it('sozinho, mesmo com bots, esconde a seção; com um amigo, ela aparece', () => {
+    render(<App />);
+    hello({ lobby: practice({ settings, team2: [ashe] }), championCatalog: champions });
+    expect(panel().queryByRole('region', { name: 'Espectadores' })).not.toBeInTheDocument();
+    expect(panel().queryByRole('button', { name: 'Assistir' })).not.toBeInTheDocument();
+    act(() => socket().receive({ type: 'lobby', lobby: practice({ settings, team2: [friend, ashe] }) }));
+    expect(within(panel().getByRole('region', { name: 'Espectadores' })).getByRole('button', { name: 'Assistir' })).toBeEnabled();
+  });
+});
+
 describe('remover e passar a liderança na personalizada (#267)', () => {
   const ana: CustomMember = { puuid: 'ana', summonerId: 2, summonerIconId: 1, isLeader: false, bot: null };
   it('o líder tem o menu só nos outros jogadores, e não nos bots', () => {
