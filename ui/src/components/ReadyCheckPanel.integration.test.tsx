@@ -20,6 +20,7 @@ class Socket {
   receive(message: ServerMessage) { this.onmessage?.({ data: JSON.stringify(message) }); }
 }
 const socket = () => Socket.instances.at(-1)!;
+const width = (element: HTMLElement) => parseFloat(element.style.width);
 const panel = () => within(screen.getByRole('region', { name: 'Partida encontrada' }));
 const button = (name: string) => panel().getByRole('button', { name });
 const request = (): ClientMessage => JSON.parse(socket().send.mock.lastCall![0]);
@@ -70,13 +71,26 @@ it('barra preenche da esquerda para a direita com o timer da LCU', () => {
   expect(bar()).toHaveAttribute('aria-valuemax', '12');
   expect(bar()).toHaveAttribute('aria-valuenow', '3');
   expect(fill()).toHaveStyle({ width: '25%' });
-  act(() => vi.advanceTimersByTime(3000));
-  expect(fill()).toHaveStyle({ width: '50%' });
+  // A barra é redesenhada a cada quadro (~16 ms): avança um quadro a mais e confere com folga.
+  act(() => vi.advanceTimersByTime(3016));
+  expect(width(fill())).toBeCloseTo(50, 0);
   expect(panel().getByLabelText('Tempo para responder')).toHaveTextContent('6 s');
   act(() => vi.advanceTimersByTime(20000));
   expect(fill()).toHaveStyle({ width: '100%' });
   event({ state: 'EveryoneReady' });
   expect(panel().queryByRole('progressbar')).not.toBeInTheDocument();
+});
+it('barra não recomeça a cada evento da LCU que chega dentro do segundo esperado', () => {
+  render(<App />); open();
+  event({ duration: 10, timer: 0 });
+  const fill = () => panel().getByTestId('ready-check-bar');
+  act(() => vi.advanceTimersByTime(3500));
+  // A LCU manda o timer arredondado para baixo: 3 s quando já passaram 3,5 s.
+  event({ duration: 10, timer: 3 });
+  expect(width(fill())).toBeCloseTo(35, 0);
+  act(() => vi.advanceTimersByTime(516));
+  expect(width(fill())).toBeCloseTo(40, 0);
+  expect(panel().getByLabelText('Tempo para responder')).toHaveTextContent('6 s');
 });
 it.each(['EveryoneReady', 'StrangerNotReady', 'PartyNotReady', 'Error', 'Unknown', 'Invalid'] as const)('mantém resultado %s até null', state => {
   render(<App />); open(); event({ state });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import type { ReadyCheck } from '../bindings/ReadyCheck';
 import { readyCheckLabels, responseLabels } from '../agent/readyCheck';
@@ -6,43 +6,74 @@ import { Button } from './base';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 export function ReadyCheckPanel({ connection, send }: Props) {
+  // O relógio fica aqui para sobreviver às remontagens de ReadyCheckActions (ex.: ao aceitar).
+  const [clock] = useState(createClock);
   const state = connection.state;
   if (connection.status !== 'connected' || state?.lcu.state !== 'connected' || !state.readyCheck) return null;
   const check = state.readyCheck;
   // Cada contexto tem seu próprio ciclo de vida; promessas antigas não atualizam o novo painel.
   return <ReadyCheckActions key={`${state.lcu.session}:${state.summoner?.puuid}:${state.gameflowPhase}:${check.state}:${check.playerResponse}`}
-    check={check} active={state.gameflowPhase === 'ReadyCheck'} send={send} />;
+    check={check} active={state.gameflowPhase === 'ReadyCheck'} send={send} clock={clock} />;
 }
 
-// Contador e barra usam o mesmo relógio: o timer da LCU mais o tempo desde o último evento.
-function useElapsed(check: ReadyCheck) {
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    const started = Date.now();
-    const interval = setInterval(() => setElapsed((Date.now() - started) / 1000), 250);
-    return () => clearInterval(interval);
-  }, []);
-  return Math.min(check.duration, Math.max(0, check.timer + elapsed));
+// Contador e barra usam o mesmo relógio, ancorado no timer da LCU. O timer chega de segundo
+// em segundo, então o tempo real fica entre `timer` e `timer + 1`. Só reancoramos quando o
+// relógio local sai dessa faixa (outro ready check, atraso ou evento adiantado); assim a barra
+// corre lisa entre os eventos em vez de recomeçar a cada um (#422).
+type Clock = { sync(check: ReadyCheck): void; elapsed(): number };
+function createClock(): Clock {
+  let start: number | null = null;
+  let duration = 0;
+  const elapsed = () => start === null ? 0 : Math.min(duration, Math.max(0, (Date.now() - start) / 1000));
+  return {
+    sync(check) {
+      const now = Date.now();
+      duration = check.duration;
+      const local = start === null ? null : (now - start) / 1000;
+      if (local === null || local < check.timer || local > check.timer + 1) start = now - check.timer * 1000;
+    },
+    elapsed,
+  };
 }
 
-function Countdown({ check }: { check: ReadyCheck }) {
-  const elapsed = useElapsed(check);
-  return <strong aria-label="Tempo para responder">{Math.ceil(check.duration - elapsed)} s</strong>;
+// Redesenha a cada quadro, direto no DOM, sem renderizar o React 60 vezes por segundo.
+function useFrames(check: ReadyCheck, clock: Clock, draw: (elapsed: number) => void) {
+  const drawRef = useRef(draw);
+  useLayoutEffect(() => { drawRef.current = draw; });
+  useLayoutEffect(() => {
+    clock.sync(check);
+    let frame = 0;
+    const tick = () => { drawRef.current(clock.elapsed()); frame = requestAnimationFrame(tick); };
+    tick();
+    return () => cancelAnimationFrame(frame);
+  }, [check, clock]);
+}
+
+function Countdown({ check, clock }: { check: ReadyCheck; clock: Clock }) {
+  const ref = useRef<HTMLElement>(null);
+  useFrames(check, clock, elapsed => {
+    const text = `${Math.ceil(check.duration - elapsed)} s`;
+    if (ref.current && ref.current.textContent !== text) ref.current.textContent = text;
+  });
+  return <strong ref={ref} aria-label="Tempo para responder" />;
 }
 
 // Preenche da esquerda para a direita até acabar o tempo (#347).
-function TimeBar({ check }: { check: ReadyCheck }) {
-  const elapsed = useElapsed(check);
-  const percent = check.duration > 0 ? (elapsed / check.duration) * 100 : 100;
-  return <div role="progressbar" aria-label="Tempo decorrido para responder" aria-valuemin={0}
-    aria-valuemax={check.duration} aria-valuenow={Math.floor(elapsed)}
-    className="h-2 w-full overflow-hidden rounded-full bg-control">
-    <div data-testid="ready-check-bar" className="h-full rounded-full bg-accent transition-[width] duration-[250ms] ease-linear"
-      style={{ width: `${percent}%` }} />
+function TimeBar({ check, clock }: { check: ReadyCheck; clock: Clock }) {
+  const bar = useRef<HTMLDivElement>(null);
+  const fill = useRef<HTMLDivElement>(null);
+  useFrames(check, clock, elapsed => {
+    const percent = check.duration > 0 ? (elapsed / check.duration) * 100 : 100;
+    if (fill.current) fill.current.style.width = `${percent}%`;
+    bar.current?.setAttribute('aria-valuenow', String(Math.floor(elapsed)));
+  });
+  return <div ref={bar} role="progressbar" aria-label="Tempo decorrido para responder" aria-valuemin={0}
+    aria-valuemax={check.duration} className="h-2 w-full overflow-hidden rounded-full bg-control">
+    <div ref={fill} data-testid="ready-check-bar" className="h-full rounded-full bg-accent" />
   </div>;
 }
 
-function ReadyCheckActions({ check, active, send }: { check: ReadyCheck; active: boolean; send: AgentClient['send'] }) {
+function ReadyCheckActions({ check, active, send, clock }: { check: ReadyCheck; active: boolean; send: AgentClient['send']; clock: Clock }) {
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState(false);
   const [pending, setPending] = useState(false);
@@ -102,9 +133,9 @@ function ReadyCheckActions({ check, active, send }: { check: ReadyCheck; active:
         <p className="text-body text-muted">Resposta confirmada: <strong className="font-semibold text-ink">{responseLabels[check.playerResponse]}</strong></p>
       </div>
       {answering && <p className="flex flex-col items-center text-caption text-muted">Tempo para responder
-        <span className="text-[2.5rem] font-semibold leading-none tabular-nums text-ink"><Countdown key={`${check.timer}:${check.duration}`} check={check} /></span></p>}
+        <span className="text-[2.5rem] font-semibold leading-none tabular-nums text-ink"><Countdown check={check} clock={clock} /></span></p>}
     </div>
-    {answering && <TimeBar key={`${check.timer}:${check.duration}`} check={check} />}
+    {answering && <TimeBar check={check} clock={clock} />}
     <div className="flex flex-wrap items-center gap-3">
       <Button variant="primary" size="lg" className="min-w-[10rem]" disabled={!canAnswer || pending}
         aria-keyshortcuts="Enter" onClick={() => { void answer('acceptReadyCheck'); }}>Aceitar</Button>
