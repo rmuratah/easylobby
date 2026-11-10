@@ -16,13 +16,13 @@ export const themeColors = {
       "gradient": "linear-gradient(135deg, #0084A5 0%, #00A6AC 100%)"
     },
     "emerald": {
-      "default": "#1F8F68",
-      "soft": "#DDF3EA",
-      "gradient": "linear-gradient(135deg, #3FB58A 0%, #15775A 100%)"
+      "default": "#4E9A80",
+      "soft": "#E6F1EC",
+      "gradient": "linear-gradient(135deg, #7DBBA3 0%, #4A8C74 100%)"
     },
     "accent": {
-      "bg": "#DDF3EA",
-      "text": "#145C45"
+      "bg": "#E6F1EC",
+      "text": "#2F6553"
     },
     "destructive": "#E24947",
     "status": {
@@ -57,13 +57,13 @@ export const themeColors = {
       "gradient": "linear-gradient(135deg, #0089AA 0%, #2DB6BC 100%)"
     },
     "emerald": {
-      "default": "#4FBF94",
-      "soft": "#0F2A22",
-      "gradient": "linear-gradient(135deg, #6BD1A8 0%, #2E9B73 100%)"
+      "default": "#7DBBA3",
+      "soft": "#162622",
+      "gradient": "linear-gradient(135deg, #9CCDB9 0%, #5E9D85 100%)"
     },
     "accent": {
-      "bg": "#0F2A22",
-      "text": "#8FDBBB"
+      "bg": "#162622",
+      "text": "#AAD5C3"
     },
     "destructive": "#F3625D",
     "status": {
