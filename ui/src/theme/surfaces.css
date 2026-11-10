@@ -10,11 +10,11 @@
   --el-shadow-glow: 0 10px 30px -10px color-mix(in oklab, var(--el-palette-primary-default) 55%, transparent);
   --el-glass: color-mix(in oklab, var(--el-surface) 72%, transparent);
   --el-glass-line: color-mix(in oklab, var(--el-surface) 70%, transparent);
-  /* Detalhes dos cards: borda levemente bronze rosada, reflexo no canto e halo. */
-  --el-edge: color-mix(in oklab, var(--el-line) 78%, var(--el-palette-rosebronze-default));
-  --el-card-sheen: color-mix(in oklab, var(--el-palette-rosebronze-default) 7%, transparent);
+  /* Detalhes dos cards: borda levemente champagne, reflexo no canto e halo. */
+  --el-edge: color-mix(in oklab, var(--el-line) 78%, var(--el-palette-champagne-default));
+  --el-card-sheen: color-mix(in oklab, var(--el-palette-champagne-default) 7%, transparent);
   --el-card-light: inset 0 1px 0 rgb(255 255 255 / 0.85),
-    0 14px 34px -26px color-mix(in oklab, var(--el-palette-rosebronze-default) 45%, transparent);
+    0 14px 34px -26px color-mix(in oklab, var(--el-palette-champagne-default) 45%, transparent);
 }
 
 [data-theme="escuro"] {
@@ -23,10 +23,10 @@
   --el-shadow-glow: 0 10px 32px -10px color-mix(in oklab, var(--el-palette-primary-default) 55%, transparent);
   --el-glass: color-mix(in oklab, var(--el-surface) 60%, transparent);
   --el-glass-line: rgb(255 255 255 / 0.1);
-  --el-edge: color-mix(in oklab, var(--el-line) 74%, var(--el-palette-rosebronze-default));
-  --el-card-sheen: color-mix(in oklab, var(--el-palette-rosebronze-default) 9%, transparent);
+  --el-edge: color-mix(in oklab, var(--el-line) 74%, var(--el-palette-champagne-default));
+  --el-card-sheen: color-mix(in oklab, var(--el-palette-champagne-default) 9%, transparent);
   --el-card-light: inset 0 1px 0 rgb(255 255 255 / 0.06),
-    0 16px 38px -26px color-mix(in oklab, var(--el-palette-rosebronze-default) 40%, transparent);
+    0 16px 38px -26px color-mix(in oklab, var(--el-palette-champagne-default) 40%, transparent);
 }
 
 @theme {
@@ -54,7 +54,7 @@
 }
 
 /*
- * Iluminação sutil dos cards: reflexo bronze rosado no canto superior esquerdo, linha de luz
+ * Iluminação sutil dos cards: reflexo champagne no canto superior esquerdo, linha de luz
  * no topo e halo suave embaixo. A luz entra por --tw-inset-shadow para somar com
  * shadow-soft, shadow-lift ou qualquer outra sombra do card, sem substituí-la.
  */
@@ -72,11 +72,11 @@
   border: 1px solid var(--el-glass-line);
 }
 
-/* Arte do cartão principal: brilhos da paleta (destaque e bronze rosado) sobre a superfície. */
+/* Arte do cartão principal: brilhos da paleta (destaque e champagne) sobre a superfície. */
 @utility bg-hero-art {
   background:
     radial-gradient(55% 75% at 82% 28%, color-mix(in oklab, var(--el-palette-primary-default) 34%, transparent), transparent 70%),
-    radial-gradient(45% 60% at 68% 105%, color-mix(in oklab, var(--el-palette-rosebronze-default) 30%, transparent), transparent 70%),
+    radial-gradient(45% 60% at 68% 105%, color-mix(in oklab, var(--el-palette-champagne-default) 30%, transparent), transparent 70%),
     var(--el-raised);
 }
 
