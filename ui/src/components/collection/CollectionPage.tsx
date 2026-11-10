@@ -140,14 +140,12 @@ function ChampionTile({ champion, onOpen }: { champion: CollectionChampion; onOp
     `${champion.ownedSkins} de ${champion.totalSkins} skins`,
   ].join(', ');
   // Card em pé, no formato de um celular (#394): moldura com borda, a tela de carregamento da skin
-  // padrão (id do campeão vezes 1000) dentro e o nome embaixo. Sem a imagem, o ícone quadrado fica no centro.
+  // padrão (id do campeão vezes 1000) dentro e o nome embaixo. Sem o ícone quadrado por baixo: ele aparecia
+  // através da imagem apagada dos campeões que a conta não tem.
   return (
     <button type="button" aria-label={description} title={description} onClick={onOpen}
       className="group flex w-full flex-col gap-1.5 rounded-card border-2 border-accent/55 bg-raised p-1.5 text-left shadow-soft transition-[transform,border-color] hover:-translate-y-0.5 hover:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
       <span className="relative block aspect-[308/560] w-full overflow-hidden rounded-control bg-surface">
-        <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
-          <ChampionIcon id={champion.id} size={56} dim={!champion.owned} />
-        </span>
         <img src={assetUrl('skin', champion.id * 1000)} alt="" loading="lazy"
           className={cx('absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]', !champion.owned && 'opacity-45 grayscale')}
           onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />
