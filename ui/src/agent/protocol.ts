@@ -1,6 +1,10 @@
 import type { ReadyCheckState } from '../bindings/ReadyCheckState';
 import type { ReadyCheckResponse } from '../bindings/ReadyCheckResponse';
 import type { ServerMessage } from '../bindings/ServerMessage';
+import type { PatchChange } from '../bindings/PatchChange';
+import type { PatchLine } from '../bindings/PatchLine';
+import type { PatchLineKind } from '../bindings/PatchLineKind';
+import type { PatchSection } from '../bindings/PatchSection';
 import type { PatchNotes } from '../bindings/PatchNotes';
 import type { LiveGame } from '../bindings/LiveGame';
 import type { AgentState } from '../bindings/AgentState';
@@ -263,9 +267,19 @@ function playerProfile(v: unknown): v is PlayerProfile | null {
     ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory));
 }
 // Notas da atualização do Início (#301).
+const patchLineKinds = { heading: true, text: true, bullet: true } satisfies Record<PatchLineKind, true>;
+function patchLine(v: unknown): v is PatchLine {
+  return object(v) && typeof v.text === 'string' && typeof v.kind === 'string' && Object.hasOwn(patchLineKinds, v.kind);
+}
+function patchChange(v: unknown): v is PatchChange {
+  return object(v) && nullableString(v.title) && list(v.lines, patchLine);
+}
+function patchSection(v: unknown): v is PatchSection {
+  return object(v) && typeof v.title === 'string' && list(v.changes, patchChange);
+}
 function patchNotes(v: unknown): v is PatchNotes | null {
   return v === null || (object(v) && typeof v.version === 'string' && typeof v.url === 'string' &&
-    nullableString(v.title) && nullableString(v.summary));
+    nullableString(v.title) && nullableString(v.summary) && list(v.sections, patchSection));
 }
 // Partida ao vivo (#268).
 function tierDivision(v: unknown): boolean {
