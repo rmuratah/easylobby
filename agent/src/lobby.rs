@@ -476,6 +476,10 @@ pub struct LobbyMember {
     pub summoner_icon_id: u32,
     pub summoner_level: u32,
     pub is_leader: bool,
+    /// Se o membro pode convidar outros jogadores (#412), o
+    /// `allowedInviteOthers` da LCU. O líder libera ou tira com o comando
+    /// `setLobbyMemberInvite`.
+    pub allowed_invite_others: bool,
     /// Cargo primário (#18). `unselected` antes de escolher e nas filas sem
     /// escolha de cargos.
     pub first_position: Position,
@@ -537,6 +541,7 @@ impl Lobby {
                     summoner_icon_id: m.summoner_icon_id,
                     summoner_level: m.summoner_level,
                     is_leader: m.is_leader,
+                    allowed_invite_others: m.allowed_invite_others,
                     first_position: Position::from_lcu(m.first_position_preference.as_deref()),
                     second_position: Position::from_lcu(m.second_position_preference.as_deref()),
                     position_order,
@@ -892,6 +897,10 @@ pub enum MemberAction {
     Kick,
     /// Passa a liderança para o membro (`promote`).
     Promote,
+    /// Deixa o membro convidar outros jogadores (`grant-invite`, #412).
+    GrantInvite,
+    /// Tira do membro a permissão de convidar (`revoke-invite`, #412).
+    RevokeInvite,
 }
 
 impl MemberAction {
@@ -899,18 +908,22 @@ impl MemberAction {
         match self {
             MemberAction::Kick => "kick",
             MemberAction::Promote => "promote",
+            MemberAction::GrantInvite => "grant-invite",
+            MemberAction::RevokeInvite => "revoke-invite",
         }
     }
 }
 
-/// Caminho de [`member_action`]: `/lol-lobby/v2/lobby/members/{summonerId}/kick`
-/// ou `.../promote`.
+/// Caminho de [`member_action`]: `/lol-lobby/v2/lobby/members/{summonerId}/kick`,
+/// `.../promote`, `.../grant-invite` ou `.../revoke-invite`.
 pub fn member_action_path(summoner_id: u64, action: MemberAction) -> String {
     format!("{LOBBY_PATH}/members/{summoner_id}/{}", action.lcu_name())
 }
 
-/// Remove o membro `summoner_id` do grupo ou passa a liderança para ele
-/// (`POST /lol-lobby/v2/lobby/members/{summonerId}/kick` ou `/promote`, #267).
+/// Remove o membro `summoner_id` do grupo, passa a liderança para ele
+/// (`POST /lol-lobby/v2/lobby/members/{summonerId}/kick` ou `/promote`, #267)
+/// ou libera ou tira a permissão de convidar (`/grant-invite` ou
+/// `/revoke-invite`, #412).
 /// Só o líder pode; a LCU recusa os outros. O caminho usa o `summonerId`,
 /// como na lista `/help` da LCU; falta conferir no LoL real. O lobby novo
 /// chega pelo WAMP (ou por [`current_lobby`]).
@@ -1118,6 +1131,7 @@ mod tests {
                 summoner_icon_id: 2,
                 summoner_level: 3,
                 is_leader: true,
+                allowed_invite_others: true,
                 first_position: Position::Top,
                 second_position: Position::Unselected,
                 position_order: Vec::new(),
@@ -1163,6 +1177,7 @@ mod tests {
                     "summonerIconId": 2,
                     "summonerLevel": 3,
                     "isLeader": true,
+                    "allowedInviteOthers": true,
                     "firstPosition": "top",
                     "secondPosition": "unselected",
                     "positionOrder": [],
@@ -1493,5 +1508,37 @@ mod tests {
         }))
         .unwrap();
         assert!(!sem_permissao.can_invite);
+    }
+
+    #[test]
+    fn permissao_de_convite_de_cada_membro() {
+        let lobby = Lobby::from_json(&json!({
+            "gameConfig": {"queueId": 420},
+            "localMember": {"puuid": "eu", "isLeader": true, "allowedInviteOthers": true},
+            "members": [
+                {"puuid": "eu", "isLeader": true, "allowedInviteOthers": true},
+                {"puuid": "liberado", "allowedInviteOthers": true},
+                {"puuid": "sem"},
+            ],
+        }))
+        .unwrap();
+        let allowed: Vec<bool> = lobby
+            .members
+            .iter()
+            .map(|m| m.allowed_invite_others)
+            .collect();
+        assert_eq!(allowed, [true, true, false]);
+    }
+
+    #[test]
+    fn caminhos_da_permissao_de_convite() {
+        assert_eq!(
+            member_action_path(42, MemberAction::GrantInvite),
+            "/lol-lobby/v2/lobby/members/42/grant-invite"
+        );
+        assert_eq!(
+            member_action_path(42, MemberAction::RevokeInvite),
+            "/lol-lobby/v2/lobby/members/42/revoke-invite"
+        );
     }
 }
