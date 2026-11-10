@@ -63,6 +63,13 @@ export default function App() {
   const [navigation, setNavigation] = useState<{ screen: typeof screen; page: 'main' | Page }>({ screen, page: 'main' });
   // Uma nova fase confirmada traz o fluxo principal de volta ao primeiro plano.
   if (navigation.screen !== screen) setNavigation({ screen, page: 'main' });
+  // Vez do jogador de banir ou escolher (#431): volta para a seleção, de onde estiver no app.
+  const turn = screen === 'champSelect' ? connection.state?.champSelect?.pendingAction?.id ?? null : null;
+  const [lastTurn, setLastTurn] = useState<number | null>(turn);
+  if (lastTurn !== turn) {
+    setLastTurn(turn);
+    if (turn !== null && navigation.page !== 'main' && navigation.page !== 'flow') setNavigation({ screen, page: 'main' });
+  }
   const page = navigation.screen === screen ? navigation.page : 'main';
   const activePage: Page = page === 'main' ? (screen === 'home' ? 'home' : 'flow') : page;
   // Quem trocou de página por um botão que agora ficou escondido não perde o foco.
