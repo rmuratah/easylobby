@@ -68,6 +68,8 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
   const hover = useCommand(send);
   const confirm = useCommand(send);
   const swap = useCommand(send);
+  // Os adversários usam a altura dos cards do seu time (#434).
+  const [allyCardHeight, setAllyCardHeight] = useState<number | null>(null);
   function select(championId: number) {
     if (!mine || confirm.pending) return;
     setChoice({ actionId: mine.action.id, championId });
@@ -90,6 +92,7 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
       <div className="champ-select-board">
         <div className="flex min-w-0 flex-col gap-4">
           <TeamList label="Seu time" players={champSelect.myTeam} ally acting={acting} catalog={catalog}
+            onCardHeight={setAllyCardHeight}
             renderActions={player => player.isLocalPlayer ? null
               : <SwapOffers champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
           <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
@@ -105,7 +108,8 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
             onSelect={mine && !confirm.pending ? select : null} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
-          <TeamList label="Time adversário" players={champSelect.theirTeam} ally={false} acting={acting} catalog={catalog} />
+          <TeamList label="Time adversário" players={champSelect.theirTeam} ally={false} acting={acting} catalog={catalog}
+            minCardHeight={allyCardHeight} />
           {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}
         </div>
       </div>
@@ -190,15 +194,29 @@ type TeamProps = {
   catalog: ChampionCatalog | null;
   /** Botões extras de cada jogador (as trocas com um aliado, por exemplo). */
   renderActions?: (player: ChampSelectPlayer) => ReactNode;
+  /** Avisa a altura dos cards desta lista (iguais entre si, #428) quando ela muda. */
+  onCardHeight?: (height: number) => void;
+  /** Altura mínima de cada card, para igualar à do outro time (#434). */
+  minCardHeight?: number | null;
 };
 
-export function TeamList({ label, players, ally, acting, catalog, renderActions }: TeamProps) {
+export function TeamList({ label, players, ally, acting, catalog, renderActions, onCardHeight, minCardHeight }: TeamProps) {
+  const listRef = useRef<HTMLUListElement>(null);
+  const firstCell = players[0]?.cellId;
+  useEffect(() => {
+    const card = listRef.current?.firstElementChild;
+    if (!onCardHeight || !card || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => onCardHeight(card.getBoundingClientRect().height));
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [onCardHeight, players.length, firstCell]);
   return (
     <section aria-label={label} className="flex min-w-0 flex-col gap-2">
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">{label}</h3>
       {players.length === 0 ? <p className="text-body text-muted">Sem jogadores.</p> : (
         // Todos os cards do time com a altura do maior (#428): as linhas da grade dividem o espaço por igual.
-        <ul className="grid auto-rows-fr gap-2">
+        <ul ref={listRef} className="grid auto-rows-fr gap-2"
+          style={minCardHeight ? { gridAutoRows: `minmax(${minCardHeight}px, 1fr)` } : undefined}>
           {players.map((player, index) => {
             const intent = !player.championId && player.championPickIntent ? player.championPickIntent : null;
             const champion = player.championId ?? intent;
