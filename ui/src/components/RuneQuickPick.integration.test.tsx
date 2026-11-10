@@ -52,19 +52,24 @@ it('troca a página de runas sem sair da seleção', async () => {
   expect(select).toBeEnabled();
 });
 
-it('abre o editor de runas e volta para a seleção com o foco no lugar', () => {
+it('abre o editor de runas num pop-up por cima da seleção e devolve o foco (#429)', () => {
   render(<App />); hello();
   const edit = runes().getByRole('button', { name: 'Editar runas' });
   edit.focus();
   fireEvent.click(edit);
-  expect(screen.getByRole('region', { name: 'Páginas de runas' })).toBeVisible();
-  expect(screen.queryByRole('region', { name: 'Seleção de campeões' })).toBeNull();
-  const back = screen.getByRole('button', { name: 'Voltar para Seleção de campeões' });
-  expect(back).toHaveFocus();
-  fireEvent.click(back);
-  expect(screen.getByRole('region', { name: 'Seleção de campeões' })).toBeVisible();
-  expect(document.activeElement).not.toBe(document.body);
-  expect(document.activeElement?.closest('[hidden]')).toBeNull();
+  const dialog = screen.getByRole('dialog', { name: 'Editar runas' });
+  expect(within(dialog).getByRole('region', { name: 'Páginas de runas' })).toBeVisible();
+  // A seleção continua na tela, por baixo.
+  expect(screen.getByRole('region', { name: 'Seleção de campeões', hidden: true })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Voltar para/ })).toBeNull();
+  expect(within(dialog).getByRole('combobox', { name: 'Página de runas' })).toHaveFocus();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Fechar' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(edit).toHaveFocus();
+  // Esc também fecha.
+  fireEvent.click(edit);
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(screen.queryByRole('dialog')).toBeNull();
 });
 
 it('espera as páginas chegarem', () => {

@@ -7,7 +7,7 @@ import { LobbyChatPanel } from './components/LobbyChatPanel';
 import { LobbyGroupCard } from './components/LobbyInvites';
 import { useAgent } from './agent/useAgent';
 import { QueuePanel } from './components/QueuePanel';
-import { RunePagesPanel } from './components/RunePagesPanel';
+import { RunesDialog } from './components/RunePagesPanel';
 import { ReadyCheckPanel } from './components/ReadyCheckPanel';
 import { FriendsList } from './components/FriendsList';
 import { InvitationsPanel } from './components/InvitationsPanel';
@@ -30,7 +30,7 @@ import { EmptyState } from './components/base';
 import { totalUnread } from './agent/chat';
 
 /** Runas não é destino da navegação lateral: o editor só abre pela seleção de campeões (#165). */
-type Page = NavigationPage | 'runes' | 'friendProfile';
+type Page = NavigationPage | 'friendProfile';
 
 export default function App() {
   const connection = useAgent();
@@ -55,11 +55,13 @@ export default function App() {
   const unreadFrom = (id: string) => conversations.find(c => c.id === id)?.unreadCount ?? 0;
   const contentRef = useRef<HTMLElement>(null);
   const flowButtonRef = useRef<HTMLButtonElement>(null);
-  const runesBackRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (contentRef.current) contentRef.current.scrollTop = 0;
     if (document.activeElement?.closest('[hidden]')) flowButtonRef.current?.focus();
   }, [screen, ready]);
+  const [runesOpen, setRunesOpen] = useState(false);
+  // Sair da seleção fecha o pop-up de runas.
+  if (runesOpen && screen !== 'champSelect') setRunesOpen(false);
   const [navigation, setNavigation] = useState<{ screen: typeof screen; page: 'main' | Page }>({ screen, page: 'main' });
   // Uma nova fase confirmada traz o fluxo principal de volta ao primeiro plano.
   if (navigation.screen !== screen) setNavigation({ screen, page: 'main' });
@@ -68,7 +70,7 @@ export default function App() {
   // Quem trocou de página por um botão que agora ficou escondido não perde o foco.
   useEffect(() => {
     if (!document.activeElement?.closest('[hidden]')) return;
-    (activePage === 'runes' ? runesBackRef.current ?? flowButtonRef.current : flowButtonRef.current)?.focus();
+    flowButtonRef.current?.focus();
   }, [activePage]);
   const openConversation = (id: string) => {
     setChatWith(id);
@@ -116,7 +118,7 @@ export default function App() {
       <TitleBar connection={connection} send={connection.send} />
       <div data-tauri-drag-region className={sidebar.open || !ready ? 'app-body' : 'app-body sidebar-collapsed'}>
         <div hidden={!ready} className="contents">
-          <SideNavigation active={activePage === 'runes' ? 'flow' : activePage === 'friendProfile' ? 'profile' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'} flowButtonRef={flowButtonRef} theme={theme} unread={unread}
+          <SideNavigation active={activePage === 'friendProfile' ? 'profile' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'} flowButtonRef={flowButtonRef} theme={theme} unread={unread}
             onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference} />
         </div>
         <div data-tauri-drag-region className="app-main-column">
@@ -186,15 +188,11 @@ export default function App() {
             {/* Montada fora da tela também, para a busca e as ações em andamento sobreviverem à navegação. */}
             <div hidden={activePage !== 'flow' || screen !== 'champSelect'}>
               <ChampSelectPanel connection={connection} send={connection.send}
-                onOpenRunes={() => setNavigation({ screen, page: 'runes' })} />
+                onOpenRunes={() => setRunesOpen(true)} />
             </div>
-            {/* O editor de runas só abre pelo "Editar runas" da seleção, e só fica montado nela. */}
-            {screen === 'champSelect' && <div hidden={activePage !== 'runes'} className="flex flex-col gap-4">
-              {/* A volta fica à mão: a seleção continua montada e o timer segue correndo (#131). */}
-              <button ref={runesBackRef} type="button" className="nav-button self-start"
-                onClick={() => setNavigation({ screen, page: 'flow' })}>Voltar para {title}</button>
-              <RunePagesPanel connection={connection} send={connection.send} />
-            </div>}
+            {/* O editor de runas abre num pop-up por cima da seleção (#429), e só existe nela. */}
+            {screen === 'champSelect' && runesOpen
+              && <RunesDialog connection={connection} send={connection.send} onClose={() => setRunesOpen(false)} />}
           </div>
           </main>
         </div>

@@ -42,8 +42,6 @@ describe('páginas de runas pelo /ws', () => {
     expect(select()).toHaveValue('10');
     act(() => { fireEvent.change(select(), { target: { value: '11' } }); });
     expect(request().command).toEqual({ type: 'selectRunePage', pageId: 11 });
-    fireEvent.click(screen.getByRole('button', { name: 'Voltar para Seleção de campeões' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Editar runas' }));
     expect(select()).toBeDisabled();
     expect(Socket.instances).toHaveLength(1);
     // Só muda quando o agente publica as páginas de novo.
