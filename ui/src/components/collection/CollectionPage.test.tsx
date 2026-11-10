@@ -70,7 +70,7 @@ describe('CollectionPage (#369)', () => {
     expect([...aatrox.querySelectorAll('img')].map(img => img.getAttribute('src'))).toContainEqual(expect.stringMatching(/\/assets\/skin\/266000$/));
 
     fireEvent.click(screen.getByRole('button', { name: 'Não tenho' }));
-    expect(within(grid).getAllByRole('button').map(b => b.textContent)).toEqual(['GrátisAhri0/1 skins', 'Wukong']);
+    expect(within(grid).getAllByRole('button').map(b => b.textContent)).toEqual(['Grátis0/1 skinsAhri', 'Wukong']);
     fireEvent.click(screen.getByRole('button', { name: 'Todos' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Lutador' }));
