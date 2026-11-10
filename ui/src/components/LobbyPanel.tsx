@@ -357,14 +357,14 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                   <h3 className={cx('truncate font-semibold', me ? 'text-section' : 'text-body')}>{name}</h3>
                   {member.isLeader && (
                     <span role="img" aria-label="Líder do grupo" title="Líder do grupo"
-                      className="flex size-6 shrink-0 items-center justify-center rounded-full bg-copper-soft text-warn">
+                      className="flex size-6 shrink-0 items-center justify-center rounded-full bg-silver-soft text-warn">
                       <CrownIcon size={14} />
                     </span>
                   )}
                 </div>
                 {me && <p className="truncate text-caption text-muted">Você</p>}
                 {isAway && (
-                  <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-copper-soft px-2.5 py-1 text-caption font-semibold text-warn">
+                  <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-silver-soft px-2.5 py-1 text-caption font-semibold text-warn">
                     <span aria-hidden="true" className="tracking-widest">•••</span>
                     Ainda não voltou ao lobby
                   </p>

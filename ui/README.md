@@ -88,7 +88,7 @@ substituem a validação visual no Windows/LoL real.
 ## Paleta dos temas
 
 `src/theme/themeColors.ts` preserva a paleta fornecida por Victor (claro e escuro),
-incluindo gradientes, cobre, status e avatares. Após editar esse arquivo, gere
+incluindo gradientes, prata, status e avatares. Após editar esse arquivo, gere
 as variáveis CSS na raiz do repositório:
 
 ```bash

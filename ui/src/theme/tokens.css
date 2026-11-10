@@ -15,11 +15,11 @@
   --el-palette-primary-foreground: #F8FDFE;
   --el-palette-primary-soft: #D7F3F9;
   --el-palette-primary-gradient: linear-gradient(135deg, #0084A5 0%, #00A6AC 100%);
-  --el-palette-copper-default: #B8734E;
-  --el-palette-copper-soft: #F7E7DD;
-  --el-palette-copper-gradient: linear-gradient(135deg, #D28E68 0%, #A65D3A 100%);
-  --el-palette-accent-bg: #F8E9DF;
-  --el-palette-accent-text: #7E4529;
+  --el-palette-silver-default: #7F8C9C;
+  --el-palette-silver-soft: #EAEEF3;
+  --el-palette-silver-gradient: linear-gradient(135deg, #A9B4C2 0%, #738092 100%);
+  --el-palette-accent-bg: #EAEEF3;
+  --el-palette-accent-text: #4A5666;
   --el-palette-destructive: #E24947;
   --el-palette-status-online: #3EB268;
   --el-palette-status-ingame: #348DCF;
@@ -43,7 +43,7 @@
   --el-accent-soft: #D7F3F9;
   --el-accent-ink: #03778a;
   --el-danger: #bf4242;
-  --el-warn: #7e4529;
+  --el-warn: #4a5666;
   --el-status-online: #389c5f;
   --el-status-game: #348dcf;
   --el-status-away: #af8340;
@@ -66,11 +66,11 @@
   --el-palette-primary-foreground: #F8FDFD;
   --el-palette-primary-soft: #05343D;
   --el-palette-primary-gradient: linear-gradient(135deg, #0089AA 0%, #2DB6BC 100%);
-  --el-palette-copper-default: #D4946E;
-  --el-palette-copper-soft: #36241A;
-  --el-palette-copper-gradient: linear-gradient(135deg, #E3A982 0%, #B9714B 100%);
-  --el-palette-accent-bg: #3A261C;
-  --el-palette-accent-text: #EDBB9A;
+  --el-palette-silver-default: #A9B4C2;
+  --el-palette-silver-soft: #232B36;
+  --el-palette-silver-gradient: linear-gradient(135deg, #C6CFDA 0%, #8E9AAA 100%);
+  --el-palette-accent-bg: #232B36;
+  --el-palette-accent-text: #C9D2DD;
   --el-palette-destructive: #F3625D;
   --el-palette-status-online: #54C57A;
   --el-palette-status-ingame: #55AEE8;
@@ -94,7 +94,7 @@
   --el-accent-soft: #05343D;
   --el-accent-ink: #21abb8;
   --el-danger: #f3625d;
-  --el-warn: #edbb9a;
+  --el-warn: #c9d2dd;
   --el-status-online: #54c57a;
   --el-status-game: #55aee8;
   --el-status-away: #eeb154;
@@ -148,8 +148,8 @@
   --color-secondary: var(--el-palette-secondary);
   --color-secondary-foreground: var(--el-palette-secondary-foreground);
   --color-muted-surface: var(--el-palette-muted);
-  --color-copper: var(--el-palette-copper-default);
-  --color-copper-soft: var(--el-palette-copper-soft);
+  --color-silver: var(--el-palette-silver-default);
+  --color-silver-soft: var(--el-palette-silver-soft);
   --color-status-offline: var(--el-status-offline);
   --color-avatar-1: var(--el-palette-avatars-0);
   --color-avatar-2: var(--el-palette-avatars-1);
@@ -160,4 +160,4 @@
 }
 
 @utility bg-primary-gradient { background-image: var(--el-palette-primary-gradient); }
-@utility bg-copper-gradient { background-image: var(--el-palette-copper-gradient); }
+@utility bg-silver-gradient { background-image: var(--el-palette-silver-gradient); }

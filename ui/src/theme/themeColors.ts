@@ -15,14 +15,14 @@ export const themeColors = {
       "soft": "#D7F3F9",
       "gradient": "linear-gradient(135deg, #0084A5 0%, #00A6AC 100%)"
     },
-    "copper": {
-      "default": "#B8734E",
-      "soft": "#F7E7DD",
-      "gradient": "linear-gradient(135deg, #D28E68 0%, #A65D3A 100%)"
+    "silver": {
+      "default": "#7F8C9C",
+      "soft": "#EAEEF3",
+      "gradient": "linear-gradient(135deg, #A9B4C2 0%, #738092 100%)"
     },
     "accent": {
-      "bg": "#F8E9DF",
-      "text": "#7E4529"
+      "bg": "#EAEEF3",
+      "text": "#4A5666"
     },
     "destructive": "#E24947",
     "status": {
@@ -56,14 +56,14 @@ export const themeColors = {
       "soft": "#05343D",
       "gradient": "linear-gradient(135deg, #0089AA 0%, #2DB6BC 100%)"
     },
-    "copper": {
-      "default": "#D4946E",
-      "soft": "#36241A",
-      "gradient": "linear-gradient(135deg, #E3A982 0%, #B9714B 100%)"
+    "silver": {
+      "default": "#A9B4C2",
+      "soft": "#232B36",
+      "gradient": "linear-gradient(135deg, #C6CFDA 0%, #8E9AAA 100%)"
     },
     "accent": {
-      "bg": "#3A261C",
-      "text": "#EDBB9A"
+      "bg": "#232B36",
+      "text": "#C9D2DD"
     },
     "destructive": "#F3625D",
     "status": {

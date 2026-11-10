@@ -89,7 +89,7 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMe
                             <span className="truncate text-body font-semibold">{displayName}</span>
                             {member.isLeader && (
                               <span role="img" aria-label="Líder do grupo" title="Líder do grupo"
-                                className="flex size-5 shrink-0 items-center justify-center rounded-full bg-copper-soft text-warn">
+                                className="flex size-5 shrink-0 items-center justify-center rounded-full bg-silver-soft text-warn">
                                 <CrownIcon size={12} />
                               </span>
                             )}
