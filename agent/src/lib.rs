@@ -46,6 +46,7 @@
 //! - [`patch_notes`]: notas da atualização atual, para o Início (#301)
 //! - [`live_game`] e [`live_client`]: a partida ao vivo, com as duas
 //!   equipes, elo, partidas recentes e runas (#268)
+//! - [`wallet`]: saldo de Essência Azul, Essência Laranja e RP (#370)
 
 pub mod assets;
 pub mod bench;
@@ -87,6 +88,7 @@ pub mod swaps;
 pub mod training;
 pub mod ux;
 pub mod ux_window;
+pub mod wallet;
 pub mod wamp;
 pub mod ws;
 

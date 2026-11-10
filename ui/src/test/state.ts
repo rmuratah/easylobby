@@ -37,6 +37,7 @@ const emptyState: AgentState = {
   playerProfile: null,
   liveGame: null,
   patchNotes: null,
+  wallet: null,
 };
 
 /**

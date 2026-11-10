@@ -72,6 +72,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'playerProfile': return { ...state, playerProfile: message.playerProfile };
     case 'liveGame': return { ...state, liveGame: message.liveGame };
     case 'patchNotes': return { ...state, patchNotes: message.patchNotes };
+    case 'wallet': return { ...state, wallet: message.wallet };
     default: return message satisfies never;
   }
 }

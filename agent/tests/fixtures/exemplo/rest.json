@@ -1067,6 +1067,37 @@
   },
   {
     "method": "GET",
+    "path": "/lol-inventory/v1/wallet/lol_blue_essence",
+    "phase": "None",
+    "status": 200,
+    "body": {
+      "lol_blue_essence": 48210
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-inventory/v1/wallet/RP",
+    "phase": "None",
+    "status": 200,
+    "body": {
+      "RP": 1350
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/lol-loot/v1/player-loot/CURRENCY_cosmetic",
+    "phase": "None",
+    "status": 200,
+    "body": {
+      "count": 3120,
+      "displayCategories": "",
+      "lootId": "CURRENCY_cosmetic",
+      "lootName": "CURRENCY_cosmetic",
+      "type": "CURRENCY"
+    }
+  },
+  {
+    "method": "GET",
     "path": "/lol-ranked/v1/current-ranked-stats",
     "phase": "None",
     "status": 200,
