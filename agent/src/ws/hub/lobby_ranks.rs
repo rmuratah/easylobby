@@ -9,6 +9,10 @@
 //! preenchidos. O jogador logado usa os ranks que o agente já acompanha
 //! (#171), que mudam no fim de uma ranqueada, e o próprio Riot ID.
 //!
+//! Os convidados (`invitations`) também ganham o Riot ID (#356), e quem já
+//! foi membro e saiu aparece como [`InvitationState::Left`] em vez do
+//! `Declined` que a LCU põe no convite dele.
+//!
 //! A cache vale enquanto o lobby existe: limpa quando ele fecha (e com o LoL
 //! fechado, que fecha o lobby) e no fim de uma partida, quando os ranks
 //! mudam.
@@ -16,7 +20,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::{Hub, Shared};
-use crate::lobby::Lobby;
+use crate::lobby::{InvitationState, Lobby};
 use crate::player_profile;
 use crate::ranked::RankedStats;
 use crate::ws::protocol::ServerMessage;
@@ -36,21 +40,57 @@ pub(super) struct LobbyRanks {
     names: HashMap<String, RiotId>,
     attempts: HashMap<String, u8>,
     in_flight: HashSet<String>,
+    /// Quem já esteve em `members` neste lobby (#356), para saber que um
+    /// convite `Declined` dele é de quem saiu, não de quem recusou.
+    former_members: HashSet<String>,
 }
 
 impl LobbyRanks {
     /// Esquece tudo. Uma busca que ainda está saindo continua, e o resultado
     /// dela entra se o jogador ainda estiver no lobby.
     pub(super) fn clear(&mut self) {
-        self.known.clear();
+        self.forget_ranks();
         self.names.clear();
+        self.former_members.clear();
+    }
+
+    /// Esquece só os ranks (fim de partida): os nomes e quem já foi membro
+    /// continuam valendo.
+    fn forget_ranks(&mut self) {
+        self.known.clear();
         self.attempts.clear();
         self.in_flight.clear();
     }
 }
 
-/// Preenche o elo e o Riot ID dos membros de `lobby` com o que já se sabe.
-pub(super) fn fill_ranks(shared: &Shared, lobby: &mut Lobby) {
+/// Preenche o elo e o Riot ID dos membros e o Riot ID dos convidados de
+/// `lobby` com o que já se sabe, e marca como [`InvitationState::Left`] o
+/// convite recusado de quem já foi membro.
+pub(super) fn fill_ranks(shared: &mut Shared, lobby: &mut Lobby) {
+    let ranks = &mut shared.lobby_ranks;
+    ranks
+        .former_members
+        .extend(lobby.members.iter().map(|m| m.puuid.clone()));
+    for invitation in &mut lobby.invitations {
+        match invitation.state {
+            // Convidado de novo: um `Declined` daqui em diante é recusa.
+            InvitationState::Requested | InvitationState::Pending | InvitationState::OnHold => {
+                ranks.former_members.remove(&invitation.puuid);
+            }
+            InvitationState::Declined if ranks.former_members.contains(&invitation.puuid) => {
+                invitation.state = InvitationState::Left;
+            }
+            _ => {}
+        }
+        let (game_name, tag_line) = ranks
+            .names
+            .get(&invitation.puuid)
+            .cloned()
+            .unwrap_or_default();
+        invitation.game_name = game_name;
+        invitation.tag_line = tag_line;
+    }
+    let shared = &*shared;
     let summoner = shared.state.summoner.as_ref();
     for member in &mut lobby.members {
         let me = summoner.filter(|s| s.puuid == member.puuid);
@@ -86,18 +126,20 @@ fn write_refilled_lobby(shared: &mut Shared) -> Option<ServerMessage> {
     Some(ServerMessage::Lobby { lobby: Some(lobby) })
 }
 
-/// Membros do lobby cujo elo ou nome ainda falta buscar, já marcados como em
-/// busca.
+/// Membros e convidados do lobby cujo elo ou nome ainda falta buscar, já
+/// marcados como em busca.
 fn take_wanted(shared: &mut Shared) -> Vec<String> {
     let Some(lobby) = &shared.state.lobby else {
         return Vec::new();
     };
     let me = shared.state.summoner.as_ref().map(|s| s.puuid.as_str());
     let ranks = &mut shared.lobby_ranks;
-    let wanted: Vec<String> = lobby
-        .members
-        .iter()
-        .map(|m| m.puuid.as_str())
+    let puuids = lobby.members.iter().map(|m| m.puuid.as_str());
+    let invited = lobby.invitations.iter().map(|i| i.puuid.as_str());
+    let mut seen = HashSet::new();
+    let wanted: Vec<String> = puuids
+        .chain(invited)
+        .filter(|puuid| seen.insert(*puuid))
         .filter(|puuid| player_profile::valid_puuid(puuid) && Some(*puuid) != me)
         .filter(|puuid| {
             !(ranks.known.contains_key(*puuid) && ranks.names.contains_key(*puuid))
@@ -114,7 +156,7 @@ fn take_wanted(shared: &mut Shared) -> Vec<String> {
 }
 
 /// Guarda o elo e o nome que chegaram de `puuid`, se ele ainda está no
-/// lobby, e publica o lobby com eles.
+/// lobby (como membro ou convidado), e publica o lobby com eles.
 fn write_fetched(
     shared: &mut Shared,
     puuid: &str,
@@ -125,11 +167,10 @@ fn write_fetched(
     if ranked.is_none() && name.is_none() {
         return None;
     }
-    let member = shared
-        .state
-        .lobby
-        .as_ref()
-        .is_some_and(|lobby| lobby.members.iter().any(|m| m.puuid == puuid));
+    let member = shared.state.lobby.as_ref().is_some_and(|lobby| {
+        lobby.members.iter().any(|m| m.puuid == puuid)
+            || lobby.invitations.iter().any(|i| i.puuid == puuid)
+    });
     if !member {
         return None;
     }
@@ -151,7 +192,7 @@ impl Hub {
 
     /// Esquece os ranks dos outros membros (fim de partida) e busca de novo.
     pub(super) fn reload_lobby_ranks(&self) {
-        self.lock().lobby_ranks.clear();
+        self.lock().lobby_ranks.forget_ranks();
         self.spawn_fetch_lobby_ranks();
     }
 
@@ -342,5 +383,70 @@ mod tests {
         drop(shared);
         assert_eq!(names_of(&hub), vec!["Eu#000", "Ana#BR1"]);
         assert_eq!(ranks_of(&hub), vec![None, Some(gold())]);
+    }
+
+    fn lobby_with_invitations(puuids: &[&str], invitations: &[(&str, &str)]) -> Lobby {
+        let members: Vec<_> = puuids
+            .iter()
+            .map(|p| json!({"puuid": p, "summonerId": 1, "isLeader": false}))
+            .collect();
+        let invitations: Vec<_> = invitations
+            .iter()
+            .map(|(p, state)| json!({"toPuuid": p, "toSummonerId": 2, "state": state}))
+            .collect();
+        Lobby::from_json(&json!({
+            "gameConfig": {"queueId": 420},
+            "members": members,
+            "invitations": invitations,
+        }))
+        .unwrap()
+    }
+
+    fn invitations_of(hub: &Hub) -> Vec<(String, InvitationState)> {
+        let lobby = hub.state().lobby.unwrap();
+        lobby
+            .invitations
+            .into_iter()
+            .map(|i| (format!("{}#{}", i.game_name, i.tag_line), i.state))
+            .collect()
+    }
+
+    #[test]
+    fn quem_saiu_aparece_como_saiu_com_o_nome() {
+        let hub = Hub::new();
+        login(&hub, "eu");
+        hub.set_lobby(Some(lobby(&["eu", "outro"])));
+        hub.update(|shared| {
+            take_wanted(shared);
+            write_fetched(shared, "outro", Some(gold()), Some(ana()))
+        });
+        // A LCU põe `Declined` no convite de quem sai.
+        hub.set_lobby(Some(lobby_with_invitations(
+            &["eu"],
+            &[("outro", "Declined"), ("recusou", "Declined")],
+        )));
+        assert_eq!(
+            invitations_of(&hub),
+            vec![
+                ("Ana#BR1".to_owned(), InvitationState::Left),
+                ("#".to_owned(), InvitationState::Declined),
+            ]
+        );
+        // O nome de quem só foi convidado também é buscado.
+        hub.update(|shared| {
+            assert_eq!(take_wanted(shared), vec!["recusou".to_owned()]);
+            write_fetched(shared, "recusou", None, Some(("Bia".into(), "BR1".into())))
+        });
+        assert_eq!(invitations_of(&hub)[1].0, "Bia#BR1");
+        // Convidado de novo, um `Declined` depois é recusa.
+        hub.set_lobby(Some(lobby_with_invitations(
+            &["eu"],
+            &[("outro", "Pending")],
+        )));
+        hub.set_lobby(Some(lobby_with_invitations(
+            &["eu"],
+            &[("outro", "Declined")],
+        )));
+        assert_eq!(invitations_of(&hub)[0].1, InvitationState::Declined);
     }
 }

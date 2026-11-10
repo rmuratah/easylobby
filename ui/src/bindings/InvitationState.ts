@@ -9,6 +9,7 @@ export type InvitationState =
   | "Accepted"
   | "Declined"
   | "Kicked"
+  | "Left"
   | "OnHold"
   | "Error"
   | "Unknown";

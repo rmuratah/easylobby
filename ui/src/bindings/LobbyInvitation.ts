@@ -6,9 +6,20 @@ import type { InvitationState } from "./InvitationState";
  */
 export type LobbyInvitation = {
   /**
-   * Quem foi convidado. A UI cruza com a lista de amigos para o nome.
+   * Quem foi convidado.
    */
   puuid: string,
   summonerId: number,
   state: InvitationState,
+  /**
+   * Riot ID de quem foi convidado (#356), como em
+   * [`LobbyMember::game_name`]: o agente busca pelo `puuid`, então chega
+   * vazio primeiro. Vazio também se a LCU não respondeu; aí a UI procura
+   * na lista de amigos.
+   */
+  gameName: string,
+  /**
+   * Tag do Riot ID (depois do `#`). Vazia junto com `game_name`.
+   */
+  tagLine: string,
 };

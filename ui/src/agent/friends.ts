@@ -146,10 +146,11 @@ export function playerName(puuid: string, summonerId: number, friends: Friend[])
 }
 
 /**
- * Riot ID de um membro do lobby (#325): o que o agente buscou pelo `puuid`
- * ou, enquanto ele não chega, o da lista de amigos. "Jogador" sem nenhum.
+ * Riot ID de um membro (#325) ou convidado (#356) do lobby: o que o agente
+ * buscou pelo `puuid` ou, enquanto ele não chega, o da lista de amigos.
+ * "Jogador" sem nenhum.
  */
-export function memberName(member: LobbyMember, friends: Friend[]): string {
+export function memberName(member: Pick<LobbyMember, 'puuid' | 'summonerId' | 'gameName' | 'tagLine'>, friends: Friend[]): string {
   if (member.gameName) return member.tagLine ? `${member.gameName}#${member.tagLine}` : member.gameName;
   return playerName(member.puuid, member.summonerId, friends);
 }
