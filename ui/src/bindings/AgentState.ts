@@ -11,6 +11,7 @@ import type { FriendGroup } from "./FriendGroup";
 import type { GameQueue } from "./GameQueue";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
+import type { LiveGame } from "./LiveGame";
 import type { Lobby } from "./Lobby";
 import type { LobbyChat } from "./LobbyChat";
 import type { LobbyLink } from "./LobbyLink";
@@ -148,6 +149,10 @@ export type AgentState = {
    * ou `null`.
    */
   playerProfile: PlayerProfile | null,
+  /**
+   * A partida em andamento (#268), ou `null` fora de partida.
+   */
+  liveGame: LiveGame | null,
   /**
    * Notas da atualização atual do LoL (#301), ou `null`.
    */

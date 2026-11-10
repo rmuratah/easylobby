@@ -2,6 +2,7 @@ import type { ReadyCheckState } from '../bindings/ReadyCheckState';
 import type { ReadyCheckResponse } from '../bindings/ReadyCheckResponse';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import type { PatchNotes } from '../bindings/PatchNotes';
+import type { LiveGame } from '../bindings/LiveGame';
 import type { AgentState } from '../bindings/AgentState';
 import type { LcuStatus } from '../bindings/LcuStatus';
 import type { Summoner } from '../bindings/Summoner';
@@ -266,6 +267,30 @@ function patchNotes(v: unknown): v is PatchNotes | null {
   return v === null || (object(v) && typeof v.version === 'string' && typeof v.url === 'string' &&
     nullableString(v.title) && nullableString(v.summary));
 }
+// Partida ao vivo (#268).
+function tierDivision(v: unknown): boolean {
+  return v === null || (object(v) && typeof v.tier === 'string' && nullableString(v.division));
+}
+function liveRunes(v: unknown): boolean {
+  return v === null || (object(v) && uints(v, ['keystoneId', 'primaryStyleId', 'subStyleId']));
+}
+function livePlayerStats(v: unknown): boolean {
+  return v === null || (object(v) && (v.rank === null || rankedEntry(v.rank)) && tierDivision(v.previousSeason) &&
+    uints(v, ['recentGames', 'championGames', 'championWins']) && position(v.mainPosition) &&
+    typeof v.streak === 'number' && Number.isSafeInteger(v.streak));
+}
+function livePlayer(v: unknown): boolean {
+  return object(v) && strings(v, ['puuid', 'gameName', 'tagLine']) && booleans(v, ['me', 'bot', 'hidden']) &&
+    uints(v, ['championId', 'spell1Id', 'spell2Id']) && position(v.position) && liveRunes(v.runes) && livePlayerStats(v.stats);
+}
+function liveTeam(v: unknown): boolean {
+  return object(v) && uint(v.teamId) && tierDivision(v.averageTier) && Array.isArray(v.players) && v.players.every(livePlayer);
+}
+function liveGame(v: unknown): v is LiveGame | null {
+  return v === null || (object(v) && uints(v, ['gameId', 'queueId', 'mapId']) && strings(v, ['queueName', 'mapName', 'gameMode']) &&
+    (v.rankedQueue === 'soloDuo' || v.rankedQueue === 'flex') && (v.gameTimeSecs === null || uint(v.gameTimeSecs)) &&
+    Array.isArray(v.teams) && v.teams.every(liveTeam));
+}
 function status(v: unknown): v is LcuStatus {
   if (!object(v)) return false;
   switch (v.state) {
@@ -288,7 +313,7 @@ function state(v: unknown): v is AgentState {
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
     champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) &&
     ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory) &&
-    matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && patchNotes(v.patchNotes);
+    matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && patchNotes(v.patchNotes);
 }
 
 // Os tipos vêm do Rust; esta validação protege a fronteira JSON em runtime.
@@ -330,6 +355,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'matchHistory': valid = matchHistory(v.matchHistory); break;
     case 'matchDetails': valid = matchDetails(v.matchDetails); break;
     case 'playerProfile': valid = playerProfile(v.playerProfile); break;
+    case 'liveGame': valid = liveGame(v.liveGame); break;
     case 'patchNotes': valid = patchNotes(v.patchNotes); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
       (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;
