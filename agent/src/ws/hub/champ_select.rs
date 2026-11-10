@@ -194,6 +194,40 @@ impl Hub {
         CommandResult::Ok
     }
 
+    /// Marca o aviso de autofill como visto (comando `ackAutofill`, #360).
+    /// Esconde o aviso desta seleção na hora, mesmo que a LCU recuse, e
+    /// avisa a LCU com `PUT /lol-lobby/v1/autofill-displayed`, como o client
+    /// oficial. Fora da seleção responde `invalidCommand` sem falar com a
+    /// LCU.
+    pub async fn ack_autofill(&self) -> CommandResult {
+        let mut client = None;
+        let mut in_champ_select = false;
+        self.update(|shared| {
+            client = shared.client.clone();
+            client.as_ref()?;
+            let cs = shared.state.champ_select.as_mut()?;
+            in_champ_select = true;
+            shared.autofill_ack = Some(cs.id.clone());
+            if !cs.autofill_notice {
+                return None;
+            }
+            cs.autofill_notice = false;
+            Some(ServerMessage::ChampSelect {
+                champ_select: Some(cs.clone()),
+            })
+        });
+        let Some(client) = client else {
+            return not_connected();
+        };
+        if !in_champ_select {
+            return CommandResult::error(ErrorCode::InvalidCommand, "fora da seleção de campeões");
+        }
+        match champ_select::ack_autofill(&client).await {
+            Ok(()) => CommandResult::Ok,
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
     /// Pede, aceita, recusa ou cancela uma troca na seleção (comandos
     /// `requestSwap`, `acceptSwap`, `declineSwap` e `cancelSwap`, #25).
     /// Confere o pedido contra a seleção atual, e relê a sessão pelo REST e
@@ -348,9 +382,15 @@ fn write_champ_select_champions(
 /// (#87).
 pub(super) fn write_champ_select(
     shared: &mut Shared,
-    champ_select: Option<ChampSelect>,
+    mut champ_select: Option<ChampSelect>,
 ) -> Option<ServerMessage> {
     shared.champ_select_rev += 1;
+    // O aviso de autofill já visto nesta seleção não volta (#360).
+    if let Some(cs) = champ_select.as_mut() {
+        if shared.autofill_ack.as_deref() == Some(cs.id.as_str()) {
+            cs.autofill_notice = false;
+        }
+    }
     if shared.state.champ_select == champ_select {
         return None;
     }
@@ -366,6 +406,35 @@ mod tests {
     use crate::connection::ConnectionEvent;
     use crate::wamp::EventType;
     use serde_json::json;
+
+    #[tokio::test]
+    async fn aviso_de_autofill_visto_so_vale_para_a_mesma_selecao() {
+        let hub = Hub::new();
+        let autofilled = |id: &str| {
+            let mut raw = champ_select("BAN_PICK", 0);
+            raw["id"] = json!(id);
+            raw["myTeam"][0]["isAutofilled"] = json!(true);
+            ChampSelect::from_json(&raw)
+        };
+        // Sem o LoL aberto, o comando não esconde nada.
+        hub.set_champ_select(autofilled("a"));
+        assert!(matches!(
+            hub.ack_autofill().await,
+            CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            }
+        ));
+        assert!(hub.state().champ_select.unwrap().autofill_notice);
+
+        // Visto nesta seleção: as sessões novas dela chegam sem o aviso.
+        hub.lock().autofill_ack = Some("a".into());
+        hub.set_champ_select(autofilled("a"));
+        assert!(!hub.state().champ_select.unwrap().autofill_notice);
+        // Seleção nova (outra partida): o aviso volta.
+        hub.set_champ_select(autofilled("b"));
+        assert!(hub.state().champ_select.unwrap().autofill_notice);
+    }
 
     #[tokio::test]
     async fn segue_a_selecao_de_campeoes() {

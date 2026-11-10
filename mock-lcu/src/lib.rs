@@ -26,12 +26,14 @@
 //!   árvores de runas (#26).
 //! - [`custom_games`]: lista de personalizadas abertas e entrar nelas (#264).
 //! - [`swaps`]: trocas de campeão, de vez e de cargo na seleção (#25).
+//! - [`autofill`]: autofill na seleção e o aviso já mostrado (#360).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
 //!
 //! [`Credentials::from_lockfile_path`]: easylobby_agent::lockfile::Credentials::from_lockfile_path
 
 pub mod ags;
+pub mod autofill;
 pub mod bench;
 pub mod champ_select;
 pub mod champions;
@@ -478,6 +480,22 @@ impl MockLcu {
             emit(&self.shared, event);
         }
         (response.status == 200).then(|| response.body["id"].as_u64())?
+    }
+
+    /// O jogador logado cai em autofill na seleção atual (#360), como a rota
+    /// [`autofill::SIMULATE`]. Devolve `false` fora da seleção.
+    pub fn autofill_local_player(&self) -> bool {
+        let (response, events) = autofill::simulate(&self.shared.state());
+        for event in events {
+            emit(&self.shared, event);
+        }
+        response.status == 200
+    }
+
+    /// Se o aviso de autofill foi marcado como mostrado (`PUT
+    /// /lol-lobby/v1/autofill-displayed`, #360).
+    pub fn autofill_displayed(&self) -> bool {
+        autofill::displayed(&self.shared.state()).body == true
     }
 
     /// Derruba os WebSockets abertos e recusa os novos, mas continua
@@ -1004,6 +1022,23 @@ async fn handle_request(
                 return json_response(&Response::error(404, "mock-lcu: rota de troca"));
             };
             let (response, events) = swaps::respond(&shared.state(), kind, id, intent);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        // Autofill na seleção (#360).
+        (&Method::GET, autofill::DISPLAYED) => autofill::displayed(&shared.state()),
+        (&Method::PUT, autofill::DISPLAYED) => {
+            let (response, events) = autofill::mark_displayed();
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        (&Method::POST, autofill::SIMULATE) => {
+            let (response, events) = autofill::simulate(&shared.state());
+            println!("autofill: jogador em autofill (de mentira)");
             for event in events {
                 emit(&shared, event);
             }

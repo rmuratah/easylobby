@@ -18,7 +18,7 @@ export const testChampSelect: ChampSelect = {
   id: 'sessao-1', queueId: 420, queue: 'rankedSolo', isCustomGame: false, localPlayerCellId: 0,
   hasSimultaneousBans: true, hasSimultaneousPicks: false,
   timer: { phase: 'BAN_PICK', timeLeftMs: 30000, totalTimeMs: 30000, isInfinite: false, endsAtMs: 1_800_000_000_000 },
-  myTeam: [{ cellId: 0, isLocalPlayer: true, gameName: 'Victor', tagLine: 'BR1', assignedPosition: 'middle',
+  myTeam: [{ cellId: 0, isLocalPlayer: true, gameName: 'Victor', tagLine: 'BR1', assignedPosition: 'middle', isAutofilled: false,
     championId: null, championPickIntent: null, selectedSkinId: null, spell1Id: 4, spell2Id: 14 }],
   theirTeam: [], bans: { myTeam: [], theirTeam: [] },
   actions: [{ id: 1, type: 'ban', actorCellId: 0, championId: null, completed: false, isInProgress: true, isAllyAction: true, turn: 1 }],
@@ -30,6 +30,7 @@ export const testChampSelect: ChampSelect = {
   benchChampions: [],
   allowRerolling: false,
   rerollsRemaining: 0,
+  autofillNotice: false,
 };
 export const testInvitation: ReceivedInvitation = {
   invitationId: 'convite-1', fromSummonerId: 2, fromSummonerName: '', queueId: 420, queue: 'rankedSolo', canAccept: true,

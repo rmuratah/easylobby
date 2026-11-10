@@ -54,6 +54,11 @@ use crate::swaps::{ChampSelectSwap, SwapKind, SwapState};
 /// Endpoint (e URI dos eventos WAMP) da sessão de seleção de campeões.
 pub const CHAMP_SELECT_SESSION_PATH: &str = "/lol-champ-select/v1/session";
 
+/// Se o aviso de autofill já foi mostrado (#360): `GET` devolve `true` ou
+/// `false` e `PUT` marca como mostrado. Da lista `/help` da LCU 16.21; falta
+/// conferir no LoL real.
+pub const AUTOFILL_DISPLAYED_PATH: &str = "/lol-lobby/v1/autofill-displayed";
+
 /// A seleção de campeões em andamento, como a tela precisa.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -108,6 +113,10 @@ pub struct ChampSelect {
     pub allow_rerolling: bool,
     /// Rerolls que o jogador logado ainda tem.
     pub rerolls_remaining: u32,
+    /// Mostrar o aviso de autofill (#360): o jogador logado caiu numa
+    /// posição que não escolheu (`isAutofilled` dele) e ainda não marcou o
+    /// aviso como visto com o comando `ackAutofill` nesta seleção.
+    pub autofill_notice: bool,
 }
 
 /// Etapa atual da seleção e o tempo dela.
@@ -206,6 +215,9 @@ pub struct ChampSelectPlayer {
     /// Cargo recebido na fila, ou `unselected` nas filas sem cargo e no time
     /// adversário.
     pub assigned_position: Position,
+    /// O cargo veio do preenchimento automático (autofill, #360): o jogador
+    /// não escolheu essa posição no lobby. O `isAutofilled` da LCU.
+    pub is_autofilled: bool,
     /// Campeão escolhido (ou em hover na vez do jogador), ou `null`.
     pub champion_id: Option<u32>,
     /// Campeão que o jogador pretende jogar, mostrado antes da vez dele
@@ -390,6 +402,7 @@ impl ChampSelect {
             game_name: non_empty(p.game_name),
             tag_line: non_empty(p.tag_line),
             assigned_position: assigned_position(&p.assigned_position),
+            is_autofilled: p.is_autofilled,
             champion_id: champion(p.champion_id),
             champion_pick_intent: champion(p.champion_pick_intent),
             selected_skin_id: champion(p.selected_skin_id),
@@ -399,6 +412,8 @@ impl ChampSelect {
             obfuscated_puuid: p.obfuscated_puuid,
         };
 
+        let my_team: Vec<ChampSelectPlayer> = raw.my_team.into_iter().map(player).collect();
+        let autofill_notice = my_team.iter().any(|p| p.is_local_player && p.is_autofilled);
         let time_left_ms = clamp_ms(raw.timer.adjusted_time_left_in_phase);
         Some(ChampSelect {
             id: raw.id,
@@ -415,7 +430,7 @@ impl ChampSelect {
                 is_infinite: raw.timer.is_infinite,
                 ends_at_ms: received_at_ms.saturating_add(u64::from(time_left_ms)),
             },
-            my_team: raw.my_team.into_iter().map(player).collect(),
+            my_team,
             their_team: raw.their_team.into_iter().map(player).collect(),
             bans,
             actions,
@@ -427,6 +442,7 @@ impl ChampSelect {
             bench_champions: bench::bench_from_raw(&raw.bench_champions, &raw.bench_champion_ids),
             allow_rerolling: raw.allow_rerolling,
             rerolls_remaining: u32::try_from(raw.rerolls_remaining.max(0)).unwrap_or(u32::MAX),
+            autofill_notice,
         })
     }
 
@@ -508,6 +524,8 @@ struct RawPlayer {
     tag_line: String,
     #[serde(default)]
     assigned_position: String,
+    #[serde(default)]
+    is_autofilled: bool,
     #[serde(default)]
     champion_id: i64,
     #[serde(default)]
@@ -632,6 +650,16 @@ pub async fn current_session(lcu: &LcuClient) -> Result<Option<ChampSelect>, Lcu
 }
 
 /// Caminho de uma ação da sessão na LCU.
+/// Marca o aviso de autofill como mostrado (`PUT`
+/// [`AUTOFILL_DISPLAYED_PATH`], #360), para o client oficial não repetir o
+/// aviso se for reaberto.
+pub async fn ack_autofill(client: &LcuClient) -> Result<(), LcuError> {
+    client
+        .send::<Option<Value>>(reqwest::Method::PUT, AUTOFILL_DISPLAYED_PATH, None)
+        .await
+        .map(|_| ())
+}
+
 pub fn action_path(action_id: u32) -> String {
     format!("{CHAMP_SELECT_SESSION_PATH}/actions/{action_id}")
 }
@@ -1114,6 +1142,26 @@ mod tests {
     }
 
     #[test]
+    fn autofill_do_jogador_e_dos_aliados() {
+        let cs = ChampSelect::from_json_at(&session(), 0).unwrap();
+        assert!(cs.my_team.iter().all(|p| !p.is_autofilled));
+        assert!(!cs.autofill_notice);
+
+        // Só o aliado em autofill: ícone nele, sem aviso para o jogador.
+        let mut raw = session();
+        raw["myTeam"][0]["isAutofilled"] = json!(true);
+        let cs = ChampSelect::from_json_at(&raw, 0).unwrap();
+        assert!(cs.my_team[0].is_autofilled);
+        assert!(!cs.autofill_notice);
+
+        // O jogador logado em autofill: aviso.
+        raw["myTeam"][1]["isAutofilled"] = json!(true);
+        let cs = ChampSelect::from_json_at(&raw, 0).unwrap();
+        assert!(cs.local_player().unwrap().is_autofilled);
+        assert!(cs.autofill_notice);
+    }
+
+    #[test]
     fn formato_para_a_ui() {
         let cs = ChampSelect::from_json_at(&session(), 1_000).unwrap();
         let value = serde_json::to_value(&cs).unwrap();
@@ -1148,6 +1196,7 @@ mod tests {
                 "gameName": "Jogador",
                 "tagLine": "BR1",
                 "assignedPosition": "jungle",
+                "isAutofilled": false,
                 "championId": null,
                 "championPickIntent": 121,
                 "selectedSkinId": null,
@@ -1160,6 +1209,7 @@ mod tests {
             json!({"myTeam": [117, 43], "theirTeam": [245]})
         );
         assert_eq!(value["queue"], json!("rankedSolo"));
+        assert_eq!(value["autofillNotice"], json!(false));
         for phase in ChampSelectPhase::ALL {
             assert_eq!(serde_json::to_value(phase).unwrap(), json!(phase.as_str()));
         }
