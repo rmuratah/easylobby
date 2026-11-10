@@ -15,6 +15,7 @@ mod custom_lobby;
 mod exit;
 mod friends;
 mod invitations;
+mod live_game;
 mod lobby;
 mod lobby_chat;
 mod lobby_ranks;
@@ -113,6 +114,8 @@ struct Shared {
     player_profile_request: Option<String>,
     /// Elo dos outros membros do lobby, já buscado (#275).
     lobby_ranks: lobby_ranks::LobbyRanks,
+    /// A partida ao vivo e o que já foi buscado dela (#268).
+    live_game: live_game::LiveGameSync,
 }
 
 /// Recurso do estado que um comando relê ou muda pelo REST.
@@ -189,6 +192,7 @@ impl Hub {
                     lobby_chat_sync: lobby_chat::LobbyChatSync::default(),
                     player_profile_request: None,
                     lobby_ranks: lobby_ranks::LobbyRanks::default(),
+                    live_game: live_game::LiveGameSync::default(),
                 }),
                 tx,
             }),
@@ -358,6 +362,8 @@ impl Hub {
                 if ux_guard::reopens_ux(phase) {
                     self.guard_ux();
                 }
+                // Conectou no meio de uma partida (#268).
+                self.follow_live_game(phase);
                 // Antes do lobby, para a UI já achar a fila dele na lista.
                 // Um login durante a releitura já releu as filas (#277).
                 self.set_queues_if(stamps.queues, queues.ok().flatten().unwrap_or_default());
@@ -488,6 +494,7 @@ impl Hub {
                 self.set_match_details(None);
                 self.set_player_profile(None);
                 self.set_custom_games(None);
+                self.stop_live_game();
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
                 });
@@ -521,7 +528,10 @@ impl Hub {
                     }
                 }
             }
-            GAMEFLOW_PHASE_PATH if deleted => self.set_gameflow_phase(None),
+            GAMEFLOW_PHASE_PATH if deleted => {
+                self.set_gameflow_phase(None);
+                self.stop_live_game();
+            }
             GAMEFLOW_PHASE_PATH => {
                 if let Some(phase) = GameflowPhase::from_json(&event.data) {
                     let before = self.lock().state.gameflow_phase;
@@ -530,6 +540,10 @@ impl Hub {
                     // seleção (#188).
                     if before != Some(phase) && ux_guard::reopens_ux(Some(phase)) {
                         self.guard_ux();
+                    }
+                    // A partida ao vivo começa ou termina (#268).
+                    if before != Some(phase) {
+                        self.follow_live_game(Some(phase));
                     }
                     // A partida terminou: histórico, ranks e maestria mudaram.
                     if profile::ends_a_game(before, Some(phase)) {

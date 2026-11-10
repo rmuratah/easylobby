@@ -13,6 +13,7 @@ import type { FriendGroup } from "./FriendGroup";
 import type { GameQueue } from "./GameQueue";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { LcuStatus } from "./LcuStatus";
+import type { LiveGame } from "./LiveGame";
 import type { Lobby } from "./Lobby";
 import type { LobbyChat } from "./LobbyChat";
 import type { LobbyLink } from "./LobbyLink";
@@ -75,6 +76,7 @@ export type ServerMessage =
   | { "type": "matchHistory", matchHistory: MatchHistory | null, }
   | { "type": "matchDetails", matchDetails: MatchDetails | null, }
   | { "type": "playerProfile", playerProfile: PlayerProfile | null, }
+  | { "type": "liveGame", liveGame: LiveGame | null, }
   | { "type": "patchNotes", patchNotes: PatchNotes | null, }
   | { "type": "response", id: number, result: CommandResult, }
   | { "type": "invalidMessage", message: string, };

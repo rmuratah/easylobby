@@ -44,6 +44,8 @@
 //! - [`swaps`]: trocas de campeão, de ordem de pick e de cargo na seleção
 //!   (#25)
 //! - [`patch_notes`]: notas da atualização atual, para o Início (#301)
+//! - [`live_game`] e [`live_client`]: a partida ao vivo, com as duas
+//!   equipes, elo, partidas recentes e runas (#268)
 
 pub mod assets;
 pub mod bench;
@@ -60,6 +62,8 @@ pub mod friends;
 pub mod gameflow;
 pub mod invitations;
 pub mod launcher;
+pub mod live_client;
+pub mod live_game;
 pub mod lobby;
 pub mod lobby_chat;
 pub mod lobby_link;

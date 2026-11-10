@@ -57,6 +57,7 @@ use crate::custom_lobby::{BotDifficulty, CustomTeam};
 use crate::friends::{Friend, FriendGroup};
 use crate::gameflow::GameflowPhase;
 use crate::invitations::{Invitee, ReceivedInvitation};
+use crate::live_game::LiveGame;
 use crate::lobby::{Lobby, Position, Queue};
 use crate::lobby_chat::LobbyChat;
 use crate::lobby_link::LobbyLink;
@@ -259,6 +260,13 @@ pub enum ServerMessage {
         player_profile: Option<PlayerProfile>,
     },
 
+    // Partida ao vivo
+    /// A partida em andamento (#268) começou ou mudou: chegou o Riot ID, o
+    /// elo ou as partidas recentes de um jogador, as runas (depois da tela
+    /// de carregamento) ou o relógio do jogo se afastou da conta da UI.
+    /// Sempre a partida inteira. `null` fora de partida e com o LoL fechado.
+    LiveGame { live_game: Option<LiveGame> },
+
     // Início
     /// As notas da atualização atual do LoL (#301), lidas ao conectar. Ficam
     /// no estado quando o LoL fecha. `null` enquanto o agente não conectou
@@ -353,6 +361,10 @@ pub struct AgentState {
     /// Último perfil de outro jogador pedido com `openPlayerProfile` (#255),
     /// ou `null`.
     pub player_profile: Option<PlayerProfile>,
+
+    // Partida ao vivo
+    /// A partida em andamento (#268), ou `null` fora de partida.
+    pub live_game: Option<LiveGame>,
 
     // Início
     /// Notas da atualização atual do LoL (#301), ou `null`.
@@ -951,6 +963,7 @@ mod tests {
                     "matchHistory": null,
                     "matchDetails": null,
                     "playerProfile": null,
+                    "liveGame": null,
                     "patchNotes": null,
                 },
             })

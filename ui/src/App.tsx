@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { mainScreen, phaseLabel } from './screens/mainScreen';
+import { liveGamePhases } from './agent/liveGame';
+import { LiveGamePanel } from './components/LiveGamePanel';
 import { LobbyPanel } from './components/LobbyPanel';
 import { LobbyChatPanel } from './components/LobbyChatPanel';
 import { LobbyGroupCard } from './components/LobbyInvites';
@@ -99,11 +101,13 @@ export default function App() {
   const homeLayout = activePage === 'home' && playable;
   // Sem lobby, o cartão principal do Início ainda não tem função definida: criar lobby fica só no Jogar.
   const homeReserved = activePage === 'home' && screen === 'home';
+  // A partida em andamento mostra as duas equipes (#268).
+  const liveGame = screen === 'other' && liveGamePhases.has(connection.state?.gameflowPhase ?? '') ? connection.state?.liveGame ?? null : null;
   const lobbyMain = screen === 'lobby' || screen === 'queue';
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
     : found ? 'Partida encontrada' : screen === 'champSelect' ? 'Seleção de campeões'
       : screen === 'postGame' ? 'Fim de partida'
-      : screen === 'other' ? 'Partida' : 'Início';
+      : screen === 'other' ? (liveGame ? 'Partida em andamento' : 'Partida') : 'Início';
   return (
     // Margens e espaços vazios também arrastam a janela (#299). Sem valor, o
     // atributo só vale para cliques no próprio elemento, não nos filhos.
@@ -143,8 +147,10 @@ export default function App() {
                 visible={ready && activePage === 'conversations'} />
             </section>
             {activePage === 'flow' && screen === 'champSelect' && <h2 className="text-title font-semibold tracking-[-0.015em]">{title}</h2>}
-            {activePage === 'flow' && screen === 'other' && <EmptyState title={phaseLabel(connection.state?.gameflowPhase)}
-              description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />}
+            {activePage === 'flow' && screen === 'other' && (liveGame && connection.state
+              ? <LiveGamePanel state={connection.state} game={liveGame} onOpenProfile={openPlayerProfile} />
+              : <EmptyState title={phaseLabel(connection.state?.gameflowPhase)}
+                description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />)}
             {activePage === 'flow' && screen === 'postGame' && <PostGamePanel connection={connection} send={connection.send} />}
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
             {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}

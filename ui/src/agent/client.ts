@@ -70,6 +70,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'matchHistory': return { ...state, matchHistory: message.matchHistory };
     case 'matchDetails': return { ...state, matchDetails: message.matchDetails };
     case 'playerProfile': return { ...state, playerProfile: message.playerProfile };
+    case 'liveGame': return { ...state, liveGame: message.liveGame };
     case 'patchNotes': return { ...state, patchNotes: message.patchNotes };
     default: return message satisfies never;
   }
