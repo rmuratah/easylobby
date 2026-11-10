@@ -79,8 +79,8 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     fireEvent.click(dialog().getByRole('button', { name: 'Aatrox' }));
 
     expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
-      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
-      { championId: 266, position: 'top', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
+      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
+      { championId: 266, position: 'top', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
     ] });
     expect(panel().getByRole('status')).toHaveTextContent('Salvando posições e campeões');
     act(() => socket().receive({ type: 'lobby', lobby: swiftplay([slot(22, 'bottom'), slot(266, 'top')]) }));
@@ -96,16 +96,16 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     open(/^Segunda posição: Topo/);
     fireEvent.click(dialog().getByRole('button', { name: 'Atirador (prioritária)' }));
     expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
-      { championId: 22, position: 'top', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
-      { championId: 266, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
+      { championId: 22, position: 'top', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
+      { championId: 266, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
     ] });
     await ok();
 
     open(/^Segunda posição, feitiço F: Incendiar/);
     fireEvent.click(dialog().getByRole('button', { name: 'Teleporte' }));
     expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
-      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
-      { championId: 266, position: 'top', spell1Id: 4, spell2Id: 12, runePageId: null, runes: null },
+      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
+      { championId: 266, position: 'top', spell1Id: 4, spell2Id: 12, runePageId: null, runes: null, skinId: null },
     ] });
   });
 
@@ -132,9 +132,30 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     }
     fireEvent.click(editor.getByRole('button', { name: 'Salvar' }));
     expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
-      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null },
+      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
       { championId: 266, position: 'top', spell1Id: null, spell2Id: null, runePageId: null,
-        runes: { perkIds: [102, 111, 121, 131, 211, 231, 5008, 5010, 5011], styleId: 8000, subStyleId: 8100 } },
+        runes: { perkIds: [102, 111, 121, 131, 211, 231, 5008, 5010, 5011], styleId: 8000, subStyleId: 8100 }, skinId: null },
+    ] });
+  });
+
+  it('escolhe a skin do slot entre as da conta (#403)', async () => {
+    render(<App />);
+    hello({ lobby: swiftplay([slot(22, 'bottom'), slot(266, 'top')]), gameflowPhase: 'Lobby', championCatalog: champions });
+    open(/^Primeira posição: skin/);
+    expect(request().command).toEqual({ type: 'openChampionSkins', championId: 22 });
+    expect(dialog().getByText('Carregando as skins…')).toBeInTheDocument();
+    const skin = (id: number, name: string, owned: boolean, isBase = false) => ({ id, name, isBase, owned, rarity: null, chromas: [] });
+    act(() => socket().receive({ type: 'championSkins', championSkins: { championId: 22, skins: [
+      skin(22000, 'Ashe', false, true), skin(22001, 'Ashe Freljord', true), skin(22002, 'Ashe Sherwood', false),
+    ] } }));
+    await ok();
+    // A padrão sempre aparece; as que a conta não tem, não.
+    expect(dialog().getByRole('button', { name: 'Ashe (padrão)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(dialog().queryByRole('button', { name: 'Ashe Sherwood' })).not.toBeInTheDocument();
+    fireEvent.click(dialog().getByRole('button', { name: 'Ashe Freljord' }));
+    expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
+      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: 22001 },
+      { championId: 266, position: 'top', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
     ] });
   });
 

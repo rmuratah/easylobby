@@ -26,4 +26,10 @@ export type PlayerSlotInput = {
    * mais que `runePageId`. `null` segue as regras de `runePageId`.
    */
   runes: SlotRunesInput | null,
+  /**
+   * Skin escolhida para o slot (#403). Precisa ser do campeão do slot
+   * (`skinId / 1000 == championId`). `null` mantém a skin do slot quando
+   * o campeão não muda, e senão usa a padrão.
+   */
+  skinId: number | null,
 };
