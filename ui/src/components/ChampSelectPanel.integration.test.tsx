@@ -37,7 +37,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 it('mostra os dois times, a etapa, a vez e o timer', () => {
   render(<App />); hello();
   expect(screen.getByRole('heading', { name: 'Seleção de campeões', level: 2 })).toBeVisible();
-  expect(panel().getByText('Bans e escolhas')).toBeVisible();
+  expect(panel().getByText('Banimento')).toBeVisible();
   expect(panel().getByRole('status')).toHaveTextContent('Sua vez de banir.');
   expect(panel().getByLabelText('Tempo da etapa')).toHaveTextContent('25 s');
   act(() => vi.advanceTimersByTime(3000));
@@ -53,6 +53,31 @@ it('mostra os dois times, a etapa, a vez e o timer', () => {
   const theirs = within(panel().getByRole('region', { name: 'Time adversário' }));
   expect(theirs.getByText('Adversário 1')).toBeVisible();
   expect(theirs.getByText('Adversário 2').closest('li')).toHaveTextContent('Ahri');
+});
+
+it('destaca em vermelho a fase de banimento e volta ao normal nas escolhas (#423)', () => {
+  render(<App />); hello();
+  const region = () => screen.getByRole('region', { name: 'Seleção de campeões' });
+  const card = () => panel().getByRole('status').closest('.champ-select-status')!;
+  expect(region()).toHaveAttribute('data-ban-phase', 'true');
+  expect(card()).toHaveClass('is-ban');
+  expect(panel().getByRole('status')).toHaveClass('text-danger');
+
+  // Ban de outro jogador em andamento: continua vermelho, esperando os outros.
+  const others = draftChampSelect.actions.map(a => a.id === 1 ? { ...a, completed: true, isInProgress: false } : a);
+  receive({ type: 'champSelect', champSelect: { ...draftChampSelect, pendingAction: null, actions: others } });
+  expect(panel().getByText('Banimento')).toBeVisible();
+  expect(panel().getByRole('status')).toHaveTextContent('Fase de banimento: aguardando os outros jogadores.');
+  expect(card()).toHaveClass('is-ban');
+
+  // Bans acabaram, vez das escolhas: some o vermelho.
+  const picks = draftChampSelect.actions.map(a => a.type === 'ban' ? { ...a, completed: true, isInProgress: false } : a);
+  receive({ type: 'champSelect', champSelect: { ...draftChampSelect, pendingAction: null, actions: picks } });
+  expect(panel().getByText('Bans e escolhas')).toBeVisible();
+  expect(panel().getByRole('status')).toHaveTextContent('Aguardando os outros jogadores.');
+  expect(panel().getByRole('status')).toHaveClass('text-accent-ink');
+  expect(region()).not.toHaveAttribute('data-ban-phase');
+  expect(card()).not.toHaveClass('is-ban');
 });
 
 it('acompanha a sessão nova: etapa, vez, bans e tempo sem limite', () => {
