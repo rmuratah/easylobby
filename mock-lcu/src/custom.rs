@@ -249,6 +249,10 @@ pub fn update_bot(state: &LcuState, path: &str, body: &Value) -> (Response, Vec<
     let Some((key, index)) = find(&lobby, name, uuid) else {
         return error(404, "bot não encontrado");
     };
+    // Como no LoL real: sem o `botUuid` no corpo, 400 `INVALID_REQUEST` (#409).
+    if body["botUuid"].as_str() != Some(uuid.as_str()) {
+        return error(400, "INVALID_REQUEST");
+    }
     let config = &mut lobby["gameConfig"];
     let bot = &mut config[key][index];
     bot["botChampionId"] = json!(choice.champion_id);
@@ -390,7 +394,9 @@ mod tests {
         );
 
         let path = format!("{BOTS}/{uuid}/{uuid}");
-        let change = json!({"botDifficulty": "RSINTERMEDIATE", "championId": 1, "teamId": "200", "position": "MIDDLE"});
+        let mut change = json!({"botDifficulty": "RSINTERMEDIATE", "championId": 1, "teamId": "200", "position": "MIDDLE"});
+        assert_eq!(update_bot(&s, &path, &change).0.status, 400);
+        change["botUuid"] = json!(uuid);
         let (response, events) = update_bot(&s, &path, &change);
         assert_eq!(response.status, 204);
         apply(&mut s, &events);
