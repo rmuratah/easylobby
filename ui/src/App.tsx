@@ -14,6 +14,7 @@ import { InvitationsPanel } from './components/InvitationsPanel';
 import { ChatButton, ConversationsPage } from './components/ConversationsPage';
 import { Notifications } from './components/Notifications';
 import { ChampSelectPanel } from './components/ChampSelectPanel';
+import { PostGamePanel } from './components/PostGamePanel';
 import { TitleBar } from './components/titlebar/TitleBar';
 import { useTheme } from './theme/theme';
 import { useSidebar } from './layout/sidebar';
@@ -105,6 +106,7 @@ export default function App() {
   const lobbyMain = screen === 'lobby' || screen === 'queue';
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
     : found ? 'Partida encontrada' : screen === 'champSelect' ? 'Seleção de campeões'
+      : screen === 'postGame' ? 'Fim de partida'
       : screen === 'other' ? (liveGame ? 'Partida em andamento' : 'Partida') : 'Início';
   return (
     // Margens e espaços vazios também arrastam a janela (#299). Sem valor, o
@@ -149,6 +151,7 @@ export default function App() {
               ? <LiveGamePanel state={connection.state} game={liveGame} onOpenProfile={openPlayerProfile} />
               : <EmptyState title={phaseLabel(connection.state?.gameflowPhase)}
                 description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />)}
+            {activePage === 'flow' && screen === 'postGame' && <PostGamePanel connection={connection} send={connection.send} />}
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
             {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}
             <div hidden={!playable || (activePage !== 'flow' && activePage !== 'home')} className={homeLayout ? 'home-primary'
