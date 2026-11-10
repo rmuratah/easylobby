@@ -14,13 +14,13 @@ import type { AgentState } from '../bindings/AgentState';
 import type { LobbyMember } from '../bindings/LobbyMember';
 import type { Position } from '../bindings/Position';
 import { cx } from './base/cx';
-import { Segmented } from './base/Segmented';
 import { ChampionIcon } from './ChampSelectPanel';
 import { PositionIcon } from './PositionIcon';
 import { RuneIcon } from './RunePagesPanel';
 import { SpellIcon } from './SummonerSpellsPicker';
 import type { PlayerSlot } from '../bindings/PlayerSlot';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
+import type { RunePage } from '../bindings/RunePage';
 import type { RuneStyle } from '../bindings/RuneStyle';
 import type { SlotRunesInput } from '../bindings/SlotRunesInput';
 import {
@@ -40,12 +40,14 @@ type Props = {
   notes?: HTMLElement | null;
 };
 
-type Tab = 'position' | 'champion' | 'skin' | 'spells' | 'runes';
-type Open = { index: 0 | 1; tab: Tab; spell?: 0 | 1 };
+type Tab = 'champion' | 'skin' | 'runes';
+/** Escolha pequena aberta embaixo do slot: a posição ou um dos feitiços. */
+type Menu = 'position' | 'spell0' | 'spell1';
+type Open = { index: 0 | 1; tab: Tab; menu?: Menu };
 const slotLabels = ['Primeira posição', 'Segunda posição'] as const;
 const slotNumerals = ['I', 'II'] as const;
-const tabLabels: Record<Tab, string> = { position: 'Posição', champion: 'Campeão', skin: 'Skins', spells: 'Feitiços', runes: 'Runas' };
-const TABS: Tab[] = ['position', 'champion', 'skin', 'spells', 'runes'];
+const tabLabels: Record<Tab, string> = { champion: 'Campeão', skin: 'Skins', runes: 'Runas' };
+const TABS: Tab[] = ['champion', 'skin', 'runes'];
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 
 /** Marca das posições prioritárias (as que faltam na fila), como o losango azul do client oficial. */
@@ -109,7 +111,7 @@ export function QuickPlaySlots({ member, mine, canEdit, state, send, notes }: Pr
         {pair.map((slot, i) => {
           const index = i as 0 | 1;
           const saved = savedSlot(index);
-          const show = (tab: Tab, spell?: 0 | 1) => setOpen({ index, tab, spell });
+          const show = (tab: Tab, menu?: Menu) => setOpen({ index, tab, menu });
           return (
             <li key={index} className="flex items-center gap-1">
               <SlotButton editable={editable} label={`${slotLabels[index]}: ${slot.championId ? championName(slot.championId) : 'sem campeão'}`}
@@ -121,7 +123,7 @@ export function QuickPlaySlots({ member, mine, canEdit, state, send, notes }: Pr
               </SlotButton>
               <span className="flex flex-col items-start gap-1">
                 <SlotButton editable={editable} label={`${slotLabels[index]}: ${positionNames[slot.position]}`}
-                  disabled={command.pending} onClick={() => show('position')}>
+                  disabled={command.pending} onClick={() => show('champion', 'position')}>
                   <span className={cx('relative flex size-8 items-center justify-center rounded-control-sm bg-raised',
                     slot.position === 'unselected' ? 'text-muted' : 'text-ink')}>
                     <PositionIcon position={slot.position} size={20} />
@@ -133,7 +135,7 @@ export function QuickPlaySlots({ member, mine, canEdit, state, send, notes }: Pr
                     {([0, 1] as const).map(spell => (
                       <SlotButton key={spell} editable={editable} disabled={command.pending}
                         label={`${slotLabels[index]}, feitiço ${spell === 0 ? 'D' : 'F'}: ${spellName(state.summonerSpellCatalog, (spell === 0 ? saved.spell1Id : saved.spell2Id) || null)}`}
-                        onClick={() => show('spells', spell)}>
+                        onClick={() => show('champion', spell === 0 ? 'spell0' : 'spell1')}>
                         <SpellIcon id={(spell === 0 ? saved.spell1Id : saved.spell2Id) || null} size={26} />
                       </SlotButton>
                     ))}
@@ -175,7 +177,7 @@ function SlotButton({ editable, label, disabled, onClick, children }: {
 /** Para onde ir depois de uma escolha: o que ainda falta, primeiro no mesmo slot e depois no outro. */
 function nextStep(pair: SlotPair, index: 0 | 1): Open | null {
   for (const i of [index, (1 - index) as 0 | 1]) {
-    if (pair[i].position === 'unselected') return { index: i, tab: 'position' };
+    if (pair[i].position === 'unselected') return { index: i, tab: 'champion', menu: 'position' };
     if (!pair[i].championId) return { index: i, tab: 'champion' };
   }
   return null;
@@ -183,8 +185,8 @@ function nextStep(pair: SlotPair, index: 0 | 1): Open | null {
 
 /**
  * Pop-up "Escolha seus campeões" (#407): os dois slots à esquerda, com o botão de inverter entre eles (#405), e a
- * escolha do slot ativo à direita, em abas (posição, campeão, skins, feitiços e runas). Cada escolha é salva na hora,
- * como no card.
+ * escolha do slot ativo à direita, em abas (campeão, skins e runas). A posição e os feitiços abrem uma escolha pequena
+ * embaixo do slot, pelos ícones dele. Cada escolha é salva na hora, menos as runas, que só saem pelo Salvar.
  */
 function SlotsDialog({ open, onOpen, onClose, pair, savedSlot, state, send, pending, scarce, championName, messages, onSave }: {
   open: Open; onOpen: (open: Open) => void; onClose: () => void; pair: SlotPair; savedSlot: (index: 0 | 1) => PlayerSlot | null;
@@ -193,12 +195,14 @@ function SlotsDialog({ open, onOpen, onClose, pair, savedSlot, state, send, pend
 }) {
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  useEffect(() => { closeRef.current = onClose; });
+  // Esc fecha primeiro a escolha pequena do slot e depois o pop-up.
+  const escapeRef = useRef(onClose);
+  useEffect(() => { escapeRef.current = open.menu ? () => onOpen({ index: open.index, tab: open.tab }) : onClose; });
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
-    ref.current?.querySelector<HTMLElement>('[role="tabpanel"] input, [role="tabpanel"] button[aria-pressed="true"], [role="tabpanel"] button')?.focus();
-    function onKey(event: KeyboardEvent) { if (event.key === 'Escape') closeRef.current(); }
+    // Foco na busca ou num campo, nunca num botão que já salva alguma coisa.
+    ref.current?.querySelector<HTMLElement>('[role="tabpanel"] input, [role="tabpanel"] select, [role="tab"][aria-selected="true"]')?.focus();
+    function onKey(event: KeyboardEvent) { if (event.key === 'Escape') escapeRef.current(); }
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
@@ -208,7 +212,7 @@ function SlotsDialog({ open, onOpen, onClose, pair, savedSlot, state, send, pend
   const { index, tab } = open;
   const slot = pair[index];
   const saved = savedSlot(index);
-  const needsSaved = tab === 'skin' || tab === 'spells' || tab === 'runes';
+  const needsSaved = tab === 'skin' || tab === 'runes';
   const complete = draftComplete(pair);
 
   function chooseSlots(next: SlotPair, advance: boolean) {
@@ -234,9 +238,15 @@ function SlotsDialog({ open, onOpen, onClose, pair, savedSlot, state, send, pend
         <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[19rem_minmax(0,1fr)] md:grid-rows-1">
           <aside aria-label="Seus slots" className="flex flex-col gap-2 border-b border-line bg-raised/40 p-4 md:border-b-0 md:border-r">
             {([0, 1] as const).map(i => (
-              <div key={i} className="contents">
-                <SlotCard index={i} slot={pair[i]} saved={savedSlot(i)} active={i === index} tab={i === index ? tab : null} openSpell={open.spell}
-                  state={state} scarce={scarce} championName={championName} onOpen={onOpen} />
+              <div key={i} className="relative flex flex-col">
+                <SlotCard index={i} slot={pair[i]} saved={savedSlot(i)} active={i === index} tab={i === index ? tab : null}
+                  menu={i === index ? open.menu : undefined} state={state} scarce={scarce} championName={championName} onOpen={onOpen} />
+                {i === index && open.menu && (
+                  <SlotMenu menu={open.menu} slot={pair[i]} saved={savedSlot(i)} state={state} scarce={scarce}
+                    onClose={() => onOpen({ index: i, tab })}
+                    onPosition={position => chooseSlots(withPosition(pair, i, position), true)}
+                    onSpells={spells => { onOpen({ index: i, tab }); onSave(pair, { index: i, spells }); }} />
+                )}
                 {i === 0 && (
                   <div className="relative z-10 -my-4 flex justify-center">
                     <button type="button" disabled={!complete || pending} onClick={() => onSave([pair[1], pair[0]])}
@@ -253,7 +263,7 @@ function SlotsDialog({ open, onOpen, onClose, pair, savedSlot, state, send, pend
           <section aria-label={`Escolha da ${slotLabels[index].toLowerCase()}`} className="flex min-h-0 flex-col">
             <div role="tablist" aria-label="O que escolher" className="flex gap-1 overflow-x-auto border-b border-line px-4 pt-3">
               {TABS.map(option => {
-                const locked = option !== 'position' && option !== 'champion' && !savedSlot(index);
+                const locked = option !== 'champion' && !savedSlot(index);
                 return (
                   <button key={option} type="button" role="tab" aria-selected={tab === option} disabled={locked}
                     title={locked ? 'Escolha a posição e o campeão dos dois slots antes' : undefined}
@@ -267,49 +277,23 @@ function SlotsDialog({ open, onOpen, onClose, pair, savedSlot, state, send, pend
               })}
             </div>
             <div role="tabpanel" aria-label={tabLabels[tab]} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-              {tab === 'position' && (
-                <PositionChoice current={slot.position} scarce={scarce}
-                  onChoose={position => chooseSlots(withPosition(pair, index, position), true)} />
-              )}
               {tab === 'champion' && (
                 <ChampionChoice key={index} state={state} current={slot.championId} other={pair[1 - index].championId}
                   position={slot.position} onChoose={championId => chooseSlots(withChampion(pair, index, championId), true)} />
               )}
               {needsSaved && !saved && (
-                <p className="px-1 text-body text-muted">Escolha a posição e o campeão dos dois slots para mexer nos feitiços, nas runas e na skin.</p>
+                <p className="px-1 text-body text-muted">Escolha a posição e o campeão dos dois slots para mexer nas runas e na skin.</p>
               )}
               {tab === 'skin' && saved && (
                 <SkinChoice state={state} send={send} championId={saved.championId} current={saved.skinId}
                   onChoose={skinId => onSave(pair, { index, skinId })} />
               )}
-              {tab === 'spells' && saved && (() => {
-                const current: [number, number] = [saved.spell1Id, saved.spell2Id];
-                const which = open.spell ?? 0;
-                return (
-                  <>
-                    <Segmented label="Tecla do feitiço" appearance="embedded" value={which === 0 ? 'D' : 'F'}
-                      options={[{ value: 'D', label: <><SpellIcon id={current[0] || null} size={20} /> Tecla D</> },
-                        { value: 'F', label: <><SpellIcon id={current[1] || null} size={20} /> Tecla F</> }]}
-                      onChange={key => onOpen({ index, tab: 'spells', spell: key === 'D' ? 0 : 1 })} />
-                    <SpellChoice state={state} current={current[which]}
-                      onChoose={spellId => onSave(pair, { index, spells: withSpell(current, which, spellId) })} />
-                  </>
-                );
-              })()}
-              {tab === 'runes' && saved && (
-                <>
-                  <h3 className="px-1 text-caption font-semibold uppercase tracking-[0.06em] text-muted">Use uma página salva</h3>
-                  <RuneChoice state={state} onChoose={runePageId => onSave(pair, { index, runePageId })} />
-                  {/* Editor compacto das runas do slot (#331), com as que ele já tem. */}
-                  {state.runeCatalog && (
-                    <>
-                      <h3 className="px-1 pt-2 text-caption font-semibold uppercase tracking-[0.06em] text-muted">Ou edite as runas</h3>
-                      <SlotRuneEditor key={`${saved.championId}:${saved.perkIds.join(',')}`} catalog={state.runeCatalog} slot={saved}
-                        onSave={runes => onSave(pair, { index, runes })} />
-                    </>
-                  )}
-                </>
-              )}
+              {tab === 'runes' && saved && (state.runeCatalog
+                // Editor das runas do slot (#331), com as que ele já tem. Uma página salva só carrega no editor: nada
+                // vai para o LoL sem o Salvar (#417).
+                ? <SlotRuneEditor key={`${index}:${saved.championId}:${saved.perkIds.join(',')}`} catalog={state.runeCatalog} slot={saved}
+                  pages={state.runePages?.pages ?? []} onSave={runes => onSave(pair, { index, runes })} />
+                : <p className="px-1 text-body text-muted">Carregando runas…</p>)}
             </div>
           </section>
         </div>
@@ -319,24 +303,32 @@ function SlotsDialog({ open, onOpen, onClose, pair, savedSlot, state, send, pend
 }
 
 /** Um slot na coluna da esquerda do pop-up: a arte da skin ao fundo e os botões de cada parte. */
-function SlotCard({ index, slot, saved, active, tab, openSpell, state, scarce, championName, onOpen }: {
-  index: 0 | 1; slot: SlotPair[number]; saved: PlayerSlot | null; active: boolean; tab: Tab | null; openSpell?: 0 | 1; state: AgentState;
+function SlotCard({ index, slot, saved, active, tab, menu, state, scarce, championName, onOpen }: {
+  index: 0 | 1; slot: SlotPair[number]; saved: PlayerSlot | null; active: boolean; tab: Tab | null; menu?: Menu; state: AgentState;
   scarce: Position[]; championName: (id: number) => string; onOpen: (open: Open) => void;
 }) {
   const skinId = saved?.skinId || (slot.championId ? slot.championId * 1000 : 0);
-  const part = (label: string, partTab: Tab, children: ReactNode, spell?: 0 | 1) => (
-    <button type="button" aria-label={`${slotLabels[index]}: ${label}`} title={label}
-      aria-pressed={tab === partTab && (partTab !== 'spells' || (openSpell ?? 0) === spell)}
-      onClick={event => { event.stopPropagation(); onOpen({ index, tab: partTab, spell }); }}
+  // Posição e feitiços abrem a escolha pequena embaixo do slot; runas e skin trocam a aba.
+  const part = (label: string, target: Tab | Menu, children: ReactNode) => {
+    const isMenu = target === 'position' || target === 'spell0' || target === 'spell1';
+    const pressed = isMenu ? menu === target : !menu && tab === target;
+    return (
+    <button type="button" aria-label={`${slotLabels[index]}: ${label}`} title={label} aria-pressed={pressed}
+      onClick={event => {
+        event.stopPropagation();
+        if (!isMenu) onOpen({ index, tab: target });
+        else onOpen(pressed ? { index, tab: tab ?? 'champion' } : { index, tab: tab ?? 'champion', menu: target });
+      }}
       className={cx('relative flex items-center justify-center rounded-control-sm bg-surface/85 p-0.5 shadow-soft backdrop-blur transition-transform hover:-translate-y-0.5', focusRing)}>
       {children}
     </button>
-  );
+    );
+  };
   return (
     <div role="group" aria-label={`Slot ${slotNumerals[index]}: ${slot.championId ? championName(slot.championId) : 'sem campeão'}`}
       className={cx('relative isolate flex min-h-28 cursor-pointer flex-col justify-between overflow-hidden rounded-card p-3 transition-shadow',
         active ? 'ring-2 ring-accent shadow-lift' : 'ring-1 ring-line hover:ring-accent/50')}
-      onClick={() => onOpen({ index, tab: 'champion' })}>
+      onClick={() => onOpen({ index, tab: active && tab ? tab : 'champion' })}>
       {skinId > 0 && (
         <img src={assetUrl('skinSplash', skinId)} alt="" aria-hidden="true"
           className="absolute inset-0 -z-10 h-full w-full object-cover object-[center_20%]"
@@ -357,15 +349,44 @@ function SlotCard({ index, slot, saved, active, tab, openSpell, state, scarce, c
         ))}
         {saved && (
           <>
-            {part(`feitiço D, ${spellName(state.summonerSpellCatalog, saved.spell1Id || null)}`, 'spells',
-              <SpellIcon id={saved.spell1Id || null} size={30} />, 0)}
-            {part(`feitiço F, ${spellName(state.summonerSpellCatalog, saved.spell2Id || null)}`, 'spells',
-              <SpellIcon id={saved.spell2Id || null} size={30} />, 1)}
+            {part(`feitiço D, ${spellName(state.summonerSpellCatalog, saved.spell1Id || null)}`, 'spell0',
+              <SpellIcon id={saved.spell1Id || null} size={30} />)}
+            {part(`feitiço F, ${spellName(state.summonerSpellCatalog, saved.spell2Id || null)}`, 'spell1',
+              <SpellIcon id={saved.spell2Id || null} size={30} />)}
             {part('runas', 'runes', <RuneIcon kind="perk" id={saved.keystoneId} size={30} />)}
             {part('skin', 'skin', <SkinThumb id={skinId} size={30} />)}
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Escolha pequena embaixo do slot ativo: a posição ou um feitiço, que salvam na hora. */
+function SlotMenu({ menu, slot, saved, state, scarce, onClose, onPosition, onSpells }: {
+  menu: Menu; slot: SlotPair[number]; saved: PlayerSlot | null; state: AgentState; scarce: Position[];
+  onClose: () => void; onPosition: (position: Position) => void; onSpells: (spells: [number, number]) => void;
+}) {
+  const titleId = useId();
+  const spell = menu === 'spell1' ? 1 : 0;
+  const title = menu === 'position' ? 'Escolher a posição' : `Feitiço da tecla ${spell === 0 ? 'D' : 'F'}`;
+  return (
+    <div role="group" aria-labelledby={titleId}
+      className="absolute inset-x-0 top-full z-30 mt-2 flex flex-col gap-2 rounded-card bg-surface p-3 shadow-lift ring-1 ring-line animate-fade-up">
+      <div className="flex items-center justify-between gap-2">
+        <h3 id={titleId} className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">{title}</h3>
+        <button type="button" aria-label="Fechar a escolha" onClick={onClose}
+          className={cx('flex size-6 items-center justify-center rounded-full text-muted hover:bg-raised hover:text-ink', focusRing)}>
+          <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"
+            strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      </div>
+      {menu === 'position'
+        ? <PositionChoice current={slot.position} scarce={scarce} onChoose={onPosition} />
+        : saved && (() => {
+          const current: [number, number] = [saved.spell1Id, saved.spell2Id];
+          return <SpellChoice state={state} current={current[spell]} onChoose={id => onSpells(withSpell(current, spell, id))} />;
+        })()}
     </div>
   );
 }
@@ -380,14 +401,14 @@ function SwapIcon() {
 function PositionChoice({ current, scarce, onChoose }: { current: Position; scarce: Position[]; onChoose: (position: Position) => void }) {
   return (
     <>
-      <ul className="flex justify-between gap-1">
+      <ul className="grid grid-cols-5 gap-1">
         {SLOT_POSITIONS.map(position => (
           <li key={position}>
             <button type="button" aria-pressed={current === position} onClick={() => onChoose(position)}
               aria-label={`${positionNames[position]}${scarce.includes(position) ? ' (prioritária)' : ''}`}
-              className={cx('relative flex w-16 flex-col items-center gap-1 rounded-control p-2 text-caption font-semibold text-muted hover:bg-raised hover:text-ink aria-pressed:bg-accent-soft aria-pressed:text-accent-ink', focusRing)}>
+              className={cx('relative flex w-full min-w-0 flex-col items-center gap-1 rounded-control px-0.5 py-2 text-caption font-semibold text-muted hover:bg-raised hover:text-ink aria-pressed:bg-accent-soft aria-pressed:text-accent-ink', focusRing)}>
               <PositionIcon position={position} size={26} />
-              <span className="truncate">{positionNames[position]}</span>
+              <span className="w-full truncate text-center">{positionNames[position]}</span>
               {scarce.includes(position) && <ScarceMark className="absolute right-2 top-1.5" />}
             </button>
           </li>
@@ -472,14 +493,14 @@ function SpellChoice({ state, current, onChoose }: { state: AgentState; current:
   const spells = swiftplay.length > 0 ? swiftplay : spellsForQueue(catalog, 'normalDraft');
   if (!catalog) return <p className="px-1 text-body text-muted">Carregando feitiços…</p>;
   return (
-    <ul className="flex flex-wrap gap-1">
+    <ul className="grid grid-cols-4 gap-1">
       {spells.map(spell => {
         const unlocked = spellUnlocked(spell, state.summoner?.summonerLevel);
         return (
           <li key={spell.id}>
             <button type="button" aria-pressed={current === spell.id} disabled={!unlocked} onClick={() => onChoose(spell.id)}
               title={unlocked ? spell.name : `${spell.name} (libera no nível ${spell.summonerLevel})`}
-              className={cx('flex w-[4.5rem] flex-col items-center gap-1 rounded-control p-1 text-caption text-ink hover:bg-raised aria-pressed:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40', focusRing)}>
+              className={cx('flex w-full min-w-0 flex-col items-center gap-1 rounded-control p-1 text-caption text-ink hover:bg-raised aria-pressed:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40', focusRing)}>
               <SpellIcon id={spell.id} />
               <span className="w-full truncate text-center">{spell.name}</span>
             </button>
@@ -550,10 +571,14 @@ const columns = (count: number) => ({ gridTemplateColumns: `repeat(${Math.max(co
  * hover (e para o leitor de tela), e o botão Salvar no fim. Começa com as
  * runas que o slot já tem; sem elas, numa página nova.
  */
-function SlotRuneEditor({ catalog, slot, onSave }: { catalog: RuneCatalog; slot: PlayerSlot | undefined; onSave: (runes: SlotRunesInput) => void }) {
+function SlotRuneEditor({ catalog, slot, pages, onSave }: {
+  catalog: RuneCatalog; slot: PlayerSlot | undefined; pages: RunePage[]; onSave: (runes: SlotRunesInput) => void;
+}) {
   const [draft, setDraft] = useState<RuneDraft>(() => slot && slot.perkIds.length
     ? draftFromPage(catalog, { name: 'Slot', primaryStyleId: slot.runeStyleId, subStyleId: slot.runeSubStyleId, selectedPerkIds: slot.perkIds })
     : newDraft(catalog, 'Slot'));
+  const pageId = useId();
+  const savedPages = pages.filter(page => !page.isTemporary && page.isValid);
   const primary = findStyle(catalog, draft.primaryStyleId);
   const sub = findStyle(catalog, draft.subStyleId);
   const problem = draftProblem(draft);
@@ -578,7 +603,7 @@ function SlotRuneEditor({ catalog, slot, onSave }: { catalog: RuneCatalog; slot:
         {options.map(style => (
           <button key={style.id} type="button" aria-pressed={style.id === selected} aria-label={style.name} title={style.name}
             onClick={() => choose(style.id)} className={runeButton}>
-            <RuneIcon kind="perkStyle" id={style.id} size={22} className={cx(style.id !== selected && 'opacity-60')} />
+            <RuneIcon kind="perkStyle" id={style.id} size={34} className={cx(style.id !== selected && 'opacity-60')} />
           </button>
         ))}
       </div>
@@ -586,29 +611,42 @@ function SlotRuneEditor({ catalog, slot, onSave }: { catalog: RuneCatalog; slot:
   }
 
   return (
-    <form aria-label="Editar runas" className="flex flex-col gap-2"
+    <form aria-label="Editar runas" className="flex min-h-[26rem] flex-1 flex-col gap-3"
       onSubmit={event => { event.preventDefault(); if (!problem) onSave(slotRunes(draft)); }}>
+      {/* Uma página salva só preenche o editor (#417): o slot muda no Salvar, como qualquer edição. */}
+      {savedPages.length > 0 && (
+        <label htmlFor={pageId} className="flex flex-wrap items-center gap-2 text-caption font-semibold uppercase tracking-[0.06em] text-muted">
+          Carregar página salva
+          <select id={pageId} value="" onChange={event => {
+            const page = savedPages.find(p => p.id === Number(event.target.value));
+            if (page) setDraft(draftFromPage(catalog, page));
+          }} className={cx('h-9 min-w-0 flex-1 rounded-control border border-control bg-raised px-3 text-body font-medium normal-case tracking-normal text-ink', focusRing)}>
+            <option value="" disabled>Escolha uma página para editar</option>
+            {savedPages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}
+          </select>
+        </label>
+      )}
       {/* Duas colunas da mesma altura, como no client oficial: a primária à
           esquerda e a secundária com os fragmentos à direita. Cada linha divide
           a largura em partes iguais, e as linhas se espalham na altura, para
           os ícones formarem uma grade e as colunas, dois retângulos (#401). */}
-      <div className="grid grid-cols-2">
-        <div className="flex min-w-0 flex-col justify-between gap-1.5 pr-3">
+      <div className="grid flex-1 grid-cols-2">
+        <div className="flex min-w-0 flex-col justify-between gap-2 pr-4">
           {styles(catalog.styles, draft.primaryStyleId, 'Árvore primária', id => setDraft(withPrimary(catalog, draft, id)))}
           {primarySlots(primary).map((slot, index) => (
             <div key={`p${index}`}>{row(slot.perks, slot.kind === 'keystone' ? 'Runa principal' : `Primária, linha ${index}`,
-              id => draft.primary[index] === id, id => setDraft(withPrimaryPerk(draft, index, id)), slot.kind === 'keystone' ? 34 : 26)}</div>
+              id => draft.primary[index] === id, id => setDraft(withPrimaryPerk(draft, index, id)), slot.kind === 'keystone' ? 60 : 46)}</div>
           ))}
         </div>
-        <div className="flex min-w-0 flex-col justify-between gap-1.5 border-l border-line pl-3">
+        <div className="flex min-w-0 flex-col justify-between gap-2 border-l border-line pl-4">
           {styles(allowedSubStyles(catalog, primary), draft.subStyleId, 'Árvore secundária', id => setDraft(withSubStyle(draft, id)))}
           {subSlots(sub).map((slot, index) => (
             <div key={`s${index}`}>{row(slot.perks, `Secundária, linha ${index + 1}`,
-              id => draft.sub.some(pick => pick.row === index && pick.perkId === id), id => setDraft(withSubPerk(draft, index, id)), 24)}</div>
+              id => draft.sub.some(pick => pick.row === index && pick.perkId === id), id => setDraft(withSubPerk(draft, index, id)), 42)}</div>
           ))}
           {statSlots(primary).map((slot, index) => (
             <div key={`f${index}`}>{row(slot.perks, slot.label || `Fragmento ${index + 1}`,
-              id => draft.stats[index] === id, id => setDraft(withStatPerk(draft, index, id)), 18)}</div>
+              id => draft.stats[index] === id, id => setDraft(withStatPerk(draft, index, id)), 30)}</div>
           ))}
         </div>
       </div>
@@ -627,26 +665,4 @@ function SlotRuneEditor({ catalog, slot, onSave }: { catalog: RuneCatalog; slot:
 function slotRunes(draft: RuneDraft): SlotRunesInput {
   const { primaryStyleId, subStyleId, selectedPerkIds } = draftToInput(draft);
   return { perkIds: selectedPerkIds, styleId: primaryStyleId, subStyleId };
-}
-
-function RuneChoice({ state, onChoose }: { state: AgentState; onChoose: (pageId: number) => void }) {
-  const pages = (state.runePages?.pages ?? []).filter(page => !page.isTemporary && page.isValid);
-  if (!state.runePages) return <p className="px-1 text-body text-muted">Carregando páginas de runas…</p>;
-  if (pages.length === 0) return <p className="px-1 text-body text-muted">Nenhuma página de runas completa. As runas recomendadas continuam.</p>;
-  return (
-    <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto">
-      {pages.map(page => (
-        <li key={page.id}>
-          <button type="button" onClick={() => onChoose(page.id)}
-            className={cx('flex w-full items-center gap-3 rounded-control px-2 py-1.5 text-left text-body font-medium text-ink hover:bg-raised', focusRing)}>
-            <span className="relative shrink-0">
-              <RuneIcon kind="perk" id={page.selectedPerkIds[0] ?? 0} size={28} />
-              <RuneIcon kind="perkStyle" id={page.subStyleId} size={14} className="absolute -bottom-1 -right-1 border-2 border-surface" />
-            </span>
-            <span className="min-w-0 flex-1 truncate">{page.name}</span>
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
 }
