@@ -302,6 +302,22 @@ pub fn bot_body(
     })
 }
 
+/// Corpo de mudar um bot: o de [`bot_body`] com o `botUuid`. Sem ele a LCU
+/// responde 400 `INVALID_REQUEST`; o client oficial manda o corpo com 128
+/// bytes, o tamanho exato deste com o `botUuid` (trace do LeagueClient,
+/// LoL 16.22, #409).
+pub fn update_bot_body(
+    bot: &CustomBot,
+    team: CustomTeam,
+    champion_id: u32,
+    difficulty: BotDifficulty,
+    position: Position,
+) -> Value {
+    let mut body = bot_body(team, champion_id, difficulty, position);
+    body["botUuid"] = json!(bot.uuid);
+    body
+}
+
 /// Campeões que podem ser bots, a partir da resposta de
 /// [`AVAILABLE_BOTS_PATH`], em ordem de id. Cada item traz o campeão em `id`
 /// (ou `championId`); itens com `active: false` ficam de fora.
@@ -355,9 +371,12 @@ pub async fn update_bot(
     position: Position,
 ) -> Result<(), LcuError> {
     let path = format!("{BOTS_PATH}/{}/{}", encode(&bot.uuid), encode(&bot.uuid));
-    lcu.post::<_, Option<Value>>(&path, &bot_body(team, champion_id, difficulty, position))
-        .await
-        .map(|_| ())
+    lcu.post::<_, Option<Value>>(
+        &path,
+        &update_bot_body(bot, team, champion_id, difficulty, position),
+    )
+    .await
+    .map(|_| ())
 }
 
 /// Tira o bot da equipe `team`.
@@ -542,6 +561,22 @@ mod tests {
             ),
             json!({"botDifficulty": "RSINTRO", "championId": 22, "teamId": "200", "position": "MIDDLE"})
         );
+        let bot = CustomBot {
+            uuid: "99314620-6d81-4e76-8750-5cd59a7f167f".into(),
+            champion_id: 63,
+            position: Position::Utility,
+            difficulty: BotDifficulty::Intro,
+        };
+        let body = update_bot_body(
+            &bot,
+            CustomTeam::Team2,
+            63,
+            BotDifficulty::Intro,
+            Position::Utility,
+        );
+        assert_eq!(body["botUuid"], "99314620-6d81-4e76-8750-5cd59a7f167f");
+        // O mesmo tamanho do corpo do client oficial no trace (#409).
+        assert_eq!(serde_json::to_string(&body).unwrap().len(), 128);
         let bots = json!([
             {"active": true, "id": 22, "name": "Ashe"},
             {"active": false, "id": 99, "name": "Fora"},
