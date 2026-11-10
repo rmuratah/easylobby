@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { assetUrl } from '../agent/assets';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import {
-  actingCells, champSelectPhaseLabels, championName, filterByLane, gridChampions, gridPurpose, hasLanes, isAramChampSelect, markedChampion,
+  actingCells, champSelectPhaseLabels, championName, filterByLane, gridChampions, gridPurpose, hasLanes, isAramChampSelect, isBanPhase, markedChampion,
   myAction, playerName, remainingMs, searchChampions, type GridChampion, type MyAction,
 } from '../agent/champSelect';
 import { useCommand, type CommandFeedback } from '../agent/useCommand';
@@ -82,8 +82,9 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
   }
   const grid = gridChampions(state, champSelect);
   const chosenAvailable = !!chosen && grid.some(item => item.champion.id === chosen && item.available);
+  // Na fase de banimento (#423) a tela ganha detalhes vermelhos (estilos em index.css).
   return (
-    <section aria-label="Seleção de campeões" className="champ-select text-ink">
+    <section aria-label="Seleção de campeões" className="champ-select text-ink" data-ban-phase={isBanPhase(champSelect) || undefined}>
       <ChampSelectStatus champSelect={champSelect} />
       <div className="champ-select-board">
         <div className="flex min-w-0 flex-col gap-4">
@@ -125,21 +126,24 @@ function turnLabel(champSelect: ChampSelect): string {
   const action = champSelect.pendingAction;
   if (action?.type === 'ban') return 'Sua vez de banir.';
   if (action?.type === 'pick') return 'Sua vez de escolher.';
+  if (isBanPhase(champSelect)) return 'Fase de banimento: aguardando os outros jogadores.';
   if (champSelect.timer.phase === 'PLANNING') return 'Mostre ao time o campeão que pretende jogar.';
   if (champSelect.timer.phase === 'FINALIZATION') return 'Ajuste feitiços e runas antes da partida.';
   return 'Aguardando os outros jogadores.';
 }
 
 function ChampSelectStatus({ champSelect }: { champSelect: ChampSelect }) {
+  const ban = isBanPhase(champSelect);
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card border border-edge bg-surface card px-5 py-3 text-ink">
+    <div className={cx('champ-select-status flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card border bg-surface card px-5 py-3 text-ink',
+      ban ? 'is-ban' : 'border-edge')}>
       <div className="flex min-w-0 flex-1 flex-col">
-        <p className="text-caption text-muted">Etapa: <strong className="font-semibold text-ink">{champSelectPhaseLabels[champSelect.timer.phase]}</strong></p>
-        <p role="status" className="text-section font-semibold text-accent-ink">{turnLabel(champSelect)}</p>
+        <p className="text-caption text-muted">Etapa: <strong className="font-semibold text-ink">{ban ? 'Banimento' : champSelectPhaseLabels[champSelect.timer.phase]}</strong></p>
+        <p role="status" className={cx('text-section font-semibold', ban ? 'text-danger' : 'text-accent-ink')}>{turnLabel(champSelect)}</p>
       </div>
       {/* A chave recria o relógio quando a etapa muda, sem esperar o próximo tique. */}
       <p className="flex items-baseline gap-2 text-caption text-muted">Tempo:
-        <span className="text-[2rem] font-semibold leading-none tabular-nums text-ink">
+        <span className={cx('text-[2rem] font-semibold leading-none tabular-nums', ban ? 'text-danger' : 'text-ink')}>
           <Countdown key={`${champSelect.timer.phase}:${champSelect.timer.endsAtMs}`} champSelect={champSelect} />
         </span>
       </p>

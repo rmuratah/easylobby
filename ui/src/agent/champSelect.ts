@@ -86,6 +86,15 @@ export function actingCells(champSelect: ChampSelect): Set<number> {
   return new Set(champSelect.actions.filter(a => a.isInProgress && !a.completed).map(a => a.actorCellId));
 }
 
+/**
+ * Fase de banimento (#423): na etapa de bans e escolhas, algum ban está em andamento, do jogador ou de outro.
+ * A tela fica com destaque vermelho enquanto isso.
+ */
+export function isBanPhase(champSelect: ChampSelect): boolean {
+  return champSelect.timer.phase === 'BAN_PICK'
+    && champSelect.actions.some(a => a.type === 'ban' && a.isInProgress && !a.completed);
+}
+
 /** A ação do jogador logado que a grade usa agora. */
 export type MyAction = {
   action: ChampSelectAction;
