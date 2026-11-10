@@ -273,7 +273,7 @@ async fn icone_do_invocador_baixa_uma_vez_e_depois_sai_do_disco() {
     let before = cdn.hits.lock().unwrap().len();
     for path in [
         "champion/99999",
-        "skin/1",
+        "ward/1",
         "champion/abc",
         "champion/..%2F..%2Fx",
     ] {

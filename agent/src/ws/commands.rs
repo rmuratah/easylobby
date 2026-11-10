@@ -138,6 +138,10 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::OpenPlayerProfile { puuid } => hub.open_player_profile(&puuid).await,
         Command::LoadMorePlayerMatches => hub.load_more_player_matches().await,
 
+        // Coleção
+        Command::OpenCollection => hub.open_collection().await,
+        Command::OpenChampionSkins { champion_id } => hub.open_champion_skins(champion_id).await,
+
         // Início
         Command::OpenPatchNotes => hub.open_patch_notes(),
     }

@@ -6,6 +6,11 @@ import type { PatchLine } from '../bindings/PatchLine';
 import type { PatchLineKind } from '../bindings/PatchLineKind';
 import type { PatchSection } from '../bindings/PatchSection';
 import type { PatchNotes } from '../bindings/PatchNotes';
+import type { Collection } from '../bindings/Collection';
+import type { CollectionChampion } from '../bindings/CollectionChampion';
+import type { ChampionSkins } from '../bindings/ChampionSkins';
+import type { CollectionSkin } from '../bindings/CollectionSkin';
+import type { SkinChroma } from '../bindings/SkinChroma';
 import type { LiveGame } from '../bindings/LiveGame';
 import type { AgentState } from '../bindings/AgentState';
 import type { LcuStatus } from '../bindings/LcuStatus';
@@ -281,6 +286,27 @@ function patchNotes(v: unknown): v is PatchNotes | null {
   return v === null || (object(v) && typeof v.version === 'string' && typeof v.url === 'string' &&
     nullableString(v.title) && nullableString(v.summary) && list(v.sections, patchSection));
 }
+// Coleção de campeões e skins (#369).
+const stringList = (v: unknown): v is string[] => list(v, (x): x is string => typeof x === 'string');
+function collectionChampion(v: unknown): v is CollectionChampion {
+  return object(v) && uints(v, ['id', 'ownedSkins', 'totalSkins']) && strings(v, ['name', 'alias', 'title']) &&
+    stringList(v.roles) && list(v.positions, position) && booleans(v, ['owned', 'freeToPlay', 'rented']) &&
+    (v.purchased === null || uint(v.purchased));
+}
+function collection(v: unknown): v is Collection | null {
+  return v === null || (object(v) && list(v.champions, collectionChampion) &&
+    uints(v, ['ownedChampions', 'totalChampions', 'ownedSkins', 'totalSkins']));
+}
+function skinChroma(v: unknown): v is SkinChroma {
+  return object(v) && uint(v.id) && typeof v.name === 'string' && typeof v.owned === 'boolean' && stringList(v.colors);
+}
+function collectionSkin(v: unknown): v is CollectionSkin {
+  return object(v) && uint(v.id) && typeof v.name === 'string' && booleans(v, ['isBase', 'owned']) &&
+    nullableString(v.rarity) && list(v.chromas, skinChroma);
+}
+function championSkins(v: unknown): v is ChampionSkins | null {
+  return v === null || (object(v) && uint(v.championId) && list(v.skins, collectionSkin));
+}
 // Partida ao vivo (#268).
 function tierDivision(v: unknown): boolean {
   return v === null || (object(v) && typeof v.tier === 'string' && nullableString(v.division));
@@ -327,7 +353,8 @@ function state(v: unknown): v is AgentState {
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
     champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) &&
     ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory) &&
-    matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && patchNotes(v.patchNotes);
+    matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && patchNotes(v.patchNotes) &&
+    collection(v.collection) && championSkins(v.championSkins);
 }
 
 // Os tipos vêm do Rust; esta validação protege a fronteira JSON em runtime.
@@ -371,6 +398,8 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'playerProfile': valid = playerProfile(v.playerProfile); break;
     case 'liveGame': valid = liveGame(v.liveGame); break;
     case 'patchNotes': valid = patchNotes(v.patchNotes); break;
+    case 'collection': valid = collection(v.collection); break;
+    case 'championSkins': valid = championSkins(v.championSkins); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
       (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;
     case 'invalidMessage': valid = typeof v.message === 'string'; break;

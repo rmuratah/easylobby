@@ -36,6 +36,7 @@ pub mod bench;
 pub mod champ_select;
 pub mod champions;
 pub mod chat;
+pub mod collection;
 pub mod custom;
 pub mod custom_games;
 pub mod invitations;
@@ -940,6 +941,11 @@ async fn handle_request(
         // Campeões para a grade da seleção (#28).
         (&Method::GET, champions::CHAMPION_SUMMARY) => champions::game_data(&shared.state()),
         (&Method::GET, champions::OWNED_CHAMPIONS) => champions::owned(&shared.state()),
+        // Coleção de campeões e skins (#369).
+        (&Method::GET, p) if collection::parse_route(p).is_some() => {
+            let route = collection::parse_route(p).unwrap_or(collection::Route::Champions);
+            collection::get(&shared.state(), &path, route)
+        }
         // Rotas de cada campeão, para o filtro da grade (#250).
         (&Method::GET, champions::RECOMMENDED_POSITIONS) => {
             champions::recommended_positions(&shared.state())

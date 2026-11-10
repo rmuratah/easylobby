@@ -109,6 +109,9 @@ const EVENT_PREFIXES: [&str; 9] = [
 /// foto.
 const MATCH_DETAILS: usize = 3;
 
+/// De quantos campeões da conta gravar as skins (#369).
+const COLLECTION_CHAMPIONS: usize = 3;
+
 /// URIs dentro dos prefixos que não interessam e carregam preferências do
 /// jogador (como os nomes dos grupos de amigos).
 const EVENT_EXCLUDED: [&str; 1] = ["/lol-chat/v1/settings"];
@@ -211,6 +214,7 @@ impl Recorder {
             }
             self.snapshot_second_page().await;
             self.snapshot_friend_profile().await;
+            self.snapshot_collection().await;
         }
         self.snapshot_match_details().await;
         println!("[{}] foto REST na fase {}", self.elapsed_ms(), self.phase);
@@ -272,6 +276,46 @@ impl Recorder {
         ))
         .await;
         self.snapshot(&pp::page_path(0, &puuid)).await;
+    }
+
+    /// Coleção da conta (#369): os campeões e as skins do inventário e as
+    /// skins (com cromas) dos primeiros campeões que a conta tem. Os
+    /// caminhos gravados saem com o `summonerId` falso, porque o sanitizer
+    /// aprendeu o id na foto do invocador.
+    async fn snapshot_collection(&mut self) {
+        use easylobby_agent::collection as col;
+        let Ok(response) = self
+            .lcu
+            .request(Method::GET, "/lol-summoner/v1/current-summoner", None)
+            .await
+        else {
+            return;
+        };
+        let Some(summoner_id) = response.body["summonerId"].as_u64().filter(|id| *id != 0) else {
+            return;
+        };
+        let champions_path = col::champions_path(summoner_id);
+        self.snapshot(&champions_path).await;
+        self.snapshot(&col::skins_path(summoner_id)).await;
+        let Ok(champions) = self.lcu.request(Method::GET, &champions_path, None).await else {
+            return;
+        };
+        let owned: Vec<u32> = champions
+            .body
+            .as_array()
+            .map(|list| {
+                list.iter()
+                    .filter(|c| c["ownership"]["owned"] == true)
+                    .filter_map(|c| c["id"].as_u64().and_then(|id| u32::try_from(id).ok()))
+                    .filter(|id| *id > 0)
+                    .take(COLLECTION_CHAMPIONS)
+                    .collect()
+            })
+            .unwrap_or_default();
+        for id in owned {
+            self.snapshot(&col::champion_skins_path(summoner_id, id))
+                .await;
+        }
     }
 
     /// Placar completo das partidas mais novas do histórico (#174). O

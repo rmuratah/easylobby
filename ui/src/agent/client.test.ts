@@ -11,6 +11,8 @@ import type { ChampSelectChat } from '../bindings/ChampSelectChat';
 import type { GameQueue } from '../bindings/GameQueue';
 import type { MatchSummary } from '../bindings/MatchSummary';
 import type { PlayerProfile } from '../bindings/PlayerProfile';
+import type { Collection } from '../bindings/Collection';
+import type { ChampionSkins } from '../bindings/ChampionSkins';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import type { Command } from '../bindings/Command';
 import type { CommandResult } from '../bindings/CommandResult';
@@ -45,6 +47,17 @@ const testMatch: MatchSummary = {
   },
 };
 const unranked = { tier: null, division: null, leaguePoints: 0, wins: 0, losses: 0, provisional: false };
+const testCollection: Collection = {
+  champions: [{ id: 266, name: 'Aatrox', alias: 'Aatrox', title: 'a Espada Darkin', roles: ['fighter'], positions: ['top'],
+    owned: true, freeToPlay: false, rented: false, purchased: 1567890000000, ownedSkins: 1, totalSkins: 2 }],
+  ownedChampions: 1, totalChampions: 1, ownedSkins: 1, totalSkins: 2,
+};
+const testChampionSkins: ChampionSkins = {
+  championId: 266,
+  skins: [{ id: 266000, name: 'Aatrox', isBase: true, owned: true, rarity: null, chromas: [] },
+    { id: 266002, name: 'Aatrox Lua de Sangue', isBase: false, owned: false, rarity: 'legendary',
+      chromas: [{ id: 266010, name: 'Rubi', owned: true, colors: ['#c82b2b'] }] }],
+};
 const testPlayerProfile: PlayerProfile = {
   summoner: { gameName: 'Amigo', tagLine: 'BR1', displayName: '', summonerLevel: 143, profileIconId: 29, puuid: 'amigo', summonerId: 1003 },
   privateProfile: false, ranked: { soloDuo: unranked, flex: unranked },
@@ -257,6 +270,8 @@ describe('eventos de estado do agente', () => {
     [{ type: 'customGames', customGames: [testCustomGame] }, { customGames: [testCustomGame] }],
     [{ type: 'patchNotes', patchNotes: { version: '26.22', title: 'Notas', summary: null, url: 'https://www.leagueoflegends.com/', sections: [] } },
       { patchNotes: { version: '26.22', title: 'Notas', summary: null, url: 'https://www.leagueoflegends.com/', sections: [] } }],
+    [{ type: 'collection', collection: testCollection }, { collection: testCollection }],
+    [{ type: 'championSkins', championSkins: testChampionSkins }, { championSkins: testChampionSkins }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
     socket().receive(hello({ lobby: testLobby }));
     socket().receive(message);

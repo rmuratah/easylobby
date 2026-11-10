@@ -5,6 +5,8 @@ import type { ChampSelectChampions } from "./ChampSelectChampions";
 import type { ChampSelectChat } from "./ChampSelectChat";
 import type { ChampionCatalog } from "./ChampionCatalog";
 import type { ChampionMastery } from "./ChampionMastery";
+import type { ChampionSkins } from "./ChampionSkins";
+import type { Collection } from "./Collection";
 import type { CommandResult } from "./CommandResult";
 import type { Conversation } from "./Conversation";
 import type { CustomGameListing } from "./CustomGameListing";
@@ -77,6 +79,8 @@ export type ServerMessage =
   | { "type": "matchDetails", matchDetails: MatchDetails | null, }
   | { "type": "playerProfile", playerProfile: PlayerProfile | null, }
   | { "type": "liveGame", liveGame: LiveGame | null, }
+  | { "type": "collection", collection: Collection | null, }
+  | { "type": "championSkins", championSkins: ChampionSkins | null, }
   | { "type": "patchNotes", patchNotes: PatchNotes | null, }
   | { "type": "response", id: number, result: CommandResult, }
   | { "type": "invalidMessage", message: string, };

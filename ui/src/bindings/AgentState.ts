@@ -4,6 +4,8 @@ import type { ChampSelectChampions } from "./ChampSelectChampions";
 import type { ChampSelectChat } from "./ChampSelectChat";
 import type { ChampionCatalog } from "./ChampionCatalog";
 import type { ChampionMastery } from "./ChampionMastery";
+import type { ChampionSkins } from "./ChampionSkins";
+import type { Collection } from "./Collection";
 import type { Conversation } from "./Conversation";
 import type { CustomGameListing } from "./CustomGameListing";
 import type { Friend } from "./Friend";
@@ -153,6 +155,14 @@ export type AgentState = {
    * A partida em andamento (#268), ou `null` fora de partida.
    */
   liveGame: LiveGame | null,
+  /**
+   * Última coleção pedida com `openCollection` (#369), ou `null`.
+   */
+  collection: Collection | null,
+  /**
+   * Últimas skins pedidas com `openChampionSkins` (#369), ou `null`.
+   */
+  championSkins: ChampionSkins | null,
   /**
    * Notas da atualização atual do LoL (#301), ou `null`.
    */
