@@ -197,7 +197,8 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions 
     <section aria-label={label} className="flex min-w-0 flex-col gap-2">
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">{label}</h3>
       {players.length === 0 ? <p className="text-body text-muted">Sem jogadores.</p> : (
-        <ul className="flex flex-col gap-2">
+        // Todos os cards do time com a altura do maior (#428): as linhas da grade dividem o espaço por igual.
+        <ul className="grid auto-rows-fr gap-2">
           {players.map((player, index) => {
             const intent = !player.championId && player.championPickIntent ? player.championPickIntent : null;
             const champion = player.championId ?? intent;
