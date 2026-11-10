@@ -139,15 +139,24 @@ function ChampionTile({ champion, onOpen }: { champion: CollectionChampion; onOp
     champion.owned ? 'na conta' : champion.freeToPlay ? 'na rotação gratuita' : champion.rented ? 'alugado' : 'não está na conta',
     `${champion.ownedSkins} de ${champion.totalSkins} skins`,
   ].join(', ');
+  // Card em pé, no formato de um celular (#394): moldura com borda, a tela de carregamento da skin
+  // padrão (id do campeão vezes 1000) dentro e o nome embaixo. Sem a imagem, o ícone quadrado fica no centro.
   return (
     <button type="button" aria-label={description} title={description} onClick={onOpen}
-      className="group flex w-full flex-col items-center gap-1 rounded-control border border-transparent p-1.5 text-caption text-ink hover:border-line hover:bg-raised focus-visible:outline-2 focus-visible:outline-accent">
-      <span className="relative">
-        <ChampionIcon id={champion.id} size={56} dim={!champion.owned} />
-        {status && <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-accent px-1.5 text-[0.625rem] font-bold uppercase leading-4 text-on-accent">{status}</span>}
+      className="group flex w-full flex-col gap-1.5 rounded-card border-2 border-accent/55 bg-raised p-1.5 text-left shadow-soft transition-[transform,border-color] hover:-translate-y-0.5 hover:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+      <span className="relative block aspect-[308/560] w-full overflow-hidden rounded-control bg-surface">
+        <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
+          <ChampionIcon id={champion.id} size={56} dim={!champion.owned} />
+        </span>
+        <img src={assetUrl('skin', champion.id * 1000)} alt="" loading="lazy"
+          className={cx('absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]', !champion.owned && 'opacity-45 grayscale')}
+          onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />
+        {status && <span className="absolute left-1.5 top-1.5 rounded-full bg-accent px-2 py-0.5 text-[0.625rem] font-bold uppercase text-on-accent">{status}</span>}
+        {champion.totalSkins > 0 && <span aria-hidden="true" className="absolute bottom-1.5 right-1.5 rounded-full bg-black/65 px-2 py-0.5 text-[0.625rem] font-semibold text-white">
+          {champion.ownedSkins}/{champion.totalSkins} skins
+        </span>}
       </span>
-      <span className={cx('w-full truncate text-center font-semibold', !champion.owned && 'text-muted')}>{champion.name}</span>
-      {champion.totalSkins > 0 && <span aria-hidden="true" className="text-[0.6875rem] text-muted">{champion.ownedSkins}/{champion.totalSkins} skins</span>}
+      <span className={cx('truncate px-0.5 text-body font-semibold', champion.owned ? 'text-ink' : 'text-muted')}>{champion.name}</span>
     </button>
   );
 }
