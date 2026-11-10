@@ -597,6 +597,16 @@ pub enum Command {
         #[ts(type = "number")]
         summoner_id: u64,
     },
+    /// Libera (`allowed` verdadeiro) ou tira a permissão de convidar do
+    /// jogador `summoner_id` (#412): `POST
+    /// /lol-lobby/v2/lobby/members/{summonerId}/grant-invite` ou
+    /// `/revoke-invite`. Mesmas regras e respostas de `kickLobbyMember`. O
+    /// estado de cada membro vem em `LobbyMember.allowedInviteOthers`.
+    SetLobbyMemberInvite {
+        #[ts(type = "number")]
+        summoner_id: u64,
+        allowed: bool,
+    },
     /// Gera o link para outra pessoa entrar no lobby (#226), o do botão
     /// "copiar link" do client oficial: `GET
     /// /lol-lobby/v2/ags/agsActivityId` e o código em `/lol-lobby/v2/ags/
@@ -1178,6 +1188,13 @@ mod tests {
             (
                 json!({"type": "promoteLobbyMember", "summonerId": 42}),
                 Command::PromoteLobbyMember { summoner_id: 42 },
+            ),
+            (
+                json!({"type": "setLobbyMemberInvite", "summonerId": 42, "allowed": true}),
+                Command::SetLobbyMemberInvite {
+                    summoner_id: 42,
+                    allowed: true,
+                },
             ),
             (
                 json!({"type": "refreshCustomGames"}),

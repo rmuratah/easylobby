@@ -409,7 +409,7 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                 // No próprio card não há menu, mas o espaço do "⋯" fica reservado para as posições
                 // e os campeões ficarem alinhados com os dos outros cards.
                 ? <span aria-hidden="true" data-testid="lobby-menu-spacer" className="size-8 shrink-0 self-start" />
-                : <LobbyMemberMenu name={name} summonerId={member.summonerId} send={send} disabled={!canManageMembers} />
+                : <LobbyMemberMenu name={name} summonerId={member.summonerId} send={send} disabled={!canManageMembers} allowedInvite={member.allowedInviteOthers} />
               )}
             </li>
           );

@@ -16,6 +16,12 @@ type Props = {
    * para a direita, para caber nos cards estreitos da Arena.
    */
   align?: 'start' | 'end';
+  /**
+   * Se o jogador pode convidar (#412), o `allowedInviteOthers` do membro.
+   * Com o valor, o menu ganha o item que libera ou tira a permissão; sem ele
+   * (personalizada), o item não aparece.
+   */
+  allowedInvite?: boolean;
 };
 
 type Action = 'promote' | 'kick';
@@ -42,11 +48,12 @@ const texts: Record<Action, { label: string; question: (name: string) => string;
 
 /**
  * Menu "⋯" no card de outro jogador do lobby (#267): o líder passa a
- * liderança ou remove o jogador do grupo, as duas com confirmação. Quem chama
+ * liderança ou remove o jogador do grupo, as duas com confirmação, e libera
+ * ou tira a permissão de convidar (#412). Quem chama
  * só mostra o menu para o líder e fora do próprio card. O lobby novo chega
  * pelo agente; o menu não guarda estado do lobby.
  */
-export function LobbyMemberMenu({ name, summonerId, send, disabled = false, align = 'end' }: Props) {
+export function LobbyMemberMenu({ name, summonerId, send, disabled = false, align = 'end', allowedInvite }: Props) {
   const side = align === 'end' ? 'right-0' : 'left-0';
   const { feedback, pending, run } = useCommand(send);
   const [open, setOpen] = useState(false);
@@ -77,6 +84,14 @@ export function LobbyMemberMenu({ name, summonerId, send, disabled = false, alig
 
   // Entrar na fila com o menu aberto fecha o menu.
   if (open && disabled) close();
+
+  // Liberar ou tirar o convite não pede confirmação: dá para desfazer pelo mesmo menu (#412).
+  async function toggleInvite() {
+    close();
+    const allowed = !allowedInvite;
+    await run({ type: 'setLobbyMemberInvite', summonerId, allowed },
+      { pending: allowed ? 'Liberando convites…' : 'Tirando a permissão de convite…', failure: allowed ? 'liberar os convites' : 'tirar a permissão de convite' });
+  }
 
   async function confirm(action: Action) {
     close();
@@ -113,6 +128,13 @@ export function LobbyMemberMenu({ name, summonerId, send, disabled = false, alig
             </div>
           ) : (
             <ul role="menu" aria-label={`Ações para ${name}`} className="flex flex-col">
+              {allowedInvite !== undefined && (
+                <li role="none">
+                  <button type="button" role="menuitem" onClick={() => { void toggleInvite(); }} className={itemClass}>
+                    {allowedInvite ? 'Tirar permissão de convite' : 'Permitir convites'}
+                  </button>
+                </li>
+              )}
               {(['promote', 'kick'] as const).map(action => (
                 <li key={action} role="none">
                   <button type="button" role="menuitem" onClick={() => setConfirming(action)}

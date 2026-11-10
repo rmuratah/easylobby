@@ -371,8 +371,9 @@ impl Hub {
         }
     }
 
-    /// Remove um membro do grupo ou passa a liderança para ele (comandos
-    /// `kickLobbyMember` e `promoteLobbyMember`, #267). Só o líder pode, e só
+    /// Remove um membro do grupo, passa a liderança para ele (comandos
+    /// `kickLobbyMember` e `promoteLobbyMember`, #267) ou muda se ele pode
+    /// convidar (`setLobbyMemberInvite`, #412). Só o líder pode, e só
     /// com outro jogador do lobby (nas filas comuns ou nas equipes e
     /// espectadores da personalizada): senão recusa sem falar com a LCU.
     /// Relê o lobby pelo REST e publica antes de devolver.
@@ -389,6 +390,9 @@ impl Hub {
                 Some(l) if !l.is_leader => Err(match action {
                     lobby::MemberAction::Kick => "só o líder remove jogadores do grupo",
                     lobby::MemberAction::Promote => "só o líder passa a liderança",
+                    lobby::MemberAction::GrantInvite | lobby::MemberAction::RevokeInvite => {
+                        "só o líder muda quem pode convidar"
+                    }
                 }),
                 Some(l) if !has_player(l, summoner_id) => Err("esse jogador não está no lobby"),
                 Some(_) if me.is_some_and(|me| me.summoner_id == summoner_id) => {
@@ -1024,13 +1028,13 @@ mod tests {
 
     #[tokio::test]
     async fn remover_e_promover_so_o_lider_com_outro_jogador() {
-        use crate::lobby::MemberAction::{Kick, Promote};
+        use crate::lobby::MemberAction::{GrantInvite, Kick, Promote, RevokeInvite};
         let hub = Hub::new();
         let code = |result: CommandResult| match result {
             CommandResult::Error { code, .. } => Some(code),
             CommandResult::Ok => None,
         };
-        for action in [Kick, Promote] {
+        for action in [Kick, Promote, GrantInvite, RevokeInvite] {
             assert_eq!(
                 code(hub.lobby_member_action(2, action).await),
                 Some(ErrorCode::InvalidCommand),
@@ -1056,7 +1060,7 @@ mod tests {
         };
         hub.apply(event(LOBBY_PATH, EventType::Create, lobby(false)))
             .await;
-        for action in [Kick, Promote] {
+        for action in [Kick, Promote, GrantInvite, RevokeInvite] {
             assert_eq!(
                 code(hub.lobby_member_action(2, action).await),
                 Some(ErrorCode::InvalidCommand),
@@ -1065,7 +1069,7 @@ mod tests {
         }
         hub.apply(event(LOBBY_PATH, EventType::Update, lobby(true)))
             .await;
-        for action in [Kick, Promote] {
+        for action in [Kick, Promote, GrantInvite, RevokeInvite] {
             assert_eq!(
                 code(hub.lobby_member_action(1, action).await),
                 Some(ErrorCode::InvalidCommand),

@@ -110,3 +110,33 @@ describe('remover membro e passar a liderança (#267)', () => {
     expect(menuButton()).toBeDisabled();
   });
 });
+
+describe('permissão de convite de cada membro (#412)', () => {
+  const blocked: Lobby = { ...party, members: [party.members[0], { ...friend, allowedInviteOthers: false }] };
+
+  it('libera os convites sem confirmação e mostra o estado novo do lobby', async () => {
+    render(<App />);
+    hello({ lobby: blocked });
+    fireEvent.click(menuButton());
+    fireEvent.click(panel().getByRole('menuitem', { name: 'Permitir convites' }));
+    expect(request().command).toEqual({ type: 'setLobbyMemberInvite', summonerId: 2, allowed: true });
+    const id = request().id;
+    await act(async () => {
+      socket().receive({ type: 'lobby', lobby: { ...blocked, members: [party.members[0], { ...friend, allowedInviteOthers: true }] } });
+      socket().receive({ type: 'response', id, result: { status: 'ok' } });
+    });
+    fireEvent.click(menuButton());
+    expect(panel().getByRole('menuitem', { name: 'Tirar permissão de convite' })).toBeInTheDocument();
+  });
+
+  it('tira a permissão e mostra o erro quando a LCU recusa', async () => {
+    render(<App />);
+    hello({ lobby: party });
+    fireEvent.click(menuButton());
+    fireEvent.click(panel().getByRole('menuitem', { name: 'Tirar permissão de convite' }));
+    expect(request().command).toEqual({ type: 'setLobbyMemberInvite', summonerId: 2, allowed: false });
+    const id = request().id;
+    await act(async () => socket().receive({ type: 'response', id, result: { status: 'error', code: 'lcu', message: 'recusado' } }));
+    expect(panel().getByRole('alert')).toHaveTextContent('Não foi possível tirar a permissão de convite: recusado');
+  });
+});
