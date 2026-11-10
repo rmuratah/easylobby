@@ -15,11 +15,11 @@
   --el-palette-primary-foreground: #F8FDFE;
   --el-palette-primary-soft: #D7F3F9;
   --el-palette-primary-gradient: linear-gradient(135deg, #0084A5 0%, #00A6AC 100%);
-  --el-palette-silver-default: #7F8C9C;
-  --el-palette-silver-soft: #EAEEF3;
-  --el-palette-silver-gradient: linear-gradient(135deg, #A9B4C2 0%, #738092 100%);
-  --el-palette-accent-bg: #EAEEF3;
-  --el-palette-accent-text: #4A5666;
+  --el-palette-rosebronze-default: #A87562;
+  --el-palette-rosebronze-soft: #F5E9E3;
+  --el-palette-rosebronze-gradient: linear-gradient(135deg, #C49A86 0%, #976452 100%);
+  --el-palette-accent-bg: #F5E9E3;
+  --el-palette-accent-text: #6E4636;
   --el-palette-destructive: #E24947;
   --el-palette-status-online: #3EB268;
   --el-palette-status-ingame: #348DCF;
@@ -43,7 +43,7 @@
   --el-accent-soft: #D7F3F9;
   --el-accent-ink: #03778a;
   --el-danger: #bf4242;
-  --el-warn: #4a5666;
+  --el-warn: #6e4636;
   --el-status-online: #389c5f;
   --el-status-game: #348dcf;
   --el-status-away: #af8340;
@@ -66,11 +66,11 @@
   --el-palette-primary-foreground: #F8FDFD;
   --el-palette-primary-soft: #05343D;
   --el-palette-primary-gradient: linear-gradient(135deg, #0089AA 0%, #2DB6BC 100%);
-  --el-palette-silver-default: #A9B4C2;
-  --el-palette-silver-soft: #232B36;
-  --el-palette-silver-gradient: linear-gradient(135deg, #C6CFDA 0%, #8E9AAA 100%);
-  --el-palette-accent-bg: #232B36;
-  --el-palette-accent-text: #C9D2DD;
+  --el-palette-rosebronze-default: #C49A86;
+  --el-palette-rosebronze-soft: #33251F;
+  --el-palette-rosebronze-gradient: linear-gradient(135deg, #D8B4A3 0%, #A87A66 100%);
+  --el-palette-accent-bg: #33251F;
+  --el-palette-accent-text: #E3C3B4;
   --el-palette-destructive: #F3625D;
   --el-palette-status-online: #54C57A;
   --el-palette-status-ingame: #55AEE8;
@@ -94,7 +94,7 @@
   --el-accent-soft: #05343D;
   --el-accent-ink: #21abb8;
   --el-danger: #f3625d;
-  --el-warn: #c9d2dd;
+  --el-warn: #e3c3b4;
   --el-status-online: #54c57a;
   --el-status-game: #55aee8;
   --el-status-away: #eeb154;
@@ -148,8 +148,8 @@
   --color-secondary: var(--el-palette-secondary);
   --color-secondary-foreground: var(--el-palette-secondary-foreground);
   --color-muted-surface: var(--el-palette-muted);
-  --color-silver: var(--el-palette-silver-default);
-  --color-silver-soft: var(--el-palette-silver-soft);
+  --color-rosebronze: var(--el-palette-rosebronze-default);
+  --color-rosebronze-soft: var(--el-palette-rosebronze-soft);
   --color-status-offline: var(--el-status-offline);
   --color-avatar-1: var(--el-palette-avatars-0);
   --color-avatar-2: var(--el-palette-avatars-1);
@@ -160,4 +160,4 @@
 }
 
 @utility bg-primary-gradient { background-image: var(--el-palette-primary-gradient); }
-@utility bg-silver-gradient { background-image: var(--el-palette-silver-gradient); }
+@utility bg-rosebronze-gradient { background-image: var(--el-palette-rosebronze-gradient); }

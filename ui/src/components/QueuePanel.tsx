@@ -163,7 +163,7 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
           ))}
         </ul>
       )}
-      <div className="rounded-tile bg-silver-soft px-4 py-2 text-center text-caption font-medium text-warn">
+      <div className="rounded-tile bg-rosebronze-soft px-4 py-2 text-center text-caption font-medium text-warn">
         <p>{restriction}</p>
         {!matchmaking && !custom && reasons.length > 0 && (
           <ul aria-label="Motivos da fila bloqueada" className="mt-1 flex flex-col gap-0.5 font-semibold">

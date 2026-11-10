@@ -225,7 +225,7 @@ function PlayerRow({ member, me, state, send, manage = false, disabled = false }
       {me && <span className="text-caption text-muted">Você</span>}
       {member.isLeader && (
         <span role="img" aria-label="Líder do grupo" title="Líder do grupo"
-          className="flex size-6 shrink-0 items-center justify-center rounded-full bg-silver-soft text-warn">
+          className="flex size-6 shrink-0 items-center justify-center rounded-full bg-rosebronze-soft text-warn">
           <CrownIcon size={14} />
         </span>
       )}
