@@ -64,11 +64,14 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     expect(panel().getByText(/escolha as duas posições e um campeão para cada uma no seu card/)).toBeInTheDocument();
 
     open(/^Primeira posição: Não selecionado/);
-    expect(dialog().getByRole('tab', { name: 'Posição' })).toHaveAttribute('aria-selected', 'true');
-    // Feitiços, runas e skin só depois dos dois slots salvos.
+    // Sem abas de posição e feitiços: a posição abre embaixo do slot.
+    expect(dialog().queryByRole('tab', { name: 'Posição' })).not.toBeInTheDocument();
+    expect(dialog().queryByRole('tab', { name: 'Feitiços' })).not.toBeInTheDocument();
+    const menu = () => within(dialog().getByRole('group', { name: 'Escolher a posição' }));
+    // Runas e skin só depois dos dois slots salvos.
     expect(dialog().getByRole('tab', { name: 'Skins' })).toBeDisabled();
-    expect(dialog().getByRole('button', { name: 'Selva (prioritária)' })).toBeInTheDocument();
-    fireEvent.click(dialog().getByRole('button', { name: 'Atirador (prioritária)' }));
+    expect(menu().getByRole('button', { name: 'Selva (prioritária)' })).toBeInTheDocument();
+    fireEvent.click(menu().getByRole('button', { name: 'Atirador (prioritária)' }));
     // Depois da posição, o pop-up passa sozinho para o campeão do mesmo slot.
     expect(dialog().getByRole('tab', { name: 'Campeão' })).toHaveAttribute('aria-selected', 'true');
     // Só os campeões que o jogador pode jogar.
@@ -76,9 +79,8 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     fireEvent.change(dialog().getByRole('searchbox', { name: 'Buscar campeão' }), { target: { value: 'as' } });
     fireEvent.click(dialog().getByRole('button', { name: 'Ashe' }));
     // E depois para o que falta no outro slot.
-    expect(dialog().getByRole('tabpanel', { name: 'Posição' })).toBeInTheDocument();
     expect(dialog().getByRole('region', { name: 'Escolha da segunda posição' })).toBeInTheDocument();
-    fireEvent.click(dialog().getByRole('button', { name: 'Topo' }));
+    fireEvent.click(menu().getByRole('button', { name: 'Topo' }));
     // Ainda falta o campeão da segunda posição: nada sai.
     expect(socket().send).not.toHaveBeenCalled();
     fireEvent.click(dialog().getByRole('button', { name: 'Aatrox' }));
@@ -107,8 +109,9 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     await ok();
 
     open(/^Segunda posição, feitiço F: Incendiar/);
-    expect(dialog().getByRole('button', { name: /Tecla F/ })).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(dialog().getByRole('button', { name: 'Teleporte' }));
+    const spellMenu = within(dialog().getByRole('group', { name: 'Feitiço da tecla F' }));
+    fireEvent.click(spellMenu.getByRole('button', { name: 'Teleporte' }));
+    expect(dialog().queryByRole('group', { name: 'Feitiço da tecla F' })).not.toBeInTheDocument();
     expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
       { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
       { championId: 266, position: 'top', spell1Id: 4, spell2Id: 12, runePageId: null, runes: null, skinId: null },
@@ -194,6 +197,29 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
       { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
       { championId: 1, position: 'top', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
+    ] });
+  });
+
+  it('página salva só carrega no editor e nada sai sem o Salvar (#417)', () => {
+    render(<App />);
+    const runed = { ...slot(266, 'top'), runeStyleId: 8000, runeSubStyleId: 8100, keystoneId: 101,
+      perkIds: [101, 111, 121, 131, 211, 231, 5008, 5010, 5011] };
+    const page = { id: 7, name: 'Blitz', primaryStyleId: 8000, subStyleId: 8100, selectedPerkIds: [102, 111, 121, 131, 211, 231, 5008, 5010, 5011],
+      isEditable: true, isDeletable: true, isTemporary: false, isValid: true };
+    hello({ lobby: swiftplay([slot(22, 'bottom'), runed]), gameflowPhase: 'Lobby', championCatalog: champions,
+      runeCatalog: testFullRuneCatalog, runePages: { pages: [page], currentPageId: 7, canCreatePage: true } });
+    open(/^Segunda posição: runas/);
+    const editor = within(dialog().getByRole('form', { name: 'Editar runas' }));
+    expect(editor.getByRole('button', { name: 'Pressione o Ataque' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.change(editor.getByRole('combobox', { name: /Carregar página salva/ }), { target: { value: '7' } });
+    // A página entra no editor, mas nada vai para o LoL.
+    expect(editor.getByRole('button', { name: 'Ritmo Fatal' })).toHaveAttribute('aria-pressed', 'true');
+    expect(socket().send).not.toHaveBeenCalled();
+    fireEvent.click(editor.getByRole('button', { name: 'Salvar' }));
+    expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
+      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
+      { championId: 266, position: 'top', spell1Id: null, spell2Id: null, runePageId: null,
+        runes: { perkIds: [102, 111, 121, 131, 211, 231, 5008, 5010, 5011], styleId: 8000, subStyleId: 8100 }, skinId: null },
     ] });
   });
 
