@@ -529,6 +529,25 @@ function choosePositions(first: string, second = 'unselected') {
 }
 
 describe('cargos pelo /ws', () => {
+  it('marca as posições prioritárias da fila nas duas listas (#410)', () => {
+    render(<App />);
+    hello({ lobby: { ...testLobby, scarcePositions: ['jungle', 'utility'] }, gameflowPhase: 'Lobby' });
+    for (const name of ['Posição primária', 'Posição secundária']) {
+      const select = within(positionSelect(name));
+      expect(select.getByRole('option', { name: 'Selva (prioritária)' })).toBeInTheDocument();
+      expect(select.getByRole('option', { name: 'Suporte (prioritária)' })).toBeInTheDocument();
+      expect(select.getByRole('option', { name: 'Topo' })).toBeInTheDocument();
+    }
+    expect(panel().getByText(/Prioritárias: Selva, Suporte\./)).toBeInTheDocument();
+  });
+
+  it('sem posições prioritárias, as listas ficam como antes (#410)', () => {
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    expect(within(positionSelect('Posição primária')).getByRole('option', { name: 'Selva' })).toBeInTheDocument();
+    expect(panel().queryByText(/Prioritárias:/)).not.toBeInTheDocument();
+  });
+
   it.each(['antes', 'depois'])('salva sozinho para membro sem liderança e confirma pelo evento %s da resposta', async order => {
     render(<App />);
     const lobby = { ...testLobby, isLeader: false, members: [

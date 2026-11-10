@@ -14,6 +14,7 @@ import { Avatar } from './base';
 import { cx } from './base/cx';
 import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
 import { PositionIcon } from './PositionIcon';
+import { ScarceMark } from './ScarceMark';
 import { ModeSelect } from './ModeSelect';
 import { QuickPlaySlots } from './QuickPlaySlots';
 import { LobbyRank } from './LobbyRank';
@@ -285,6 +286,9 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
   }
 
   const queueLabel = lobbyQueueName(lobby, state.queues);
+  // Posições que faltam na fila agora (#410): marcadas na escolha, como no client oficial.
+  const scarce = lobby.scarcePositions;
+  const positionOption = (position: Position) => `${positionNames[position]}${scarce.includes(position) ? ' (prioritária)' : ''}`;
   const freeSlots = Math.max(0, lobby.maxLobbySize - lobby.members.length);
   return (
     <section aria-label="Lobby" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
@@ -442,7 +446,7 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                     choosePositions({ first: next, second: validPositions(next, positions.second) ? positions.second : 'unselected' });
                   }}>
                   {(Object.keys(positionNames) as Position[]).map(position =>
-                    <option key={position} value={position}>{positionNames[position]}</option>)}
+                    <option key={position} value={position}>{positionOption(position)}</option>)}
                 </select></span>
               </label>
               <label className="flex min-w-0 flex-col gap-1.5 px-1 text-caption font-medium text-muted" htmlFor={secondId}>Posição secundária
@@ -454,10 +458,16 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                     if (isPosition(event.target.value)) choosePositions({ first: positions.first, second: event.target.value });
                   }}>
                   {(Object.keys(positionNames) as Position[]).map(position =>
-                    <option key={position} value={position} disabled={!validPositions(positions.first, position)}>{positionNames[position]}</option>)}
+                    <option key={position} value={position} disabled={!validPositions(positions.first, position)}>{positionOption(position)}</option>)}
                 </select></span>
               </label>
             </div>
+            {scarce.length > 0 && (
+              <p className="flex items-center gap-2 px-1 text-caption text-muted">
+                <ScarceMark />
+                Prioritárias: {scarce.map(position => positionNames[position]).join(', ')}. Faltam na fila agora.
+              </p>
+            )}
             {!positionsComplete(positions.first, positions.second) && (
               <p className="px-1 text-caption text-muted">Escolha a posição secundária para salvar.</p>
             )}
