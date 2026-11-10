@@ -24,7 +24,7 @@ import { PracticeLobby } from './PracticeLobby';
 import { ArenaTeams } from './ArenaTeams';
 import { isTutorialQueue } from '../agent/training';
 import { useDismiss } from '../agent/useDismiss';
-import { awayMembers } from '../agent/lobbyRestrictions';
+import { awayMembers, blockingMembers } from '../agent/lobbyRestrictions';
 
 type Props = {
   connection: ConnectionSnapshot;
@@ -72,6 +72,8 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
   const localMember = summoner?.puuid ? lobby?.members.find(member => member.puuid === summoner.puuid) : undefined;
   // Quem ainda está na tela de fim de jogo (#346): o card fica esmaecido, como no client oficial.
   const away = new Set(awayMembers(lobby, phase).map(member => member.puuid));
+  // Quem está bloqueando a fila (#411), com os motivos da LCU: o card ganha um aviso.
+  const blocking = blockingMembers(lobby);
   const first = localMember?.firstPosition ?? 'unselected';
   const second = localMember?.secondPosition ?? 'unselected';
   const contextKey = `${lobby?.queueId}:${lobby?.showPositionSelector}:${localMember?.puuid}`;
@@ -367,6 +369,13 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                   <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-soft px-2.5 py-1 text-caption font-semibold text-warn">
                     <span aria-hidden="true" className="tracking-widest">•••</span>
                     Ainda não voltou ao lobby
+                  </p>
+                )}
+                {blocking.has(member.puuid) && (
+                  <p title={blocking.get(member.puuid)!.join(' ')}
+                    className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-full bg-emerald-soft px-2.5 py-1 text-caption font-semibold text-warn">
+                    <span aria-hidden="true">!</span>
+                    <span className="truncate">Bloqueando a fila<span className="sr-only">: {blocking.get(member.puuid)!.join(' ')}</span></span>
                   </p>
                 )}
                 <div className={cx('flex flex-wrap items-center gap-x-2 transition-opacity', isAway && 'opacity-50')}>
