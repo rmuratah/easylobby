@@ -24,7 +24,7 @@ class Socket {
 const socket = () => Socket.instances.at(-1)!;
 const panel = () => within(screen.getByRole('region', { name: 'Lobby' }));
 const request = (): ClientMessage => JSON.parse(socket().send.mock.lastCall![0]);
-const dialog = () => within(panel().getByRole('dialog'));
+const dialog = () => within(screen.getByRole('dialog', { name: 'Escolha seus campeões' }));
 function hello(overrides: Partial<AgentState> = {}) {
   act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: { ...testState, ...overrides } }));
 }
@@ -64,18 +64,23 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     expect(panel().getByText(/escolha as duas posições e um campeão para cada uma no seu card/)).toBeInTheDocument();
 
     open(/^Primeira posição: Não selecionado/);
+    expect(dialog().getByRole('tab', { name: 'Posição' })).toHaveAttribute('aria-selected', 'true');
+    // Feitiços, runas e skin só depois dos dois slots salvos.
+    expect(dialog().getByRole('tab', { name: 'Skins' })).toBeDisabled();
     expect(dialog().getByRole('button', { name: 'Selva (prioritária)' })).toBeInTheDocument();
     fireEvent.click(dialog().getByRole('button', { name: 'Atirador (prioritária)' }));
-    open(/^Primeira posição: sem campeão/);
+    // Depois da posição, o pop-up passa sozinho para o campeão do mesmo slot.
+    expect(dialog().getByRole('tab', { name: 'Campeão' })).toHaveAttribute('aria-selected', 'true');
     // Só os campeões que o jogador pode jogar.
     expect(dialog().queryByRole('button', { name: 'Annie' })).not.toBeInTheDocument();
     fireEvent.change(dialog().getByRole('searchbox', { name: 'Buscar campeão' }), { target: { value: 'as' } });
     fireEvent.click(dialog().getByRole('button', { name: 'Ashe' }));
-    open(/^Segunda posição: Não selecionado/);
+    // E depois para o que falta no outro slot.
+    expect(dialog().getByRole('tabpanel', { name: 'Posição' })).toBeInTheDocument();
+    expect(dialog().getByRole('region', { name: 'Escolha da segunda posição' })).toBeInTheDocument();
     fireEvent.click(dialog().getByRole('button', { name: 'Topo' }));
     // Ainda falta o campeão da segunda posição: nada sai.
     expect(socket().send).not.toHaveBeenCalled();
-    open(/^Segunda posição: sem campeão/);
     fireEvent.click(dialog().getByRole('button', { name: 'Aatrox' }));
 
     expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
@@ -102,6 +107,7 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     await ok();
 
     open(/^Segunda posição, feitiço F: Incendiar/);
+    expect(dialog().getByRole('button', { name: /Tecla F/ })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(dialog().getByRole('button', { name: 'Teleporte' }));
     expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
       { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
@@ -141,7 +147,8 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
   it('escolhe a skin do slot entre as da conta (#403)', async () => {
     render(<App />);
     hello({ lobby: swiftplay([slot(22, 'bottom'), slot(266, 'top')]), gameflowPhase: 'Lobby', championCatalog: champions });
-    open(/^Primeira posição: skin/);
+    open(/^Primeira posição: Ashe/);
+    fireEvent.click(dialog().getByRole('tab', { name: 'Skins' }));
     expect(request().command).toEqual({ type: 'openChampionSkins', championId: 22 });
     expect(dialog().getByText('Carregando as skins…')).toBeInTheDocument();
     const skin = (id: number, name: string, owned: boolean, isBase = false) => ({ id, name, isBase, owned, rarity: null, chromas: [] });
@@ -157,6 +164,52 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
       { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: 22001 },
       { championId: 266, position: 'top', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
     ] });
+  });
+
+  it('filtra a grade do slot pela rota, começando na posição do slot (#404)', async () => {
+    render(<App />);
+    const laned = { champions: [
+      { id: 266, name: 'Aatrox', alias: 'Aatrox', roles: ['fighter'], positions: ['top' as const] },
+      { id: 22, name: 'Ashe', alias: 'Ashe', roles: ['marksman'], positions: ['bottom' as const, 'utility' as const] },
+      { id: 1, name: 'Annie', alias: 'Annie', roles: ['mage'], positions: ['middle' as const] },
+    ] };
+    hello({ lobby: swiftplay([slot(22, 'bottom'), slot(266, 'top')]), gameflowPhase: 'Lobby', championCatalog: laned });
+    open(/^Segunda posição: Aatrox/);
+    const lanes = within(dialog().getByRole('list', { name: 'Filtrar por rota' }));
+    expect(lanes.getByRole('button', { name: 'Topo' })).toHaveAttribute('aria-pressed', 'true');
+    expect(dialog().getByRole('button', { name: 'Aatrox' })).toBeInTheDocument();
+    expect(dialog().queryByRole('button', { name: 'Annie' })).not.toBeInTheDocument();
+    // Clicar na rota ativa tira o filtro.
+    fireEvent.click(lanes.getByRole('button', { name: 'Topo' }));
+    expect(dialog().getByRole('button', { name: 'Annie' })).toBeInTheDocument();
+    // Enter escolhe o primeiro da busca.
+    const search = dialog().getByRole('searchbox', { name: 'Buscar campeão' });
+    // Esc com texto limpa a busca sem fechar o pop-up.
+    fireEvent.change(search, { target: { value: 'xyz' } });
+    fireEvent.keyDown(search, { key: 'Escape' });
+    expect(search).toHaveValue('');
+    expect(screen.getByRole('dialog', { name: 'Escolha seus campeões' })).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: 'ann' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
+      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
+      { championId: 1, position: 'top', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
+    ] });
+  });
+
+  it('inverte os dois slots pelo botão do pop-up (#405)', async () => {
+    render(<App />);
+    hello({ lobby: swiftplay([slot(22, 'bottom'), slot(266, 'top')]), gameflowPhase: 'Lobby', championCatalog: champions });
+    open(/^Primeira posição: Ashe/);
+    fireEvent.click(dialog().getByRole('button', { name: 'Inverter os slots' }));
+    expect(request().command).toEqual({ type: 'setPlayerSlots', slots: [
+      { championId: 266, position: 'top', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
+      { championId: 22, position: 'bottom', spell1Id: null, spell2Id: null, runePageId: null, runes: null, skinId: null },
+    ] });
+    await ok();
+    // Esc fecha o pop-up.
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Escolha seus campeões' })).not.toBeInTheDocument();
   });
 
   it('avisa sem posição prioritária e não deixa mexer na fila', () => {

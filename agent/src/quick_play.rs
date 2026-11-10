@@ -429,6 +429,20 @@ pub async fn recommendation(
     Recommendation::from_json(&body)
 }
 
+/// O slot atual que corresponde a `input`: o que tem o mesmo campeão (o
+/// slot pode ter mudado de lugar ao inverter, #405), senão o do mesmo
+/// índice. Assim feitiços, runas e skin acompanham o campeão.
+pub fn current_slot<'a>(
+    current: &'a [PlayerSlot],
+    index: usize,
+    input: &PlayerSlotInput,
+) -> Option<&'a PlayerSlot> {
+    current
+        .iter()
+        .find(|c| c.champion_id == input.champion_id)
+        .or_else(|| current.get(index))
+}
+
 /// Troca os slots do jogador logado, depois de conferir com
 /// [`check_slots`]. `current` são os slots que ele tem no lobby, e `pages`
 /// as páginas de runas, para `runePageId`. A LCU responde sem corpo; o
@@ -442,7 +456,7 @@ pub async fn set_player_slots(
     check_slots(slots).map_err(SetSlotsError::Invalid)?;
     let mut body = Vec::with_capacity(slots.len());
     for (index, input) in slots.iter().enumerate() {
-        let current = current.get(index);
+        let current = current_slot(current, index, input);
         let recommended = if needs_recommendation(input, current) {
             recommendation(lcu, input.champion_id, input.position).await
         } else {
@@ -782,6 +796,30 @@ mod tests {
         assert_eq!(
             build_slot(&input(266, Position::Jungle), None, None, None)["perks"],
             ""
+        );
+    }
+
+    #[test]
+    fn slot_acompanha_o_campeao_ao_inverter() {
+        let perks = r#"{"perkIds":[8010],"perkStyle":8000,"perkSubStyle":8300}"#;
+        let current = [
+            PlayerSlot::from_json(&slot_json(22, "BOTTOM", perks)).unwrap(),
+            PlayerSlot::from_json(&slot_json(266, "TOP", "")).unwrap(),
+        ];
+        // Invertidos: o Aatrox vai para o primeiro slot e leva o que tinha.
+        let swapped = input(266, Position::Top);
+        assert_eq!(
+            current_slot(&current, 0, &swapped).map(|c| c.champion_id),
+            Some(266)
+        );
+        let ashe = input(22, Position::Bottom);
+        let found = current_slot(&current, 1, &ashe).unwrap();
+        assert!(!needs_recommendation(&ashe, Some(found)));
+        assert_eq!(build_slot(&ashe, Some(found), None, None)["perks"], perks);
+        // Campeão novo: o slot do mesmo índice.
+        assert_eq!(
+            current_slot(&current, 1, &input(1, Position::Top)).map(|c| c.champion_id),
+            Some(266)
         );
     }
 
