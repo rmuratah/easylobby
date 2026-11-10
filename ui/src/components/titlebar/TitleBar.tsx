@@ -4,6 +4,7 @@ import { LaunchUxButton } from "../LaunchUxButton";
 import { ConnectionIndicator } from "../connection/ConnectionIndicator";
 import { connectionView } from "../../screens/connection";
 import { tauriWindowControls, type WindowControls } from "./windowControls";
+import { WalletBalance } from "./WalletBalance";
 
 type Props = {
   connection: ConnectionSnapshot;
@@ -19,6 +20,9 @@ const defaultControls = tauriWindowControls();
  * `data-tauri-drag-region` arrasta a janela; nenhum botão faz parte da região.
  */
 export function TitleBar({ connection, send, controls = defaultControls }: Props) {
+  // O saldo (#370) só aparece com o LoL conectado e a LCU já respondendo.
+  const wallet = connection.status === "connected" && connection.state?.lcu.state === "connected"
+    ? connection.state.wallet : null;
   return (
     <header
       data-tauri-drag-region
@@ -26,6 +30,7 @@ export function TitleBar({ connection, send, controls = defaultControls }: Props
     >
       <ConnectionIndicator view={connectionView(connection)} />
       <div data-tauri-drag-region className="h-full min-w-4 flex-1" />
+      {wallet && <WalletBalance wallet={wallet} />}
       <LaunchUxButton connection={connection} send={send} compact />
       {controls ? <WindowButtons controls={controls} /> : <div className="w-1" />}
     </header>

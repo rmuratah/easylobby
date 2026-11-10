@@ -31,6 +31,7 @@ import type { RunePages } from "./RunePages";
 import type { Summoner } from "./Summoner";
 import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
 import type { TutorialPart } from "./TutorialPart";
+import type { Wallet } from "./Wallet";
 
 /**
  * Mensagem do agente para a UI.
@@ -78,5 +79,6 @@ export type ServerMessage =
   | { "type": "playerProfile", playerProfile: PlayerProfile | null, }
   | { "type": "liveGame", liveGame: LiveGame | null, }
   | { "type": "patchNotes", patchNotes: PatchNotes | null, }
+  | { "type": "wallet", wallet: Wallet | null, }
   | { "type": "response", id: number, result: CommandResult, }
   | { "type": "invalidMessage", message: string, };

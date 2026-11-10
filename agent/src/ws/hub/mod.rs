@@ -24,6 +24,7 @@ mod profile;
 mod ready_check;
 mod runes;
 mod ux_guard;
+mod wallet;
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -399,6 +400,9 @@ impl Hub {
                 self.spawn_refresh_tutorial();
                 // As notas da atualização do Início (#301), da internet.
                 self.spawn_refresh_patch_notes();
+                // O saldo do cabeçalho (#370). Antes do login não responde, e
+                // o login relê.
+                self.spawn_refresh_wallet();
                 // Os campeões que podem ser bots, se já estiver numa
                 // personalizada (#229).
                 self.spawn_refresh_available_bots();
@@ -494,6 +498,7 @@ impl Hub {
                 self.set_match_details(None);
                 self.set_player_profile(None);
                 self.set_custom_games(None);
+                self.set_wallet(None);
                 self.stop_live_game();
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
@@ -525,6 +530,8 @@ impl Hub {
                         self.spawn_refresh_queues();
                         self.spawn_refresh_playable_champions();
                         self.spawn_refresh_tutorial();
+                        // O saldo também só responde depois do login (#370).
+                        self.spawn_refresh_wallet();
                     }
                 }
             }
@@ -549,6 +556,9 @@ impl Hub {
                     if profile::ends_a_game(before, Some(phase)) {
                         self.spawn_refresh_profile();
                         self.reload_lobby_ranks();
+                        // Essência Azul ganha na partida (#370), caso o
+                        // evento da carteira não chegue.
+                        self.spawn_refresh_wallet();
                         // A UI oficial ficou aberta para a partida começar
                         // (#342): de volta ao lobby, fecha de novo.
                         if matches!(phase, GameflowPhase::Lobby | GameflowPhase::Idle) {
@@ -661,6 +671,18 @@ impl Hub {
                         }
                     }
                     _ => {}
+                }
+            }
+            // Saldo do cabeçalho (#370). O item da Essência Laranja some
+            // quando o saldo zera.
+            crate::wallet::ORANGE_ESSENCE_PATH if deleted => {
+                self.apply_wallet_changes(vec![crate::wallet::WalletChange::OrangeEssence(0)])
+            }
+            uri if uri.starts_with(crate::wallet::WALLET_PREFIX)
+                || uri == crate::wallet::ORANGE_ESSENCE_PATH =>
+            {
+                if !deleted {
+                    self.apply_wallet_changes(crate::wallet::changes_from_event(uri, &event.data));
                 }
             }
             uri => {

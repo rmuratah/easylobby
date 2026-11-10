@@ -7,6 +7,7 @@ import type { PatchLineKind } from '../bindings/PatchLineKind';
 import type { PatchSection } from '../bindings/PatchSection';
 import type { PatchNotes } from '../bindings/PatchNotes';
 import type { LiveGame } from '../bindings/LiveGame';
+import type { Wallet } from '../bindings/Wallet';
 import type { AgentState } from '../bindings/AgentState';
 import type { LcuStatus } from '../bindings/LcuStatus';
 import type { Summoner } from '../bindings/Summoner';
@@ -281,6 +282,11 @@ function patchNotes(v: unknown): v is PatchNotes | null {
   return v === null || (object(v) && typeof v.version === 'string' && typeof v.url === 'string' &&
     nullableString(v.title) && nullableString(v.summary) && list(v.sections, patchSection));
 }
+// Saldo do cabeçalho (#370).
+const nullableUint = (v: unknown) => v === null || uint(v);
+function wallet(v: unknown): v is Wallet | null {
+  return v === null || (object(v) && ['blueEssence', 'orangeEssence', 'rp'].every(k => nullableUint(v[k])));
+}
 // Partida ao vivo (#268).
 function tierDivision(v: unknown): boolean {
   return v === null || (object(v) && typeof v.tier === 'string' && nullableString(v.division));
@@ -327,7 +333,8 @@ function state(v: unknown): v is AgentState {
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
     champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) &&
     ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory) &&
-    matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && patchNotes(v.patchNotes);
+    matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && patchNotes(v.patchNotes) &&
+    wallet(v.wallet);
 }
 
 // Os tipos vêm do Rust; esta validação protege a fronteira JSON em runtime.
@@ -371,6 +378,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'playerProfile': valid = playerProfile(v.playerProfile); break;
     case 'liveGame': valid = liveGame(v.liveGame); break;
     case 'patchNotes': valid = patchNotes(v.patchNotes); break;
+    case 'wallet': valid = wallet(v.wallet); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
       (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;
     case 'invalidMessage': valid = typeof v.message === 'string'; break;
