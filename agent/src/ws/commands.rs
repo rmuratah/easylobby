@@ -43,6 +43,17 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
             hub.lobby_member_action(summoner_id, MemberAction::Promote)
                 .await
         }
+        Command::SetLobbyMemberInvite {
+            summoner_id,
+            allowed,
+        } => {
+            let action = if allowed {
+                MemberAction::GrantInvite
+            } else {
+                MemberAction::RevokeInvite
+            };
+            hub.lobby_member_action(summoner_id, action).await
+        }
         Command::CreateLobbyLink => hub.create_lobby_link().await,
         Command::SetSubteamSlot { team, position } => {
             hub.set_subteam_slot(SubteamSlot { team, position }).await

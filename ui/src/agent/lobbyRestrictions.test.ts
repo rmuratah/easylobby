@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { GENERIC_RESTRICTION, awayMembers, awayReasons, pendingChoices, restrictionReasons } from './lobbyRestrictions';
+import { GENERIC_RESTRICTION, awayMembers, awayReasons, blockingMembers, pendingChoices, restrictionReasons } from './lobbyRestrictions';
 import type { Lobby } from '../bindings/Lobby';
 import type { LobbyMember } from '../bindings/LobbyMember';
 import { testLobby } from '../test/lobby';
+
+const nameOf = (member: LobbyMember) => `Jogador ${member.summonerId}`;
 
 describe('motivos da fila bloqueada (#227)', () => {
   it('mostra o texto do agente e o genérico para código sem texto, sem repetir', () => {
@@ -11,18 +13,57 @@ describe('motivos da fila bloqueada (#227)', () => {
       { code: 'Novo', message: null, puuids: ['a'] },
       { code: 'Novo', message: null, puuids: ['b'] },
     ] };
-    expect(restrictionReasons(lobby)).toEqual(['Esta fila não aceita grupos deste tamanho.', `${GENERIC_RESTRICTION} (Novo)`]);
+    expect(restrictionReasons(lobby, 'local', nameOf)).toEqual(['Esta fila não aceita grupos deste tamanho.', `${GENERIC_RESTRICTION} (Novo)`]);
   });
 
   it('ignora os motivos com a fila liberada ou sem lobby', () => {
     const restrictions = [{ code: 'TeamSizeRestriction', message: 'x', puuids: [] }];
-    expect(restrictionReasons({ ...testLobby, canStartActivity: true, restrictions })).toEqual([]);
-    expect(restrictionReasons(null)).toEqual([]);
+    expect(restrictionReasons({ ...testLobby, canStartActivity: true, restrictions }, 'local', nameOf)).toEqual([]);
+    expect(restrictionReasons(null, 'local', nameOf)).toEqual([]);
+  });
+});
+
+describe('quem está bloqueando a fila (#411)', () => {
+  const members = [testLobby.members[0], { ...testLobby.members[0], puuid: 'amigo', summonerId: 2, isLeader: false },
+    { ...testLobby.members[0], puuid: 'outro', summonerId: 3, isLeader: false }];
+  const blocked = (restrictions: Lobby['restrictions']): Lobby => ({ ...testLobby, canStartActivity: false, members, restrictions });
+  const punicao = 'Algum jogador está com punição de fila.';
+  const elo = 'A diferença de elo entre os jogadores do grupo é grande demais.';
+
+  it('troca "Algum jogador" pelo nome, ou por "Você"', () => {
+    expect(restrictionReasons(blocked([{ code: 'PlayerLeaverBustedRestriction', message: punicao, puuids: ['amigo'] }]), 'local', nameOf))
+      .toEqual(['Jogador 2 está com punição de fila.']);
+    expect(restrictionReasons(blocked([{ code: 'PlayerLeaverBustedRestriction', message: punicao, puuids: ['local'] }]), 'local', nameOf))
+      .toEqual(['Você está com punição de fila.']);
+  });
+
+  it('põe os nomes no fim com mais de um jogador ou em motivo do grupo', () => {
+    expect(restrictionReasons(blocked([{ code: 'PlayerLeaverBustedRestriction', message: punicao, puuids: ['amigo', 'outro', 'local'] }]), 'local', nameOf))
+      .toEqual(['Algum jogador está com punição de fila (Jogador 2, Jogador 3 e você).']);
+    expect(restrictionReasons(blocked([{ code: 'TeamDivisionRestriction', message: elo, puuids: ['amigo'] }]), 'local', nameOf))
+      .toEqual(['A diferença de elo entre os jogadores do grupo é grande demais (Jogador 2).']);
+  });
+
+  it('cita o jogador num código sem texto e ignora quem não está no grupo', () => {
+    expect(restrictionReasons(blocked([{ code: 'Novo', message: null, puuids: ['amigo', 'fora'] }]), 'local', nameOf))
+      .toEqual(['Jogador 2 não pode entrar nesta fila agora. (Novo)']);
+    expect(restrictionReasons(blocked([{ code: 'PlayerLeaverBustedRestriction', message: punicao, puuids: ['fora'] }]), 'local', nameOf))
+      .toEqual([punicao]);
+  });
+
+  it('junta os motivos de cada membro bloqueado, só com a fila bloqueada', () => {
+    const lobby = blocked([
+      { code: 'PlayerLeaverBustedRestriction', message: punicao, puuids: ['amigo'] },
+      { code: 'TeamDivisionRestriction', message: elo, puuids: ['amigo', 'local'] },
+      { code: 'TeamSizeRestriction', message: 'x', puuids: [] },
+    ]);
+    expect(blockingMembers(lobby)).toEqual(new Map([['amigo', [punicao, elo]], ['local', [elo]]]));
+    expect(blockingMembers({ ...lobby, canStartActivity: true }).size).toBe(0);
+    expect(blockingMembers(null).size).toBe(0);
   });
 });
 
 describe('escolhas que faltam antes da busca (#334)', () => {
-  const nameOf = (member: LobbyMember) => `Jogador ${member.summonerId}`;
   const member = (overrides: Partial<LobbyMember>): LobbyMember => ({ ...testLobby.members[0], ...overrides });
   it('pede as posições primária e secundária de cada membro', () => {
     const lobby: Lobby = { ...testLobby, members: [

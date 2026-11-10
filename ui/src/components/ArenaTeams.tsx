@@ -101,7 +101,7 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMe
                         </div>
                         {/* Tornar líder e remover do grupo (#267): só o líder, nas vagas dos outros. */}
                         {lobby.isLeader && !isMe && (
-                          <LobbyMemberMenu name={displayName} summonerId={member.summonerId} send={send} disabled={!canManageMembers} align="start" />
+                          <LobbyMemberMenu name={displayName} summonerId={member.summonerId} send={send} disabled={!canManageMembers} align="start" allowedInvite={member.allowedInviteOthers} />
                         )}
                       </li>
                     );

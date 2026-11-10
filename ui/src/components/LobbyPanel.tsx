@@ -14,6 +14,7 @@ import { Avatar } from './base';
 import { cx } from './base/cx';
 import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
 import { PositionIcon } from './PositionIcon';
+import { ScarceMark } from './ScarceMark';
 import { ModeSelect } from './ModeSelect';
 import { QuickPlaySlots } from './QuickPlaySlots';
 import { LobbyRank } from './LobbyRank';
@@ -24,7 +25,7 @@ import { PracticeLobby } from './PracticeLobby';
 import { ArenaTeams } from './ArenaTeams';
 import { isTutorialQueue } from '../agent/training';
 import { useDismiss } from '../agent/useDismiss';
-import { awayMembers } from '../agent/lobbyRestrictions';
+import { awayMembers, blockingMembers } from '../agent/lobbyRestrictions';
 
 type Props = {
   connection: ConnectionSnapshot;
@@ -72,6 +73,8 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
   const localMember = summoner?.puuid ? lobby?.members.find(member => member.puuid === summoner.puuid) : undefined;
   // Quem ainda está na tela de fim de jogo (#346): o card fica esmaecido, como no client oficial.
   const away = new Set(awayMembers(lobby, phase).map(member => member.puuid));
+  // Quem está bloqueando a fila (#411), com os motivos da LCU: o card ganha um aviso.
+  const blocking = blockingMembers(lobby);
   const first = localMember?.firstPosition ?? 'unselected';
   const second = localMember?.secondPosition ?? 'unselected';
   const contextKey = `${lobby?.queueId}:${lobby?.showPositionSelector}:${localMember?.puuid}`;
@@ -285,6 +288,9 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
   }
 
   const queueLabel = lobbyQueueName(lobby, state.queues);
+  // Posições que faltam na fila agora (#410): marcadas na escolha, como no client oficial.
+  const scarce = lobby.scarcePositions;
+  const positionOption = (position: Position) => `${positionNames[position]}${scarce.includes(position) ? ' (prioritária)' : ''}`;
   const freeSlots = Math.max(0, lobby.maxLobbySize - lobby.members.length);
   return (
     <section aria-label="Lobby" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
@@ -369,6 +375,13 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                     Ainda não voltou ao lobby
                   </p>
                 )}
+                {blocking.has(member.puuid) && (
+                  <p title={blocking.get(member.puuid)!.join(' ')}
+                    className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-full bg-emerald-soft px-2.5 py-1 text-caption font-semibold text-warn">
+                    <span aria-hidden="true">!</span>
+                    <span className="truncate">Bloqueando a fila<span className="sr-only">: {blocking.get(member.puuid)!.join(' ')}</span></span>
+                  </p>
+                )}
                 <div className={cx('flex flex-wrap items-center gap-x-2 transition-opacity', isAway && 'opacity-50')}>
                   <span className="mt-2 inline-block rounded-full bg-raised px-2.5 py-1 text-caption font-semibold text-muted">Nível {member.summonerLevel}</span>
                   <LobbyRank ranked={member.ranked} queueId={lobby.queueId} />
@@ -396,7 +409,7 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                 // No próprio card não há menu, mas o espaço do "⋯" fica reservado para as posições
                 // e os campeões ficarem alinhados com os dos outros cards.
                 ? <span aria-hidden="true" data-testid="lobby-menu-spacer" className="size-8 shrink-0 self-start" />
-                : <LobbyMemberMenu name={name} summonerId={member.summonerId} send={send} disabled={!canManageMembers} />
+                : <LobbyMemberMenu name={name} summonerId={member.summonerId} send={send} disabled={!canManageMembers} allowedInvite={member.allowedInviteOthers} />
               )}
             </li>
           );
@@ -442,7 +455,7 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                     choosePositions({ first: next, second: validPositions(next, positions.second) ? positions.second : 'unselected' });
                   }}>
                   {(Object.keys(positionNames) as Position[]).map(position =>
-                    <option key={position} value={position}>{positionNames[position]}</option>)}
+                    <option key={position} value={position}>{positionOption(position)}</option>)}
                 </select></span>
               </label>
               <label className="flex min-w-0 flex-col gap-1.5 px-1 text-caption font-medium text-muted" htmlFor={secondId}>Posição secundária
@@ -454,10 +467,16 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                     if (isPosition(event.target.value)) choosePositions({ first: positions.first, second: event.target.value });
                   }}>
                   {(Object.keys(positionNames) as Position[]).map(position =>
-                    <option key={position} value={position} disabled={!validPositions(positions.first, position)}>{positionNames[position]}</option>)}
+                    <option key={position} value={position} disabled={!validPositions(positions.first, position)}>{positionOption(position)}</option>)}
                 </select></span>
               </label>
             </div>
+            {scarce.length > 0 && (
+              <p className="flex items-center gap-2 px-1 text-caption text-muted">
+                <ScarceMark />
+                Prioritárias: {scarce.map(position => positionNames[position]).join(', ')}. Faltam na fila agora.
+              </p>
+            )}
             {!positionsComplete(positions.first, positions.second) && (
               <p className="px-1 text-caption text-muted">Escolha a posição secundária para salvar.</p>
             )}

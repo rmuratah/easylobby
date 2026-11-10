@@ -89,7 +89,7 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
   // A busca parada por punição também sai, mesmo se a fase não for `Matchmaking`.
   const canStop = !state.readyCheck && !!matchmaking && (phase === 'Matchmaking' || queuePenalty(matchmaking));
   // Motivos da LCU para a fila bloqueada (#227), no lugar do aviso genérico.
-  const reasons = away.length ? away : [...restrictionReasons(lobby), ...missing];
+  const reasons = away.length ? away : [...restrictionReasons(lobby, summoner?.puuid, nameOf), ...missing];
   const restriction = !summoner ? 'Aguarde o login no League of Legends.'
     : matchmaking ? (canStop ? 'A busca confirmada pelo agente está em andamento.' : 'Aguarde a próxima fase confirmada pelo agente.')
     : !lobby ? 'Crie ou entre em um lobby antes de buscar uma partida.'

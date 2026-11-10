@@ -5,6 +5,8 @@
 //! - `POST` [`MEMBERS`]`{summonerId}/promote` passa a liderança: o membro
 //!   vira o líder e o jogador logado perde `isLeader` e as permissões de
 //!   líder.
+//! - `POST` [`MEMBERS`]`{summonerId}/grant-invite` e `/revoke-invite` (#412)
+//!   mudam o `allowedInviteOthers` do membro.
 //! - [`SIMULATE_JOIN`] (rota só do mock) põe um amigo da gravação no lobby,
 //!   para ter com quem testar. A gravação não tem lobby com outro jogador.
 //!
@@ -45,13 +47,14 @@ fn no_lobby() -> (Response, Vec<EventFixture>) {
     )
 }
 
-/// `POST` [`MEMBERS`]`{summonerId}/kick` ou `/promote`, com `rest` sendo o
+/// `POST` [`MEMBERS`]`{summonerId}/kick`, `/promote`, `/grant-invite` ou
+/// `/revoke-invite`, com `rest` sendo o
 /// que vem depois de [`MEMBERS`]. `None` se o caminho não for um desses.
 /// Fora de lobby responde 404; sem ser o líder, 403; com o próprio jogador,
 /// 400; com quem não está no lobby, 404.
 pub fn action(state: &LcuState, rest: &str) -> Option<(Response, Vec<EventFixture>)> {
     let (id, action) = rest.split_once('/')?;
-    if action != "kick" && action != "promote" {
+    if !["kick", "promote", "grant-invite", "revoke-invite"].contains(&action) {
         return None;
     }
     let current = state.get(LOBBY);
@@ -105,6 +108,16 @@ pub fn action(state: &LcuState, rest: &str) -> Option<(Response, Vec<EventFixtur
                 .filter(|i| i["toSummonerId"] == summoner_id)
             {
                 invitation["state"] = json!("Kicked");
+            }
+        }
+    } else if action == "grant-invite" || action == "revoke-invite" {
+        let allowed = action == "grant-invite";
+        if let Some(members) = lobby.get_mut("members").and_then(Value::as_array_mut) {
+            for member in members
+                .iter_mut()
+                .filter(|m| m["summonerId"] == summoner_id)
+            {
+                member["allowedInviteOthers"] = json!(allowed);
             }
         }
     } else {
@@ -278,5 +291,35 @@ mod tests {
         assert_eq!(leaders[0]["summonerId"], friend);
         // Sem ser mais o líder, a LCU recusa.
         assert_eq!(action(&s, &format!("{friend}/kick")).unwrap().0.status, 403);
+    }
+
+    #[test]
+    fn lider_libera_e_tira_o_convite() {
+        let mut s = state();
+        let (_, events) = create(&s, &json!({"queueId": 420}));
+        apply(&mut s, &events);
+        let (response, events) = simulate_join(&s);
+        let friend = response.body["summonerId"].as_u64().unwrap();
+        apply(&mut s, &events);
+        let allowed = |s: &LcuState| {
+            s.get(LOBBY).body["members"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|m| m["summonerId"] == friend)
+                .unwrap()["allowedInviteOthers"]
+                .clone()
+        };
+        for (path, expected) in [("grant-invite", true), ("revoke-invite", false)] {
+            let (response, events) = action(&s, &format!("{friend}/{path}")).unwrap();
+            assert_eq!(response.status, 204);
+            apply(&mut s, &events);
+            assert_eq!(allowed(&s), expected, "{path}");
+        }
+        let me = s.get(LOBBY).body["localMember"]["summonerId"].clone();
+        assert_eq!(
+            action(&s, &format!("{me}/grant-invite")).unwrap().0.status,
+            400
+        );
     }
 }

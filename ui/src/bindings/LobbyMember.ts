@@ -15,6 +15,12 @@ export type LobbyMember = {
   summonerLevel: number,
   isLeader: boolean,
   /**
+   * Se o membro pode convidar outros jogadores (#412), o
+   * `allowedInviteOthers` da LCU. O líder libera ou tira com o comando
+   * `setLobbyMemberInvite`.
+   */
+  allowedInviteOthers: boolean,
+  /**
    * Cargo primário (#18). `unselected` antes de escolher e nas filas sem
    * escolha de cargos.
    */

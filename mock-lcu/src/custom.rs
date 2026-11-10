@@ -179,7 +179,7 @@ pub fn add_bot(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) 
         "isBot": true, "isLeader": false, "puuid": "", "summonerId": 0, "summonerIconId": -1,
         "botChampionId": choice.champion_id, "botDifficulty": choice.difficulty,
         "botPosition": choice.position, "botUuid": format!("mock-bot-{count}-{}", choice.champion_id),
-        "summonerInternalName": format!("Bot_{}_{count}", choice.champion_id),
+        "summonerInternalName": "",
     });
     if let Some(team) = lobby["gameConfig"][key].as_array_mut() {
         team.push(bot);
@@ -196,9 +196,9 @@ fn find(lobby: &Value, name: &str, uuid: &str) -> Option<(&'static str, usize)> 
                 .as_array()?
                 .iter()
                 .position(|m| {
-                    m["isBot"] == json!(true)
-                        && m["botUuid"] == json!(uuid)
-                        && m["summonerInternalName"] == json!(name)
+                    // O LoL real manda o bot sem `summonerInternalName` e o
+                    // client oficial repete o `botUuid` no lugar dele (#409).
+                    m["isBot"] == json!(true) && m["botUuid"] == json!(uuid) && name == uuid
                 })
                 .map(|index| (key, index))
         })
@@ -249,6 +249,10 @@ pub fn update_bot(state: &LcuState, path: &str, body: &Value) -> (Response, Vec<
     let Some((key, index)) = find(&lobby, name, uuid) else {
         return error(404, "bot não encontrado");
     };
+    // Como no LoL real: sem o `botUuid` no corpo, 400 `INVALID_REQUEST` (#409).
+    if body["botUuid"].as_str() != Some(uuid.as_str()) {
+        return error(400, "INVALID_REQUEST");
+    }
     let config = &mut lobby["gameConfig"];
     let bot = &mut config[key][index];
     bot["botChampionId"] = json!(choice.champion_id);
@@ -280,8 +284,9 @@ pub fn remove_bot(state: &LcuState, path: &str) -> (Response, Vec<EventFixture>)
     }
 }
 
-/// `POST` [`TEAM`]`/{team}`: leva o jogador logado para a equipe, ou para
-/// os espectadores com `/spectator` (#263).
+/// `POST` [`TEAM`]`/{TEAM1|TEAM2}`: leva o jogador logado para a equipe, ou
+/// para os espectadores com `/spectator` (#263). Como no LoL real, `/100` e
+/// `/200` respondem 400 (#409).
 pub fn switch_team(state: &LcuState, path: &str) -> (Response, Vec<EventFixture>) {
     let mut lobby = match custom_lobby(state) {
         Ok(lobby) => lobby,
@@ -290,12 +295,11 @@ pub fn switch_team(state: &LcuState, path: &str) -> (Response, Vec<EventFixture>
     let target = path
         .strip_prefix(TEAM)
         .and_then(|rest| rest.strip_prefix('/'));
-    let Some(key) = target.and_then(|t| {
-        if t == "spectator" {
-            Some(SPECTATORS)
-        } else {
-            team_key(t)
-        }
+    let Some(key) = target.and_then(|t| match t {
+        "spectator" => Some(SPECTATORS),
+        "TEAM1" => Some("customTeam100"),
+        "TEAM2" => Some("customTeam200"),
+        _ => None,
     }) else {
         return error(400, "equipe inválida");
     };
@@ -381,11 +385,18 @@ mod tests {
         apply(&mut s, &events);
         let added = s.get(LOBBY).body["gameConfig"]["customTeam200"][0].clone();
         assert_eq!(added["botChampionId"], 22);
-        let name = added["summonerInternalName"].as_str().unwrap().to_owned();
         let uuid = added["botUuid"].as_str().unwrap().to_owned();
+        // Como no LoL real: sem nome interno, a rota repete o `botUuid` (#409).
+        assert_eq!(added["summonerInternalName"], "");
+        assert_eq!(
+            update_bot(&s, &format!("{BOTS}//{uuid}"), &bot).0.status,
+            404
+        );
 
-        let path = format!("{BOTS}/{name}/{uuid}");
-        let change = json!({"botDifficulty": "RSINTERMEDIATE", "championId": 1, "teamId": "200", "position": "MIDDLE"});
+        let path = format!("{BOTS}/{uuid}/{uuid}");
+        let mut change = json!({"botDifficulty": "RSINTERMEDIATE", "championId": 1, "teamId": "200", "position": "MIDDLE"});
+        assert_eq!(update_bot(&s, &path, &change).0.status, 400);
+        change["botUuid"] = json!(uuid);
         let (response, events) = update_bot(&s, &path, &change);
         assert_eq!(response.status, 204);
         apply(&mut s, &events);
@@ -393,13 +404,15 @@ mod tests {
         assert_eq!(changed["botChampionId"], 1);
         assert_eq!(changed["botPosition"], "MIDDLE");
 
-        let (response, events) = switch_team(&s, &format!("{TEAM}/200"));
+        // O LoL real recusa o `teamId` na rota (#409).
+        assert_eq!(switch_team(&s, &format!("{TEAM}/200")).0.status, 400);
+        let (response, events) = switch_team(&s, &format!("{TEAM}/TEAM2"));
         assert_eq!(response.status, 204);
         apply(&mut s, &events);
         let config = s.get(LOBBY).body["gameConfig"].clone();
         assert!(config["customTeam100"].as_array().unwrap().is_empty());
         assert_eq!(config["customTeam200"].as_array().unwrap().len(), 2);
-        assert_eq!(switch_team(&s, &format!("{TEAM}/200")).0.status, 400);
+        assert_eq!(switch_team(&s, &format!("{TEAM}/TEAM2")).0.status, 400);
 
         assert_eq!(remove_bot(&s, &format!("{path}/100")).0.status, 404);
         let (response, events) = remove_bot(&s, &format!("{path}/200"));
@@ -444,7 +457,7 @@ mod tests {
         assert_eq!(config["customSpectators"].as_array().unwrap().len(), 1);
         assert_eq!(switch_team(&s, &format!("{TEAM}/spectator")).0.status, 400);
 
-        let (response, events) = switch_team(&s, &format!("{TEAM}/100"));
+        let (response, events) = switch_team(&s, &format!("{TEAM}/TEAM1"));
         assert_eq!(response.status, 204);
         apply(&mut s, &events);
         let config = s.get(LOBBY).body["gameConfig"].clone();

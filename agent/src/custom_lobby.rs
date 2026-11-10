@@ -17,8 +17,13 @@
 //!   muda o bot ([`update_bot`]).
 //! - `DELETE /lol-lobby/v1/lobby/custom/bots/{summonerInternalName}/{botUuid}/{teamId}`:
 //!   tira o bot ([`remove_bot`]).
-//! - `POST /lol-lobby/v2/lobby/team/{team}`: troca de equipe, o "Juntar-se"
-//!   ([`switch_team`]).
+//!
+//!   O LoL real (16.22) manda os bots sem `summonerInternalName`, e o client
+//!   oficial põe o `botUuid` no lugar dos dois (`bots/{uuid}/{uuid}`), como
+//!   mostra o trace do LeagueClient (#409).
+//! - `POST /lol-lobby/v2/lobby/team/{TEAM1|TEAM2}`: troca de equipe, o
+//!   "Juntar-se" ([`switch_team`]). Com `100`/`200` a LCU responde 400
+//!   `INVALID_REQUEST` (#409).
 //! - `POST /lol-lobby/v2/lobby/team/spectator`: vira espectador ([`spectate`],
 //!   #263). A rota não aparece separada no `/help` e precisa ser conferida
 //!   no LoL real; voltar a uma equipe é o mesmo "Juntar-se".
@@ -66,6 +71,14 @@ impl CustomTeam {
         match self {
             CustomTeam::Team1 => 100,
             CustomTeam::Team2 => 200,
+        }
+    }
+
+    /// Nome da equipe na rota de troca de equipe (#409).
+    pub const fn lcu_name(self) -> &'static str {
+        match self {
+            CustomTeam::Team1 => "TEAM1",
+            CustomTeam::Team2 => "TEAM2",
         }
     }
 }
@@ -150,10 +163,6 @@ pub struct CustomBot {
     /// Posição do bot: uma das 5 rotas, ou `unselected` sem posição.
     pub position: Position,
     pub difficulty: BotDifficulty,
-    /// `summonerInternalName` do bot, que as rotas de mudar e tirar pedem.
-    #[serde(skip)]
-    #[ts(skip)]
-    pub internal_name: String,
 }
 
 impl CustomLobby {
@@ -200,6 +209,16 @@ impl CustomLobby {
         } else {
             None
         }
+    }
+
+    /// Se há outro jogador (bots não contam) além de `puuid`, nas equipes ou
+    /// assistindo. Sem outro jogador a LCU não deixa ninguém assistir (#409).
+    pub fn has_other_player(&self, puuid: &str) -> bool {
+        self.team1
+            .iter()
+            .chain(&self.team2)
+            .chain(&self.spectators)
+            .any(|m| m.bot.is_none() && m.puuid != puuid)
     }
 
     /// Se o jogador `puuid` está assistindo.
@@ -254,7 +273,6 @@ fn member(value: &Value) -> Option<CustomMember> {
         champion_id: u32::try_from(number("botChampionId")).unwrap_or_default(),
         position: Position::from_lcu(value.get("botPosition").and_then(Value::as_str)),
         difficulty: BotDifficulty::from_lcu(text("botDifficulty")),
-        internal_name: text("summonerInternalName").to_owned(),
     });
     Some(CustomMember {
         puuid: if is_bot {
@@ -282,6 +300,22 @@ pub fn bot_body(
         "teamId": team.id().to_string(),
         "position": position.lcu_name(),
     })
+}
+
+/// Corpo de mudar um bot: o de [`bot_body`] com o `botUuid`. Sem ele a LCU
+/// responde 400 `INVALID_REQUEST`; o client oficial manda o corpo com 128
+/// bytes, o tamanho exato deste com o `botUuid` (trace do LeagueClient,
+/// LoL 16.22, #409).
+pub fn update_bot_body(
+    bot: &CustomBot,
+    team: CustomTeam,
+    champion_id: u32,
+    difficulty: BotDifficulty,
+    position: Position,
+) -> Value {
+    let mut body = bot_body(team, champion_id, difficulty, position);
+    body["botUuid"] = json!(bot.uuid);
+    body
 }
 
 /// Campeões que podem ser bots, a partir da resposta de
@@ -336,14 +370,13 @@ pub async fn update_bot(
     difficulty: BotDifficulty,
     position: Position,
 ) -> Result<(), LcuError> {
-    let path = format!(
-        "{BOTS_PATH}/{}/{}",
-        encode(&bot.internal_name),
-        encode(&bot.uuid)
-    );
-    lcu.post::<_, Option<Value>>(&path, &bot_body(team, champion_id, difficulty, position))
-        .await
-        .map(|_| ())
+    let path = format!("{BOTS_PATH}/{}/{}", encode(&bot.uuid), encode(&bot.uuid));
+    lcu.post::<_, Option<Value>>(
+        &path,
+        &update_bot_body(bot, team, champion_id, difficulty, position),
+    )
+    .await
+    .map(|_| ())
 }
 
 /// Tira o bot da equipe `team`.
@@ -354,7 +387,7 @@ pub async fn remove_bot(
 ) -> Result<(), LcuError> {
     let path = format!(
         "{BOTS_PATH}/{}/{}/{}",
-        encode(&bot.internal_name),
+        encode(&bot.uuid),
         encode(&bot.uuid),
         team.id()
     );
@@ -363,7 +396,7 @@ pub async fn remove_bot(
 
 /// Leva o jogador logado para a equipe `team` ("Juntar-se").
 pub async fn switch_team(lcu: &LcuClient, team: CustomTeam) -> Result<(), LcuError> {
-    let path = format!("{TEAM_PATH}/{}", team.id());
+    let path = format!("{TEAM_PATH}/{}", team.lcu_name());
     lcu.send::<Option<Value>>(Method::POST, &path, None)
         .await
         .map(|_| ())
@@ -449,7 +482,6 @@ mod tests {
             (ashe.champion_id, ashe.position, ashe.difficulty),
             (22, Position::Bottom, BotDifficulty::Beginner)
         );
-        assert_eq!(ashe.internal_name, "Bot_Ashe");
         // Sem `botUuid`, o `botId`; nome antigo de dificuldade.
         let annie = custom.team2[0].bot.as_ref().unwrap();
         assert_eq!(annie.uuid, "id-annie");
@@ -461,6 +493,8 @@ mod tests {
         assert!(custom.bot("nada").is_none());
         assert!(custom.spectators.is_empty());
         assert_eq!(custom.max_spectators, DEFAULT_MAX_SPECTATORS);
+        // Só bots além do jogador: ninguém para assistir junto (#409).
+        assert!(!custom.has_other_player("eu"));
     }
 
     #[test]
@@ -474,6 +508,9 @@ mod tests {
         assert_eq!(custom.spectators[0].puuid, "amigo");
         assert_eq!(custom.max_spectators, 2);
         assert!(custom.is_spectator("amigo"));
+        // O amigo assistindo conta como outro jogador; os bots, não (#409).
+        assert!(custom.has_other_player("eu"));
+        assert!(custom.has_other_player("amigo"));
         assert!(!custom.is_spectator("eu"));
         assert_eq!(custom.team_of("amigo"), None);
     }
@@ -524,6 +561,22 @@ mod tests {
             ),
             json!({"botDifficulty": "RSINTRO", "championId": 22, "teamId": "200", "position": "MIDDLE"})
         );
+        let bot = CustomBot {
+            uuid: "99314620-6d81-4e76-8750-5cd59a7f167f".into(),
+            champion_id: 63,
+            position: Position::Utility,
+            difficulty: BotDifficulty::Intro,
+        };
+        let body = update_bot_body(
+            &bot,
+            CustomTeam::Team2,
+            63,
+            BotDifficulty::Intro,
+            Position::Utility,
+        );
+        assert_eq!(body["botUuid"], "99314620-6d81-4e76-8750-5cd59a7f167f");
+        // O mesmo tamanho do corpo do client oficial no trace (#409).
+        assert_eq!(serde_json::to_string(&body).unwrap().len(), 128);
         let bots = json!([
             {"active": true, "id": 22, "name": "Ashe"},
             {"active": false, "id": 99, "name": "Fora"},

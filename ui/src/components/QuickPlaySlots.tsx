@@ -14,6 +14,7 @@ import type { AgentState } from '../bindings/AgentState';
 import type { LobbyMember } from '../bindings/LobbyMember';
 import type { Position } from '../bindings/Position';
 import { cx } from './base/cx';
+import { ScarceMark } from './ScarceMark';
 import { ChampionIcon } from './ChampSelectPanel';
 import { PositionIcon } from './PositionIcon';
 import { RuneIcon } from './RunePagesPanel';
@@ -49,11 +50,6 @@ const slotNumerals = ['I', 'II'] as const;
 const tabLabels: Record<Tab, string> = { champion: 'Campeão', skin: 'Skins', runes: 'Runas' };
 const TABS: Tab[] = ['champion', 'skin', 'runes'];
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
-
-/** Marca das posições prioritárias (as que faltam na fila), como o losango azul do client oficial. */
-function ScarceMark({ className }: { className?: string }) {
-  return <span aria-hidden="true" className={cx('size-2.5 rotate-45 rounded-[2px] bg-accent ring-2 ring-surface', className)} />;
-}
 
 /**
  * Posições e campeões do Jogo Dinâmico (#218) no card do jogador no lobby: dois slots, cada um com a posição, o

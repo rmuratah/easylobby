@@ -68,7 +68,12 @@ export function PracticeLobby({ lobby, state, send, canLeave, leaving, onLeave, 
   // Sem saber a política, deixa tentar: o agente confere e a LCU decide.
   const canWatch = spectatorPolicy !== 'none' && !spectating && phaseOk && !command.pending
     && custom.spectators.length < custom.maxSpectators;
-  const showSpectators = spectatorPolicy !== 'none' || custom.spectators.length > 0;
+  // Sem outro jogador (bots não contam) a LCU não deixa assistir, e o client
+  // oficial avisa isso: aqui a seção nem aparece (#409).
+  const hasOtherPlayer = [...custom.team1, ...custom.team2, ...custom.spectators]
+    .some(m => !m.bot && m.puuid !== me);
+  const showSpectators = (hasOtherPlayer || spectating)
+    && (spectatorPolicy !== 'none' || custom.spectators.length > 0);
 
   function addBot(team: CustomTeam, championId: number) {
     const taken = new Set(custom[team].map(m => m.bot?.position));
