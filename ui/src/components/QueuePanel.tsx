@@ -46,7 +46,7 @@ export function QueuePanel({ connection, send }: Props) {
   const lcu = state?.lcu;
   if (connection.status !== 'connected' || !state || lcu?.state !== 'connected') {
     return (
-      <section aria-label="Busca de partida" className="flex w-full flex-col gap-2 rounded-card border border-line bg-surface p-5 text-ink">
+      <section aria-label="Busca de partida" className="flex w-full flex-col gap-2 rounded-card border border-edge bg-surface card p-5 text-ink">
         <h2 className="text-section font-semibold">Busca de partida</h2>
         <p className="text-body text-muted">Aguarde a reconexão. O estado da fila será confirmado novamente pelo agente.</p>
       </section>
@@ -129,7 +129,7 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
   const big = 'h-14 min-w-0 flex-1 rounded-full px-6 text-section font-semibold tracking-wide transition-all disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
   return (
     <section aria-label="Busca de partida"
-      className={cx('flex w-full flex-col gap-3 rounded-panel surface p-4 text-ink shadow-lift animate-fade-up @min-[44rem]:shadow-soft',
+      className={cx('flex w-full flex-col gap-3 rounded-panel surface card p-4 text-ink shadow-lift animate-fade-up @min-[44rem]:shadow-soft',
         searching && 'ring-2 ring-accent/30')}>
       <div className="flex flex-col gap-1 px-1">
         <h2 className="text-section font-semibold">Busca de partida</h2>
@@ -163,7 +163,7 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
           ))}
         </ul>
       )}
-      <div className="rounded-tile bg-gold-soft px-4 py-2 text-center text-caption font-medium text-warn">
+      <div className="rounded-tile bg-copper-soft px-4 py-2 text-center text-caption font-medium text-warn">
         <p>{restriction}</p>
         {!matchmaking && !custom && reasons.length > 0 && (
           <ul aria-label="Motivos da fila bloqueada" className="mt-1 flex flex-col gap-0.5 font-semibold">

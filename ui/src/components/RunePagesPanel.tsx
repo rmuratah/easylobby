@@ -309,7 +309,7 @@ function RunePageEditor({ catalog, initial, title, saveLabel, busy, onSave, onCa
   }
 
   return (
-    <form aria-label={title} className="flex flex-col gap-4 rounded-card border border-accent bg-surface p-4"
+    <form aria-label={title} className="flex flex-col gap-4 rounded-card border border-accent bg-surface card p-4"
       onKeyDown={(event) => {
         // Esc cancela a edição, menos quando outro controle já tratou a tecla.
         if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onCancel(); }

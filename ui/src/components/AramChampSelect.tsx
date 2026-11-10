@@ -51,7 +51,7 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
   }
   return (
     <section aria-label="Seleção de campeões" className="champ-select text-ink">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card border border-line bg-surface px-5 py-3 text-ink">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card border border-edge bg-surface card px-5 py-3 text-ink">
         <div className="flex min-w-0 flex-1 flex-col">
           <p className="text-caption text-muted">Modo: <strong className="font-semibold text-ink">{mode}</strong></p>
           <p role="status" className="text-section font-semibold text-accent-ink">
@@ -103,7 +103,7 @@ type CardsProps = {
 /** As cartas de campeão do jogador: clicar numa confirma a escolha; as outras vão para o banco. */
 function ChampionCards({ offers, catalog, busy, onChoose, feedback }: CardsProps) {
   return (
-    <section aria-label="Suas cartas" className="flex flex-col gap-3 rounded-card border-2 border-accent bg-surface p-4 text-ink">
+    <section aria-label="Suas cartas" className="flex flex-col gap-3 rounded-card border-2 border-accent bg-surface card p-4 text-ink">
       <div className="flex flex-wrap items-baseline gap-x-3">
         <h3 className="text-section font-semibold">Suas cartas</h3>
         <p className="text-caption text-muted">Fique com uma. As outras vão para o banco do time.</p>
@@ -146,7 +146,7 @@ function MyChampion({ championId, champSelect, catalog, busy, onReroll, feedback
   const rerolls = champSelect.rerollsRemaining;
   const canReroll = champSelect.allowRerolling && rerolls > 0;
   return (
-    <section aria-label="Seu campeão" className="flex flex-wrap items-center gap-4 rounded-card border-2 border-accent bg-surface p-4 text-ink">
+    <section aria-label="Seu campeão" className="flex flex-wrap items-center gap-4 rounded-card border-2 border-accent bg-surface card p-4 text-ink">
       <ChampionIcon id={championId} size={96} />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <p className="text-caption text-muted">Seu campeão</p>
@@ -172,7 +172,7 @@ type BenchProps = { champSelect: ChampSelect; catalog: ChampionCatalog | null; b
 function Bench({ champSelect, catalog, busy, onTake }: BenchProps) {
   const champions = champSelect.benchChampions;
   return (
-    <section aria-label="Banco" className="flex min-w-0 flex-col gap-3 rounded-card border border-line bg-surface p-4 text-ink">
+    <section aria-label="Banco" className="flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
       <div className="flex flex-wrap items-baseline gap-x-3">
         <h3 className="text-section font-semibold">Banco</h3>
         <p className="text-caption text-muted">Clique num campeão para trocar pelo seu. O seu vai para o banco.</p>

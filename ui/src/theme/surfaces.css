@@ -10,6 +10,11 @@
   --el-shadow-glow: 0 10px 30px -10px color-mix(in oklab, var(--el-palette-primary-default) 55%, transparent);
   --el-glass: color-mix(in oklab, var(--el-surface) 72%, transparent);
   --el-glass-line: color-mix(in oklab, var(--el-surface) 70%, transparent);
+  /* Detalhes dos cards: borda levemente acobreada, reflexo no canto e halo. */
+  --el-edge: color-mix(in oklab, var(--el-line) 78%, var(--el-palette-copper-default));
+  --el-card-sheen: color-mix(in oklab, var(--el-palette-copper-default) 7%, transparent);
+  --el-card-light: inset 0 1px 0 rgb(255 255 255 / 0.85),
+    0 14px 34px -26px color-mix(in oklab, var(--el-palette-copper-default) 45%, transparent);
 }
 
 [data-theme="escuro"] {
@@ -18,6 +23,10 @@
   --el-shadow-glow: 0 10px 32px -10px color-mix(in oklab, var(--el-palette-primary-default) 55%, transparent);
   --el-glass: color-mix(in oklab, var(--el-surface) 60%, transparent);
   --el-glass-line: rgb(255 255 255 / 0.1);
+  --el-edge: color-mix(in oklab, var(--el-line) 74%, var(--el-palette-copper-default));
+  --el-card-sheen: color-mix(in oklab, var(--el-palette-copper-default) 9%, transparent);
+  --el-card-light: inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 16px 38px -26px color-mix(in oklab, var(--el-palette-copper-default) 40%, transparent);
 }
 
 @theme {
@@ -35,12 +44,25 @@
   --shadow-soft: var(--el-shadow-soft);
   --shadow-lift: var(--el-shadow-lift);
   --shadow-glow: var(--el-shadow-glow);
+  --color-edge: var(--el-edge);
 }
 
 /* Cartão na cor da superfície, com borda. A sombra vem à parte (shadow-soft, shadow-lift). */
 @utility surface {
   background-color: var(--el-surface);
-  border: 1px solid var(--el-line);
+  border: 1px solid var(--el-edge);
+}
+
+/*
+ * Iluminação sutil dos cards: reflexo acobreado no canto superior esquerdo, linha de luz
+ * no topo e halo suave embaixo. A luz entra por --tw-inset-shadow para somar com
+ * shadow-soft, shadow-lift ou qualquer outra sombra do card, sem substituí-la.
+ */
+@utility card {
+  background-image: radial-gradient(120% 80% at 0% 0%, var(--el-card-sheen), transparent 60%);
+  --tw-inset-shadow: var(--el-card-light);
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
 }
 
 /* Vidro fosco sobre o fundo decorado do cartão principal. */
@@ -50,11 +72,11 @@
   border: 1px solid var(--el-glass-line);
 }
 
-/* Arte do cartão principal: brilhos da paleta (destaque e dourado) sobre a superfície. */
+/* Arte do cartão principal: brilhos da paleta (destaque e cobre) sobre a superfície. */
 @utility bg-hero-art {
   background:
     radial-gradient(55% 75% at 82% 28%, color-mix(in oklab, var(--el-palette-primary-default) 34%, transparent), transparent 70%),
-    radial-gradient(45% 60% at 68% 105%, color-mix(in oklab, var(--el-palette-gold-default) 30%, transparent), transparent 70%),
+    radial-gradient(45% 60% at 68% 105%, color-mix(in oklab, var(--el-palette-copper-default) 30%, transparent), transparent 70%),
     var(--el-raised);
 }
 

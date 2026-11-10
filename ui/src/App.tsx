@@ -129,7 +129,7 @@ export default function App() {
               {summoner && <SummonerHeader summoner={summoner} ranked={connection.state?.ranked ?? null} />}
               {homeLayout && <div className="home-placeholders">
                 <PatchNotesCard notes={connection.state?.patchNotes ?? null} send={connection.send} />
-                <article aria-label="Sem conteúdo" className="flex min-h-32 flex-col justify-end rounded-panel surface p-5 shadow-soft animate-fade-up" style={{ animationDelay: '200ms' }}>
+                <article aria-label="Sem conteúdo" className="flex min-h-32 flex-col justify-end rounded-panel surface card p-5 shadow-soft animate-fade-up" style={{ animationDelay: '200ms' }}>
                   <h2 className="text-section font-semibold text-ink">Sem conteúdo</h2>
                   <p className="mt-1 text-body text-muted">Espaço reservado no momento.</p>
                 </article>
@@ -158,7 +158,7 @@ export default function App() {
               : lobbyMain ? 'grid min-h-0 flex-1 items-stretch gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]'
               : 'flex flex-1 flex-col gap-4'}>
               {homeReserved && <article aria-label="Área reservada para atualização"
-                className="flex h-full min-h-[24rem] flex-col items-start justify-end gap-3 rounded-panel surface p-8 shadow-soft animate-fade-up @min-[44rem]:p-10">
+                className="flex h-full min-h-[24rem] flex-col items-start justify-end gap-3 rounded-panel surface card p-8 shadow-soft animate-fade-up @min-[44rem]:p-10">
                 <span className="rounded-full bg-raised px-3 py-1 text-caption font-semibold uppercase tracking-wider text-muted">Em breve</span>
                 <h2 className="text-display font-semibold text-ink">Área reservada</h2>
                 <p className="max-w-md text-section text-muted">Este espaço vai ganhar uma nova função numa futura atualização. Para jogar, use “Jogar” na barra lateral.</p>

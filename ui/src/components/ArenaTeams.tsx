@@ -59,7 +59,7 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMe
           const mine = team.slots.some(s => s.member?.puuid === me);
           return (
             <li key={team.team} aria-label={teamName} style={{ animationDelay: `${t * 70}ms` }}
-              className={cx('relative flex min-w-0 flex-col gap-2 rounded-panel p-3 animate-fade-up has-[[aria-haspopup=menu][aria-expanded=true]]:z-20',
+              className={cx('relative flex min-w-0 flex-col gap-2 rounded-panel card p-3 animate-fade-up has-[[aria-haspopup=menu][aria-expanded=true]]:z-20',
                 mine ? 'bg-surface shadow-lift ring-2 ring-accent/30' : 'surface shadow-soft')}>
               <h3 className="flex items-center justify-between gap-2 px-1 text-caption font-semibold uppercase tracking-[0.06em] text-muted">
                 {teamName}
@@ -89,7 +89,7 @@ export function ArenaTeams({ lobby, state, localName, send, canSwap, canManageMe
                             <span className="truncate text-body font-semibold">{displayName}</span>
                             {member.isLeader && (
                               <span role="img" aria-label="Líder do grupo" title="Líder do grupo"
-                                className="flex size-5 shrink-0 items-center justify-center rounded-full bg-gold-soft text-warn">
+                                className="flex size-5 shrink-0 items-center justify-center rounded-full bg-copper-soft text-warn">
                                 <CrownIcon size={12} />
                               </span>
                             )}

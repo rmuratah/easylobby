@@ -74,7 +74,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queu
       </div>
       {!catalog && <p className="text-muted">Carregando feitiços…</p>}
       {open !== null && (
-        <ul ref={list} aria-label={`Escolher ${slotNames[open]}`} className="flex flex-wrap gap-1 rounded-card border border-line bg-surface p-1"
+        <ul ref={list} aria-label={`Escolher ${slotNames[open]}`} className="flex flex-wrap gap-1 rounded-card border border-edge bg-surface card p-1"
           onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); close(open); } }}>
           {spells.map(spell => {
             const unlocked = spellUnlocked(spell, summonerLevel);

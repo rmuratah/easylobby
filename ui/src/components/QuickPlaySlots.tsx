@@ -222,7 +222,7 @@ function Popover({ title, onClose, children }: { title: string; onClose: () => v
   }, []);
   return (
     <div ref={ref} role="dialog" aria-labelledby={titleId} tabIndex={-1}
-      className="absolute right-0 top-full z-30 mt-2 flex w-[min(26rem,calc(100vw-3rem))] flex-col gap-3 rounded-panel bg-surface p-3 text-ink shadow-lift animate-fade-up focus-visible:outline-none">
+      className="absolute right-0 top-full z-30 mt-2 flex w-[min(26rem,calc(100vw-3rem))] flex-col gap-3 rounded-panel bg-surface card p-3 text-ink shadow-lift animate-fade-up focus-visible:outline-none">
       <h3 id={titleId} className="px-1 text-section font-semibold">{title}</h3>
       {children}
     </div>

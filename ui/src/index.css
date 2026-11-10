@@ -28,14 +28,14 @@ body { margin: 0; }
 .app-logo-short { color: var(--el-ink); }
 [data-theme="escuro"] .app-logo-short { color: #fff; }
 .app-main-column { container-type: inline-size; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .75rem; }
-.app-toolbar { width: 100%; min-height: 3rem; flex-shrink: 0; display: flex; align-items: center; gap: .625rem; padding-left: .875rem; overflow: hidden; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); box-shadow: var(--el-shadow-soft); }
+.app-toolbar { width: 100%; min-height: 3rem; flex-shrink: 0; display: flex; align-items: center; gap: .625rem; padding-left: .875rem; overflow: hidden; border: 1px solid var(--el-edge); border-radius: var(--radius-panel); background: radial-gradient(120% 80% at 0% 0%, var(--el-card-sheen), transparent 60%), var(--el-surface); box-shadow: var(--el-card-light), var(--el-shadow-soft); }
 .app-content { container-type: inline-size; flex: 1; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: .75rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
 .app-content > * { flex-shrink: 0; }
 .app-social-region { position: relative; width: 20rem; flex-shrink: 0; min-height: 0; transition: width 180ms ease; }
 .app-social-region.is-collapsed { width: 0; }
 .app-social-region.is-collapsed > .sidebar-toggle { position: absolute; right: 0; top: .75rem; z-index: 20; }
 .sidebar-collapsed .app-content { padding-right: 3.25rem; }
-.app-sidebar { position: relative; width: 100%; height: 100%; overflow: auto; scrollbar-gutter: stable; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); box-shadow: var(--el-shadow-soft); }
+.app-sidebar { position: relative; width: 100%; height: 100%; overflow: auto; scrollbar-gutter: stable; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--el-edge); border-radius: var(--radius-panel); background: radial-gradient(120% 80% at 0% 0%, var(--el-card-sheen), transparent 60%), var(--el-surface); box-shadow: var(--el-card-light), var(--el-shadow-soft); }
 .app-sidebar > .sidebar-toggle { position: absolute; right: .875rem; top: .75rem; z-index: 20; }
 .app-sidebar > section { flex-shrink: 0; border: 0; border-radius: 0; background: transparent; }
 .app-sidebar > section:first-of-type { padding-right: 3.25rem; }

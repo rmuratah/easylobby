@@ -14,7 +14,7 @@ export function PostGamePanel({ connection, send }: Props) {
   const available = connection.status === 'connected' && connection.state?.lcu.state === 'connected';
   const waiting = connection.state?.gameflowPhase === 'WaitingForStats';
   return (
-    <section aria-label="Fim de partida" className="flex flex-1 flex-col items-center justify-center rounded-panel surface shadow-soft animate-fade-up">
+    <section aria-label="Fim de partida" className="flex flex-1 flex-col items-center justify-center rounded-panel surface card shadow-soft animate-fade-up">
       <EmptyState title="Partida encerrada"
         description={waiting ? 'Calculando o resultado da partida.' : 'Volte ao lobby para jogar de novo com o mesmo grupo.'}
         action={<div className="flex flex-col items-center gap-2">

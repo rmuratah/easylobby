@@ -25,7 +25,7 @@ export function PatchNotesCard({ notes, send }: { notes: PatchNotes | null; send
   }
   return (
     <article aria-label="Notas da atualização"
-      className="flex min-h-32 min-w-0 flex-col gap-2 rounded-panel surface p-5 shadow-soft animate-fade-up" style={{ animationDelay: '140ms' }}>
+      className="flex min-h-32 min-w-0 flex-col gap-2 rounded-panel surface card p-5 shadow-soft animate-fade-up" style={{ animationDelay: '140ms' }}>
       <p className="text-caption font-semibold uppercase tracking-wider text-muted">Notas da atualização</p>
       {notes ? <>
         <h2 aria-label={`Atualização ${notes.version}`} className="text-display font-semibold leading-none text-ink">{notes.version}</h2>

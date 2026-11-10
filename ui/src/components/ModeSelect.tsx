@@ -170,7 +170,7 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
 
   const radioName = `${baseId}-${tab.id}`;
   return (
-    <section aria-label="Lobby" className="flex h-full min-h-[24rem] flex-col gap-5 rounded-panel bg-surface p-6 text-ink shadow-lift animate-fade-up @min-[44rem]:p-8">
+    <section aria-label="Lobby" className="flex h-full min-h-[24rem] flex-col gap-5 rounded-panel bg-surface card p-6 text-ink shadow-lift animate-fade-up @min-[44rem]:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <span className="text-caption font-semibold uppercase tracking-wider text-accent-ink">{lobby ? 'Lobby' : 'Jogar'}</span>
@@ -212,7 +212,7 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
           if (!mode.submodes.length) {
             // Treinamento: o card inteiro é a escolha.
             return (
-              <label key={mode.id} className={cx('flex min-h-40 cursor-pointer flex-col gap-3 rounded-panel p-5 transition-all',
+              <label key={mode.id} className={cx('flex min-h-40 cursor-pointer flex-col gap-3 rounded-panel card p-5 transition-all',
                 selected ? 'bg-accent-soft ring-2 ring-accent' : 'surface shadow-soft hover:-translate-y-0.5 hover:shadow-lift',
                 locked && 'cursor-not-allowed')}>
                 <input type="radio" name={radioName} className="sr-only" checked={selected} disabled={locked}
@@ -225,7 +225,7 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
           }
           return (
             <fieldset key={mode.id} aria-label={mode.name} disabled={!mode.available}
-              className={cx('flex min-w-0 flex-col gap-3 rounded-panel p-4 transition-all',
+              className={cx('flex min-w-0 flex-col gap-3 rounded-panel card p-4 transition-all',
                 !mode.available ? 'bg-raised/60 opacity-60'
                   : selected ? 'bg-accent-soft ring-2 ring-accent' : 'surface shadow-soft')}>
               <div className="flex items-start gap-3">
@@ -267,7 +267,7 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
           onSelect={setTutorialChoice} />
       )}
 
-      <footer className="flex flex-wrap items-center gap-4 rounded-panel surface p-4 shadow-soft">
+      <footer className="flex flex-wrap items-center gap-4 rounded-panel surface card p-4 shadow-soft">
         {joining ? (
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
             <div className="min-w-[12rem] flex-1">
