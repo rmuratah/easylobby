@@ -30,7 +30,7 @@ export function SideNavigation({ active, flowLabel, flowButtonRef, theme, unread
   const conversationsLabel = unread > 0 ? `Conversas, ${unread} não ${unread === 1 ? 'lida' : 'lidas'}` : 'Conversas';
   return (
     <div className="app-navigation-slot">
-      <aside className="app-navigation surface card shadow-soft" aria-label="Navegação do aplicativo">
+      <aside className="app-navigation border border-line bg-surface" aria-label="Navegação do aplicativo">
         <h1 data-tauri-drag-region className="app-logo" title="easylobby">
           <span className="sr-only">easylobby</span>
           <span aria-hidden="true" className="app-logo-short">e<span>l</span></span>
