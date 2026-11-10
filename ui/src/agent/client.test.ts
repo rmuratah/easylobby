@@ -272,6 +272,8 @@ describe('eventos de estado do agente', () => {
       { patchNotes: { version: '26.22', title: 'Notas', summary: null, url: 'https://www.leagueoflegends.com/', sections: [] } }],
     [{ type: 'collection', collection: testCollection }, { collection: testCollection }],
     [{ type: 'championSkins', championSkins: testChampionSkins }, { championSkins: testChampionSkins }],
+    [{ type: 'wallet', wallet: { blueEssence: 48210, orangeEssence: 3120, rp: null } },
+      { wallet: { blueEssence: 48210, orangeEssence: 3120, rp: null } }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
     socket().receive(hello({ lobby: testLobby }));
     socket().receive(message);

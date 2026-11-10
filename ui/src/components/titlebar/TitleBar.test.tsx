@@ -71,4 +71,24 @@ describe("TitleBar", () => {
     expect(screen.getByRole("button", { name: "Abrir client oficial" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Recolher amigos" })).not.toBeInTheDocument();
   });
+
+  it("mostra o saldo de Essência Azul, Essência Laranja e RP (#370)", () => {
+    const state = makeState({ wallet: { blueEssence: 48210, orangeEssence: 3120, rp: null } });
+    render(<TitleBar connection={{ status: "connected", error: null, state }} send={vi.fn()} controls={null} />);
+    const saldo = screen.getByRole("list", { name: "Saldo da conta" });
+    expect(saldo).toHaveTextContent("48.210");
+    expect(screen.getByLabelText("Essência Azul: 48.210")).toBeInTheDocument();
+    expect(screen.getByLabelText("Essência Laranja: 3.120")).toBeInTheDocument();
+    // RP que a LCU ainda não deu.
+    expect(screen.getByLabelText("RP: —")).toBeInTheDocument();
+  });
+
+  it("esconde o saldo sem carteira ou com o LoL desconectado", () => {
+    const wallet = { blueEssence: 1, orangeEssence: 2, rp: 3 };
+    const { rerender } = renderBar(null);
+    expect(screen.queryByRole("list", { name: "Saldo da conta" })).not.toBeInTheDocument();
+    const state = makeState({ wallet, lcu: { state: "disconnected", reason: "fechou" } });
+    rerender(<TitleBar connection={{ status: "connected", error: null, state }} send={vi.fn()} controls={null} />);
+    expect(screen.queryByRole("list", { name: "Saldo da conta" })).not.toBeInTheDocument();
+  });
 });

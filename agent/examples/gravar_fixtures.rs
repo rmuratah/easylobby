@@ -46,7 +46,7 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::Connector;
 
 /// Endpoints fotografados no início e a cada mudança de fase.
-const SNAPSHOT_PATHS: [&str; 19] = [
+const SNAPSHOT_PATHS: [&str; 22] = [
     "/lol-patch/v1/game-version",
     "/lol-summoner/v1/current-summoner",
     "/lol-gameflow/v1/gameflow-phase",
@@ -67,6 +67,10 @@ const SNAPSHOT_PATHS: [&str; 19] = [
     "/lol-ranked/v1/current-ranked-stats",
     "/lol-champion-mastery/v1/local-player/champion-mastery",
     "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=19",
+    // Saldo do cabeçalho (#370).
+    "/lol-inventory/v1/wallet/lol_blue_essence",
+    "/lol-inventory/v1/wallet/RP",
+    "/lol-loot/v1/player-loot/CURRENCY_cosmetic",
 ];
 
 /// Endpoints grandes e que quase não mudam: só no início.
@@ -92,7 +96,7 @@ const CHAMPION_OFFER_PATHS: [&str; 4] = [
 ];
 
 /// Prefixos de URI dos eventos WAMP que interessam ao easylobby.
-const EVENT_PREFIXES: [&str; 9] = [
+const EVENT_PREFIXES: [&str; 11] = [
     "/lol-gameflow/v1/",
     // Cartas de campeão do ARAM (#201): as opções podem vir do team builder.
     "/lol-lobby-team-builder/champ-select/v1/",
@@ -103,6 +107,9 @@ const EVENT_PREFIXES: [&str; 9] = [
     "/lol-chat/v1/",
     "/lol-summoner/v1/current-summoner",
     "/lol-ranked/v1/current-ranked-stats",
+    // Saldo do cabeçalho (#370).
+    "/lol-inventory/v1/wallet",
+    "/lol-loot/v1/player-loot/CURRENCY_cosmetic",
 ];
 
 /// Quantas partidas do histórico ganham o placar completo (#174) em cada

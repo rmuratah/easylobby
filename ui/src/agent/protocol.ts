@@ -12,6 +12,7 @@ import type { ChampionSkins } from '../bindings/ChampionSkins';
 import type { CollectionSkin } from '../bindings/CollectionSkin';
 import type { SkinChroma } from '../bindings/SkinChroma';
 import type { LiveGame } from '../bindings/LiveGame';
+import type { Wallet } from '../bindings/Wallet';
 import type { AgentState } from '../bindings/AgentState';
 import type { LcuStatus } from '../bindings/LcuStatus';
 import type { Summoner } from '../bindings/Summoner';
@@ -307,6 +308,11 @@ function collectionSkin(v: unknown): v is CollectionSkin {
 function championSkins(v: unknown): v is ChampionSkins | null {
   return v === null || (object(v) && uint(v.championId) && list(v.skins, collectionSkin));
 }
+// Saldo do cabeçalho (#370).
+const nullableUint = (v: unknown) => v === null || uint(v);
+function wallet(v: unknown): v is Wallet | null {
+  return v === null || (object(v) && ['blueEssence', 'orangeEssence', 'rp'].every(k => nullableUint(v[k])));
+}
 // Partida ao vivo (#268).
 function tierDivision(v: unknown): boolean {
   return v === null || (object(v) && typeof v.tier === 'string' && nullableString(v.division));
@@ -354,7 +360,8 @@ function state(v: unknown): v is AgentState {
     champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) &&
     ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory) &&
     matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && patchNotes(v.patchNotes) &&
-    collection(v.collection) && championSkins(v.championSkins);
+    collection(v.collection) && championSkins(v.championSkins) &&
+    wallet(v.wallet);
 }
 
 // Os tipos vêm do Rust; esta validação protege a fronteira JSON em runtime.
@@ -400,6 +407,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'patchNotes': valid = patchNotes(v.patchNotes); break;
     case 'collection': valid = collection(v.collection); break;
     case 'championSkins': valid = championSkins(v.championSkins); break;
+    case 'wallet': valid = wallet(v.wallet); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
       (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;
     case 'invalidMessage': valid = typeof v.message === 'string'; break;

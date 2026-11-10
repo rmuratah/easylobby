@@ -31,6 +31,7 @@ import type { RunePages } from "./RunePages";
 import type { Summoner } from "./Summoner";
 import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
 import type { TutorialPart } from "./TutorialPart";
+import type { Wallet } from "./Wallet";
 
 /**
  * Tudo o que a UI precisa para desenhar a tela do zero.
@@ -167,4 +168,8 @@ export type AgentState = {
    * Notas da atualização atual do LoL (#301), ou `null`.
    */
   patchNotes: PatchNotes | null,
+  /**
+   * Essência Azul, Essência Laranja e RP da conta (#370), ou `null`.
+   */
+  wallet: Wallet | null,
 };

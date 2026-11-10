@@ -77,6 +77,7 @@ use crate::summoner::Summoner;
 use crate::summoner_spells::SummonerSpellCatalog;
 use crate::swaps::SwapKind;
 use crate::training::TutorialPart;
+use crate::wallet::Wallet;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -284,6 +285,12 @@ pub enum ServerMessage {
     /// nenhuma vez ou se a LCU não deu a versão do jogo.
     PatchNotes { patch_notes: Option<PatchNotes> },
 
+    // Saldo
+    /// O saldo de Essência Azul, Essência Laranja e RP (#370) mudou: chega
+    /// logo depois de conectar e quando a LCU avisa (fim de partida, compra
+    /// no client oficial). `null` com o LoL fechado ou antes do login.
+    Wallet { wallet: Option<Wallet> },
+
     // Respostas aos comandos
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
@@ -386,6 +393,10 @@ pub struct AgentState {
     // Início
     /// Notas da atualização atual do LoL (#301), ou `null`.
     pub patch_notes: Option<PatchNotes>,
+
+    // Saldo
+    /// Essência Azul, Essência Laranja e RP da conta (#370), ou `null`.
+    pub wallet: Option<Wallet>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -999,6 +1010,7 @@ mod tests {
                     "collection": null,
                     "championSkins": null,
                     "patchNotes": null,
+                    "wallet": null,
                 },
             })
         );
