@@ -6,6 +6,12 @@
 :root { background: var(--el-bg); color: var(--el-ink); }
 body { margin: 0; }
 [hidden] { display: none !important; }
+/* Cursor de mão em tudo que é clicável (o Tailwind v4 tirou o pointer dos botões). Fica na camada base para
+   as classes dos componentes (cursor-wait, cursor-grab, disabled:cursor-default...) continuarem valendo. */
+@layer base {
+  :where(button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="tab"], [role="option"], [role="switch"], [role="checkbox"], [role="radio"], [role="link"], a[href], summary, select, input:is([type="checkbox"], [type="radio"], [type="button"], [type="submit"], [type="reset"], [type="file"], [type="color"], [type="range"]), label:has(input:is([type="checkbox"], [type="radio"]))) { cursor: pointer; }
+  :is(:disabled, [aria-disabled="true"]), label:has(input:is([type="checkbox"], [type="radio"]):disabled) { cursor: not-allowed; }
+}
 /* O color-scheme vem do tema ([data-theme]), para campos e barras de rolagem nativos seguirem claro ou escuro. */
 * { scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--el-control) 72%, transparent) transparent; }
 *::-webkit-scrollbar { width: .375rem; height: .375rem; }
