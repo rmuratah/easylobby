@@ -26,6 +26,7 @@
 //!   árvores de runas (#26).
 //! - [`custom_games`]: lista de personalizadas abertas e entrar nelas (#264).
 //! - [`swaps`]: trocas de campeão, de vez e de cargo na seleção (#25).
+//! - [`suggested`]: jogadores sugeridos para convidar (#377).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
 //!
@@ -45,6 +46,7 @@ pub mod matchmaking;
 pub mod members;
 pub mod perks;
 pub mod state;
+pub mod suggested;
 pub mod summoner_spells;
 pub mod swaps;
 pub mod tls;
@@ -1004,6 +1006,16 @@ async fn handle_request(
                 return json_response(&Response::error(404, "mock-lcu: rota de troca"));
             };
             let (response, events) = swaps::respond(&shared.state(), kind, id, intent);
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
+        // Jogadores sugeridos para convidar (#377).
+        (&Method::GET, suggested::SUGGESTED) => suggested::list(&shared.state()),
+        (&Method::DELETE, p) if suggested::dismiss_route(p).is_some() => {
+            let id = suggested::dismiss_route(p).unwrap_or_default();
+            let (response, events) = suggested::dismiss(&shared.state(), id);
             for event in events {
                 emit(&shared, event);
             }

@@ -30,6 +30,7 @@ import type { ReceivedInvitation } from "./ReceivedInvitation";
 import type { RecentPlayer } from "./RecentPlayer";
 import type { RuneCatalog } from "./RuneCatalog";
 import type { RunePages } from "./RunePages";
+import type { SuggestedPlayer } from "./SuggestedPlayer";
 import type { Summoner } from "./Summoner";
 import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
 import type { TutorialPart } from "./TutorialPart";
@@ -71,6 +72,7 @@ export type ServerMessage =
   | { "type": "friends", friends: Array<Friend>, }
   | { "type": "friendGroups", friendGroups: Array<FriendGroup>, }
   | { "type": "recentPlayers", recentPlayers: Array<RecentPlayer>, }
+  | { "type": "suggestedPlayers", suggestedPlayers: Array<SuggestedPlayer>, }
   | { "type": "receivedInvitations", invitations: Array<ReceivedInvitation>, }
   | { "type": "conversation", conversation: Conversation, }
   | { "type": "conversationClosed", id: string, }

@@ -101,6 +101,16 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
   const closePicker = useCallback(() => setPicker(null), []);
   // Os recentes mudam a cada partida; o pop-up pede de novo ao abrir (#206). Um erro deixa a lista anterior.
   const loadRecent = useCallback(() => { Promise.resolve().then(() => send({ type: 'loadRecentPlayers' })).catch(() => {}); }, [send]);
+  // Os sugeridos também (#377); dispensar mostra o erro no pop-up.
+  const loadSuggested = useCallback(() => { Promise.resolve().then(() => send({ type: 'loadSuggestedPlayers' })).catch(() => {}); }, [send]);
+  const dismissSuggested = useCallback(async (summonerId: number) => {
+    try {
+      const result = await send({ type: 'dismissSuggestedPlayer', summonerId });
+      return result.status === 'ok' ? null : result.message;
+    } catch {
+      return 'sem resposta do agente';
+    }
+  }, [send]);
   const [feedback, setFeedback] = useState<Feedback>({ status: 'idle', message: '' });
   // O erro some sozinho depois de alguns segundos (#335).
   useDismiss(feedback.status === 'error', feedback.message, () => setFeedback({ status: 'idle', message: '' }));
@@ -433,7 +443,8 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
       )}
       {invites.error && picker === null && <p role="alert" className="text-body text-danger">{invites.error}</p>}
       {picker !== null && <InvitePicker invites={invites} groups={state.friendGroups} recent={state.recentPlayers}
-        loadRecent={loadRecent} onClose={closePicker} />}
+        loadRecent={loadRecent} suggested={state.suggestedPlayers} loadSuggested={loadSuggested}
+        dismissSuggested={dismissSuggested} onClose={closePicker} />}
 
       {/* Fila sem posições (ARAM, Arena, Co-op, eventos): nada no lugar, como no client oficial. A fila troca pelo "Trocar modo" (#231). */}
       <div className="grid items-stretch gap-4">
