@@ -88,6 +88,7 @@ mod tests {
             title: None,
             summary: None,
             url: "https://www.leagueoflegends.com/pt-br/news/tags/patch-notes/".into(),
+            sections: Vec::new(),
         };
         hub.set_patch_notes(Some(notes.clone()));
         hub.set_patch_notes(Some(notes.clone()));

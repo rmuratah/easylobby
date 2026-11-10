@@ -255,8 +255,8 @@ describe('eventos de estado do agente', () => {
       { matchDetails: { ...testMatch, remake: false, players: [testMatch.player] } }],
     [{ type: 'playerProfile', playerProfile: testPlayerProfile }, { playerProfile: testPlayerProfile }],
     [{ type: 'customGames', customGames: [testCustomGame] }, { customGames: [testCustomGame] }],
-    [{ type: 'patchNotes', patchNotes: { version: '26.22', title: 'Notas', summary: null, url: 'https://www.leagueoflegends.com/' } },
-      { patchNotes: { version: '26.22', title: 'Notas', summary: null, url: 'https://www.leagueoflegends.com/' } }],
+    [{ type: 'patchNotes', patchNotes: { version: '26.22', title: 'Notas', summary: null, url: 'https://www.leagueoflegends.com/', sections: [] } },
+      { patchNotes: { version: '26.22', title: 'Notas', summary: null, url: 'https://www.leagueoflegends.com/', sections: [] } }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
     socket().receive(hello({ lobby: testLobby }));
     socket().receive(message);
