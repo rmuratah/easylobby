@@ -157,6 +157,19 @@ describe('matchmaking pelo /ws', () => {
     expect(button('Iniciar busca')).toBeEnabled();
   });
 
+  it('diz quem está bloqueando a fila e marca o card dele (#411)', () => {
+    render(<App />);
+    const amigo = { ...testLobby.members[0], puuid: 'amigo', summonerId: 2, isLeader: false, gameName: 'Ana', tagLine: 'BR1' };
+    const restrictions = [{ code: 'TeamDivisionRestriction', message: 'A diferença de elo entre os jogadores do grupo é grande demais.', puuids: ['amigo'] }];
+    hello({ lobby: { ...testLobby, canStartActivity: false, members: [testLobby.members[0], amigo], restrictions }, gameflowPhase: 'Lobby' });
+    const reasons = within(panel().getByRole('list', { name: 'Motivos da fila bloqueada' })).getAllByRole('listitem');
+    expect(reasons.map(r => r.textContent)).toEqual(['A diferença de elo entre os jogadores do grupo é grande demais (Ana#BR1).']);
+    const cards = within(lobbyPanel().getByRole('list', { name: 'Jogadores no lobby' })).getAllByRole('listitem')
+      .filter(item => item.parentElement?.getAttribute('aria-label') === 'Jogadores no lobby');
+    expect(cards[1]).toHaveTextContent('Bloqueando a fila: A diferença de elo');
+    expect(cards[0]).not.toHaveTextContent('Bloqueando a fila');
+  });
+
   it('trata erro, falha de envio e timeout sem repetir comandos', async () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
