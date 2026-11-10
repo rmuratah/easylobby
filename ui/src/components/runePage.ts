@@ -3,6 +3,7 @@ import type { RunePage } from '../bindings/RunePage';
 import type { RunePageInput } from '../bindings/RunePageInput';
 import type { RuneSlot } from '../bindings/RuneSlot';
 import type { RuneStyle } from '../bindings/RuneStyle';
+import type { SlotRunesInput } from '../bindings/SlotRunesInput';
 
 /**
  * Rascunho do editor de páginas. As escolhas ficam por linha, porque um
@@ -147,4 +148,18 @@ export function draftToInput(draft: RuneDraft): RunePageInput {
     subStyleId: draft.subStyleId,
     selectedPerkIds: [...draft.primary, ...sub, ...draft.stats],
   };
+}
+
+/** Runas da página no formato do slot do Jogo Dinâmico. */
+export function slotRunes(draft: RuneDraft): SlotRunesInput {
+  const { primaryStyleId, subStyleId, selectedPerkIds } = draftToInput(draft);
+  return { perkIds: selectedPerkIds, styleId: primaryStyleId, subStyleId };
+}
+
+/** Nome livre para uma página nova, como o client oficial: "Nova página de runas N". */
+export function newPageName(pages: RunePage[]): string {
+  const taken = new Set(pages.map(page => page.name.trim().toLowerCase()));
+  let n = pages.filter(page => !page.isTemporary).length + 1;
+  while (taken.has(`nova página de runas ${n}`)) n += 1;
+  return `Nova página de runas ${n}`;
 }

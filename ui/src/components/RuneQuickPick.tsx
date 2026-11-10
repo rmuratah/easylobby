@@ -4,7 +4,7 @@ import { useCommand } from '../agent/useCommand';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
 import type { RunePages } from '../bindings/RunePages';
 import { Button } from './base';
-import { RuneIcon } from './RunePagesPanel';
+import { RuneIcon } from './RuneEditor';
 import { findStyle } from './runePage';
 
 type Props = {

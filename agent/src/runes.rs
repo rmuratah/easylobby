@@ -147,6 +147,10 @@ pub struct Perk {
     pub name: String,
     /// Descrição curta, em texto puro (sem as marcações da Riot).
     pub short_desc: String,
+    /// Descrição completa, para o tooltip da runa (#420): texto puro, com
+    /// as quebras de linha da Riot (`<br>`) como `\n`. Vazia quando o
+    /// `perks.json` não traz.
+    pub long_desc: String,
 }
 
 /// Página que a UI manda para criar ou editar.
@@ -319,6 +323,9 @@ impl RuneCatalog {
                     id,
                     name: raw.map(|p| p.name.clone()).unwrap_or_default(),
                     short_desc: raw.map(|p| plain_text(&p.short_desc)).unwrap_or_default(),
+                    long_desc: raw
+                        .map(|p| multiline_text(&p.long_desc))
+                        .unwrap_or_default(),
                 }
             })
             .collect();
@@ -366,6 +373,8 @@ struct RawPerk {
     name: String,
     #[serde(default)]
     short_desc: String,
+    #[serde(default)]
+    long_desc: String,
 }
 
 /// Tira as marcações (`<b>`, `<lol-uikit-tooltipped-keyword ...>`) e junta os
@@ -391,6 +400,41 @@ fn plain_text(text: &str) -> String {
         }
     }
     out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Como [`plain_text`], mas guarda as quebras de linha: `<br>` e `<hr>`
+/// viram `\n`, cada linha tem os espaços juntados e nunca ficam mais de
+/// uma linha em branco seguida nem linhas em branco nas pontas.
+fn multiline_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut tag: Option<String> = None;
+    for c in text.chars() {
+        match (&mut tag, c) {
+            (None, '<') => tag = Some(String::new()),
+            (None, '\n') => out.push(' '),
+            (None, _) => out.push(c),
+            (Some(name), '>') => {
+                let name = name.trim_start_matches('/').to_ascii_lowercase();
+                if name.starts_with("br") || name.starts_with("hr") {
+                    out.push('\n');
+                }
+                tag = None;
+            }
+            (Some(name), _) => name.push(c),
+        }
+    }
+    let mut lines: Vec<String> = Vec::new();
+    for line in out.split('\n') {
+        let line = line.split_whitespace().collect::<Vec<_>>().join(" ");
+        if line.is_empty() && lines.last().is_none_or(|l| l.is_empty()) {
+            continue;
+        }
+        lines.push(line);
+    }
+    while lines.last().is_some_and(|l| l.is_empty()) {
+        lines.pop();
+    }
+    lines.join("\n")
 }
 
 /// Por que uma página não vale. Nada foi mandado para a LCU.
@@ -678,7 +722,8 @@ mod tests {
             style(8100, 200, json!([8000])),
         ]});
         let perks = json!([
-            {"id": 101, "name": "Pressione o Ataque", "shortDesc": "Três <b>ataques</b> seguidos<br>causam dano <lol-uikit-tooltipped-keyword key='x'>adaptativo</lol-uikit-tooltipped-keyword>."},
+            {"id": 101, "name": "Pressione o Ataque", "shortDesc": "Três <b>ataques</b> seguidos<br>causam dano <lol-uikit-tooltipped-keyword key='x'>adaptativo</lol-uikit-tooltipped-keyword>.",
+             "longDesc": "<br>Causa <truedamage>dano</truedamage>   adicional.<br><br><br>Tempo de Recarga: <scaleLevel>6s</scaleLevel><hr><rules>Só em Campeões.</rules><br>"},
             {"id": 9999, "name": "Runa antiga", "shortDesc": ""},
         ]);
         RuneCatalog::from_json(&styles, &perks).unwrap()
@@ -760,6 +805,20 @@ mod tests {
         assert_eq!(
             pta.short_desc,
             "Três ataques seguidos causam dano adaptativo."
+        );
+        assert_eq!(
+            pta.long_desc,
+            "Causa dano adicional.\n\nTempo de Recarga: 6s\nSó em Campeões."
+        );
+        // Sem `longDesc` no perks.json: fica vazia.
+        assert_eq!(
+            catalog
+                .perks
+                .iter()
+                .find(|p| p.id == 102)
+                .unwrap()
+                .long_desc,
+            ""
         );
         // Sem nome no perks.json: fica vazio.
         assert_eq!(catalog.perks.iter().find(|p| p.id == 102).unwrap().name, "");

@@ -37,20 +37,20 @@ describe('páginas de runas pelo /ws', () => {
       state: { ...champSelectState, runePages: pages, runeCatalog: testFullRuneCatalog },
     }));
     fireEvent.click(screen.getByRole('button', { name: 'Editar runas' }));
-    expect(panel().getByRole('listitem', { name: 'Mid' })).toHaveAttribute('aria-current', 'true');
-    act(() => { fireEvent.click(panel().getByRole('button', { name: 'Usar Top' })); });
+    // O mesmo editor do Jogo Dinâmico (#420), com a página em uso.
+    const select = () => panel().getByRole('combobox', { name: 'Página de runas' });
+    expect(select()).toHaveValue('10');
+    act(() => { fireEvent.change(select(), { target: { value: '11' } }); });
     expect(request().command).toEqual({ type: 'selectRunePage', pageId: 11 });
     fireEvent.click(screen.getByRole('button', { name: 'Voltar para Seleção de campeões' }));
     fireEvent.click(screen.getByRole('button', { name: 'Editar runas' }));
-    expect(panel().getByRole('button', { name: 'Usar Top' })).toBeDisabled();
-    fireEvent.click(panel().getByRole('button', { name: 'Usar Top' }));
-    expect(socket().send).toHaveBeenCalledTimes(1);
+    expect(select()).toBeDisabled();
     expect(Socket.instances).toHaveLength(1);
     // Só muda quando o agente publica as páginas de novo.
-    expect(panel().getByRole('listitem', { name: 'Mid' })).toHaveAttribute('aria-current', 'true');
+    expect(select()).toHaveValue('10');
     act(() => socket().receive({ type: 'runePages', runePages: { ...pages, currentPageId: 11 } }));
     await act(async () => socket().receive({ type: 'response', id: request().id, result: { status: 'ok' } }));
-    expect(panel().getByRole('listitem', { name: 'Top' })).toHaveAttribute('aria-current', 'true');
-    expect(panel().getByRole('status')).toHaveTextContent('Página aplicada.');
+    expect(select()).toHaveValue('11');
+    expect(select()).toBeEnabled();
   });
 });
