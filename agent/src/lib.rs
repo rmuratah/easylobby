@@ -48,6 +48,12 @@
 //! - [`live_game`] e [`live_client`]: a partida ao vivo, com as duas
 //!   equipes, elo, partidas recentes e runas (#268)
 //! - [`wallet`]: saldo de Essência Azul, Essência Laranja e RP (#370)
+//! - [`riot_api`]: a partida em andamento de outro jogador, pela API
+//!   oficial da Riot, para a aba "Em jogo" do perfil (#436)
+
+// O `json!` do estado inteiro nos testes do protocolo passa do limite
+// padrão de 128.
+#![recursion_limit = "256"]
 
 pub mod assets;
 pub mod bench;
@@ -83,6 +89,7 @@ pub mod quick_play;
 pub mod ranked;
 pub mod ready_check;
 pub mod rest;
+pub mod riot_api;
 pub mod runes;
 pub mod summoner;
 pub mod summoner_spells;

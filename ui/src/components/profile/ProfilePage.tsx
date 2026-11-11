@@ -10,6 +10,7 @@ import type { RankedStats } from '../../bindings/RankedStats';
 import type { ChampionMastery } from '../../bindings/ChampionMastery';
 import type { Summoner } from '../../bindings/Summoner';
 import type { Command } from '../../bindings/Command';
+import type { LiveGame } from '../../bindings/LiveGame';
 import { availabilityColors, describeActivity } from '../../agent/friends';
 import { assetUrl } from '../../agent/assets';
 import { useCommand } from '../../agent/useCommand';
@@ -20,6 +21,7 @@ import {
 import { Avatar, Button, EmptyState, Segmented, Spinner } from '../base';
 import { cx } from '../base/cx';
 import { CopyRiotIdButton } from './CopyRiotIdButton';
+import { LiveGamePanel } from '../LiveGamePanel';
 
 type Props = {
   connection: ConnectionSnapshot;
@@ -27,7 +29,7 @@ type Props = {
   /** Abre o perfil de outro jogador clicado no placar (#308). Sem ele, os nomes não são clicáveis. */
   onOpenProfile?: (puuid: string) => void;
 };
-type Tab = 'overview' | 'history';
+type Tab = 'overview' | 'history' | 'live';
 
 /** O que a página mostra de um jogador: o logado ou outro (#255). */
 type ProfileData = {
@@ -40,6 +42,8 @@ type ProfileData = {
   privateProfile: boolean;
   /** Comando do "Carregar mais" do histórico. */
   loadMore: Command;
+  /** Partida em andamento de outro jogador (#436), para a aba Em jogo. `null` quando ele não está jogando. */
+  liveGame: LiveGame | null;
 };
 
 function connectedState(connection: ConnectionSnapshot): AgentState | null {
@@ -57,7 +61,7 @@ export function ProfilePage({ connection, send, onOpenProfile }: Props) {
   }
   const data: ProfileData = {
     summoner: state.summoner, ranked: state.ranked, championMasteries: state.championMasteries,
-    matchHistory: state.matchHistory, loaded: false, privateProfile: false, loadMore: { type: 'loadMoreMatches' },
+    matchHistory: state.matchHistory, loaded: false, privateProfile: false, loadMore: { type: 'loadMoreMatches' }, liveGame: null,
   };
   return <ProfileView state={state} data={data} send={send} onOpenProfile={onOpenProfile} />;
 }
@@ -108,6 +112,7 @@ export function FriendProfilePage({ connection, send, puuid, onBack, onChat, onO
   const data: ProfileData = {
     summoner: profile.summoner, ranked: profile.ranked, championMasteries: profile.championMasteries,
     matchHistory: profile.matchHistory, loaded: true, privateProfile: profile.privateProfile, loadMore: { type: 'loadMorePlayerMatches' },
+    liveGame: state.playerLiveGame?.puuid === puuid ? state.playerLiveGame.game : null,
   };
   const extra = friend && (
     <div className="flex flex-wrap items-center gap-3 @min-[44rem]:ml-auto">
@@ -129,14 +134,18 @@ export function FriendProfilePage({ connection, send, puuid, onBack, onChat, onO
 function ProfileView({ state, data, send, extra, onOpenProfile }: {
   state: AgentState; data: ProfileData; send: AgentClient['send']; extra?: ReactNode; onOpenProfile?: (puuid: string) => void;
 }) {
-  const [tab, setTab] = useState<Tab>('overview');
+  const [selected, setTab] = useState<Tab>('overview');
   const id = useId();
   const summoner = data.summoner;
   const name = summoner.gameName || summoner.displayName || 'Invocador';
+  const liveGame = data.liveGame;
   const tabs: { value: Tab; label: string }[] = [
     { value: 'overview', label: 'Visão geral' },
     { value: 'history', label: 'Histórico' },
+    ...(liveGame ? [{ value: 'live' as const, label: 'Em jogo' }] : []),
   ];
+  // A aba Em jogo some quando a partida acaba; aí volta para a Visão geral.
+  const tab = tabs.some(t => t.value === selected) ? selected : 'overview';
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-center gap-4 rounded-panel surface card p-5 shadow-soft animate-fade-up">
@@ -162,7 +171,9 @@ function ProfileView({ state, data, send, extra, onOpenProfile }: {
             onClick={() => setTab(t.value)}
             onKeyDown={event => {
               if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-              const next = tab === 'overview' ? 'history' : 'overview';
+              const index = tabs.findIndex(t => t.value === tab);
+              const step = event.key === 'ArrowRight' ? 1 : tabs.length - 1;
+              const next = tabs[(index + step) % tabs.length].value;
               setTab(next);
               document.getElementById(`${id}-${next}-tab`)?.focus();
             }}
@@ -179,6 +190,12 @@ function ProfileView({ state, data, send, extra, onOpenProfile }: {
       <div role="tabpanel" id={`${id}-history`} aria-labelledby={`${id}-history-tab`} hidden={tab !== 'history'}>
         <History state={state} data={data} send={send} onOpenProfile={onOpenProfile} />
       </div>
+      {liveGame && (
+        <div role="tabpanel" id={`${id}-live`} aria-labelledby={`${id}-live-tab`} hidden={tab !== 'live'}>
+          <LiveGamePanel state={state} game={{ ...liveGame, queueName: liveGame.queueName || queueLabel(liveGame.queueId, state.queues) }}
+            onOpenProfile={onOpenProfile} />
+        </div>
+      )}
     </div>
   );
 }

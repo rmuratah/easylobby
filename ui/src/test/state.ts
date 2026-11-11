@@ -37,6 +37,7 @@ const emptyState: AgentState = {
   matchDetails: null,
   playerProfile: null,
   liveGame: null,
+  playerLiveGame: null,
   collection: null,
   championSkins: null,
   patchNotes: null,

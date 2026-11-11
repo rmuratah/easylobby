@@ -22,3 +22,5 @@ Thumbs.db
 lockfile
 # Saída do example comparar_filas (#283)
 filas-lol/
+# Chave da API da Riot (#436)
+riot-api-key.txt

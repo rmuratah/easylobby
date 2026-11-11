@@ -23,6 +23,7 @@ import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
 import type { PatchNotes } from "./PatchNotes";
+import type { PlayerLiveGame } from "./PlayerLiveGame";
 import type { PlayerProfile } from "./PlayerProfile";
 import type { RankedStats } from "./RankedStats";
 import type { ReadyCheck } from "./ReadyCheck";
@@ -82,6 +83,7 @@ export type ServerMessage =
   | { "type": "matchDetails", matchDetails: MatchDetails | null, }
   | { "type": "playerProfile", playerProfile: PlayerProfile | null, }
   | { "type": "liveGame", liveGame: LiveGame | null, }
+  | { "type": "playerLiveGame", playerLiveGame: PlayerLiveGame | null, }
   | { "type": "collection", collection: Collection | null, }
   | { "type": "championSkins", championSkins: ChampionSkins | null, }
   | { "type": "patchNotes", patchNotes: PatchNotes | null, }

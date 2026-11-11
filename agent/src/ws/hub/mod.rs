@@ -21,6 +21,7 @@ mod lobby;
 mod lobby_chat;
 mod lobby_ranks;
 mod patch_notes;
+mod player_live_game;
 mod profile;
 mod ready_check;
 mod runes;
@@ -121,6 +122,9 @@ struct Shared {
     lobby_ranks: lobby_ranks::LobbyRanks,
     /// A partida ao vivo e o que já foi buscado dela (#268).
     live_game: live_game::LiveGameSync,
+    /// Cliente da API da Riot para a aba "Em jogo" do perfil (#436). `None`
+    /// até a primeira leitura da configuração; `Some(None)` sem chave.
+    riot_api: Option<Option<crate::riot_api::RiotApi>>,
     /// Id da seleção em que o jogador marcou o aviso de autofill como visto
     /// (#360). Enquanto for a mesma seleção, o aviso fica escondido.
     autofill_ack: Option<String>,
@@ -202,6 +206,7 @@ impl Hub {
                     champion_skins_request: None,
                     lobby_ranks: lobby_ranks::LobbyRanks::default(),
                     live_game: live_game::LiveGameSync::default(),
+                    riot_api: None,
                     autofill_ack: None,
                 }),
                 tx,
@@ -507,6 +512,7 @@ impl Hub {
                 self.set_match_history(None);
                 self.set_match_details(None);
                 self.set_player_profile(None);
+                self.set_player_live_game(None);
                 self.set_collection(None);
                 self.set_champion_skins(None);
                 self.set_custom_games(None);

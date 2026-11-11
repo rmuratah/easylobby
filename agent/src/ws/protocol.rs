@@ -58,7 +58,7 @@ use crate::custom_lobby::{BotDifficulty, CustomTeam};
 use crate::friends::{Friend, FriendGroup};
 use crate::gameflow::GameflowPhase;
 use crate::invitations::{Invitee, ReceivedInvitation};
-use crate::live_game::LiveGame;
+use crate::live_game::{LiveGame, PlayerLiveGame};
 use crate::lobby::{Lobby, Position, Queue};
 use crate::lobby_chat::LobbyChat;
 use crate::lobby_link::LobbyLink;
@@ -275,6 +275,14 @@ pub enum ServerMessage {
     /// de carregamento) ou o relógio do jogo se afastou da conta da UI.
     /// Sempre a partida inteira. `null` fora de partida e com o LoL fechado.
     LiveGame { live_game: Option<LiveGame> },
+    /// A partida em andamento do jogador do perfil aberto com
+    /// `openPlayerProfile` (#436), pela API da Riot, para a aba "Em jogo".
+    /// Chega depois do perfil e de novo quando o elo e as partidas recentes
+    /// de cada jogador chegam da LCU. `null` quando ele não está em partida,
+    /// sem a API configurada, ao abrir outro perfil e com o LoL fechado.
+    PlayerLiveGame {
+        player_live_game: Option<PlayerLiveGame>,
+    },
 
     // Coleção
     /// A coleção de campeões da conta (#369), pedida com `openCollection`.
@@ -393,6 +401,8 @@ pub struct AgentState {
     // Partida ao vivo
     /// A partida em andamento (#268), ou `null` fora de partida.
     pub live_game: Option<LiveGame>,
+    /// A partida em andamento do jogador do perfil aberto (#436), ou `null`.
+    pub player_live_game: Option<PlayerLiveGame>,
 
     // Coleção
     /// Última coleção pedida com `openCollection` (#369), ou `null`.
@@ -1050,6 +1060,7 @@ mod tests {
                     "matchDetails": null,
                     "playerProfile": null,
                     "liveGame": null,
+                    "playerLiveGame": null,
                     "collection": null,
                     "championSkins": null,
                     "patchNotes": null,
