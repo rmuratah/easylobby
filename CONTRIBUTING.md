@@ -28,7 +28,7 @@ Antes de começar, leia [AGENTS.md](AGENTS.md) e [docs/decisoes.md](docs/decisoe
 Formato: `tipo/numero-da-issue-descricao-curta`
 
 - Tudo em minúsculas, palavras separadas por hífen, sem acento e sem espaço.
-- Uma branch por issue, com uma exceção: issues divididas (veja abaixo).
+- Uma branch por issue, com uma exceção: issues grandes com agente e UI (veja abaixo).
 
 | Tipo | Quando usar | Exemplo |
 | --- | --- | --- |
@@ -39,12 +39,14 @@ Formato: `tipo/numero-da-issue-descricao-curta`
 | `refactor` | Mudança interna sem alterar comportamento | `refactor/22-estado-champ-select` |
 | `test` | Só testes ou fixtures | `test/5-fixtures-lcu` |
 
-## Issues divididas (label `agente,ui`)
+## Issues com agente e UI
 
-Quando uma issue tem parte no agente e parte na UI, os dois devs ficam atribuídos e ela vira dois PRs:
+Não há divisão de trabalho por pasta nem por label: os dois devs fazem agente e UI. Quem se atribui a issue faz todas as partes dela, normalmente num PR só, com o comando, o evento, os tipos TypeScript gerados e a tela.
+
+Se a issue for grande, ela pode virar dois PRs da mesma pessoa:
 
 1. A parte do agente vai numa branch com sufixo `-agente`, por exemplo `feat/17-criar-lobby-agente`: o comando, o evento e os tipos TypeScript gerados. Isso é o contrato.
-2. A parte da UI vai numa branch com sufixo `-ui`, por exemplo `feat/17-criar-lobby-ui`. Ela pode começar assim que o PR do agente estiver aberto, programando contra os tipos gerados e testando no mock-lcu.
+2. A parte da UI vai numa branch com sufixo `-ui`, por exemplo `feat/17-criar-lobby-ui`, programando contra os tipos gerados e testando no mock-lcu.
 3. O PR do agente entra primeiro e usa `Refs #17`; o PR da UI usa `Closes #17`.
 
 ## Mensagens de commit
