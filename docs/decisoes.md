@@ -44,7 +44,7 @@ O redesign dá ao app um visual próprio em todas as telas, sem mudar o agente. 
 
 ### Como o redesign convive com o trabalho em andamento
 
-O redesign é feito por rmuratah, em `ui/` e `desktop/`, que são pastas do Victor-Ricco. Combinado entre os dois: o Victor termina e mergeia a parte funcional de cada tela, e o redesign daquela tela só começa depois disso. O Victor revisa todos os PRs da fase. As mudanças entram aos poucos na `main`, um PR por issue: base visual, moldura e depois uma tela por vez.
+O redesign é feito por rmuratah, em `ui/` e `desktop/`, que na época eram pastas do Victor-Ricco. Combinado entre os dois: o Victor termina e mergeia a parte funcional de cada tela, e o redesign daquela tela só começa depois disso. O Victor revisa todos os PRs da fase. As mudanças entram aos poucos na `main`, um PR por issue: base visual, moldura e depois uma tela por vez.
 
 ## Pós-jogo (Fase 6)
 
@@ -57,6 +57,8 @@ Depois da partida, o app mostra o resultado e as estatísticas e volta ao lobby,
 
 ## Responsabilidades e contribuição
 
-Rafa Murata (`rmuratah`) cuida do agente e do mock-lcu. Victor Ricco (`Victor-Ricco`) cuida da UI e do desktop. Documentação e CI são compartilhados; os responsáveis de cada tarefa estão em **Assignees** no GitHub.
+Desde novembro de 2026 não há divisão de trabalho por pasta: Rafa Murata (`rmuratah`) e Victor Ricco (`Victor-Ricco`) fazem agente, mock-lcu, UI, desktop, documentação e CI ([issue #442](https://github.com/rmuratah/easylobby/issues/442)). Quem faz cada tarefa está em **Assignees** no GitHub, e o outro dev revisa o PR.
+
+Antes disso, o rmuratah cuidava do agente e do mock-lcu e o Victor-Ricco da UI e do desktop; as issues com agente e UI viravam dois PRs, um de cada dev.
 
 Leia [AGENTS.md](../AGENTS.md) para a arquitetura, fases e limites de atuação, e [CONTRIBUTING.md](../CONTRIBUTING.md) para atribuição de issues, branches, contratos compartilhados, revisão cruzada e merge por squash.

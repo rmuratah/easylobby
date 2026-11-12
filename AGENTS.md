@@ -23,15 +23,15 @@ LoL (LCU API: REST + WAMP)  <-->  agente Rust  <-->  /ws tipado  <-->  UI React 
 
 ## Monorepo
 
-| Pasta | Conteúdo | Dono |
-| --- | --- | --- |
-| `agent/` | Crate Rust do agente | rmuratah |
-| `mock-lcu/` | Servidor falso da LCU | rmuratah |
-| `ui/` | React + TypeScript + Vite + Tailwind (testes com Vitest) | Victor-Ricco |
-| `desktop/` | Shell Tauri 2 | Victor-Ricco |
-| `.github/`, `docs/` | CI e documentação | os dois |
+| Pasta | Conteúdo |
+| --- | --- |
+| `agent/` | Crate Rust do agente |
+| `mock-lcu/` | Servidor falso da LCU |
+| `ui/` | React + TypeScript + Vite + Tailwind (testes com Vitest) |
+| `desktop/` | Shell Tauri 2 |
+| `.github/`, `docs/` | CI e documentação |
 
-**Não altere pastas do outro dev sem combinar.** Se a UI precisar de algo novo do agente (evento, comando, campo), peça num comentário da issue em vez de implementar no agente. Na UI, use só os tipos gerados; não invente formato de mensagem do `/ws`.
+Os dois devs mexem em todas as pastas. Quando a UI precisar de algo novo do agente (evento, comando, campo), faça a mudança no agente e gere os tipos de novo. Na UI, use só os tipos gerados; não invente formato de mensagem do `/ws`.
 
 ## Stack
 
@@ -65,24 +65,18 @@ Não reabra sem conversar com os dois devs. Consulte também o [registro de deci
 | 7 · Refinamento e testes | Todas as telas testadas no LoL real, sem bug aberto de criticidade média ou alta |
 | 8 · Celular e beta | 3 a 5 amigos usam a beta por uma semana |
 
-## Divisão de tarefas
+## Quem faz cada tarefa
 
-Quem faz cada issue está no campo **Assignees** dela no GitHub. A regra geral:
-
-- Label só `agente`: rmuratah.
-- Label só `ui` ou `infra`: Victor-Ricco.
-- Label `agente,ui` (os dois atribuídos): rmuratah faz o comando e os tipos no agente; Victor-Ricco faz a tela. Veja "Issues divididas" no [CONTRIBUTING.md](CONTRIBUTING.md).
-
-Na Fase 0, o #1 (esqueleto do monorepo) sai primeiro, porque quase tudo depende dele. Enquanto isso, o #2 (docs) não depende de código.
+Não há divisão de trabalho por pasta nem por label: rmuratah e Victor-Ricco fazem UI e agente. Quem faz cada issue está no campo **Assignees** dela no GitHub; quem pega a issue faz todas as partes dela (agente, tipos gerados, mock-lcu e tela). As labels `agente`, `ui` e `infra` dizem só onde a issue mexe.
 
 ## Como trabalhar
 
 Siga o [CONTRIBUTING.md](CONTRIBUTING.md). Em resumo:
 
-1. Comece por uma issue atribuída ao dev com quem você está trabalhando. Pergunte qual é, se não souber.
+1. Comece por uma issue atribuída ao dev com quem você está trabalhando. Pergunte qual é, se não souber. A issue pode envolver agente, UI ou os dois.
 2. Branch a partir da `main` atualizada: `tipo/numero-da-issue-descricao-curta` (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`).
 3. Commits em Conventional Commits: `tipo(escopo): descrição no imperativo (#issue)`, escopos `agente`, `ui`, `desktop`, `mock-lcu`, `ci`, `docs`.
 4. PR para a `main` com título no mesmo formato, `Closes #N` e o template preenchido. CI verde, aprovação do outro dev, merge por squash.
-5. Mudanças pequenas, um PR por issue (ou por metade de uma issue dividida), com testes quando fizer sentido.
+5. Mudanças pequenas, um PR por issue, com testes quando fizer sentido. Uma issue grande pode virar mais de um PR (veja "Issues com agente e UI" no [CONTRIBUTING.md](CONTRIBUTING.md)).
 6. Na revisão, só bug, falha de segurança ou quebra do contrato do `/ws` bloqueiam o merge. Melhorias, refatoração e estilo viram issue com a label `melhoria`. Uma rodada de revisão por PR; a segunda só confere os pontos da primeira. Veja "Revisão de PRs" no [CONTRIBUTING.md](CONTRIBUTING.md).
 7. Se faltar contexto, peça o arquivo ou a issue em vez de supor.
