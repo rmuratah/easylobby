@@ -72,6 +72,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'matchDetails': return { ...state, matchDetails: message.matchDetails };
     case 'playerProfile': return { ...state, playerProfile: message.playerProfile };
     case 'liveGame': return { ...state, liveGame: message.liveGame };
+    case 'playerLiveGame': return { ...state, playerLiveGame: message.playerLiveGame };
     case 'patchNotes': return { ...state, patchNotes: message.patchNotes };
     case 'collection': return { ...state, collection: message.collection };
     case 'championSkins': return { ...state, championSkins: message.championSkins };

@@ -324,6 +324,126 @@ pub fn from_session(value: &Value, my_puuid: Option<&str>) -> Option<LiveGame> {
     })
 }
 
+/// A partida em andamento de outro jogador (#436), aberta no perfil dele.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerLiveGame {
+    /// O jogador do perfil.
+    pub puuid: String,
+    pub game: LiveGame,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct RawSpectatorGame {
+    game_id: u64,
+    game_mode: String,
+    map_id: u32,
+    game_queue_config_id: i32,
+    game_length: i64,
+    participants: Vec<RawSpectatorParticipant>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct RawSpectatorParticipant {
+    puuid: Option<String>,
+    team_id: u32,
+    champion_id: u32,
+    spell1_id: u32,
+    spell2_id: u32,
+    bot: bool,
+    riot_id: Option<String>,
+    perks: Option<RawPerks>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct RawPerks {
+    perk_ids: Vec<u32>,
+    perk_style: u32,
+    perk_sub_style: u32,
+}
+
+/// A partida do `spectator-v5` da API da Riot (#436), sem os dados que a
+/// LCU completa (elo e partidas recentes). A API não manda os cargos: os
+/// jogadores ficam na ordem dela, com `unselected`. O nome da fila e do
+/// mapa ficam vazios. `None` sem nenhum jogador nas duas equipes.
+pub fn from_spectator(value: &Value, my_puuid: Option<&str>) -> Option<LiveGame> {
+    let raw = RawSpectatorGame::deserialize(value).ok()?;
+    let queue_id = raw.game_queue_config_id.max(0);
+    let ranked_queue = if queue_id == FLEX_QUEUE_ID {
+        RankedQueue::Flex
+    } else {
+        RankedQueue::SoloDuo
+    };
+    let mut teams: Vec<LiveTeam> = [100, 200]
+        .into_iter()
+        .map(|team_id| LiveTeam {
+            team_id,
+            average_tier: None,
+            players: raw
+                .participants
+                .iter()
+                .filter(|p| p.team_id == team_id)
+                .map(|p| {
+                    let puuid = p
+                        .puuid
+                        .clone()
+                        .filter(|id| !p.bot && player_profile::valid_puuid(id))
+                        .unwrap_or_default();
+                    let (game_name, tag_line) = p
+                        .riot_id
+                        .as_deref()
+                        .filter(|_| !p.bot)
+                        .map(|id| match id.split_once('#') {
+                            Some((name, tag)) => (name.to_owned(), tag.to_owned()),
+                            None => (id.to_owned(), String::new()),
+                        })
+                        .unwrap_or_default();
+                    let runes = p.perks.as_ref().and_then(|perks| {
+                        let keystone_id = perks.perk_ids.first().copied().unwrap_or(0);
+                        (keystone_id != 0 || perks.perk_style != 0).then_some(LiveRunes {
+                            keystone_id,
+                            primary_style_id: perks.perk_style,
+                            sub_style_id: perks.perk_sub_style,
+                        })
+                    });
+                    LivePlayer {
+                        me: !puuid.is_empty() && Some(puuid.as_str()) == my_puuid,
+                        hidden: !p.bot && puuid.is_empty(),
+                        puuid,
+                        bot: p.bot,
+                        champion_id: p.champion_id,
+                        spell1_id: p.spell1_id,
+                        spell2_id: p.spell2_id,
+                        position: Position::Unselected,
+                        game_name,
+                        tag_line,
+                        runes,
+                        stats: None,
+                    }
+                })
+                .collect(),
+        })
+        .collect();
+    teams.retain(|t| !t.players.is_empty());
+    if teams.is_empty() {
+        return None;
+    }
+    Some(LiveGame {
+        game_id: raw.game_id,
+        queue_id,
+        queue_name: String::new(),
+        map_id: raw.map_id,
+        map_name: String::new(),
+        game_mode: raw.game_mode,
+        ranked_queue,
+        game_time_secs: u32::try_from(raw.game_length).ok().filter(|&secs| secs > 0),
+        teams,
+    })
+}
+
 /// Os jogadores das duas equipes com os feitiços, mais quem só está nas
 /// seleções (anônimo), posto na equipe que tem menos gente.
 fn session_players(data: &RawGameData) -> Vec<SessionPlayer> {
@@ -750,6 +870,83 @@ pub(crate) mod tests {
         assert!(game
             .players()
             .all(|p| p.stats.is_none() && p.runes.is_none()));
+    }
+
+    /// Uma resposta do `spectator-v5` no formato da documentação da Riot.
+    pub(crate) fn spectator_json() -> Value {
+        let player = |puuid: &str, team: u32, champion: u32, riot_id: &str| {
+            json!({
+                "puuid": puuid, "teamId": team, "championId": champion,
+                "spell1Id": 4, "spell2Id": 14, "bot": false, "riotId": riot_id,
+                "profileIconId": 1, "summonerId": "x",
+                "perks": {"perkIds": [8112, 8126, 8138, 8135, 8226, 8237], "perkStyle": 8100, "perkSubStyle": 8200},
+                "gameCustomizationObjects": []
+            })
+        };
+        json!({
+            "gameId": 3123456789u64, "gameType": "MATCHED", "gameStartTime": 1793841299452u64,
+            "mapId": 11, "gameLength": 754, "platformId": "BR1", "gameMode": "CLASSIC",
+            "gameQueueConfigId": 440,
+            "bannedChampions": [],
+            "observers": {"encryptionKey": "segredo"},
+            "participants": [
+                player("fake-puuid-0002", 100, 103, "Amigo#BR1"),
+                player("fake-puuid-0001", 100, 121, "Eu#BR1"),
+                player("fake-puuid-0003", 200, 26, "SemTag"),
+                {"puuid": null, "teamId": 200, "championId": 1, "spell1Id": 0, "spell2Id": 0, "bot": true, "riotId": "Annie Bot"},
+                {"puuid": null, "teamId": 200, "championId": 64, "spell1Id": 11, "spell2Id": 4, "bot": false}
+            ]
+        })
+    }
+
+    #[test]
+    fn partida_do_espectador() {
+        let game = from_spectator(&spectator_json(), Some("fake-puuid-0001")).unwrap();
+        assert_eq!(game.game_id, 3_123_456_789);
+        assert_eq!(game.queue_id, 440);
+        assert_eq!(game.ranked_queue, RankedQueue::Flex);
+        assert_eq!(game.map_id, 11);
+        assert_eq!(game.game_mode, "CLASSIC");
+        assert_eq!(game.game_time_secs, Some(754));
+        assert_eq!(game.teams.len(), 2);
+        let blue = &game.teams[0];
+        assert_eq!(blue.team_id, 100);
+        let friend = &blue.players[0];
+        assert_eq!(
+            (friend.game_name.as_str(), friend.tag_line.as_str()),
+            ("Amigo", "BR1")
+        );
+        assert_eq!(friend.champion_id, 103);
+        assert_eq!((friend.spell1_id, friend.spell2_id), (4, 14));
+        assert_eq!(friend.position, Position::Unselected);
+        assert_eq!(
+            friend.runes,
+            Some(LiveRunes {
+                keystone_id: 8112,
+                primary_style_id: 8100,
+                sub_style_id: 8200
+            })
+        );
+        assert!(!friend.me);
+        assert!(blue.players[1].me);
+        let red = &game.teams[1];
+        assert_eq!(red.players[0].game_name, "SemTag");
+        assert_eq!(red.players[0].tag_line, "");
+        let bot = &red.players[1];
+        assert!(bot.bot && !bot.hidden && bot.puuid.is_empty() && bot.game_name.is_empty());
+        let hidden = &red.players[2];
+        assert!(hidden.hidden && !hidden.bot && hidden.runes.is_none());
+        assert!(game.players().all(|p| p.stats.is_none()));
+    }
+
+    #[test]
+    fn espectador_sem_jogadores() {
+        assert!(from_spectator(&json!({"gameId": 1, "participants": []}), None).is_none());
+        assert!(from_spectator(&json!("x"), None).is_none());
+        let loading = json!({"gameId": 1, "gameLength": 0, "participants": [
+            {"puuid": "fake-puuid-0002", "teamId": 100, "championId": 1}
+        ]});
+        assert_eq!(from_spectator(&loading, None).unwrap().game_time_secs, None);
     }
 
     #[test]

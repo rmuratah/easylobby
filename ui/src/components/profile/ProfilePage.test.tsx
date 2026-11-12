@@ -5,6 +5,8 @@ import { testFriend } from '../../test/events';
 import type { PlayerProfile } from '../../bindings/PlayerProfile';
 import { makeState } from '../../test/state';
 import { match } from '../../test/profile';
+import { testLiveGame } from '../../test/liveGame';
+import type { PlayerLiveGame } from '../../bindings/PlayerLiveGame';
 import type { AgentState } from '../../bindings/AgentState';
 import type { AgentClient, ConnectionSnapshot } from '../../agent/client';
 
@@ -193,6 +195,37 @@ describe('FriendProfilePage', () => {
     // No resumo da Visão geral e na aba Histórico.
     expect(screen.getAllByText('O histórico deste jogador é privado.')).toHaveLength(2);
     expect(screen.queryByRole('button', { name: 'Carregar mais' })).toBeNull();
+  });
+
+  it('mostra a aba Em jogo só enquanto o amigo está em partida (#436)', () => {
+    const send = vi.fn(() => Promise.resolve({ status: 'ok' as const }));
+    const onOpenProfile = vi.fn();
+    const page = (playerLiveGame: PlayerLiveGame | null) => (
+      <FriendProfilePage connection={{ status: 'connected', error: null, state: makeState({ summoner, friends: [friend], playerProfile: profile(), playerLiveGame }) }}
+        send={send} puuid="amigo" onBack={vi.fn()} onChat={vi.fn()} onOpenProfile={onOpenProfile} />
+    );
+    const view = render(page(null));
+    expect(screen.queryByRole('tab', { name: 'Em jogo' })).toBeNull();
+    // A partida de outro perfil que ainda está no estado não aparece.
+    view.rerender(page({ puuid: 'outro', game: testLiveGame }));
+    expect(screen.queryByRole('tab', { name: 'Em jogo' })).toBeNull();
+    view.rerender(page({ puuid: 'amigo', game: { ...testLiveGame, queueName: '', queueId: 420 } }));
+    const tab = screen.getByRole('tab', { name: 'Em jogo' });
+    fireEvent.click(tab);
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    const panel = screen.getByRole('tabpanel', { name: 'Em jogo' });
+    expect(within(panel).getByRole('region', { name: 'Partida ao vivo' })).toBeInTheDocument();
+    // Sem o nome da fila da API, o nome vem do id.
+    expect(within(panel).getByRole('heading', { level: 2 })).toHaveTextContent('Ranqueada Solo/Duo');
+    // As setas passam pelas três abas.
+    fireEvent.keyDown(tab, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'Visão geral' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Visão geral' }), { key: 'ArrowLeft' });
+    expect(screen.getByRole('tab', { name: 'Em jogo' })).toHaveAttribute('aria-selected', 'true');
+    // A partida acabou: a aba some e volta para a Visão geral.
+    view.rerender(page(null));
+    expect(screen.queryByRole('tab', { name: 'Em jogo' })).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Visão geral' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('mostra o erro e tenta de novo', async () => {

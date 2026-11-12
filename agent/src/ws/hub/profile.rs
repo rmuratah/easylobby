@@ -181,14 +181,20 @@ impl Hub {
             return not_connected();
         };
         self.lock().player_profile_request = Some(puuid.to_owned());
+        self.forget_player_live_game(puuid);
         match player_profile::load(&client, puuid).await {
             Ok(Some(profile)) => {
-                self.update_in_session(session, |shared| {
+                let applied = self.update_in_session(session, |shared| {
                     if shared.player_profile_request.as_deref() != Some(puuid) {
                         return None;
                     }
                     write_player_profile(shared, Some(profile))
                 });
+                // A aba "Em jogo" (#436) chega depois, numa mensagem
+                // `playerLiveGame`.
+                if applied {
+                    self.spawn_player_live_game(session, puuid.to_owned());
+                }
                 CommandResult::Ok
             }
             Ok(None) => CommandResult::error(ErrorCode::Lcu, "resposta inesperada da LCU"),

@@ -9,6 +9,7 @@ Este documento registra as decisões acordadas do easylobby. Elas orientam a imp
 - **React + TypeScript**, com Vite e Tailwind, compõem a interface.
 - A UI se comunica somente com o canal interno `/ws` do agente. Os tipos TypeScript são gerados a partir do Rust com `ts-rs` ou `specta`; a escolha entre essas ferramentas ainda não está definida neste documento. A UI não acessa a LCU diretamente nem inventa formatos de mensagens.
 - O **mock-lcu** permite desenvolver sem abrir o LoL, usando fixtures de sessões reais em `agent/tests/fixtures/<patch>/`.
+- **API oficial da Riot (proposta no #436):** a única chamada fora da LCU é o `spectator-v5`, para a aba "Em jogo" do perfil de outro jogador, que a LCU não tem. Só o agente chama. A chave não entra no app: por enquanto fica na máquina de quem testa (`EASYLOBBY_RIOT_API_KEY` ou arquivo local) e, antes da beta, num servidor do easylobby com a chave de produto (#37).
 
 ## Interface oficial e recuperação
 

@@ -12,6 +12,7 @@ import type { ChampionSkins } from '../bindings/ChampionSkins';
 import type { CollectionSkin } from '../bindings/CollectionSkin';
 import type { SkinChroma } from '../bindings/SkinChroma';
 import type { LiveGame } from '../bindings/LiveGame';
+import type { PlayerLiveGame } from '../bindings/PlayerLiveGame';
 import type { Wallet } from '../bindings/Wallet';
 import type { AgentState } from '../bindings/AgentState';
 import type { LcuStatus } from '../bindings/LcuStatus';
@@ -344,6 +345,9 @@ function liveGame(v: unknown): v is LiveGame | null {
     (v.rankedQueue === 'soloDuo' || v.rankedQueue === 'flex') && (v.gameTimeSecs === null || uint(v.gameTimeSecs)) &&
     Array.isArray(v.teams) && v.teams.every(liveTeam));
 }
+function playerLiveGame(v: unknown): v is PlayerLiveGame | null {
+  return v === null || (object(v) && typeof v.puuid === 'string' && v.game !== null && liveGame(v.game));
+}
 function status(v: unknown): v is LcuStatus {
   if (!object(v)) return false;
   switch (v.state) {
@@ -366,7 +370,7 @@ function state(v: unknown): v is AgentState {
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
     champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) && list(v.suggestedPlayers, suggestedPlayer) &&
     ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory) &&
-    matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && patchNotes(v.patchNotes) &&
+    matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && playerLiveGame(v.playerLiveGame) && patchNotes(v.patchNotes) &&
     collection(v.collection) && championSkins(v.championSkins) &&
     wallet(v.wallet);
 }
@@ -412,6 +416,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'matchDetails': valid = matchDetails(v.matchDetails); break;
     case 'playerProfile': valid = playerProfile(v.playerProfile); break;
     case 'liveGame': valid = liveGame(v.liveGame); break;
+    case 'playerLiveGame': valid = playerLiveGame(v.playerLiveGame); break;
     case 'patchNotes': valid = patchNotes(v.patchNotes); break;
     case 'collection': valid = collection(v.collection); break;
     case 'championSkins': valid = championSkins(v.championSkins); break;

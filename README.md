@@ -60,6 +60,15 @@ pnpm --filter easylobby-desktop build   # gera o instalador (formato do instalad
 
 `pnpm dev:desktop` roda `pnpm --filter easylobby-ui dev` sozinho antes de abrir a janela.
 
+### Aba "Em jogo" do perfil (API da Riot)
+
+A partida em andamento de outro jogador vem da API oficial da Riot (`spectator-v5`, #436), que precisa de chave. A chave **nunca** entra no repositório nem no app distribuído. Para testar, gere uma chave de desenvolvimento no [Riot Developer Portal](https://developer.riotgames.com/) (ela expira em 24 horas) e use uma destas opções:
+
+- a variável `EASYLOBBY_RIOT_API_KEY` no terminal que abre o app; ou
+- o arquivo `%APPDATA%\easylobby\riot-api-key.txt` (no Linux/macOS, `~/.config/easylobby/riot-api-key.txt`), só com a chave.
+
+`EASYLOBBY_RIOT_API_URL` troca o endereço da API (com `{platform}` no lugar de `br1`), para o servidor com a chave de produto antes da beta (#37). Sem chave e sem servidor, a aba não aparece.
+
 ## Fases
 
 | Fase | Pronto quando |

@@ -21,6 +21,7 @@ import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
 import type { PatchNotes } from "./PatchNotes";
+import type { PlayerLiveGame } from "./PlayerLiveGame";
 import type { PlayerProfile } from "./PlayerProfile";
 import type { RankedStats } from "./RankedStats";
 import type { ReadyCheck } from "./ReadyCheck";
@@ -162,6 +163,10 @@ export type AgentState = {
    * A partida em andamento (#268), ou `null` fora de partida.
    */
   liveGame: LiveGame | null,
+  /**
+   * A partida em andamento do jogador do perfil aberto (#436), ou `null`.
+   */
+  playerLiveGame: PlayerLiveGame | null,
   /**
    * Última coleção pedida com `openCollection` (#369), ou `null`.
    */
