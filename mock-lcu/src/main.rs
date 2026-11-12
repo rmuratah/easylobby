@@ -4,6 +4,7 @@
 //! cargo run -p mock-lcu
 //! cargo run -p mock-lcu -- --fixtures exemplo --velocidade 10 --repetir
 //! cargo run -p mock-lcu -- --http --porta 2999 --verbose
+//! cargo run -p mock-lcu -- --selecao draft --celula 0
 //! ```
 //!
 //! Veja `mock-lcu/README.md` para todas as opções.
@@ -11,6 +12,7 @@
 use std::path::{Path, PathBuf};
 
 use easylobby_agent::fixtures::FixtureSet;
+use mock_lcu::scenario::{Mode, Options};
 use mock_lcu::{Config, MockLcu, ReplayStart};
 
 const USAGE: &str = "\
@@ -28,7 +30,19 @@ uso: mock-lcu [opções]
   --parado                  não reproduz os eventos
   --repetir                 recomeça a gravação quando ela acaba
   --verbose                 mostra cada requisição e evento
+  --selecao <modo>          começa direto numa seleção de campeões simulada,
+                            com bots e sem a gravação: draft, torneio,
+                            blind ou aram
+  --celula <0-4>            sua vez na ordem de picks da seleção simulada
+                            (padrão: a da gravação)
+  --bots <segundos>         quanto os bots demoram para escolher (padrão: 3)
 ";
+
+const KEYS: &str = "\
+teclas da seleção (digite e Enter):
+  p pausar   c continuar   a avançar a etapa   d dodge
+  r recomeçar   draft | torneio | blind | aram  nova seleção desse modo
+  ? ajuda";
 
 struct Args {
     fixtures: Option<String>,
@@ -40,6 +54,9 @@ struct Args {
     replay_start: ReplayStart,
     repeat: bool,
     verbose: bool,
+    selection: Option<Mode>,
+    cell: Option<u64>,
+    bot_seconds: Option<f64>,
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -53,6 +70,9 @@ fn parse_args() -> Result<Args, String> {
         replay_start: ReplayStart::OnFirstSubscribe,
         repeat: false,
         verbose: false,
+        selection: None,
+        cell: None,
+        bot_seconds: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -68,6 +88,18 @@ fn parse_args() -> Result<Args, String> {
             "--parado" => args.replay_start = ReplayStart::Never,
             "--repetir" => args.repeat = true,
             "--verbose" => args.verbose = true,
+            "--selecao" => args.selection = Some(value()?.parse::<Mode>()?),
+            "--celula" => {
+                let cell = value()?.parse().ok().filter(|c: &u64| *c < 5);
+                args.cell = Some(cell.ok_or("--celula vai de 0 a 4")?);
+            }
+            "--bots" => {
+                let seconds = value()?
+                    .parse()
+                    .ok()
+                    .filter(|s: &f64| s.is_finite() && *s >= 0.0);
+                args.bot_seconds = Some(seconds.ok_or("--bots inválido")?);
+            }
             "-h" | "--help" => {
                 print!("{USAGE}");
                 std::process::exit(0);
@@ -150,6 +182,18 @@ async fn run() -> Result<(), String> {
     config.replay_start = args.replay_start;
     config.repeat = args.repeat;
     config.verbose = args.verbose;
+    let options = args.selection.map(|mode| Options {
+        mode,
+        cell: args.cell,
+    });
+    if options.is_some() {
+        // A gravação mexeria na seleção simulada.
+        config.replay_start = ReplayStart::Never;
+        config.champ_select = options;
+    }
+    if let Some(seconds) = args.bot_seconds {
+        config.timings.bot = (seconds * 1000.0) as u64;
+    }
 
     let manifest = config.fixtures.manifest.clone();
     let (rest, events) = (config.fixtures.rest.len(), config.fixtures.events.len());
@@ -176,8 +220,63 @@ async fn run() -> Result<(), String> {
     }
     println!("fase inicial: {}. Ctrl+C para parar.", mock.phase());
 
-    tokio::signal::ctrl_c().await.map_err(|e| e.to_string())?;
+    match options {
+        Some(options) => {
+            println!("{KEYS}");
+            control_from_terminal(&mock, options).await?;
+        }
+        None => tokio::signal::ctrl_c().await.map_err(|e| e.to_string())?,
+    }
     println!("parando; lockfile apagado");
     mock.shutdown().await;
     Ok(())
+}
+
+/// Lê as teclas da seleção simulada no terminal até o Ctrl+C.
+async fn control_from_terminal(mock: &MockLcu, mut options: Options) -> Result<(), String> {
+    let (tx, mut lines) = tokio::sync::mpsc::unbounded_channel::<String>();
+    std::thread::spawn(move || {
+        for line in std::io::stdin().lines() {
+            let Ok(line) = line else { return };
+            if tx.send(line).is_err() {
+                return;
+            }
+        }
+    });
+    loop {
+        let line = tokio::select! {
+            result = tokio::signal::ctrl_c() => return result.map_err(|e| e.to_string()),
+            line = lines.recv() => line,
+        };
+        let Some(line) = line else {
+            // Sem terminal (stdin fechado): só espera o Ctrl+C.
+            return tokio::signal::ctrl_c().await.map_err(|e| e.to_string());
+        };
+        let command = line.trim().to_ascii_lowercase();
+        let ok = match command.as_str() {
+            "" => continue,
+            "p" => mock.pause_champ_select(),
+            "c" => mock.resume_champ_select(),
+            "a" => mock.advance_champ_select(),
+            "d" => mock.dodge_champ_select(),
+            "r" => mock.start_champ_select(options),
+            "?" | "h" => {
+                println!("{KEYS}");
+                continue;
+            }
+            other => match other.parse::<Mode>() {
+                Ok(mode) => {
+                    options.mode = mode;
+                    mock.start_champ_select(options)
+                }
+                Err(_) => {
+                    println!("tecla desconhecida: {other}\n{KEYS}");
+                    continue;
+                }
+            },
+        };
+        if !ok {
+            println!("nenhuma seleção simulada em andamento; r recomeça");
+        }
+    }
 }
