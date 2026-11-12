@@ -6,7 +6,25 @@ Servidor falso da LCU para desenvolver e testar sem abrir o LoL (#6). Responde a
 cargo run -p mock-lcu                                   # gravação real mais nova, HTTPS
 cargo run -p mock-lcu -- --fixtures exemplo --velocidade 10 --repetir
 cargo run -p mock-lcu -- --http --porta 2999 --verbose
+cargo run -p mock-lcu -- --selecao draft --celula 0       # seleção simulada (#440)
 ```
+
+## Seleção de campeões simulada (#440)
+
+Para testar as telas da seleção sem fila no LoL real. `--selecao <modo>` sobe o mock já na seleção, montada a partir da sessão gravada, sem reproduzir a gravação. O draft anda sozinho e os outros 9 jogadores são bots, que confirmam um campeão uns 3 segundos depois de a vez abrir (`--bots <segundos>` muda isso). Os aliados mostram o hover antes.
+
+| Modo | O que simula |
+| --- | --- |
+| `draft` | Ranqueada Solo/Duo: planejamento, 10 bans simultâneos, revelação, picks 1-2-2-2-2-1, finalização |
+| `torneio` | Draft de torneio da personalizada: bans alternados um por vez em duas fases, picks em pares |
+| `blind` | Escolha às cegas: os 5 aliados escolhem juntos, sem bans |
+| `aram` | ARAM: campeões sorteados, 4 no banco e 2 rerolls |
+
+`--celula <0-4>` escolhe a sua vez na ordem de picks (0 é o primeiro pick).
+
+No terminal do mock, digite e dê Enter: `p` pausa (o tempo fica "sem limite" e os bots param), `c` continua, `a` acaba a etapa atual na hora, `d` faz dodge (volta ao lobby), `r` recomeça, e `draft`, `torneio`, `blind` ou `aram` começam outra seleção desse modo. As mesmas ações existem como rotas só do mock: `POST /mock-lcu/champ-select` com `{"mode": "draft", "cell": 0}`, `POST .../pause`, `.../resume`, `.../advance` e `DELETE /mock-lcu/champ-select`.
+
+Tempo esgotado: o seu ban sem campeão fica vazio, o seu pick com hover é confirmado e o pick sem hover é dodge. No avançar (`a`), o pick sem hover ganha um campeão qualquer. Depois da finalização vêm `GAME_STARTING`, `GameStart` e `InProgress`. A escolha às cegas, o torneio e o ARAM simulados são suposições do mock, ainda não conferidas no LoL real.
 
 Ao subir, ele mostra a porta, o lockfile e o certificado da CA. Pare com Ctrl+C; o lockfile e o certificado são apagados.
 

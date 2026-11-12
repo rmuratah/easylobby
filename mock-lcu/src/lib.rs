@@ -25,6 +25,8 @@
 //! - [`perks`]: páginas de runas: criar, editar, apagar e aplicar, e as
 //!   árvores de runas (#26).
 //! - [`custom_games`]: lista de personalizadas abertas e entrar nelas (#264).
+//! - [`scenario`]: seleção de campeões simulada e controlável, com bots,
+//!   pausa e avanço de etapa (#440).
 //! - [`swaps`]: trocas de campeão, de vez e de cargo na seleção (#25).
 //! - [`autofill`]: autofill na seleção e o aviso já mostrado (#360).
 //! - [`suggested`]: jogadores sugeridos para convidar (#377).
@@ -47,6 +49,7 @@ pub mod lobby;
 pub mod matchmaking;
 pub mod members;
 pub mod perks;
+pub mod scenario;
 pub mod state;
 pub mod suggested;
 pub mod summoner_spells;
@@ -60,7 +63,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::extract::ws::rejection::WebSocketUpgradeRejection;
@@ -118,6 +121,11 @@ pub struct Config {
     pub repeat: bool,
     /// Escreve cada requisição no stdout.
     pub verbose: bool,
+    /// Começa já numa seleção de campeões simulada (#440). Use com
+    /// [`ReplayStart::Never`], para a gravação não mexer na seleção.
+    pub champ_select: Option<scenario::Options>,
+    /// Tempos da seleção simulada.
+    pub timings: scenario::Timings,
 }
 
 impl Config {
@@ -135,6 +143,8 @@ impl Config {
             replay_start: ReplayStart::default(),
             repeat: false,
             verbose: false,
+            champ_select: None,
+            timings: scenario::Timings::default(),
         }
     }
 }
@@ -152,6 +162,8 @@ pub enum MockError {
     Write { path: PathBuf, source: io::Error },
     #[error("falha ao gerar o certificado: {0}")]
     Tls(String),
+    #[error("a gravação não tem seleção de campeões para servir de molde")]
+    NoChampSelect,
 }
 
 /// Senha aleatória como a do LoL: 16 bytes em base64url, 22 caracteres.
@@ -191,6 +203,13 @@ struct Shared {
     wamp_clients: AtomicUsize,
     /// Respostas que os testes pediram para segurar (#73).
     holds: Mutex<Vec<PendingHold>>,
+    /// Seleção de campeões simulada em andamento (#440).
+    scenario: Mutex<Option<scenario::Scenario>>,
+    /// Primeira sessão da seleção gravada, molde da simulada.
+    template: Option<Value>,
+    timings: scenario::Timings,
+    /// Marco do relógio da seleção simulada.
+    clock: Instant,
 }
 
 /// Pedido de [`MockLcu::hold`] que ainda não pegou nenhuma requisição.
@@ -247,6 +266,7 @@ pub struct MockLcu {
     handle: axum_server::Handle,
     server: Option<JoinHandle<io::Result<()>>>,
     replay: JoinHandle<()>,
+    scenario_timer: JoinHandle<()>,
     files: Vec<PathBuf>,
 }
 
@@ -258,6 +278,9 @@ impl MockLcu {
         }
         if config.password.is_empty() || config.password.contains(':') {
             return Err(MockError::InvalidPassword);
+        }
+        if config.champ_select.is_some() && scenario::template(&config.fixtures).is_none() {
+            return Err(MockError::NoChampSelect);
         }
 
         let listener =
@@ -310,7 +333,15 @@ impl MockLcu {
             queue_timer: Mutex::new(None),
             wamp_clients: AtomicUsize::new(0),
             holds: Mutex::new(Vec::new()),
+            scenario: Mutex::new(None),
+            template: scenario::template(&config.fixtures),
+            timings: config.timings,
+            clock: Instant::now(),
         });
+        if let Some(options) = config.champ_select {
+            start_scenario(&shared, options);
+        }
+        let scenario_timer = tokio::spawn(scenario_timer(Arc::downgrade(&shared)));
 
         let app = Router::new()
             .fallback(handle_request)
@@ -353,6 +384,7 @@ impl MockLcu {
             handle,
             server: Some(server),
             replay,
+            scenario_timer,
             files,
         })
     }
@@ -500,6 +532,38 @@ impl MockLcu {
         autofill::displayed(&self.shared.state()).body == true
     }
 
+    /// Começa (ou recomeça) uma seleção de campeões simulada (#440), como a
+    /// rota [`scenario::START`]. Devolve `false` se a gravação não tem
+    /// seleção para servir de molde.
+    pub fn start_champ_select(&self, options: scenario::Options) -> bool {
+        start_scenario(&self.shared, options).status == 204
+    }
+
+    /// Congela o tempo da seleção simulada. `false` sem seleção simulada.
+    pub fn pause_champ_select(&self) -> bool {
+        control_scenario(&self.shared, ScenarioControl::Pause).status == 204
+    }
+
+    /// Volta o tempo da seleção simulada. `false` sem seleção simulada.
+    pub fn resume_champ_select(&self) -> bool {
+        control_scenario(&self.shared, ScenarioControl::Resume).status == 204
+    }
+
+    /// Acaba a etapa atual da seleção simulada. `false` sem seleção simulada.
+    pub fn advance_champ_select(&self) -> bool {
+        control_scenario(&self.shared, ScenarioControl::Advance).status == 204
+    }
+
+    /// Dodge na seleção simulada. `false` sem seleção simulada.
+    pub fn dodge_champ_select(&self) -> bool {
+        control_scenario(&self.shared, ScenarioControl::Dodge).status == 204
+    }
+
+    /// Se há uma seleção simulada em andamento.
+    pub fn champ_select_running(&self) -> bool {
+        lock(&self.shared.scenario).is_some()
+    }
+
     /// Derruba os WebSockets abertos e recusa os novos, mas continua
     /// respondendo ao REST: o agente vê a conexão cair enquanto uma resposta
     /// segurada ainda está a caminho.
@@ -522,6 +586,7 @@ impl Drop for MockLcu {
         self.shared.stopped.send_replace(true);
         self.handle.shutdown();
         self.replay.abort();
+        self.scenario_timer.abort();
         stop_queue_timer(&self.shared);
         for path in &self.files {
             let _ = std::fs::remove_file(path);
@@ -588,6 +653,114 @@ async fn replay(
                 data: Value::String(initial),
             },
         );
+    }
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ScenarioControl {
+    Pause,
+    Resume,
+    Advance,
+    Dodge,
+}
+
+fn scenario_now(shared: &Shared) -> u64 {
+    u64::try_from(shared.clock.elapsed().as_millis()).unwrap_or(u64::MAX)
+}
+
+/// Aplica os eventos de um passo da seleção simulada com o estado travado
+/// (para não perder uma ação do jogador no meio) e depois manda pelo WAMP.
+fn run_step(state: &mut LcuState, step: scenario::Step) -> Vec<EventFixture> {
+    for line in &step.log {
+        println!("seleção: {line}");
+    }
+    for event in &step.events {
+        state.apply(event);
+    }
+    step.events
+}
+
+fn broadcast_all(shared: &Shared, events: Vec<EventFixture>) {
+    for event in events {
+        if shared.verbose {
+            println!("evento {} {}", event.event_type, event.uri);
+        }
+        let _ = shared.events.send(event);
+    }
+}
+
+fn start_scenario(shared: &Shared, options: scenario::Options) -> Response {
+    let Some(template) = &shared.template else {
+        return Response::error(400, "mock-lcu: a gravação não tem seleção de campeões");
+    };
+    let events = {
+        let mut slot = lock(&shared.scenario);
+        let mut state = shared.state();
+        let (scenario, step) = scenario::Scenario::start(
+            &state,
+            template,
+            options,
+            shared.timings,
+            scenario_now(shared),
+        );
+        *slot = Some(scenario);
+        run_step(&mut state, step)
+    };
+    broadcast_all(shared, events);
+    Response {
+        status: 204,
+        body: Value::Null,
+    }
+}
+
+fn control_scenario(shared: &Shared, control: ScenarioControl) -> Response {
+    let events = {
+        let mut slot = lock(&shared.scenario);
+        let Some(scenario) = slot.as_mut() else {
+            return scenario::not_running();
+        };
+        let mut state = shared.state();
+        let now = scenario_now(shared);
+        let step = match control {
+            ScenarioControl::Pause => scenario.pause(&state, now),
+            ScenarioControl::Resume => scenario.resume(&state, now),
+            ScenarioControl::Advance => scenario.advance(&state, now),
+            ScenarioControl::Dodge => scenario::dodge(&state),
+        };
+        if step.finished {
+            *slot = None;
+        }
+        run_step(&mut state, step)
+    };
+    broadcast_all(shared, events);
+    Response {
+        status: 204,
+        body: Value::Null,
+    }
+}
+
+/// Anda a seleção simulada a cada 100 ms: bots agem e etapas acabam.
+async fn scenario_timer(weak: std::sync::Weak<Shared>) {
+    loop {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let Some(shared) = weak.upgrade() else { return };
+        let events = {
+            let mut slot = lock(&shared.scenario);
+            let Some(scenario) = slot.as_mut() else {
+                continue;
+            };
+            let mut state = shared.state();
+            let step = scenario.tick(&state, scenario_now(&shared));
+            if step.finished {
+                *slot = None;
+            }
+            run_step(&mut state, step)
+        };
+        broadcast_all(&shared, events);
     }
 }
 
@@ -1121,6 +1294,18 @@ async fn handle_request(
                 None => Response::error(404, format!("mock-lcu: {path} não existe")),
             }
         }
+        // Seleção de campeões simulada (#440).
+        (&Method::POST, scenario::START) => {
+            let body = read_json(request).await;
+            match scenario::Options::from_json(&body) {
+                Ok(options) => start_scenario(&shared, options),
+                Err(message) => Response::error(400, format!("mock-lcu: {message}")),
+            }
+        }
+        (&Method::DELETE, scenario::START) => control_scenario(&shared, ScenarioControl::Dodge),
+        (&Method::POST, scenario::PAUSE) => control_scenario(&shared, ScenarioControl::Pause),
+        (&Method::POST, scenario::RESUME) => control_scenario(&shared, ScenarioControl::Resume),
+        (&Method::POST, scenario::ADVANCE) => control_scenario(&shared, ScenarioControl::Advance),
         (&Method::GET, _) => shared.state().get(&path),
         _ => Response::error(
             501,
