@@ -73,20 +73,22 @@ export function blockingMembers(lobby: Lobby | null): Map<string, string[]> {
 /**
  * Escolhas obrigatórias que faltam antes da busca (#334): posições primária e
  * secundária (Alternada e ranqueadas) e as duas posições com campeão (Jogo
- * Dinâmico), de cada membro. Vazia quando não falta nada. A ordem das 5
- * posições do Rift Clássico (#230) ainda não tem tela e fica de fora.
+ * Dinâmico) e a ordem das 5 posições ou "Qualquer posição" (Rift Clássico,
+ * #230), de cada membro. Vazia quando não falta nada.
  */
 export function pendingChoices(lobby: Lobby | null, me: string | undefined, nameOf: (member: LobbyMember) => string): string[] {
   if (!lobby || lobby.custom) return [];
   const missing = lobby.members.filter(member => {
     if (lobby.showQuickPlaySlots) return !draftComplete(draftFromSlots(member.playerSlots));
-    if (lobby.showPositionSelector && !lobby.orderedPositions) {
+    if (lobby.showPositionSelector && lobby.orderedPositions) return member.positionOrder.length === 0;
+    if (lobby.showPositionSelector) {
       const { firstPosition: first, secondPosition: second } = member;
       return first === 'unselected' || (first !== 'fill' && second === 'unselected');
     }
     return false;
   });
-  const what = lobby.showQuickPlaySlots ? 'as duas posições e um campeão para cada uma' : 'as posições primária e secundária';
+  const what = lobby.showQuickPlaySlots ? 'as duas posições e um campeão para cada uma'
+    : lobby.orderedPositions ? 'as preferências de posição' : 'as posições primária e secundária';
   return missing.map(member => member.puuid === me ? `Escolha ${what}.` : `${nameOf(member)} ainda não escolheu ${what}.`);
 }
 
