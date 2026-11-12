@@ -8,7 +8,10 @@
 //! - As rotas de cada campeão (#250) saem das posições recomendadas que o
 //!   client usa para sugerir runas:
 //!   `/lol-perks/v1/recommended-champion-positions`. Se a LCU não mandar, as
-//!   listas ficam vazias e a UI esconde o filtro de rota.
+//!   listas ficam vazias e a UI esconde o filtro de rota. As versões de modo
+//!   dos campeões, como a `Jade_Aatrox` (id 60266) do Rift Clássico, não vêm
+//!   nessa lista: ficam com as rotas do campeão base (#279), achado pelo
+//!   apelido sem o prefixo do modo.
 //! - Durante a seleção, a LCU diz quais campeões o jogador pode escolher
 //!   (`/lol-champ-select/v1/pickable-champion-ids`: os dele e os da rotação
 //!   gratuita) e quais pode banir
@@ -95,7 +98,8 @@ impl ChampionCatalog {
     /// Põe em cada campeão as rotas de `recommended-champion-positions`
     /// (#250). Aceita o valor de cada id como objeto
     /// (`{"recommendedPositions": ["TOP"]}`) ou como a lista direto. Nomes
-    /// desconhecidos, `FILL` e repetidos ficam de fora.
+    /// desconhecidos, `FILL` e repetidos ficam de fora. As versões de modo
+    /// sem rotas próprias ficam com as do campeão base (#279).
     pub fn with_positions(mut self, recommended: &Value) -> Self {
         let Some(by_id) = recommended.as_object() else {
             return self;
@@ -110,7 +114,39 @@ impl ChampionCatalog {
                 .unwrap_or(entry);
             champion.positions = positions_from_json(list);
         }
+        self.inherit_base_positions();
         self
+    }
+
+    /// Dá a cada versão de modo sem rotas (`Jade_Aatrox`, id 60266) as rotas
+    /// do campeão base (#279). O base é o do apelido sem o prefixo
+    /// (`Aatrox`) ou, se o apelido não bater, o do id sem o milhar do modo
+    /// (`60266 % 1000` = 266). Sem isso, o filtro de rota da seleção do Rift
+    /// Clássico esvazia a grade, se a seleção oferecer essas versões.
+    fn inherit_base_positions(&mut self) {
+        let inherited: Vec<(usize, Vec<Position>)> = self
+            .champions
+            .iter()
+            .enumerate()
+            .filter(|(_, champion)| champion.positions.is_empty())
+            .filter_map(|(index, champion)| {
+                let (_, base_alias) = champion.alias.split_once('_')?;
+                let base = self
+                    .champions
+                    .iter()
+                    .find(|c| c.alias == base_alias)
+                    .or_else(|| {
+                        (champion.id >= 1000)
+                            .then(|| self.get(champion.id % 1000))
+                            .flatten()
+                            .filter(|c| !c.alias.contains('_'))
+                    })?;
+                (!base.positions.is_empty()).then(|| (index, base.positions.clone()))
+            })
+            .collect();
+        for (index, positions) in inherited {
+            self.champions[index].positions = positions;
+        }
     }
 }
 
@@ -316,6 +352,46 @@ mod tests {
             serde_json::to_value(catalog.get(1).unwrap()).unwrap()["positions"],
             json!(["middle", "utility"])
         );
+    }
+
+    #[test]
+    fn versoes_de_modo_herdam_as_rotas_do_campeao_base() {
+        let summary = json!([
+            {"id": 266, "name": "Aatrox", "alias": "Aatrox"},
+            {"id": 60266, "name": "Aatrox", "alias": "Jade_Aatrox"},
+            {"id": 4, "name": "Twisted Fate", "alias": "TwistedFate"},
+            {"id": 60004, "name": "Twisted Fate", "alias": "Jade_TwistedFate"},
+            // Apelido que não bate: vale o id sem o milhar do modo.
+            {"id": 1, "name": "Annie", "alias": "Annie"},
+            {"id": 60001, "name": "Annie", "alias": "Jade_AnnieNova"},
+            // Com rotas próprias, a versão de modo fica com as dela.
+            {"id": 103, "name": "Ahri", "alias": "Ahri"},
+            {"id": 60103, "name": "Ahri", "alias": "Jade_Ahri"},
+            // Base sem rotas: continua vazia.
+            {"id": 99, "name": "Lux", "alias": "Lux"},
+            {"id": 60099, "name": "Lux", "alias": "Jade_Lux"},
+            // Sem campeão base no catálogo.
+            {"id": 60950, "name": "Novo", "alias": "Jade_Novo"},
+        ]);
+        let recommended = json!({
+            "266": ["TOP"],
+            "4": ["MIDDLE", "BOTTOM"],
+            "1": ["MIDDLE"],
+            "103": ["MIDDLE"],
+            "60103": ["UTILITY"],
+        });
+        let catalog = ChampionCatalog::from_json(&summary)
+            .unwrap()
+            .with_positions(&recommended);
+        assert_eq!(catalog.get(60266).unwrap().positions, [Position::Top]);
+        assert_eq!(
+            catalog.get(60004).unwrap().positions,
+            [Position::Middle, Position::Bottom]
+        );
+        assert_eq!(catalog.get(60001).unwrap().positions, [Position::Middle]);
+        assert_eq!(catalog.get(60103).unwrap().positions, [Position::Utility]);
+        assert!(catalog.get(60099).unwrap().positions.is_empty());
+        assert!(catalog.get(60950).unwrap().positions.is_empty());
     }
 
     #[test]
