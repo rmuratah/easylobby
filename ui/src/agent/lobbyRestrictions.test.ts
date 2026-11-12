@@ -81,9 +81,15 @@ describe('escolhas que faltam antes da busca (#334)', () => {
     ] };
     expect(pendingChoices(lobby, 'local', nameOf)).toEqual(['Escolha as duas posições e um campeão para cada uma.']);
   });
-  it('não pede nada sem seletor, na ordem das 5 posições e na personalizada', () => {
+  it('pede as preferências de posição no Rift Clássico (#230)', () => {
+    const lobby: Lobby = { ...testLobby, orderedPositions: true, members: [
+      member({}), member({ puuid: 'amigo', summonerId: 2, positionOrder: ['fill'] }),
+      member({ puuid: 'outro', summonerId: 3, positionOrder: ['middle', 'top', 'jungle', 'bottom', 'utility'] }),
+    ] };
+    expect(pendingChoices(lobby, 'local', nameOf)).toEqual(['Escolha as preferências de posição.']);
+  });
+  it('não pede nada sem seletor e na personalizada', () => {
     expect(pendingChoices({ ...testLobby, showPositionSelector: false }, 'local', nameOf)).toEqual([]);
-    expect(pendingChoices({ ...testLobby, orderedPositions: true }, 'local', nameOf)).toEqual([]);
     expect(pendingChoices(null, 'local', nameOf)).toEqual([]);
   });
 });

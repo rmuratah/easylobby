@@ -23,6 +23,7 @@ import { LobbyLinkButton } from './LobbyLinkButton';
 import { LobbyMemberMenu } from './LobbyMemberMenu';
 import { PracticeLobby } from './PracticeLobby';
 import { ArenaTeams } from './ArenaTeams';
+import { MemberPositionOrder, PositionOrderCard } from './PositionOrder';
 import { isTutorialQueue } from '../agent/training';
 import { useDismiss } from '../agent/useDismiss';
 import { awayMembers, blockingMembers } from '../agent/lobbyRestrictions';
@@ -401,7 +402,9 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
                 <QuickPlaySlots key={`${lobby.queueId}:${member.puuid}`} member={member} mine={me} canEdit={canSetSlots}
                   state={state} send={send} notes={me ? slotNotes : undefined} />
               )}
-              {lobby.showPositionSelector && (
+              {/* Rift Clássico (#230): a 1ª preferência em destaque e as outras em ordem. */}
+              {lobby.showPositionSelector && lobby.orderedPositions && <MemberPositionOrder member={member} name={name} />}
+              {lobby.showPositionSelector && !lobby.orderedPositions && (
                 <ul aria-label={`Posições de ${name}`} className="flex w-36 shrink-0 flex-col gap-2 @min-[52rem]:w-52">
                   {[member.firstPosition, member.secondPosition].map((position, slot) => (
                     <li key={slot} className={cx('flex items-center gap-2 rounded-tile px-3 py-2 text-body font-medium',
@@ -448,7 +451,9 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
 
       {/* Fila sem posições (ARAM, Arena, Co-op, eventos): nada no lugar, como no client oficial. A fila troca pelo "Trocar modo" (#231). */}
       <div className="grid items-stretch gap-4">
-        {lobby.showPositionSelector ? (
+        {lobby.showPositionSelector && lobby.orderedPositions ? (
+          <PositionOrderCard member={localMember} scarce={scarce} canEdit={canSetPositions} send={send} />
+        ) : lobby.showPositionSelector ? (
           <fieldset className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface card p-4 shadow-soft animate-fade-up" disabled={!canSetPositions}>
             <legend className="sr-only">Suas posições</legend>
             <h3 aria-hidden="true" className="px-1 text-section font-semibold">Suas posições</h3>
