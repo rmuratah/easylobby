@@ -10,14 +10,8 @@
   --el-shadow-glow: 0 10px 30px -10px color-mix(in oklab, var(--el-palette-primary-default) 55%, transparent);
   --el-glass: color-mix(in oklab, var(--el-surface) 72%, transparent);
   --el-glass-line: color-mix(in oklab, var(--el-surface) 70%, transparent);
-  /*
-   * Detalhes dos cards: borda levemente esmeralda e luz interna (brilho suave vindo do topo,
-   * linha de luz na borda superior e um véu esmeralda bem leve nas bordas). Sem sombra externa.
-   */
-  --el-edge: color-mix(in oklab, var(--el-line) 84%, var(--el-palette-emerald-default));
-  --el-card-sheen: color-mix(in oklab, var(--el-palette-emerald-default) 6%, transparent);
-  --el-card-light: inset 0 1px 0 rgb(255 255 255 / 0.9),
-    inset 0 0 32px -12px color-mix(in oklab, var(--el-palette-emerald-default) 18%, transparent);
+  --el-edge: var(--el-line);
+  --el-spotlight-color: color-mix(in oklab, var(--el-palette-emerald-default) 10%, transparent);
 }
 
 [data-theme="escuro"] {
@@ -26,10 +20,8 @@
   --el-shadow-glow: 0 10px 32px -10px color-mix(in oklab, var(--el-palette-primary-default) 55%, transparent);
   --el-glass: color-mix(in oklab, var(--el-surface) 60%, transparent);
   --el-glass-line: rgb(255 255 255 / 0.1);
-  --el-edge: color-mix(in oklab, var(--el-line) 82%, var(--el-palette-emerald-default));
-  --el-card-sheen: color-mix(in oklab, var(--el-palette-emerald-default) 8%, transparent);
-  --el-card-light: inset 0 1px 0 rgb(255 255 255 / 0.07),
-    inset 0 0 36px -14px color-mix(in oklab, var(--el-palette-emerald-default) 22%, transparent);
+  --el-edge: var(--el-line);
+  --el-spotlight-color: color-mix(in oklab, var(--el-palette-emerald-default) 9%, transparent);
 }
 
 @theme {
@@ -56,17 +48,30 @@
   border: 1px solid var(--el-edge);
 }
 
-/*
- * Luz interna dos cards: brilho suave que desce do topo, linha de luz na borda superior e um
- * véu esmeralda leve nas bordas. Os cards não têm sombra externa: --tw-shadow é zerado aqui
- * para anular shadow-soft, shadow-lift ou qualquer sombra que o elemento tenha.
- */
+/* Cards neutros em repouso. O spotlight é decorativo e não bloqueia cliques. */
 @utility card {
-  background-image: radial-gradient(90% 60% at 50% 0%, var(--el-card-sheen), transparent 70%);
-  --tw-inset-shadow: var(--el-card-light);
+  position: relative;
   --tw-shadow: 0 0 #0000 !important;
-  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000),
-    var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
+  box-shadow: var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+
+@layer utilities {
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      background: radial-gradient(260px circle at var(--el-spotlight-x, 50%) var(--el-spotlight-y, 50%),
+        var(--el-spotlight-color), transparent 75%);
+      opacity: 0;
+      transition: opacity 180ms ease;
+    }
+    .card[data-spotlight]::after { opacity: 1; }
+    .app-sidebar .card::after { content: none; }
+  }
 }
 
 /* Vidro fosco sobre o fundo decorado do cartão principal. */
