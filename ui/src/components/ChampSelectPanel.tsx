@@ -425,9 +425,9 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect, foote
           </ul>
         )}
       </div>
-      {!state.championCatalog ? <p className="text-body text-muted">Carregando campeões…</p>
-        : shown.length === 0 ? <p className="text-body text-muted">{query || activeLane ? 'Nenhum campeão encontrado.' : 'Nenhum campeão disponível.'}</p> : (
-          <ul className="champion-grid" aria-label="Grade de campeões">
+      {!state.championCatalog ? <p className="champion-grid-area text-body text-muted">Carregando campeões…</p>
+        : shown.length === 0 ? <p className="champion-grid-area text-body text-muted">{query || activeLane ? 'Nenhum campeão encontrado.' : 'Nenhum campeão disponível.'}</p> : (
+          <ul className="champion-grid champion-grid-area" aria-label="Grade de campeões">
             {shown.map(({ champion, available }) => (
               <li key={champion.id}>
                 <button type="button" aria-pressed={selected === champion.id} disabled={!available || !onSelect}
@@ -442,7 +442,7 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect, foote
             ))}
           </ul>
         )}
-      {footer && <div className="flex justify-center border-t border-line pt-3 empty:hidden">{footer}</div>}
+      {footer && <div className="flex min-h-[5.25rem] items-start justify-center border-t border-line pt-3">{footer}</div>}
     </section>
   );
 }
