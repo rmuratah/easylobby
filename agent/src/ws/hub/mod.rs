@@ -561,8 +561,8 @@ impl Hub {
                 if let Some(phase) = GameflowPhase::from_json(&event.data) {
                     let before = self.lock().state.gameflow_phase;
                     self.set_gameflow_phase(Some(phase));
-                    // O LoL reabre a UI oficial na partida encontrada e na
-                    // seleção (#188).
+                    // O LoL reabre a UI oficial na partida encontrada, na
+                    // seleção (#188) e quando o jogo fecha (#448).
                     if before != Some(phase) && ux_guard::reopens_ux(Some(phase)) {
                         self.guard_ux();
                     }

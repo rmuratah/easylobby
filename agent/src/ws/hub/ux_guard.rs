@@ -9,8 +9,16 @@
 //! arma uma sequência curta de `kill-ux` (que não faz mal com a UI já
 //! fechada), porque a UI leva alguns segundos para subir. A guarda desliga
 //! quando o jogador reabre a UI pelo botão de emergência (`launchUx`) e
-//! quando a conexão cai, e só age nas fases que o app cobre: no pós-jogo, por
-//! exemplo, a UI oficial fica como estiver (#180).
+//! quando a conexão cai, e só age nas fases que o app cobre.
+//!
+//! No pós-jogo (`WaitingForStats`, `PreEndOfGame`, `EndOfGame`) o app tem
+//! tela própria (#180), e o LoL sobe a UI de novo assim que o jogo fecha: a
+//! guarda fecha a UI ao entrar em `WaitingForStats` (#448).
+//!
+//! Quando o jogo fecha, o LoL passa uns segundos em `Reconnect` antes do
+//! pós-jogo, já com a UI de pé. Ali a UI não é fechada, porque é por ela que
+//! o jogador reconecta se o jogo caiu, mas a janela fica escondida enquanto a
+//! fase durar (#448). O botão de emergência mostra a janela de novo.
 //!
 //! Durante a partida (`InProgress`) a guarda também fecha a UI (#349): ela
 //! sobe no fim da seleção (veja abaixo) e o LoL a mostra na partida. É o que
@@ -35,7 +43,9 @@
 //! que caia na passagem para `GAME_STARTING` vira esquiva do jogador, sem
 //! mensagem nenhuma. Nos últimos [`SPARE_BEFORE_GAME`] da finalização e no
 //! `GAME_STARTING` a janela só fica escondida; a UI é fechada de novo quando
-//! a partida começa (`InProgress`) e quando o jogador volta ao lobby.
+//! a partida começa (`InProgress`) e quando o jogador volta ao lobby. Como o
+//! LoL sobe a UI nesse fim sem aviso garantido, a sequência armada na
+//! seleção segue escondendo a janela até a seleção acabar (#448).
 
 use std::time::Duration;
 
@@ -86,7 +96,13 @@ pub(super) struct UxGuard {
 pub(super) fn reopens_ux(phase: Option<GameflowPhase>) -> bool {
     matches!(
         phase,
-        Some(GameflowPhase::ReadyCheck | GameflowPhase::ChampSelect | GameflowPhase::InProgress)
+        Some(
+            GameflowPhase::ReadyCheck
+                | GameflowPhase::ChampSelect
+                | GameflowPhase::InProgress
+                | GameflowPhase::Reconnect
+                | GameflowPhase::WaitingForStats
+        )
     )
 }
 
@@ -111,7 +127,21 @@ fn covered(phase: Option<GameflowPhase>) -> bool {
                 | GameflowPhase::ReadyCheck
                 | GameflowPhase::ChampSelect
                 | GameflowPhase::InProgress
+                | GameflowPhase::WaitingForStats
+                | GameflowPhase::PreEndOfGame
+                | GameflowPhase::EndOfGame
         )
+    )
+}
+
+/// Fases em que a sequência da guarda segue escondendo a janela depois do
+/// último passo: na seleção o LoL ainda sobe a UI antes da partida, e ali
+/// ela só pode ser escondida (#342); na reconexão a UI fica para o jogador
+/// reconectar, mas escondida (#448).
+fn hides_until_game(phase: Option<GameflowPhase>) -> bool {
+    matches!(
+        phase,
+        Some(GameflowPhase::ChampSelect | GameflowPhase::GameStart | GameflowPhase::Reconnect)
     )
 }
 
@@ -136,11 +166,32 @@ pub(super) fn game_starting(champ_select: Option<&ChampSelect>, now_ms: u64) -> 
 /// Se a guarda pode fechar a UI agora: numa fase que o app cobre e fora do
 /// fim da seleção.
 fn may_kill(shared: &super::Shared) -> bool {
-    covered(shared.state.gameflow_phase)
-        && !game_starting(
-            shared.state.champ_select.as_ref(),
-            crate::champ_select::now_ms(),
-        )
+    covered(shared.state.gameflow_phase) && !game_starting_now(shared)
+}
+
+/// [`game_starting`] com a seleção atual, agora.
+fn game_starting_now(shared: &super::Shared) -> bool {
+    game_starting(
+        shared.state.champ_select.as_ref(),
+        crate::champ_select::now_ms(),
+    )
+}
+
+/// Intervalo em que a sequência confere se ainda precisa esconder a janela
+/// depois do último `kill-ux`.
+pub(super) const HIDE_CHECK_EVERY: Duration = Duration::from_millis(500);
+
+/// O que um passo da sequência da guarda faz.
+#[derive(Debug, PartialEq, Eq)]
+enum GuardStep {
+    /// A sequência acabou: a guarda desligou, uma sequência mais nova
+    /// assumiu, a conexão mudou ou a fase não é do app.
+    Stop,
+    /// Fim da seleção (#342) ou reconexão (#448): a UI não pode ser
+    /// fechada, só escondida.
+    Hide,
+    /// Fechar a UI agora.
+    Kill,
 }
 
 impl Hub {
@@ -175,13 +226,30 @@ impl Hub {
             // A UI leva alguns segundos para subir e fechar: escondida, o
             // jogador não a vê nesse meio-tempo.
             let hider = hub.start_hiding();
+            let mut stopped = false;
             for delay in RECLOSE_AFTER {
                 tokio::time::sleep_until(start + delay).await;
-                if !hub.still_guarding(session, generation) {
-                    break;
+                match hub.guard_step(session, generation) {
+                    GuardStep::Stop => {
+                        stopped = true;
+                        break;
+                    }
+                    // Fim da seleção ou reconexão: só esconde.
+                    GuardStep::Hide => {}
+                    // Uma falha não importa: a próxima tentativa cobre.
+                    GuardStep::Kill => {
+                        let _ = ux::kill_ux(&client).await;
+                    }
                 }
-                // Uma falha não importa: a próxima tentativa cobre.
-                let _ = ux::kill_ux(&client).await;
+            }
+            // Na seleção o LoL sobe a UI uns 10 s antes da partida, quando
+            // ela só pode ser escondida, e na reconexão ela fica: segue
+            // escondendo até a fase acabar. A fase seguinte (`InProgress`,
+            // `WaitingForStats`) arma uma sequência nova (#448).
+            if !stopped && hider.is_some() {
+                while hub.keeps_hiding(session, generation) {
+                    tokio::time::sleep(HIDE_CHECK_EVERY).await;
+                }
             }
             hub.stop_hiding(hider, false);
         });
@@ -273,13 +341,37 @@ impl Hub {
         ScheduledKill::Kill
     }
 
-    /// Se a sequência `generation` da conexão `session` ainda deve fechar a UI.
-    fn still_guarding(&self, session: u64, generation: u64) -> bool {
-        let shared = self.lock();
+    /// Se a sequência `generation` da conexão `session` ainda vale.
+    fn sequence_current(shared: &super::Shared, session: u64, generation: u64) -> bool {
         shared.ux_guard.active
             && shared.ux_guard.generation == generation
             && shared.session == session
-            && may_kill(&shared)
+    }
+
+    /// O que o próximo passo da sequência `generation` da conexão `session`
+    /// faz.
+    fn guard_step(&self, session: u64, generation: u64) -> GuardStep {
+        let shared = self.lock();
+        let phase = shared.state.gameflow_phase;
+        if !Self::sequence_current(&shared, session, generation) {
+            GuardStep::Stop
+        } else if phase == Some(GameflowPhase::Reconnect) {
+            GuardStep::Hide
+        } else if !covered(phase) {
+            GuardStep::Stop
+        } else if game_starting_now(&shared) {
+            GuardStep::Hide
+        } else {
+            GuardStep::Kill
+        }
+    }
+
+    /// Se a sequência `generation` ainda deve esconder a janela depois do
+    /// último passo: enquanto vale e a seleção não acabou.
+    fn keeps_hiding(&self, session: u64, generation: u64) -> bool {
+        let shared = self.lock();
+        Self::sequence_current(&shared, session, generation)
+            && hides_until_game(shared.state.gameflow_phase)
     }
 }
 
@@ -308,6 +400,9 @@ mod tests {
         assert!(reopens_ux(Some(GameflowPhase::ChampSelect)));
         // A UI sobe no fim da seleção e o LoL a mostra na partida (#349).
         assert!(reopens_ux(Some(GameflowPhase::InProgress)));
+        // E sobe de novo quando o jogo fecha (#448).
+        assert!(reopens_ux(Some(GameflowPhase::Reconnect)));
+        assert!(reopens_ux(Some(GameflowPhase::WaitingForStats)));
         assert!(!reopens_ux(Some(GameflowPhase::GameStart)));
         assert!(!reopens_ux(Some(GameflowPhase::Matchmaking)));
         assert!(!reopens_ux(None));
@@ -317,20 +412,91 @@ mod tests {
             GameflowPhase::ReadyCheck,
             GameflowPhase::ChampSelect,
             GameflowPhase::InProgress,
-        ] {
-            assert!(covered(Some(phase)), "{phase:?}");
-        }
-        // Abrindo a partida, na reconexão e no pós-jogo a UI oficial fica
-        // como estiver.
-        for phase in [
-            GameflowPhase::GameStart,
-            GameflowPhase::Reconnect,
+            // O pós-jogo tem tela própria (#180, #448).
             GameflowPhase::WaitingForStats,
             GameflowPhase::PreEndOfGame,
             GameflowPhase::EndOfGame,
         ] {
+            assert!(covered(Some(phase)), "{phase:?}");
+        }
+        // Abrindo a partida e na reconexão a UI oficial fica como estiver.
+        for phase in [GameflowPhase::GameStart, GameflowPhase::Reconnect] {
             assert!(!covered(Some(phase)), "{phase:?}");
         }
+        // A seleção, a abertura da partida e a reconexão seguram o
+        // esconderijo.
+        assert!(hides_until_game(Some(GameflowPhase::ChampSelect)));
+        assert!(hides_until_game(Some(GameflowPhase::GameStart)));
+        assert!(hides_until_game(Some(GameflowPhase::Reconnect)));
+        assert!(!hides_until_game(Some(GameflowPhase::InProgress)));
+        assert!(!hides_until_game(Some(GameflowPhase::Lobby)));
+        assert!(!hides_until_game(None));
+    }
+
+    /// Liga a guarda numa conexão e devolve a sequência atual.
+    fn sequencia(hub: &Hub, phase: GameflowPhase) -> (u64, u64) {
+        let mut shared = hub.lock();
+        shared.ux_guard.active = true;
+        shared.ux_guard.generation += 1;
+        shared.state.gameflow_phase = Some(phase);
+        (shared.session, shared.ux_guard.generation)
+    }
+
+    #[test]
+    fn fim_da_selecao_so_esconde_e_segue_escondendo() {
+        let hub = Hub::new();
+        let (session, generation) = sequencia(&hub, GameflowPhase::ChampSelect);
+        assert_eq!(hub.guard_step(session, generation), GuardStep::Kill);
+
+        // Faltando 10 s para a partida: não fecha, mas não para (#342, #448).
+        let agora = crate::champ_select::now_ms();
+        let mut raw = champ_select("FINALIZATION", 1);
+        raw["timer"]["adjustedTimeLeftInPhase"] = json!(10_000);
+        hub.lock().state.champ_select = Some(ChampSelect::from_json_at(&raw, agora).unwrap());
+        assert_eq!(hub.guard_step(session, generation), GuardStep::Hide);
+        assert!(hub.keeps_hiding(session, generation));
+
+        // A partida começou: a sequência da seleção para de esconder.
+        hub.lock().state.gameflow_phase = Some(GameflowPhase::InProgress);
+        assert!(!hub.keeps_hiding(session, generation));
+    }
+
+    #[test]
+    fn pos_jogo_fecha_a_ui_e_reconexao_so_esconde() {
+        let hub = Hub::new();
+        for phase in [
+            GameflowPhase::WaitingForStats,
+            GameflowPhase::PreEndOfGame,
+            GameflowPhase::EndOfGame,
+        ] {
+            let (session, generation) = sequencia(&hub, phase);
+            assert_eq!(hub.guard_step(session, generation), GuardStep::Kill);
+            assert!(!hub.keeps_hiding(session, generation), "{phase:?}");
+        }
+        // Na reconexão a UI fica, escondida, até a fase acabar.
+        let (session, generation) = sequencia(&hub, GameflowPhase::Reconnect);
+        assert_eq!(hub.guard_step(session, generation), GuardStep::Hide);
+        assert!(hub.keeps_hiding(session, generation));
+        hub.lock().state.gameflow_phase = Some(GameflowPhase::WaitingForStats);
+        assert!(!hub.keeps_hiding(session, generation));
+        // Fora das fases do app a sequência para.
+        let (session, generation) = sequencia(&hub, GameflowPhase::GameStart);
+        assert_eq!(hub.guard_step(session, generation), GuardStep::Stop);
+    }
+
+    #[test]
+    fn sequencia_velha_ou_guarda_desligada_param() {
+        let hub = Hub::new();
+        let (session, generation) = sequencia(&hub, GameflowPhase::ChampSelect);
+        // Uma sequência mais nova assumiu.
+        hub.lock().ux_guard.generation += 1;
+        assert_eq!(hub.guard_step(session, generation), GuardStep::Stop);
+        assert!(!hub.keeps_hiding(session, generation));
+
+        let (session, generation) = sequencia(&hub, GameflowPhase::ChampSelect);
+        hub.lock().ux_guard.active = false;
+        assert_eq!(hub.guard_step(session, generation), GuardStep::Stop);
+        assert!(!hub.keeps_hiding(session, generation));
     }
 
     fn selecao(phase: &str, left_ms: u32) -> ChampSelect {
