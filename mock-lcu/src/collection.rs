@@ -13,6 +13,11 @@
 //!   conta tem o primeiro quando tem a skin 2 (só nos campeões de `id`
 //!   múltiplo de 5).
 //!
+//! As imagens das skins (#489) também: `GET /lol-game-data/assets/v1/champions/{id}.json`
+//! sai da gravação ou de um sintético com as mesmas skins, e os caminhos das
+//! imagens apontam para [`SKIN_IMAGE_PREFIX`], onde o mock desenha um SVG
+//! com o nome da skin.
+//!
 //! Os nomes das skins sintéticas são de mentira, e os `id`s nem sempre
 //! existem no jogo (a imagem pode faltar). O `summonerId` do caminho não é
 //! conferido.
@@ -24,6 +29,80 @@ use crate::state::{LcuState, Response};
 
 /// Começo das rotas do inventário.
 pub const INVENTORIES_PREFIX: &str = "/lol-champions/v1/inventories/";
+
+/// Começo de `v1/champions/{id}.json` no game-data.
+pub const CHAMPION_GAME_DATA_PREFIX: &str = "/lol-game-data/assets/v1/champions/";
+
+/// Começo das imagens falsas de skin: `.../{id}/{splash|loadscreen|chroma}.svg`.
+pub const SKIN_IMAGE_PREFIX: &str = "/lol-game-data/assets/mock/skins/";
+
+/// O `id` de `/lol-game-data/assets/v1/champions/{id}.json`.
+pub fn champion_game_data_id(path: &str) -> Option<u32> {
+    path.strip_prefix(CHAMPION_GAME_DATA_PREFIX)?
+        .strip_suffix(".json")?
+        .parse()
+        .ok()
+}
+
+/// `GET /lol-game-data/assets/v1/champions/{id}.json`: o gravado ou o
+/// sintético, com as skins de [`synthetic_skins`] e as imagens falsas.
+pub fn champion_game_data(state: &LcuState, path: &str, id: u32) -> Response {
+    let recorded = state.get(path);
+    if recorded.status == 200 {
+        return recorded;
+    }
+    let summary = champions::game_data(state).body;
+    let Some(champion) = summary
+        .as_array()
+        .and_then(|list| list.iter().find(|c| champion_id(c) == id))
+    else {
+        return Response::error(404, "mock-lcu: campeão não encontrado");
+    };
+    let image = |id: &Value, kind: &str| format!("{SKIN_IMAGE_PREFIX}{id}/{kind}.svg");
+    let skins: Vec<Value> = synthetic_skins(champion, true)
+        .into_iter()
+        .map(|skin| {
+            let chromas: Vec<Value> = skin["chromas"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|c| json!({"id": c["id"], "name": c["name"], "chromaPath": image(&c["id"], "chroma")}))
+                .collect();
+            json!({
+                "id": skin["id"],
+                "name": skin["name"],
+                "isBase": skin["isBase"],
+                "splashPath": image(&skin["id"], "splash"),
+                "loadScreenPath": image(&skin["id"], "loadscreen"),
+                "chromas": chromas,
+            })
+        })
+        .collect();
+    Response {
+        status: 200,
+        body: json!({"id": id, "name": champion["name"], "alias": champion["alias"], "skins": skins}),
+    }
+}
+
+/// SVG da imagem falsa em `path` ([`SKIN_IMAGE_PREFIX`]), com o id da skin
+/// escrito. `None` para outro caminho.
+pub fn skin_image_svg(path: &str) -> Option<String> {
+    let rest = path.strip_prefix(SKIN_IMAGE_PREFIX)?;
+    let (id, kind) = rest.split_once('/')?;
+    let id: u32 = id.parse().ok()?;
+    let (width, height) = match kind {
+        "splash.svg" => (1215, 717),
+        "loadscreen.svg" => (308, 560),
+        "chroma.svg" => (270, 303),
+        _ => return None,
+    };
+    // Uma cor por skin, para dar para ver a troca.
+    let hue = (id % 1000) * 67 % 360;
+    Some(format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl({hue},60%,45%)"/><stop offset="1" stop-color="hsl({hue},60%,15%)"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="{size}" fill="white">skin {id}</text></svg>"##,
+        size = width / 8,
+    ))
+}
 
 /// Qual rota do inventário foi pedida.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -221,6 +300,36 @@ mod tests {
         assert_eq!(collection.total_skins, collection.total_champions * 3);
         assert!(collection.owned_skins > 0);
         assert!(collection.champions.iter().any(|c| c.free_to_play));
+    }
+
+    #[test]
+    fn imagens_sinteticas_das_skins() {
+        let state = state();
+        assert_eq!(
+            champion_game_data_id("/lol-game-data/assets/v1/champions/266.json"),
+            Some(266)
+        );
+        assert_eq!(
+            champion_game_data_id("/lol-game-data/assets/v1/champions/x.json"),
+            None
+        );
+        let path = "/lol-game-data/assets/v1/champions/266.json";
+        let body = champion_game_data(&state, path, 266).body;
+        let skins = body["skins"].as_array().unwrap();
+        assert_eq!(skins.len(), 4);
+        assert_eq!(
+            skins[1]["splashPath"],
+            "/lol-game-data/assets/mock/skins/266001/splash.svg"
+        );
+        assert_eq!(
+            skins[2]["chromas"][0]["chromaPath"],
+            "/lol-game-data/assets/mock/skins/266020/chroma.svg"
+        );
+        assert_eq!(champion_game_data(&state, "/x", 999_999).status, 404);
+        let svg = skin_image_svg("/lol-game-data/assets/mock/skins/266001/splash.svg").unwrap();
+        assert!(svg.starts_with("<svg") && svg.contains("skin 266001"));
+        assert!(skin_image_svg("/lol-game-data/assets/mock/skins/266001/x.svg").is_none());
+        assert!(skin_image_svg("/lol-game-data/assets/mock/skins/abc/splash.svg").is_none());
     }
 
     #[test]

@@ -854,6 +854,13 @@ async fn handle_request(
             .on_upgrade(move |socket| serve_wamp(shared, socket));
     }
 
+    // Imagens falsas das skins (#489): SVG, não JSON.
+    if method == Method::GET {
+        if let Some(svg) = collection::skin_image_svg(request.uri().path()) {
+            return ([(header::CONTENT_TYPE, "image/svg+xml")], svg).into_response();
+        }
+    }
+
     let response = match (&method, path.as_str()) {
         // Lobby (#17): mudam o estado e avisam pelo WAMP, como a LCU.
         (&Method::POST, lobby::LOBBY) => {
@@ -1146,6 +1153,11 @@ async fn handle_request(
         (&Method::GET, p) if collection::parse_route(p).is_some() => {
             let route = collection::parse_route(p).unwrap_or(collection::Route::Champions);
             collection::get(&shared.state(), &path, route)
+        }
+        // Dados de um campeão, com os caminhos das imagens das skins (#489).
+        (&Method::GET, p) if collection::champion_game_data_id(p).is_some() => {
+            let id = collection::champion_game_data_id(p).unwrap_or_default();
+            collection::champion_game_data(&shared.state(), &path, id)
         }
         // Rotas de cada campeão, para o filtro da grade (#250).
         (&Method::GET, champions::RECOMMENDED_POSITIONS) => {

@@ -233,6 +233,39 @@ impl LcuClient {
         })
     }
 
+    /// `GET` de um arquivo da LCU, como uma imagem de `/lol-game-data/assets/`.
+    /// `None` quando a LCU responde fora de `2xx` ou o arquivo passa de
+    /// `max_bytes`.
+    pub async fn get_file(
+        &self,
+        path: &str,
+        max_bytes: usize,
+    ) -> Result<Option<Vec<u8>>, LcuError> {
+        let request_err = |source| LcuError::Request {
+            method: Method::GET,
+            path: path.to_owned(),
+            source,
+        };
+        let mut response = self
+            .http
+            .get(format!("{}{path}", self.base_url))
+            .basic_auth(LCU_USERNAME, Some(&self.password))
+            .send()
+            .await
+            .map_err(request_err)?;
+        if !response.status().is_success() {
+            return Ok(None);
+        }
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response.chunk().await.map_err(request_err)? {
+            if bytes.len() + chunk.len() > max_bytes {
+                return Ok(None);
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        Ok(Some(bytes))
+    }
+
     pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, LcuError> {
         self.send(Method::GET, path, None).await
     }
