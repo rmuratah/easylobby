@@ -36,6 +36,13 @@
 //! 3. A imagem é baixada na primeira vez que alguém pede e gravada em
 //!    `<versão>/<tipo>/<id>.<ext>`. Das próximas vezes sai do disco.
 //!
+//! As skins (#489) saem primeiro da própria LCU, quando o LoL está aberto:
+//! o agente lê `/lol-game-data/assets/v1/champions/<campeão>.json` na LCU,
+//! acha o caminho da imagem da skin ali e pede esse caminho à LCU, como o
+//! client oficial faz. É a mesma imagem que o client mostra, sem depender do
+//! CommunityDragon; sem o LoL, ou quando a LCU não tem a imagem, vale o
+//! caminho de cima.
+//!
 //! Os downloads usam HTTPS com as raízes do sistema e a verificação TLS
 //! ligada. Só saem pedidos para os dois endereços de [`AssetConfig`], com
 //! caminhos montados a partir do índice, nunca a partir do pedido da UI.
@@ -52,6 +59,8 @@ use serde_json::Value;
 use thiserror::Error;
 use tokio::sync::Mutex;
 use ts_rs::TS;
+
+use crate::rest::LcuClient;
 
 /// Caminho base das imagens no servidor do `/ws`: `/assets/<tipo>/<id>`.
 pub const ASSETS_PATH: &str = "/assets";
@@ -568,6 +577,65 @@ fn parse_skins_index(kind: AssetKind, value: &Value) -> Result<Index, String> {
     Ok(index)
 }
 
+/// A imagem de uma skin (ou de um croma) servida pela própria LCU (#489).
+/// `None` para outros tipos, quando a LCU não conhece a skin ou não manda a
+/// imagem: aí quem chama tenta o CommunityDragon.
+pub async fn skin_from_lcu(lcu: &LcuClient, kind: AssetKind, id: i64) -> Option<Asset> {
+    if !matches!(kind, AssetKind::Skin | AssetKind::SkinSplash) {
+        return None;
+    }
+    // O id da skin e o do croma são `campeão * 1000 + n`.
+    let champion_id = u32::try_from(id / 1000).ok().filter(|&c| c > 0)?;
+    let champion: Value = lcu
+        .get(&format!(
+            "{GAME_DATA_PREFIX}v1/champions/{champion_id}.json"
+        ))
+        .await
+        .ok()?;
+    let path = lcu_skin_path(kind, &champion, id)?;
+    let bytes = lcu.get_file(&path, MAX_IMAGE_BYTES).await.ok()??;
+    Some(Asset {
+        bytes,
+        content_type: content_type(extension(&path.to_ascii_lowercase())),
+    })
+}
+
+/// Caminho na LCU da imagem `id` em `champion` (o JSON de
+/// `v1/champions/<id>.json`): o splash ou o retrato da skin, ou a imagem do
+/// croma. Só caminhos de `/lol-game-data/assets/` sem `..`, como o índice.
+fn lcu_skin_path(kind: AssetKind, champion: &Value, id: i64) -> Option<String> {
+    let skins = champion.get("skins")?.as_array()?;
+    let field = |item: &Value, fields: &[&str]| {
+        fields
+            .iter()
+            .find_map(|field| {
+                item.get(*field)
+                    .and_then(Value::as_str)
+                    .filter(|path| !path.is_empty())
+            })
+            .map(str::to_owned)
+    };
+    let same_id = |item: &&Value| item.get("id").and_then(Value::as_i64) == Some(id);
+    let path = match kind {
+        AssetKind::SkinSplash => skins
+            .iter()
+            .find(same_id)
+            .and_then(|skin| field(skin, &["splashPath", "uncenteredSplashPath"])),
+        _ => skins.iter().find(same_id).map_or_else(
+            || {
+                skins
+                    .iter()
+                    .filter_map(|skin| skin.get("chromas")?.as_array())
+                    .flatten()
+                    .find(same_id)
+                    .and_then(|chroma| field(chroma, &["chromaPath"]))
+            },
+            |skin| field(skin, &["loadScreenPath", "tilePath"]),
+        ),
+    }?;
+    game_data_path(&path).is_some().then_some(path)
+}
+
 /// `/lol-game-data/assets/DATA/Spells/Icons2D/Summoner_flash.png` ->
 /// `data/spells/icons2d/summoner_flash.png`. O CommunityDragon guarda tudo
 /// em minúsculas.
@@ -773,6 +841,48 @@ mod tests {
 
         assert!(parse_index(AssetKind::Perk, b"{}").is_err());
         assert!(parse_index(AssetKind::Perk, b"nao e json").is_err());
+    }
+
+    #[test]
+    fn caminho_da_skin_na_lcu() {
+        let champion = serde_json::json!({
+            "id": 63,
+            "skins": [
+                {"id": 63000, "splashPath": "/lol-game-data/assets/ASSETS/Characters/Brand/Skins/Base/Images/brand_splash_centered_0.jpg",
+                 "loadScreenPath": "/lol-game-data/assets/ASSETS/Characters/Brand/Skins/Base/BrandLoadScreen.jpg"},
+                {"id": 63003, "splashPath": "", "uncenteredSplashPath": "/lol-game-data/assets/v1/champion-splashes/uncentered/63/63003.jpg",
+                 "tilePath": "/lol-game-data/assets/v1/champion-tiles/63/63003.jpg",
+                 "chromas": [{"id": 63010, "chromaPath": "/lol-game-data/assets/v1/champion-chroma-images/63/63010.png"}]},
+                {"id": 63004, "splashPath": "/lol-game-data/assets/../../segredo.jpg"}
+            ]
+        });
+        assert_eq!(
+            lcu_skin_path(AssetKind::SkinSplash, &champion, 63000).as_deref(),
+            Some("/lol-game-data/assets/ASSETS/Characters/Brand/Skins/Base/Images/brand_splash_centered_0.jpg")
+        );
+        assert_eq!(
+            lcu_skin_path(AssetKind::SkinSplash, &champion, 63003).as_deref(),
+            Some("/lol-game-data/assets/v1/champion-splashes/uncentered/63/63003.jpg")
+        );
+        assert_eq!(
+            lcu_skin_path(AssetKind::Skin, &champion, 63000).as_deref(),
+            Some("/lol-game-data/assets/ASSETS/Characters/Brand/Skins/Base/BrandLoadScreen.jpg")
+        );
+        assert_eq!(
+            lcu_skin_path(AssetKind::Skin, &champion, 63003).as_deref(),
+            Some("/lol-game-data/assets/v1/champion-tiles/63/63003.jpg")
+        );
+        assert_eq!(
+            lcu_skin_path(AssetKind::Skin, &champion, 63010).as_deref(),
+            Some("/lol-game-data/assets/v1/champion-chroma-images/63/63010.png")
+        );
+        assert_eq!(lcu_skin_path(AssetKind::SkinSplash, &champion, 63010), None);
+        assert_eq!(lcu_skin_path(AssetKind::SkinSplash, &champion, 63004), None);
+        assert_eq!(lcu_skin_path(AssetKind::SkinSplash, &champion, 63099), None);
+        assert_eq!(
+            lcu_skin_path(AssetKind::SkinSplash, &serde_json::json!({}), 63000),
+            None
+        );
     }
 
     #[test]

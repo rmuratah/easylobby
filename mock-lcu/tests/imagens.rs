@@ -382,3 +382,47 @@ async fn sem_a_pasta_do_patch_no_cdragon_usa_o_latest() {
     cdn_server.abort();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Com o LoL aberto, as imagens das skins saem da própria LCU (#489), pelo
+/// caminho que `v1/champions/<id>.json` dá, sem passar pelo CommunityDragon.
+/// Uma skin que a LCU não conhece ainda vai para o CommunityDragon.
+#[tokio::test]
+async fn skins_saem_da_lcu_com_o_lol_aberto() {
+    let dir = temp_dir("skins-lcu");
+    let cache = dir.join("cache");
+    let cdn = Cdn::new("16.22.1");
+    let (cdn_url, cdn_server) = cdn.clone().start().await;
+
+    let mut config = Config::new(fixtures());
+    config.lockfile = Some(dir.join("lockfile"));
+    config.ca_file = Some(dir.join("mock-lcu-ca.pem"));
+    let mock = MockLcu::start(config).await.unwrap();
+    let addr = start_agent(Some(&dir), assets_config(&cache, &cdn_url)).await;
+    // Espera o agente conectar no mock.
+    summoner_icon(addr).await;
+
+    let base = format!("http://{addr}/assets");
+    for (path, svg) in [
+        ("skinSplash/266001", "skin 266001"),
+        ("skin/266000", "skin 266000"),
+        ("skin/266020", "skin 266020"),
+    ] {
+        let (status, content_type, body) = get(&format!("{base}/{path}"), None).await;
+        assert_eq!(
+            (status, content_type.as_str()),
+            (200, "image/svg+xml"),
+            "{path}"
+        );
+        assert!(body.contains(svg), "{path}: {body}");
+    }
+    assert_eq!(cdn.hits("skins.json"), 0);
+
+    // Fora da LCU (campeão que não existe), o caminho de sempre.
+    let (status, _, _) = get(&format!("{base}/skinSplash/999999001"), None).await;
+    assert_eq!(status, 404);
+    assert!(cdn.hits("skins.json") > 0);
+
+    mock.shutdown().await;
+    cdn_server.abort();
+    let _ = std::fs::remove_dir_all(&dir);
+}

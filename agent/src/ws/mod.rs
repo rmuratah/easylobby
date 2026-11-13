@@ -56,7 +56,7 @@ use tokio::net::TcpListener;
 use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 use tokio::task::JoinHandle;
 
-use crate::assets::{AssetCache, AssetConfig, AssetError, AssetKind, ASSETS_PATH};
+use crate::assets::{self, Asset, AssetCache, AssetConfig, AssetError, AssetKind, ASSETS_PATH};
 use crate::connection::LcuConnection;
 use crate::launcher::LaunchOptions;
 
@@ -214,19 +214,29 @@ async fn asset(
     let (Some(kind), Ok(id)) = (AssetKind::parse(&kind), id.parse::<i64>()) else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    // As skins saem primeiro da própria LCU, quando o LoL está aberto (#489).
+    if let Some(client) = app.hub.client() {
+        if let Some(asset) = assets::skin_from_lcu(&client, kind, id).await {
+            return image(asset);
+        }
+    }
     match app.assets.get(kind, id).await {
-        Ok(asset) => (
-            [
-                (CONTENT_TYPE, asset.content_type),
-                (CACHE_CONTROL, "public, max-age=86400"),
-                (X_CONTENT_TYPE_OPTIONS, "nosniff"),
-            ],
-            asset.bytes,
-        )
-            .into_response(),
+        Ok(asset) => image(asset),
         Err(AssetError::NotFound) => StatusCode::NOT_FOUND.into_response(),
         Err(_) => StatusCode::BAD_GATEWAY.into_response(),
     }
+}
+
+fn image(asset: Asset) -> Response {
+    (
+        [
+            (CONTENT_TYPE, asset.content_type),
+            (CACHE_CONTROL, "public, max-age=86400"),
+            (X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        ],
+        asset.bytes,
+    )
+        .into_response()
 }
 
 /// Um comando em andamento: o `id` da UI e a execução.
