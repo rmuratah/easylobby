@@ -97,6 +97,14 @@ fn complete_action(session: &mut Value, action: &mut Value) -> Result<(), Respon
     if action["isInProgress"] != true {
         return Err(Response::error(400, "Action is not in progress"));
     }
+    // No planejamento a LCU já marca o ban como em andamento, mas recusa
+    // confirmar antes da etapa `BAN_PICK` (#311). O texto do erro é do mock.
+    if session["timer"]["phase"] == "PLANNING" {
+        return Err(Response::error(
+            400,
+            "Action cannot be completed during planning",
+        ));
+    }
     let champion = action["championId"].as_i64().unwrap_or(0);
     if champion <= 0 {
         return Err(Response::error(400, "No champion selected"));
@@ -275,6 +283,36 @@ mod tests {
         assert_eq!(session["myTeam"][1]["championId"], 0);
         // Fora da vez, não confirma.
         assert_eq!(complete(&state, 15).0.status, 400);
+    }
+
+    #[test]
+    fn nao_confirma_o_ban_no_planejamento() {
+        // Como na gravação 16.22 (fila 420): no planejamento o ban do
+        // jogador já vem `isInProgress`, mas a LCU não confirma (#311).
+        let mut state = empty();
+        let mut session = json!({
+            "localPlayerCellId": 1,
+            "timer": {"phase": "PLANNING"},
+            "myTeam": [{"cellId": 1, "championId": 0, "championPickIntent": 0}],
+            "actions": [[{"id": 1, "type": "ban", "actorCellId": 1, "championId": 0,
+                          "completed": false, "isInProgress": true}]],
+        });
+        state.apply(&event(SESSION, "Create", session.clone()));
+        let (response, events) = hover(&state, 1, &json!({"championId": 43}));
+        assert_eq!(response.status, 204);
+        apply(&mut state, &events);
+        assert_eq!(complete(&state, 1).0.status, 400);
+        let patched = hover(&state, 1, &json!({"championId": 43, "completed": true}));
+        assert_eq!(patched.0.status, 400);
+        assert!(patched.1.is_empty());
+
+        session["timer"]["phase"] = json!("BAN_PICK");
+        session["actions"][0][0]["championId"] = json!(43);
+        state.apply(&event(SESSION, "Update", session));
+        let (response, events) = complete(&state, 1);
+        assert_eq!(response.status, 204);
+        apply(&mut state, &events);
+        assert_eq!(state.get(SESSION).body["actions"][0][0]["completed"], true);
     }
 
     #[test]
