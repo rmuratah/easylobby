@@ -21,6 +21,7 @@
 use easylobby_agent::fixtures::EventFixture;
 use serde_json::{json, Value};
 
+use crate::champ_select::SESSION as CHAMP_SELECT_SESSION;
 use crate::matchmaking::SEARCH;
 use crate::state::{LcuState, Response, GAMEFLOW_PHASE};
 
@@ -66,6 +67,9 @@ const CURRENT_SUMMONER: &str = "/lol-summoner/v1/current-summoner";
 
 /// Inicia a seleção de campeões de uma personalizada (Modo de Treino, #209).
 pub const CUSTOM_START_CHAMP_SELECT: &str = "/lol-lobby/v1/lobby/custom/start-champ-select";
+
+/// Sai da seleção de campeões da personalizada (#488).
+pub const CUSTOM_CANCEL_CHAMP_SELECT: &str = "/lol-lobby/v1/lobby/custom/cancel-champ-select";
 
 /// `queueId` da personalizada pelo `gameMode` de `customGameLobby`: a fila
 /// personalizada (`isCustom`) da lista gravada com esse modo, como a 3140
@@ -207,6 +211,36 @@ pub fn start_custom_champ_select(state: &LcuState) -> (Response, Vec<EventFixtur
             body: Value::Null,
         },
         Vec::new(),
+    )
+}
+
+/// `POST` [`CUSTOM_CANCEL_CHAMP_SELECT`] (#488): encerra a seleção de
+/// campeões da personalizada e volta o gameflow para `Lobby`. Sem seleção
+/// responde 404, e numa seleção que não é de personalizada, 400. O
+/// comportamento é uma suposição do mock, ainda não conferida no LoL real.
+pub fn cancel_custom_champ_select(state: &LcuState) -> (Response, Vec<EventFixture>) {
+    let session = state.get(CHAMP_SELECT_SESSION);
+    if session.status != 200 {
+        return (
+            Response::error(404, "mock-lcu: fora da seleção de campeões"),
+            Vec::new(),
+        );
+    }
+    if session.body.get("isCustomGame") != Some(&json!(true)) {
+        return (
+            Response::error(400, "mock-lcu: a seleção não é de personalizada"),
+            Vec::new(),
+        );
+    }
+    (
+        Response {
+            status: 204,
+            body: Value::Null,
+        },
+        vec![
+            event(CHAMP_SELECT_SESSION, "Delete", Value::Null),
+            event(GAMEFLOW_PHASE, "Update", json!("Lobby")),
+        ],
     )
 }
 

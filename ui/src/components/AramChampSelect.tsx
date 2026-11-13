@@ -6,6 +6,7 @@ import { Button } from './base';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
 import { ChampionIcon, Countdown, TeamList, type ContentProps } from './ChampSelectPanel';
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
+import { QuitCustomChampSelect } from './QuitCustomChampSelect';
 import { RuneQuickPick } from './RuneQuickPick';
 import { SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { champSelectGameMode } from '../agent/summonerSpells';
@@ -65,6 +66,7 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
             <Countdown key={`${champSelect.timer.phase}:${champSelect.timer.endsAtMs}`} champSelect={champSelect} />
           </span>
         </p>
+        <QuitCustomChampSelect champSelect={champSelect} send={send} />
       </div>
       <div className="champ-select-board">
         <div className="flex min-w-0 flex-col gap-4">

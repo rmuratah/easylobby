@@ -814,6 +814,15 @@ pub enum Command {
     /// seleção, `notConnected` com o LoL fechado e `lcu` se a LCU recusar (o
     /// aviso continua escondido).
     AckAutofill,
+    /// Sai da seleção de campeões da personalizada (#488): `POST
+    /// /lol-lobby/v1/lobby/custom/cancel-champ-select`, e todos voltam para o
+    /// lobby da personalizada, como o Sair do client oficial. Responde
+    /// `invalidCommand` sem falar com a LCU fora da seleção ou numa seleção
+    /// que não é de personalizada (`champSelect.isCustomGame` falso), onde
+    /// sair seria esquiva. O fim da seleção e o lobby chegam pelas mensagens
+    /// de sempre. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
+    /// recusar.
+    QuitCustomChampSelect,
     /// Manda `body` na sala de chat do time na seleção de campeões (#27).
     /// Não precisa dizer a sala: vai para a que está aberta. A mensagem
     /// chega numa `champSelectChat` antes da resposta quando a LCU devolve a

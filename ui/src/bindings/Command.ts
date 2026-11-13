@@ -56,6 +56,7 @@ export type Command =
   | { "type": "rerollChampion" }
   | { "type": "swapBenchChampion", championId: number, }
   | { "type": "ackAutofill" }
+  | { "type": "quitCustomChampSelect" }
   | { "type": "sendChampSelectMessage", body: string, }
   | { "type": "sendLobbyMessage", body: string, }
   | { "type": "selectRunePage", pageId: number, }

@@ -59,6 +59,11 @@ pub const CHAMP_SELECT_SESSION_PATH: &str = "/lol-champ-select/v1/session";
 /// conferir no LoL real.
 pub const AUTOFILL_DISPLAYED_PATH: &str = "/lol-lobby/v1/autofill-displayed";
 
+/// Sai da seleção de campeões de uma personalizada (#488): `POST` volta todo
+/// mundo para o lobby da personalizada, como o Sair do client oficial. Da
+/// lista `/help` da LCU; falta conferir no LoL real.
+pub const CUSTOM_CANCEL_CHAMP_SELECT_PATH: &str = "/lol-lobby/v1/lobby/custom/cancel-champ-select";
+
 /// A seleção de campeões em andamento, como a tela precisa.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -656,6 +661,15 @@ pub async fn current_session(lcu: &LcuClient) -> Result<Option<ChampSelect>, Lcu
 pub async fn ack_autofill(client: &LcuClient) -> Result<(), LcuError> {
     client
         .send::<Option<Value>>(reqwest::Method::PUT, AUTOFILL_DISPLAYED_PATH, None)
+        .await
+        .map(|_| ())
+}
+
+/// Sai da seleção de campeões da personalizada (`POST`
+/// [`CUSTOM_CANCEL_CHAMP_SELECT_PATH`], #488).
+pub async fn quit_custom_champ_select(client: &LcuClient) -> Result<(), LcuError> {
+    client
+        .post::<Value, Option<Value>>(CUSTOM_CANCEL_CHAMP_SELECT_PATH, &serde_json::json!({}))
         .await
         .map(|_| ())
 }
