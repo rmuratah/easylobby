@@ -410,7 +410,7 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect, foote
   }, []);
   const first = shown.find(item => item.available);
   return (
-    <section aria-label={label} className="flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
+    <section aria-label={label} className="champ-select-picker flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
       <div className="flex flex-wrap items-center gap-3">
         <h3 className="text-section font-semibold">{label}</h3>
         <input ref={searchRef} type="search" aria-label="Buscar campeão" placeholder="Digite para buscar" value={query}
@@ -458,7 +458,7 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect, foote
             ))}
           </ul>
         )}
-      {footer && <div className="flex min-h-[5.25rem] items-start justify-center border-t border-line pt-3">{footer}</div>}
+      {footer && <div className="flex min-h-[5.25rem] shrink-0 items-start justify-center border-t border-line pt-3">{footer}</div>}
     </section>
   );
 }
