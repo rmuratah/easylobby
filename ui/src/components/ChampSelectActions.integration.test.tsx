@@ -42,6 +42,8 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 it('na vez do ban, marca na grade e confirma pelo botão', async () => {
   render(<App />); hello();
   expect(panel().getByRole('button', { name: 'Banir' })).toBeDisabled();
+  // O botão fica dentro da seção de campeões, embaixo da grade (#475).
+  expect(within(panel().getByRole('region', { name: 'Campeões para banir' })).getByRole('button', { name: 'Banir' })).toBeVisible();
   fireEvent.click(tile('Wukong'));
   expect(last().command).toEqual({ type: 'hoverChampion', actionId: 1, championId: 62 });
   expect(tile('Wukong')).toHaveAttribute('aria-pressed', 'true');

@@ -102,10 +102,11 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
         <div className="champ-select-center">
           <Bans champSelect={champSelect} catalog={catalog} />
           <ChampSelectSwaps champSelect={champSelect} busy={swap.pending} run={swap.run} feedback={swap.feedback} />
-          <ActionBar mine={mine} chosen={chosen || null} chosenAvailable={chosenAvailable} catalog={catalog}
-            busy={confirm.pending} onConfirm={lockIn} feedback={[confirm.feedback, hover.feedback]} />
+          {/* O botão de banir e escolher fica dentro da seção de campeões, embaixo e no meio (#475). */}
           <ChampionGrid state={state} champSelect={champSelect} grid={grid} selected={chosen || null}
-            onSelect={mine && !confirm.pending ? select : null} />
+            onSelect={mine && !confirm.pending ? select : null}
+            footer={<ActionBar mine={mine} chosen={chosen || null} chosenAvailable={chosenAvailable} catalog={catalog}
+              busy={confirm.pending} onConfirm={lockIn} feedback={[confirm.feedback, hover.feedback]} />} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           <TeamList label="Time adversário" players={champSelect.theirTeam} ally={false} acting={acting} catalog={catalog}
@@ -298,7 +299,7 @@ function ActionBar({ mine, chosen, chosenAvailable, catalog, busy, onConfirm, fe
   if (!mine) return message ?? null;
   if (!mine.turn) {
     return (
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col items-center gap-1 text-center">
         <p className="text-body text-muted">
           {chosen ? `Intenção: ${championName(catalog, chosen)}. ` : ''}Ainda não é sua vez; o campeão marcado aparece para o time.
         </p>
@@ -308,10 +309,10 @@ function ActionBar({ mine, chosen, chosenAvailable, catalog, busy, onConfirm, fe
   }
   const ban = mine.action.type === 'ban';
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-col items-center gap-1 text-center">
+      <div className="flex flex-col items-center gap-1">
         {/* O ban mostra só "Banir" (#311); o nome do campeão fica para o leitor de tela. */}
-        <Button variant={ban ? 'danger' : 'primary'} size="lg" disabled={!chosen || !chosenAvailable || busy}
+        <Button variant={ban ? 'danger' : 'primary'} size="lg" className="min-w-48" disabled={!chosen || !chosenAvailable || busy}
           aria-label={chosen ? `${ban ? 'Banir' : 'Escolher'} ${championName(catalog, chosen)}` : undefined}
           onClick={() => { if (chosen) onConfirm(chosen); }}>
           {ban ? 'Banir' : chosen ? `Escolher ${championName(catalog, chosen)}` : 'Escolher'}
@@ -331,9 +332,11 @@ type GridProps = {
   selected: number | null;
   /** `null` quando o jogador não tem ação para marcar agora. */
   onSelect: ((id: number) => void) | null;
+  /** Fica embaixo da grade, no meio: o botão de banir e escolher. */
+  footer?: ReactNode;
 };
 
-function ChampionGrid({ state, champSelect, grid: all, selected, onSelect }: GridProps) {
+function ChampionGrid({ state, champSelect, grid: all, selected, onSelect, footer }: GridProps) {
   const [query, setQuery] = useState('');
   const [lane, setLane] = useState<Lane | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -406,6 +409,7 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect }: Gri
             ))}
           </ul>
         )}
+      {footer && <div className="flex justify-center border-t border-line pt-3 empty:hidden">{footer}</div>}
     </section>
   );
 }

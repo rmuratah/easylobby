@@ -9,7 +9,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-accent text-on-accent hover:brightness-105 disabled:bg-raised disabled:text-muted disabled:hover:brightness-100",
   secondary: "border-control bg-surface text-ink hover:bg-raised disabled:text-muted",
   ghost: "text-ink hover:bg-raised disabled:text-muted",
-  danger: "border-danger bg-surface text-danger hover:bg-raised disabled:border-control disabled:text-muted",
+  danger: "bg-danger text-on-accent hover:brightness-105 disabled:bg-raised disabled:text-muted disabled:hover:brightness-100",
 };
 
 const SIZES: Record<ButtonSize, string> = {
