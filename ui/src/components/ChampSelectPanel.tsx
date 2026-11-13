@@ -155,6 +155,25 @@ function ChampSelectStatus({ champSelect }: { champSelect: ChampSelect }) {
           <Countdown key={`${champSelect.timer.phase}:${champSelect.timer.endsAtMs}`} champSelect={champSelect} />
         </span>
       </p>
+      {/* Barra do tempo da etapa (#475): começa cheia e esvazia da direita para a esquerda. */}
+      <TimeBar key={`${champSelect.timer.phase}:${champSelect.timer.endsAtMs}`} champSelect={champSelect} ban={ban} />
+    </div>
+  );
+}
+
+function TimeBar({ champSelect, ban }: { champSelect: ChampSelect; ban: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(interval);
+  }, []);
+  const total = champSelect.timer.totalTimeMs;
+  if (champSelect.timer.isInfinite || total <= 0) return null;
+  const left = Math.min(1, remainingMs(champSelect, now) / total);
+  return (
+    <div aria-hidden="true" className="h-1.5 w-full basis-full overflow-hidden rounded-full bg-raised">
+      <div className={cx('h-full rounded-full transition-[width] duration-300 ease-linear', ban ? 'bg-danger' : 'bg-accent')}
+        style={{ width: `${left * 100}%` }} />
     </div>
   );
 }
