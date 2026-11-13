@@ -67,3 +67,34 @@ it('cancela atualizações e listeners ao desmontar, inclusive no StrictMode', (
   cleanup();
   expect(card.hasAttribute('data-spotlight')).toBe(false);
 });
+
+it('mantém o último ponto ao sair enquanto a opacidade faz fade-out', () => {
+  const card = document.querySelector<HTMLElement>('#first')!;
+  move(card, 120, 80); vi.advanceTimersByTime(16);
+  const out = new Event('pointerout', { bubbles: true });
+  Object.assign(out, { relatedTarget: document.body });
+  card.dispatchEvent(out);
+  expect(card.hasAttribute('data-spotlight')).toBe(false);
+  vi.advanceTimersByTime(90); // Meio da transição CSS de 180 ms.
+  expect(card.style.getPropertyValue('--el-spotlight-x')).toBe('120px');
+  expect(card.style.getPropertyValue('--el-spotlight-y')).toBe('80px');
+});
+
+it('preserva o ponto do card anterior e atualiza a posição na reentrada', () => {
+  const first = document.querySelector<HTMLElement>('#first')!;
+  const second = document.querySelector<HTMLElement>('#second')!;
+  move(first, 80, 60); vi.advanceTimersByTime(16);
+  move(second, 200, 100); vi.advanceTimersByTime(16);
+  expect(first.style.getPropertyValue('--el-spotlight-x')).toBe('80px');
+  expect(first.hasAttribute('data-spotlight')).toBe(false);
+  expect(second.hasAttribute('data-spotlight')).toBe(true);
+  move(first, 40, 20); vi.advanceTimersByTime(16);
+  expect(first.style.getPropertyValue('--el-spotlight-x')).toBe('40px');
+  expect(first.hasAttribute('data-spotlight')).toBe(true);
+  expect(second.style.getPropertyValue('--el-spotlight-x')).toBe('200px');
+  cleanup();
+  for (const card of [first, second]) {
+    expect(card.style.getPropertyValue('--el-spotlight-x')).toBe('');
+    expect(card.style.getPropertyValue('--el-spotlight-y')).toBe('');
+  }
+});

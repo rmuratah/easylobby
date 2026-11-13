@@ -11,8 +11,8 @@ export function installCardSpotlight() {
     if (frame !== null) cancelAnimationFrame(frame);
     frame = null;
     active?.removeAttribute('data-spotlight');
-    active?.style.removeProperty('--el-spotlight-x');
-    active?.style.removeProperty('--el-spotlight-y');
+    // Só apaga a luz. As coordenadas precisam ficar no último ponto durante
+    // o fade-out CSS; removê-las agora faria o gradiente saltar para 50%/50%.
     active = null;
   };
   const move = (event: PointerEvent) => {
@@ -29,6 +29,7 @@ export function installCardSpotlight() {
       const rect = active.getBoundingClientRect();
       active.style.setProperty('--el-spotlight-x', `${x - rect.left}px`);
       active.style.setProperty('--el-spotlight-y', `${y - rect.top}px`);
+      active.setAttribute('data-spotlight-position', '');
       active.setAttribute('data-spotlight', '');
     });
   };
@@ -44,6 +45,13 @@ export function installCardSpotlight() {
   reduced.addEventListener('change', clear);
   return () => {
     clear();
+    // Sem timers nem referências aos cards visitados: os atributos somem
+    // com seus elementos. Na desmontagem, limpa os que ainda estão no DOM.
+    document.querySelectorAll<HTMLElement>('[data-spotlight-position]').forEach(card => {
+      card.style.removeProperty('--el-spotlight-x');
+      card.style.removeProperty('--el-spotlight-y');
+      card.removeAttribute('data-spotlight-position');
+    });
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerout', out);
     document.removeEventListener('scroll', clear, true);
