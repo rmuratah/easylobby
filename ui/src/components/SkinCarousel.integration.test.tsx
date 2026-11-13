@@ -61,7 +61,21 @@ it('com o campeão confirmado, a grade vira o carrossel e clicar numa skin troca
   act(() => socket().receive({ type: 'championSkins', championSkins: skins }));
   const thumbs = within(carousel.getByRole('list', { name: 'Miniaturas das skins' }));
   expect(thumbs.getByRole('button', { name: 'Ahri (padrão)' })).toHaveAttribute('aria-pressed', 'true');
-  expect(thumbs.getByRole('button', { name: 'Ahri Projeto (você não tem)' })).toBeDisabled();
+  // A que a conta não tem só mostra a splash: não manda nada à LCU (#494).
+  const notOwned = thumbs.getByRole('button', { name: 'Ahri Projeto (você não tem; só ver)' });
+  const before = sent().length;
+  fireEvent.click(notOwned);
+  expect(sent()).toHaveLength(before);
+  expect(carousel.getByRole('status')).toHaveTextContent('Ahri Projeto');
+  expect(carousel.getByRole('status')).toHaveTextContent('Você não tem esta skin');
+  expect(notOwned).toHaveAttribute('aria-current', 'true');
+  expect(notOwned).toHaveAttribute('aria-pressed', 'false');
+  expect(thumbs.getByRole('button', { name: 'Ahri (padrão)' })).toHaveAttribute('aria-pressed', 'true');
+  // Clicar de novo fecha a visualização.
+  fireEvent.click(notOwned);
+  expect(carousel.getByRole('status')).toHaveTextContent('Ahri');
+  expect(carousel.getByRole('status')).not.toHaveTextContent('Você não tem');
+  fireEvent.click(notOwned);
 
   fireEvent.click(thumbs.getByRole('button', { name: 'Ahri Fliperama' }));
   expect(last().command).toEqual({ type: 'selectSkin', skinId: 103001 });

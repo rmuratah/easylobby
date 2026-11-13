@@ -20,7 +20,8 @@ const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-
 /**
  * Escolha da skin depois de confirmar o campeão (#477): a splash art grande
  * da skin em cima e as miniaturas embaixo, num carrossel. Clicar numa
- * miniatura troca a skin na LCU; as que a conta não tem ficam esmaecidas.
+ * miniatura troca a skin na LCU. As que a conta não tem ficam esmaecidas e,
+ * clicadas, só mostram a splash grande, sem trocar a skin (#494).
  */
 export function SkinCarousel({ state, send, championId, championName, selectedSkinId }: Props) {
   const load = useCommand(send);
@@ -29,6 +30,8 @@ export function SkinCarousel({ state, send, championId, championName, selectedSk
   const rowRef = useRef<HTMLUListElement>(null);
   // A skin clicada aparece na hora; depois vale a que a LCU confirmou.
   const [pending, setPending] = useState<number | null>(null);
+  // Skin que a conta não tem, aberta só para ver a splash.
+  const [preview, setPreview] = useState<number | null>(null);
   useEffect(() => {
     void run({ type: 'openChampionSkins', championId }, { pending: '', failure: 'carregar as skins' });
     // `run` muda a cada render; as skins são pedidas de novo só para outro campeão.
@@ -38,7 +41,9 @@ export function SkinCarousel({ state, send, championId, championName, selectedSk
   const skins: CollectionSkin[] = loaded ? state.championSkins!.skins : [];
   const confirmed = selectedSkinId || championId * 1000;
   const selected = choose.pending && pending ? pending : confirmed;
-  const current = skins.find(skin => skin.id === selected) ?? skins.find(skin => skin.isBase) ?? null;
+  const previewing = preview !== null && skins.some(skin => skin.id === preview && !skin.owned) ? preview : null;
+  const shown = previewing ?? selected;
+  const current = skins.find(skin => skin.id === shown) ?? skins.find(skin => skin.isBase) ?? null;
   // A miniatura marcada fica à vista quando a lista abre ou a skin muda.
   useEffect(() => {
     const row = rowRef.current;
@@ -47,7 +52,12 @@ export function SkinCarousel({ state, send, championId, championName, selectedSk
     row.scrollLeft = item.offsetLeft - (row.clientWidth - item.offsetWidth) / 2;
   }, [selected, loaded]);
   function pick(skin: CollectionSkin) {
-    if (!skin.owned || skin.id === confirmed || choose.pending) return;
+    if (!skin.owned) {
+      setPreview(skin.id === previewing ? null : skin.id);
+      return;
+    }
+    setPreview(null);
+    if (skin.id === confirmed || choose.pending) return;
     setPending(skin.id);
     void choose.run({ type: 'selectSkin', skinId: skin.id }, { pending: '', failure: 'trocar a skin' });
   }
@@ -61,12 +71,13 @@ export function SkinCarousel({ state, send, championId, championName, selectedSk
     <section aria-label="Skins" className="champ-select-picker flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
       <h3 className="text-section font-semibold">Escolha a skin de {championName}</h3>
       <div className="relative min-h-0 w-full flex-1 overflow-hidden rounded-control bg-raised">
-        <img key={selected} src={assetUrl('skinSplash', selected)} alt="" aria-hidden="true"
+        <img key={shown} src={assetUrl('skinSplash', shown)} alt="" aria-hidden="true"
           className="h-full w-full object-cover animate-fade-up"
           onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />
         {current && (
           <p role="status" className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-4 pb-3 pt-10 text-section font-semibold text-white">
             {current.isBase ? championName : current.name}
+            {previewing !== null && <span className="ml-2 text-body font-normal text-white/80">· Você não tem esta skin</span>}
           </p>
         )}
       </div>
@@ -78,13 +89,16 @@ export function SkinCarousel({ state, send, championId, championName, selectedSk
           <ul ref={rowRef} aria-label="Miniaturas das skins" className="flex min-w-0 flex-1 gap-2 overflow-x-auto scroll-smooth pb-1 [justify-content:safe_center]">
             {skins.map(skin => {
               const name = skin.isBase ? `${championName} (padrão)` : skin.name;
+              const viewing = previewing === skin.id;
               return (
                 <li key={skin.id} className="shrink-0">
-                  <button type="button" aria-pressed={selected === skin.id} disabled={!skin.owned}
-                    aria-label={skin.owned ? name : `${name} (você não tem)`} title={skin.owned ? name : `${name}: você não tem esta skin`}
+                  <button type="button" aria-pressed={selected === skin.id} aria-current={viewing || undefined}
+                    aria-label={skin.owned ? name : `${name} (você não tem; só ver)`}
+                    title={skin.owned ? name : `${name}: você não tem esta skin. Clique para ver a splash.`}
                     onClick={() => pick(skin)}
-                    className={cx('block w-28 overflow-hidden rounded-control border-2 border-transparent hover:border-control aria-pressed:border-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:grayscale disabled:hover:border-transparent', focusRing)}>
-                    <span className="block aspect-[1215/717] w-full bg-raised">
+                    className={cx('block w-28 overflow-hidden rounded-control border-2 border-transparent hover:border-control aria-pressed:border-accent',
+                      viewing && 'border-dashed !border-muted', focusRing)}>
+                    <span className={cx('block aspect-[1215/717] w-full bg-raised', !skin.owned && !viewing && 'opacity-40 grayscale', !skin.owned && viewing && 'grayscale')}>
                       <img src={assetUrl('skinSplash', skin.id)} alt="" loading="lazy" className="h-full w-full object-cover"
                         onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />
                     </span>
