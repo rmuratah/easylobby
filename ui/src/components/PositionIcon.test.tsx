@@ -10,11 +10,30 @@ describe('PositionIcon', () => {
       const { container, unmount } = render(<PositionIcon position={position} />);
       const svg = container.querySelector('svg');
       expect(svg).toHaveAttribute('aria-hidden', 'true');
-      expect(svg).toHaveAttribute('viewBox', '0 0 24 24');
       const drawing = svg?.innerHTML;
       unmount();
       return drawing;
     });
     expect(new Set(drawings).size).toBe(positions.length);
+  });
+
+  it('usa o desenho oficial do client, pintado com a cor do texto', () => {
+    const lanes: Position[] = ['top', 'jungle', 'middle', 'bottom', 'utility'];
+    for (const lane of lanes) {
+      const { container, unmount } = render(<PositionIcon position={lane} size={20} />);
+      const svg = container.querySelector('svg');
+      expect(svg).toHaveAttribute('viewBox', '0 0 34 34');
+      expect(svg).toHaveAttribute('fill', 'currentColor');
+      expect(svg).toHaveAttribute('width', '20');
+      unmount();
+    }
+  });
+
+  it('apaga pela metade a parte secundária, como no client', () => {
+    const { container } = render(<PositionIcon position="top" />);
+    const paths = container.querySelectorAll('path');
+    expect(paths).toHaveLength(2);
+    expect(paths[0]).toHaveAttribute('opacity', '0.5');
+    expect(paths[1]).not.toHaveAttribute('opacity');
   });
 });
