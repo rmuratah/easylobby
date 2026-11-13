@@ -31,7 +31,7 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
   // Nome da fila no idioma do client (ARAM, ARAM: Desordem), como na lista de filas.
   const mode = state.queues.find(q => q.queueId === champSelect.queueId)?.name || 'ARAM';
   // No ARAM dá para trocar as runas; na ARAM: Desordem (`KIWI`), não (#197).
-  const runes = champSelectGameMode(champSelect, state.queues) !== 'KIWI';
+  const runes = champSelectGameMode(champSelect, state.queues, state.lobby) !== 'KIWI';
   const busy = reroll.pending || bench.pending || pick.pending || starting;
   // A escolha da carta é o pick em andamento do jogador.
   const choice = champSelect.pendingAction?.type === 'pick' ? champSelect.pendingAction : null;
@@ -72,7 +72,7 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
             renderActions={player => player.isLocalPlayer ? null
               : <SwapOffers champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
           <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
-            summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} send={send} />
+            summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} lobby={state.lobby} send={send} />
           {runes && <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />}
         </div>
         <div className="champ-select-center">

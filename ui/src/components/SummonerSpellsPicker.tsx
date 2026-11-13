@@ -5,6 +5,7 @@ import { SMITE_ID, smiteRule, spellName, spellsForChampSelect, spellUnlocked, wi
 import { useCommand } from '../agent/useCommand';
 import type { ChampSelect } from '../bindings/ChampSelect';
 import type { GameQueue } from '../bindings/GameQueue';
+import type { Lobby } from '../bindings/Lobby';
 import type { SummonerSpellCatalog } from '../bindings/SummonerSpellCatalog';
 
 export function SpellIcon({ id, size = 32 }: { id: number | null; size?: number }) {
@@ -22,13 +23,15 @@ type Props = {
   summonerLevel: number | null;
   /** Filas disponíveis, para achar o modo de jogo das filas fora das fixas (#203). */
   queues?: GameQueue[];
+  /** Lobby da seleção, para o modo de jogo da personalizada. */
+  lobby?: Lobby | null;
   send: AgentClient['send'];
 };
 
 const slotNames = ['Feitiço 1 (D)', 'Feitiço 2 (F)'] as const;
 
 /** Escolha dos dois feitiços de invocador do jogador logado (#24). */
-export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queues = [], send }: Props) {
+export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queues = [], lobby = null, send }: Props) {
   const [open, setOpen] = useState<0 | 1 | null>(null);
   const command = useCommand(send);
   const slotButtons = useRef<(HTMLButtonElement | null)[]>([]);
@@ -50,7 +53,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queu
   const disabled = champSelect.timer.phase === 'GAME_STARTING' || command.pending || !catalog;
   // Na ranqueada (#480), só o caçador vê o Golpear, e ele não pode tirá-lo (só trocar de tecla).
   const rule = smiteRule(champSelect);
-  const spells = spellsForChampSelect(catalog, champSelect, queues).filter(spell => rule !== 'forbidden' || spell.id !== SMITE_ID);
+  const spells = spellsForChampSelect(catalog, champSelect, queues, lobby).filter(spell => rule !== 'forbidden' || spell.id !== SMITE_ID);
   const dropsSmite = (slot: 0 | 1, spellId: number) => rule === 'required' && !withSpell(current, slot, spellId).includes(SMITE_ID);
   function choose(slot: 0 | 1, spellId: number) {
     if (disabled) return;
