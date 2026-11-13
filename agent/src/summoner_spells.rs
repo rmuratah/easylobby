@@ -55,6 +55,18 @@ pub fn smite_forbidden(champ_select: &ChampSelect) -> bool {
     })
 }
 
+/// Confere a regra do Golpear da ranqueada (#480).
+fn check_smite(cs: &ChampSelect, spell1_id: u32, spell2_id: u32) -> Result<(), InvalidSpells> {
+    let has_smite = spell1_id == SMITE_ID || spell2_id == SMITE_ID;
+    if smite_required(cs) && !has_smite {
+        return Err(InvalidSpells::SmiteRequired);
+    }
+    if smite_forbidden(cs) && has_smite {
+        return Err(InvalidSpells::SmiteNotAllowed);
+    }
+    Ok(())
+}
+
 /// Escolhas do jogador logado na seleção (feitiços, skin...).
 pub const MY_SELECTION_PATH: &str = "/lol-champ-select/v1/session/my-selection";
 
@@ -284,14 +296,8 @@ pub fn check_spells_in(
     if spell1_id == spell2_id {
         return Err(InvalidSpells::SameSpell);
     }
-    if smite_required(cs) && spell1_id != SMITE_ID && spell2_id != SMITE_ID {
-        return Err(InvalidSpells::SmiteRequired);
-    }
-    if smite_forbidden(cs) && (spell1_id == SMITE_ID || spell2_id == SMITE_ID) {
-        return Err(InvalidSpells::SmiteNotAllowed);
-    }
     let Some(catalog) = catalog else {
-        return Ok(());
+        return check_smite(cs, spell1_id, spell2_id);
     };
     for id in [spell1_id, spell2_id] {
         let spell = catalog.get(id).ok_or(InvalidSpells::UnknownSpell(id))?;
@@ -310,7 +316,8 @@ pub fn check_spells_in(
             return Err(InvalidSpells::LevelTooLow(id));
         }
     }
-    Ok(())
+    // A regra do Golpear da ranqueada (#480) vem depois das dos feitiços.
+    check_smite(cs, spell1_id, spell2_id)
 }
 
 /// Troca os dois feitiços do jogador logado. A LCU responde sem corpo; a
