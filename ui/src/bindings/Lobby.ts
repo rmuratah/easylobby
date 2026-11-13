@@ -21,6 +21,13 @@ export type Lobby = {
    */
   queue: Queue | null,
   /**
+   * `gameMode` da LCU (`CLASSIC`, `ARAM`, `KIWI`, `CHERRY`, `JADE`...),
+   * de `gameConfig`. Vazio quando a LCU não manda. Na seleção de
+   * campeões, é por ele que os feitiços de uma fila fora das fixas (e da
+   * personalizada) são filtrados.
+   */
+  gameMode: string,
+  /**
    * Quantos jogadores cabem no grupo nesta fila (2 na Solo/Duo, 18 na
    * Arena 3x6, 5 nas outras). No lobby com equipes, nunca menos que
    * `subteams.count * subteams.size`.

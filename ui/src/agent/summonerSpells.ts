@@ -1,5 +1,6 @@
 import type { ChampSelect } from '../bindings/ChampSelect';
 import type { GameQueue } from '../bindings/GameQueue';
+import type { Lobby } from '../bindings/Lobby';
 import type { Queue } from '../bindings/Queue';
 import { isAramChampSelect } from './champSelect';
 import type { SummonerSpell } from '../bindings/SummonerSpell';
@@ -10,29 +11,47 @@ export function spellsForQueue(catalog: SummonerSpellCatalog | null, queue: Queu
   return (catalog?.spells ?? []).filter(spell => queue === null || spell.queues.includes(queue));
 }
 
+/** O lobby da seleção: o mesmo `queueId` (a personalizada inclusive). */
+function champSelectLobby(champSelect: ChampSelect, lobby: Lobby | null | undefined): Lobby | null {
+  return lobby && lobby.queueId === champSelect.queueId ? lobby : null;
+}
+
 /**
- * Modo de jogo da LCU da seleção, para filtrar os feitiços nas filas que não
- * são uma das fixas: o `gameMode` da fila na lista `queues` (ARAM: Desordem é
- * `KIWI`) ou, numa seleção de ARAM fora da lista (personalizada), `ARAM`.
- * `null` quando não dá para saber.
+ * Modos de jogo da LCU que a seleção pode ter, na ordem de confiança: o
+ * `gameMode` do lobby da seleção (cobre a personalizada), o da fila na lista
+ * `queues` (ARAM: Desordem é `KIWI`, Arena é `CHERRY`) e, numa seleção de
+ * ARAM sem os dois, `ARAM`.
  */
-export function champSelectGameMode(champSelect: ChampSelect, queues: GameQueue[]): string | null {
-  const listed = queues.find(q => q.queueId === champSelect.queueId);
-  if (listed?.gameMode) return listed.gameMode;
-  return isAramChampSelect(champSelect) ? 'ARAM' : null;
+function champSelectGameModes(champSelect: ChampSelect, queues: GameQueue[], lobby?: Lobby | null): string[] {
+  const modes = [
+    champSelectLobby(champSelect, lobby)?.gameMode,
+    queues.find(q => q.queueId === champSelect.queueId)?.gameMode,
+    isAramChampSelect(champSelect) ? 'ARAM' : undefined,
+  ];
+  return modes.filter((mode): mode is string => !!mode);
+}
+
+/** Modo de jogo da LCU da seleção, ou `null` quando não dá para saber. */
+export function champSelectGameMode(champSelect: ChampSelect, queues: GameQueue[], lobby?: Lobby | null): string | null {
+  return champSelectGameModes(champSelect, queues, lobby)[0] ?? null;
 }
 
 /**
  * Feitiços que valem na seleção (#203): pela fila fixa quando há; senão pelo
- * modo de jogo (`gameModes` de cada feitiço), para a ARAM: Desordem e as
- * personalizadas de ARAM não mostrarem Golpear, Teleporte e os de outros
- * modos. Sem fila nem modo conhecidos, todos.
+ * modo de jogo (`gameModes` de cada feitiço, como a LCU manda), para cada
+ * modo mostrar só os feitiços dele: a personalizada do Summoner's Rift sem
+ * Reviver, Fuga e Promover, o ARAM sem Golpear e Teleporte, a Arena só com
+ * os dela. Vale o primeiro modo que algum feitiço lista; sem nenhum, todos
+ * (a LCU decide).
  */
-export function spellsForChampSelect(catalog: SummonerSpellCatalog | null, champSelect: ChampSelect, queues: GameQueue[]): SummonerSpell[] {
+export function spellsForChampSelect(catalog: SummonerSpellCatalog | null, champSelect: ChampSelect, queues: GameQueue[], lobby?: Lobby | null): SummonerSpell[] {
   if (champSelect.queue) return spellsForQueue(catalog, champSelect.queue);
-  const mode = champSelectGameMode(champSelect, queues);
-  if (!mode) return spellsForQueue(catalog, null);
-  return (catalog?.spells ?? []).filter(spell => spell.gameModes.includes(mode));
+  const spells = catalog?.spells ?? [];
+  for (const mode of champSelectGameModes(champSelect, queues, lobby)) {
+    const inMode = spells.filter(spell => spell.gameModes.includes(mode));
+    if (inMode.length > 0) return inMode;
+  }
+  return spells;
 }
 
 /** Se o feitiço já está liberado no nível do jogador (sem nível conhecido, liberado). */

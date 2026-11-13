@@ -117,9 +117,18 @@ impl Hub {
             // A fila da seleção na lista, para as filas fora das fixas (#146).
             let game_queue =
                 champ_select.and_then(|cs| state.queues.iter().find(|q| q.queue_id == cs.queue_id));
+            // O modo do lobby da seleção (a personalizada não está na lista).
+            let lobby_mode = champ_select.and_then(|cs| {
+                state
+                    .lobby
+                    .as_ref()
+                    .filter(|l| l.queue_id == cs.queue_id && !l.game_mode.is_empty())
+                    .map(|l| l.game_mode.as_str())
+            });
             let checked = summoner_spells::check_spells_in(
                 champ_select,
                 game_queue,
+                lobby_mode,
                 state.summoner_spell_catalog.as_ref(),
                 state.summoner.as_ref().map(|s| s.summoner_level),
                 spell1_id,

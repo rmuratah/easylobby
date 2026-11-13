@@ -298,6 +298,11 @@ pub struct Lobby {
     pub queue_id: u32,
     /// A fila do lobby, ou `null` quando não é uma das [`Queue`].
     pub queue: Option<Queue>,
+    /// `gameMode` da LCU (`CLASSIC`, `ARAM`, `KIWI`, `CHERRY`, `JADE`...),
+    /// de `gameConfig`. Vazio quando a LCU não manda. Na seleção de
+    /// campeões, é por ele que os feitiços de uma fila fora das fixas (e da
+    /// personalizada) são filtrados.
+    pub game_mode: String,
     /// Quantos jogadores cabem no grupo nesta fila (2 na Solo/Duo, 18 na
     /// Arena 3x6, 5 nas outras). No lobby com equipes, nunca menos que
     /// `subteams.count * subteams.size`.
@@ -585,6 +590,7 @@ impl Lobby {
         Some(Lobby {
             queue_id: raw.game_config.queue_id,
             queue: Queue::from_id(raw.game_config.queue_id),
+            game_mode: raw.game_config.game_mode.clone(),
             max_lobby_size,
             is_leader: local_member.is_some_and(|m| m.is_leader),
             can_start_activity: raw.can_start_activity,
@@ -1118,6 +1124,7 @@ mod tests {
         let lobby = Lobby {
             queue_id: 450,
             queue: Some(Queue::Aram),
+            game_mode: "ARAM".into(),
             max_lobby_size: 5,
             is_leader: true,
             can_start_activity: true,
@@ -1164,6 +1171,7 @@ mod tests {
             json!({
                 "queueId": 450,
                 "queue": "aram",
+                "gameMode": "ARAM",
                 "maxLobbySize": 5,
                 "isLeader": true,
                 "canStartActivity": true,
