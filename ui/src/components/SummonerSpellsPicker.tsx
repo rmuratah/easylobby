@@ -61,19 +61,20 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queu
     <section aria-label="Seus feitiços" className="flex flex-col gap-2">
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Feitiços</h3>
       {/* Passar o mouse num feitiço abre a escolha para cima, por cima da tela, numa grade 3x3 (#475). */}
-      <div className="flex flex-wrap gap-2">
+      {/* Os dois feitiços lado a lado, sempre do mesmo tamanho, qualquer que seja o nome (#475). */}
+      <div className="grid grid-cols-2 gap-2">
         {slotNames.map((label, index) => {
           const slot = index as 0 | 1;
           return (
-            <div key={label} className="relative"
+            <div key={label} className="relative min-w-0"
               onMouseEnter={() => { if (!disabled) { setByHover(true); setOpen(slot); } }}
               onMouseLeave={() => { if (byHover && open === slot) setOpen(null); }}>
               <button ref={element => { slotButtons.current[slot] = element; }} type="button" aria-label={`${label}: ${spellName(catalog, current[slot] || null)}`}
                 aria-expanded={open === slot} disabled={disabled}
                 onClick={() => { setByHover(false); setOpen(open === slot && !byHover ? null : slot); }}
-                className="flex items-center gap-2 rounded-control border border-control bg-surface px-2 py-1 text-ink aria-expanded:border-accent aria-expanded:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50">
-                <SpellIcon id={current[slot] || null} />
-                <span className="text-body">{spellName(catalog, current[slot] || null)}</span>
+                className="flex w-full min-w-0 items-center gap-1.5 rounded-control border border-control bg-surface px-1.5 py-1 text-ink aria-expanded:border-accent aria-expanded:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50">
+                <SpellIcon id={current[slot] || null} size={26} />
+                <span className="min-w-0 truncate text-body">{spellName(catalog, current[slot] || null)}</span>
               </button>
               {open === slot && (
                 // O espaço em branco embaixo da grade faz parte da área do mouse: ir do botão até a grade não fecha.
