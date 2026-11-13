@@ -6,6 +6,7 @@ import {
   myAction, playerName, remainingMs, searchChampions, type GridChampion, type MyAction,
 } from '../agent/champSelect';
 import { useCommand, type CommandFeedback } from '../agent/useCommand';
+import { sound } from '../agent/sound';
 import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
@@ -82,6 +83,7 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
     void confirm.run({ type: 'confirmAction', actionId: mine.action.id, championId },
       { pending: mine.action.type === 'ban' ? 'Confirmando o ban…' : 'Confirmando a escolha…', failure: verb });
   }
+  useTurnCountdownSound(champSelect, !!mine?.turn);
   const grid = gridChampions(state, champSelect);
   const chosenAvailable = !!chosen && grid.some(item => item.champion.id === chosen && item.available);
   // Na fase de banimento (#423) a tela ganha detalhes vermelhos (estilos em index.css).
@@ -118,6 +120,30 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
       </div>
     </section>
   );
+}
+
+/** Segundos finais da sua vez que tocam o tique (#475). */
+const TICK_FROM_SECONDS = 10;
+
+/**
+ * Na sua vez de banir ou escolher, toca um tique por segundo nos últimos 10
+ * segundos (#475), mais agudo nos 3 últimos.
+ */
+function useTurnCountdownSound(champSelect: ChampSelect, myTurn: boolean) {
+  const { endsAtMs, isInfinite } = champSelect.timer;
+  useEffect(() => {
+    if (!myTurn || isInfinite) return;
+    let last: number | null = null;
+    const check = () => {
+      const seconds = Math.ceil(Math.max(0, endsAtMs - Date.now()) / 1000);
+      if (seconds < 1 || seconds > TICK_FROM_SECONDS || seconds === last) return;
+      last = seconds;
+      sound.playTick(seconds <= 3);
+    };
+    check();
+    const interval = setInterval(check, 200);
+    return () => clearInterval(interval);
+  }, [myTurn, endsAtMs, isInfinite]);
 }
 
 export function Countdown({ champSelect }: { champSelect: ChampSelect }) {
