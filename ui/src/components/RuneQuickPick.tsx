@@ -3,8 +3,8 @@ import type { AgentClient } from '../agent/client';
 import { useCommand } from '../agent/useCommand';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
 import type { RunePages } from '../bindings/RunePages';
-import { Button, Select } from './base';
-import { RuneIcon } from './RuneEditor';
+import { Select } from './base';
+import { PencilIcon, RuneIcon } from './RuneEditor';
 import { findStyle } from './runePage';
 
 type Props = {
@@ -40,14 +40,22 @@ export function RuneQuickPick({ runePages, catalog, send, onEdit }: Props) {
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <label htmlFor={selectId} className="sr-only">Página de runas</label>
-                <Select id={selectId} size="sm" className="w-full" value={runePages.currentPageId}
-                  disabled={command.pending || runePages.pages.length === 0} placeholder="Escolha uma página"
-                  options={runePages.pages.map(page => ({ value: page.id, label: page.name }))}
-                  onChange={choose} />
+                <div className="flex min-w-0 items-center gap-2">
+                  <Select id={selectId} size="sm" className="min-w-0 flex-1" value={runePages.currentPageId}
+                    disabled={command.pending || runePages.pages.length === 0} placeholder="Escolha uma página"
+                    options={runePages.pages.map(page => ({ value: page.id, label: page.name }))}
+                    onChange={choose} />
+                  {/* O lápis ao lado da página abre o editor completo (#496). */}
+                  {onEdit && (
+                    <button type="button" aria-label="Editar runas" title="Editar runas" onClick={onEdit}
+                      className="flex size-9 shrink-0 items-center justify-center rounded-control border border-control text-muted hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                      <PencilIcon />
+                    </button>
+                  )}
+                </div>
                 {(keystone || sub) && <span className="truncate text-caption text-muted">{[keystone?.name, sub?.name].filter(Boolean).join(' · ')}</span>}
               </div>
             </div>
-            {onEdit && <Button size="sm" variant="ghost" className="self-start" onClick={onEdit}>Editar runas</Button>}
           </>
         )}
       {command.feedback.status !== 'idle' && (

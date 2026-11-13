@@ -21,9 +21,14 @@ class Socket {
 }
 const socket = () => Socket.instances.at(-1)!;
 const panel = () => within(screen.getByRole('region', { name: 'Seleção de campeões' }));
-const mine = () => within(panel().getByRole('region', { name: 'Seu campeão' }));
+// Com o campeão na mão, o centro mostra a escolha de skin (#496).
+const mine = () => within(panel().getByRole('region', { name: 'Skins' }));
+const skinsOf = (name: string) => mine().getByRole('heading', { name: `Escolha a skin de ${name}` });
 const bench = () => within(panel().getByRole('region', { name: 'Banco' }));
-const last = (): ClientMessage => JSON.parse(socket().send.mock.lastCall![0]);
+// Os comandos da tela, sem o pedido das skins que o carrossel faz sozinho.
+const commands = (): ClientMessage[] => socket().send.mock.calls.map(([text]) => JSON.parse(text as string) as ClientMessage)
+  .filter(message => message.command.type !== 'openChampionSkins');
+const last = (): ClientMessage => commands().at(-1)!;
 // Por padrão o jogador tem todos os campeões do banco (Ahri e Kai'Sa).
 function hello(change: Partial<ChampSelect> = {}, pickable: number[] | null = [20, 62, 103, 145, 266]) {
   act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0',
@@ -46,9 +51,9 @@ it('mostra o campeão, os rerolls, o banco, o time e as runas, sem grade', () =>
   render(<App />); hello();
   expect(panel().getAllByRole('status')[0]).toHaveTextContent('Troque com o banco ou com um aliado.');
   expect(panel().getByLabelText('Tempo da etapa')).toHaveTextContent('25 s');
-  expect(mine().getByText('Aatrox')).toBeVisible();
-  expect(mine().getByLabelText('Rerolls restantes')).toHaveTextContent('1 reroll restante');
-  expect(mine().getByRole('button', { name: 'Rolar de novo' })).toBeEnabled();
+  expect(skinsOf('Aatrox')).toBeVisible();
+  expect(panel().getByLabelText('Rerolls restantes')).toHaveTextContent('1 reroll restante');
+  expect(panel().getByRole('button', { name: 'Rolar de novo' })).toBeEnabled();
   expect(bench().getByRole('button', { name: 'Pegar Ahri do banco' })).toBeEnabled();
   expect(bench().getByRole('button', { name: "Pegar Kai'Sa do banco" })).toHaveTextContent('prioridade');
   const team = within(panel().getByRole('region', { name: 'Seu time' }));
@@ -61,9 +66,9 @@ it('mostra o campeão, os rerolls, o banco, o time e as runas, sem grade', () =>
 
 it('rola de novo e acompanha o campeão novo e o banco', async () => {
   render(<App />); hello();
-  fireEvent.click(mine().getByRole('button', { name: 'Rolar de novo' }));
+  fireEvent.click(panel().getByRole('button', { name: 'Rolar de novo' }));
   expect(last().command).toEqual({ type: 'rerollChampion' });
-  expect(mine().getByRole('button', { name: 'Rolar de novo' })).toBeDisabled();
+  expect(panel().getByRole('button', { name: 'Rolar de novo' })).toBeDisabled();
   expect(bench().getByRole('button', { name: 'Pegar Ahri do banco' })).toBeDisabled();
   act(() => socket().receive({ type: 'champSelect', champSelect: {
     ...aramChampSelect,
@@ -72,8 +77,8 @@ it('rola de novo e acompanha o campeão novo e o banco', async () => {
     rerollsRemaining: 0,
   } }));
   await respond();
-  expect(mine().getByText('Nunu e Willump')).toBeVisible();
-  expect(mine().queryByRole('button', { name: 'Rolar de novo' })).not.toBeInTheDocument();
+  expect(skinsOf('Nunu e Willump')).toBeVisible();
+  expect(panel().queryByRole('button', { name: 'Rolar de novo' })).not.toBeInTheDocument();
   expect(bench().getByRole('button', { name: 'Pegar Aatrox do banco' })).toBeEnabled();
 });
 
@@ -82,9 +87,9 @@ it('pega um campeão do banco e mostra o erro da LCU', async () => {
   fireEvent.click(bench().getByRole('button', { name: 'Pegar Ahri do banco' }));
   expect(last().command).toEqual({ type: 'swapBenchChampion', championId: 103 });
   fireEvent.click(bench().getByRole('button', { name: "Pegar Kai'Sa do banco" }));
-  expect(socket().send).toHaveBeenCalledTimes(1);
+  expect(commands()).toHaveLength(1);
   await respond({ status: 'error', code: 'lcu', message: 'espere para trocar de novo' });
-  expect(mine().getByRole('alert')).toHaveTextContent('espere para trocar de novo');
+  expect(panel().getByRole('alert')).toHaveTextContent('espere para trocar de novo');
 });
 
 it('campeão do banco que o jogador não tem fica em cinza e não dá para clicar', () => {
@@ -95,7 +100,7 @@ it('campeão do banco que o jogador não tem fica em cinza e não dá para clica
   expect(kaisa).toHaveTextContent('não possui');
   expect(kaisa).toHaveTextContent('prioridade');
   fireEvent.click(kaisa);
-  expect(socket().send).not.toHaveBeenCalled();
+  expect(commands()).toHaveLength(0);
   const ahri = bench().getByRole('button', { name: 'Pegar Ahri do banco' });
   expect(ahri).toBeEnabled();
   expect(ahri).not.toHaveClass('grayscale');
@@ -106,7 +111,7 @@ it('campeão do banco que o jogador não tem fica em cinza e não dá para clica
 
 it('sem reroll na fila e com o banco vazio', () => {
   render(<App />); hello({ allowRerolling: false, rerollsRemaining: 0, benchChampions: [] });
-  expect(mine().queryByRole('button', { name: 'Rolar de novo' })).not.toBeInTheDocument();
+  expect(panel().queryByRole('button', { name: 'Rolar de novo' })).not.toBeInTheDocument();
   expect(bench().getByText(/Nenhum campeão no banco ainda/)).toBeVisible();
 });
 
@@ -118,7 +123,7 @@ it('a ARAM: Desordem também usa a tela do ARAM, com o nome da fila', () => {
       mapId: 12, versusAi: false, ranked: false, showPositionSelector: false, limitedTime: false, available: true }],
     champSelect: { ...aramChampSelect, queueId: 2400, queue: null, benchEnabled: false },
   } }));
-  expect(mine().getByText('Aatrox')).toBeVisible();
+  expect(skinsOf('Aatrox')).toBeVisible();
   expect(panel().getByText('ARAM: Desordem')).toBeVisible();
   // Na Desordem a troca de runas não aparece (#197).
   expect(panel().queryByRole('region', { name: 'Suas runas' })).not.toBeInTheDocument();
@@ -156,13 +161,16 @@ it('escolhe uma das cartas de campeão no início da seleção', async () => {
   } }));
   await respond();
   expect(panel().queryByRole('region', { name: 'Suas cartas' })).not.toBeInTheDocument();
-  expect(mine().getByText('Ahri')).toBeVisible();
+  expect(skinsOf('Ahri')).toBeVisible();
   expect(bench().getByRole('button', { name: 'Pegar Wukong do banco' })).toBeEnabled();
 });
 
-it('o banco fica em cima do card do seu campeão (#494)', () => {
+it('o banco fica em cima da escolha de skin, sem o card do seu campeão (#494, #496)', () => {
   render(<App />); hello();
+  expect(panel().queryByRole('region', { name: 'Seu campeão' })).not.toBeInTheDocument();
+  expect(commands()).toHaveLength(0);
+  expect(JSON.parse(socket().send.mock.lastCall![0]).command).toEqual({ type: 'openChampionSkins', championId: 266 });
   const benchRegion = panel().getByRole('region', { name: 'Banco' });
-  const mineRegion = panel().getByRole('region', { name: 'Seu campeão' });
-  expect(benchRegion.compareDocumentPosition(mineRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  const skins = panel().getByRole('region', { name: 'Skins' });
+  expect(benchRegion.compareDocumentPosition(skins) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });

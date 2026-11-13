@@ -8,6 +8,7 @@ import { ChampionIcon, Countdown, TeamList, type ContentProps } from './ChampSel
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
 import { QuitCustomChampSelect } from './QuitCustomChampSelect';
 import { RuneQuickPick } from './RuneQuickPick';
+import { SkinCarousel } from './SkinCarousel';
 import { SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { champSelectGameMode } from '../agent/summonerSpells';
 
@@ -18,8 +19,9 @@ import { champSelectGameMode } from '../agent/summonerSpells';
  * escolher a carta é confirmar esse pick. As cartas que sobram vão para o
  * banco do time, de onde qualquer um pega um campeão (o dele vai para o
  * banco no lugar). As trocas com aliados (#25), os feitiços e o chat
- * continuam como no draft, e as runas também, menos na ARAM: Desordem. O reroll antigo só aparece
- * se a LCU mandar reroll sobrando.
+ * continuam como no draft, e as runas também, menos na ARAM: Desordem. Com o
+ * campeão na mão, o centro mostra a escolha de skin, como no draft (#496). O
+ * reroll antigo só aparece se a LCU mandar reroll sobrando.
  */
 export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentProps) {
   const catalog = state.championCatalog;
@@ -84,10 +86,14 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
           {choice ? (
             <ChampionCards offers={state.champSelectChampions.subset} catalog={catalog} busy={busy}
               onChoose={chooseCard} feedback={pick.feedback} />
+          ) : me?.championId ? (
+            <SkinCarousel state={state} send={send} championId={me.championId}
+              championName={championName(catalog, me.championId)} selectedSkinId={me.selectedSkinId} />
           ) : (
-            <MyChampion championId={me?.championId ?? null} champSelect={champSelect} catalog={catalog}
-              busy={busy} onReroll={rollAgain} feedback={[pick.feedback, reroll.feedback, bench.feedback]} />
+            <p role="status" className="text-body text-muted">Sorteando o seu campeão…</p>
           )}
+          {!choice && <ChampionActions champSelect={champSelect} busy={busy} onReroll={rollAgain}
+            feedback={[pick.feedback, reroll.feedback, bench.feedback]} />}
           <ChampSelectSwaps champSelect={champSelect} busy={swap.pending} run={swap.run} feedback={swap.feedback} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
@@ -138,38 +144,36 @@ function ChampionCards({ offers, catalog, busy, onChoose, feedback }: CardsProps
   );
 }
 
-type MyChampionProps = {
-  championId: number | null;
+type ChampionActionsProps = {
   champSelect: ChampSelect;
-  catalog: ChampionCatalog | null;
   busy: boolean;
   onReroll: () => void;
   feedback: CommandFeedback[];
 };
 
-function MyChampion({ championId, champSelect, catalog, busy, onReroll, feedback }: MyChampionProps) {
+/**
+ * O reroll (só com reroll sobrando) e o andamento de reroll, banco e carta,
+ * embaixo da escolha de skin. Sem nada para mostrar, não aparece.
+ */
+function ChampionActions({ champSelect, busy, onReroll, feedback }: ChampionActionsProps) {
   const shown = feedback.find(f => f.status !== 'idle');
   const rerolls = champSelect.rerollsRemaining;
+  // Desde o 25.13 o ARAM usa cartas e a LCU manda `allowRerolling` com 0 rerolls: o botão só aparece com reroll sobrando.
   const canReroll = champSelect.allowRerolling && rerolls > 0;
+  if (!canReroll && !shown) return null;
   return (
-    <section aria-label="Seu campeão" className="flex flex-wrap items-center gap-4 rounded-card border-2 border-accent bg-surface card p-4 text-ink">
-      <ChampionIcon id={championId} size={96} />
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <p className="text-caption text-muted">Seu campeão</p>
-        <p className="text-[1.5rem] font-semibold leading-tight">{championId ? championName(catalog, championId) : 'Sorteando…'}</p>
-        {/* Desde o 25.13 o ARAM usa cartas e a LCU manda `allowRerolling` com 0 rerolls: o botão só aparece com reroll sobrando. */}
-        {canReroll && (
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="primary" disabled={busy} onClick={onReroll}>Rolar de novo</Button>
-            <p className="text-body text-muted" aria-label="Rerolls restantes">
-              {rerolls === 1 ? '1 reroll restante' : `${rerolls} rerolls restantes`}
-            </p>
-          </div>
-        )}
-        {shown && <p role={shown.status === 'error' ? 'alert' : 'status'}
-          className={shown.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{shown.message}</p>}
-      </div>
-    </section>
+    <div className="flex flex-wrap items-center gap-3">
+      {canReroll && (
+        <>
+          <Button variant="primary" disabled={busy} onClick={onReroll}>Rolar de novo</Button>
+          <p className="text-body text-muted" aria-label="Rerolls restantes">
+            {rerolls === 1 ? '1 reroll restante' : `${rerolls} rerolls restantes`}
+          </p>
+        </>
+      )}
+      {shown && <p role={shown.status === 'error' ? 'alert' : 'status'}
+        className={shown.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{shown.message}</p>}
+    </div>
   );
 }
 
