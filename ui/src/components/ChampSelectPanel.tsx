@@ -312,6 +312,18 @@ function TeamBans({ label, ids, slots, catalog }: { label: string; ids: number[]
   );
 }
 
+/** Sinal de bloqueio em cima do campeão marcado para banir (#475). */
+function BanMark() {
+  return (
+    <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center rounded-control-sm bg-black/35 text-danger">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+        <circle cx="12" cy="12" r="9" fill="rgb(255 255 255 / .85)" />
+        <path d="M5.6 5.6l12.8 12.8" />
+      </svg>
+    </span>
+  );
+}
+
 type ActionBarProps = {
   mine: MyAction | null;
   chosen: number | null;
@@ -434,8 +446,11 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect, foote
                   title={available ? champion.name : `${champion.name} (indisponível)`}
                   onClick={() => onSelect?.(champion.id)}
                   className="flex w-full flex-col items-center gap-1 rounded-control border-2 border-transparent p-1 text-caption text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-accent aria-pressed:border-accent aria-pressed:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent">
-                  {/* Banido ou já escolhido fica em cinza (#475). */}
-                  <ChampionIcon id={champion.id} size={48} gray={!available} />
+                  {/* Banido ou já escolhido fica em cinza (#475). O marcado para banir ganha o sinal de bloqueio. */}
+                  <span className="relative">
+                    <ChampionIcon id={champion.id} size={48} gray={!available} />
+                    {purpose === 'ban' && selected === champion.id && <BanMark />}
+                  </span>
                   <span className="w-full truncate text-center">{champion.name}</span>
                 </button>
               </li>
