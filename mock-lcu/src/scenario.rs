@@ -16,7 +16,8 @@
 //!   R2 | B2 B3 | R3, bans R4 B4 R5 B5 e picks R4 | B4 B5 | R5.
 //! - `blind`: escolha às cegas (fila 430), os 5 aliados escolhem ao mesmo
 //!   tempo, sem bans e sem ver os adversários.
-//! - `aram`: ARAM (fila 450), campeões sorteados, banco e reroll. O último
+//! - `aram`: ARAM (fila 450), campeões sorteados e banco. Sem reroll, como a
+//!   LCU real desde o 25.13 (`allowRerolling` com 0 rerolls). O último
 //!   campeão do banco fica fora de `pickable-champion-ids`, como um campeão
 //!   que o jogador não tem (#446).
 //!
@@ -678,8 +679,10 @@ fn build_session(template: &Value, options: Options) -> Value {
             session["actions"] = json!([]);
             session["theirTeam"] = json!([]);
             session["benchEnabled"] = json!(true);
+            // Desde o 25.13 a LCU manda `allowRerolling` com 0 rerolls, como
+            // na gravação 16.22-aram (#492).
             session["allowRerolling"] = json!(true);
-            session["rerollsRemaining"] = json!(2);
+            session["rerollsRemaining"] = json!(0);
             clear_positions(&mut session);
         }
     }
@@ -1314,6 +1317,8 @@ mod tests {
         assert_eq!(s["queueId"], 450);
         assert_eq!(s["timer"]["phase"], "FINALIZATION");
         assert_eq!(s["benchChampions"].as_array().unwrap().len(), 4);
+        // Sem reroll, como a LCU real desde o 25.13.
+        assert_eq!(s["rerollsRemaining"], 0);
         let champions: Vec<i64> = s["myTeam"]
             .as_array()
             .unwrap()
