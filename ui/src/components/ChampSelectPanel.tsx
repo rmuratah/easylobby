@@ -22,10 +22,10 @@ import { cx } from './base/cx';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send']; onOpenRunes?: () => void };
 
-export function ChampionIcon({ id, size = 40, dim = false }: { id: number | null; size?: number; dim?: boolean }) {
+export function ChampionIcon({ id, size = 40, dim = false, gray = false }: { id: number | null; size?: number; dim?: boolean; gray?: boolean }) {
   // O fundo fica no lugar da imagem enquanto ela carrega ou quando não há ícone.
   return (
-    <span aria-hidden="true" className={cx('inline-block shrink-0 overflow-hidden rounded-control-sm bg-raised', dim && 'opacity-50')}
+    <span aria-hidden="true" className={cx('inline-block shrink-0 overflow-hidden rounded-control-sm bg-raised', dim && 'opacity-50', gray && 'grayscale')}
       style={{ width: size, height: size }}>
       {id ? <img src={assetUrl('champion', id)} alt="" width={size} height={size}
         onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }} /> : null}
@@ -280,7 +280,8 @@ function TeamBans({ label, ids, slots, catalog }: { label: string; ids: number[]
           const id = ids[index];
           return id ? (
             <li key={index} title={championName(catalog, id)}>
-              <ChampionIcon id={id} size={28} dim />
+              {/* Banido fica em cinza (#475). */}
+              <ChampionIcon id={id} size={28} dim gray />
               <span className="sr-only">{championName(catalog, id)}</span>
             </li>
           ) : (
@@ -414,7 +415,8 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect, foote
                   title={available ? champion.name : `${champion.name} (indisponível)`}
                   onClick={() => onSelect?.(champion.id)}
                   className="flex w-full flex-col items-center gap-1 rounded-control border-2 border-transparent p-1 text-caption text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-accent aria-pressed:border-accent aria-pressed:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent">
-                  <ChampionIcon id={champion.id} size={48} />
+                  {/* Banido ou já escolhido fica em cinza (#475). */}
+                  <ChampionIcon id={champion.id} size={48} gray={!available} />
                   <span className="w-full truncate text-center">{champion.name}</span>
                 </button>
               </li>
