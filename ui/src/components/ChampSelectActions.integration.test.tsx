@@ -6,6 +6,7 @@ import type { ChampSelect } from '../bindings/ChampSelect';
 import type { ClientMessage } from '../bindings/ClientMessage';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { champSelectState, draftChampSelect } from '../test/champSelect';
+import { sound } from '../agent/sound';
 
 class Socket {
   static OPEN = 1;
@@ -142,4 +143,30 @@ it('não rouba o que é digitado num campo, como o chat', () => {
   fireEvent.keyDown(input, { key: 'a' });
   expect(panel().getByRole('searchbox', { name: 'Buscar campeão' })).toHaveValue('');
   input.remove();
+});
+
+it('na sua vez, toca um tique por segundo nos últimos 10 segundos (#475)', () => {
+  const tick = vi.spyOn(sound, 'playTick').mockImplementation(() => {});
+  // A vez do ban acaba às 12:00:30.
+  vi.setSystemTime(Date.UTC(2026, 10, 6, 12, 0, 15));
+  render(<App />); hello();
+  expect(tick).not.toHaveBeenCalled();
+  act(() => vi.advanceTimersByTime(5_100));
+  expect(tick).toHaveBeenCalledTimes(1);
+  expect(tick).toHaveBeenLastCalledWith(false);
+  act(() => vi.advanceTimersByTime(7_000));
+  expect(tick).toHaveBeenCalledTimes(8);
+  expect(tick).toHaveBeenLastCalledWith(true);
+  act(() => vi.advanceTimersByTime(5_000));
+  expect(tick).toHaveBeenCalledTimes(10);
+  tick.mockRestore();
+});
+
+it('fora da sua vez, não toca o tique', () => {
+  const tick = vi.spyOn(sound, 'playTick').mockImplementation(() => {});
+  vi.setSystemTime(Date.UTC(2026, 10, 6, 12, 0, 25));
+  render(<App />); hello({ champSelect: { ...draftChampSelect, pendingAction: null } });
+  act(() => vi.advanceTimersByTime(6_000));
+  expect(tick).not.toHaveBeenCalled();
+  tick.mockRestore();
 });
