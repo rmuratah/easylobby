@@ -34,7 +34,7 @@ export function RunePagesPanel({ connection, send, bare = false }: Props & {
         catalog={state.runeCatalog} runePages={state.runePages} send={send} />
     );
   }
-  if (bare) return <section aria-label="Páginas de runas" className="flex flex-col text-ink">{body}</section>;
+  if (bare) return <section aria-label="Páginas de runas" className="flex flex-1 flex-col text-ink">{body}</section>;
   return (
     <Card as="section" aria-label="Páginas de runas" className="flex w-full max-w-[56rem] flex-col gap-4 p-5 text-ink">
       {heading}
@@ -69,7 +69,7 @@ export function RunesDialog({ connection, send, onClose }: Props & { onClose: ()
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4 animate-fade-up"
       onPointerDown={event => { if (event.target === event.currentTarget) onClose(); }}>
       <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId}
-        className="flex max-h-[calc(100vh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-panel bg-surface card text-ink shadow-lift">
+        className="flex h-[min(40rem,calc(100vh-2rem))] w-full max-w-5xl flex-col overflow-hidden rounded-panel bg-surface card text-ink shadow-lift">
         <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-3">
           <h2 id={titleId} className="text-section font-semibold">Editar runas</h2>
           <button type="button" aria-label="Fechar" title="Fechar" onClick={onClose}
@@ -78,7 +78,8 @@ export function RunesDialog({ connection, send, onClose }: Props & { onClose: ()
               strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {/* A janela usa quase toda a altura da tela e o editor estica junto, com mais espaço entre as runas (#475). */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
           <RunePagesPanel connection={connection} send={send} bare />
         </div>
       </div>
