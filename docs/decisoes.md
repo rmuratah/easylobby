@@ -53,6 +53,7 @@ Depois da partida, o app mostra o resultado e as estatísticas e volta ao lobby,
 - **Dados:** vêm de `/lol-end-of-game/v1/eog-stats-block`, lidos pelo agente e enviados à UI pelo `/ws` com tipos gerados, como nas outras telas ([issue #179](https://github.com/rmuratah/easylobby/issues/179)).
 - **Jogar de novo:** o botão chama `POST /lol-lobby/v2/play-again` e volta ao lobby com o mesmo grupo e a mesma fila ([issue #180](https://github.com/rmuratah/easylobby/issues/180)).
 - **Honra:** opcional. O jogador pode honrar um aliado ou pular, e nenhuma das duas escolhas trava a volta ao lobby ([issue #182](https://github.com/rmuratah/easylobby/issues/182)).
+- **UI oficial:** o LoL a reabre quando o jogo fecha; o agente a fecha de novo no pós-jogo, como nas outras telas que o app cobre ([issue #448](https://github.com/rmuratah/easylobby/issues/448)). Na reconexão a UI oficial não é fechada, porque é por ela que o jogador reconecta, mas fica escondida; o botão de emergência a mostra.
 - **Limites:** nada de loja, de missões pagas ou de ofertas na tela de pós-jogo, seguindo o escopo do produto.
 
 ## Responsabilidades e contribuição
