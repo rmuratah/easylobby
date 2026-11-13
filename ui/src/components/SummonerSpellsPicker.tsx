@@ -33,14 +33,16 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queu
   const command = useCommand(send);
   const slotButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const list = useRef<HTMLUListElement>(null);
-  // Ao abrir, o foco vai para o feitiço atual; Esc fecha e devolve o foco ao botão do espaço.
+  // Aberto pelo mouse (#475), o foco fica onde está.
+  const [byHover, setByHover] = useState(false);
+  // Ao abrir pelo clique ou teclado, o foco vai para o feitiço atual; Esc fecha e devolve o foco ao botão do espaço.
   useEffect(() => {
-    if (open === null) return;
+    if (open === null || byHover) return;
     list.current?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]:not(:disabled), button:not(:disabled)')?.focus();
-  }, [open]);
+  }, [open, byHover]);
   function close(slot: 0 | 1) {
     setOpen(null);
-    slotButtons.current[slot]?.focus();
+    if (!byHover) slotButtons.current[slot]?.focus();
   }
   const me = champSelect.myTeam.find(p => p.cellId === champSelect.localPlayerCellId);
   if (!me) return null;
@@ -58,40 +60,49 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queu
   return (
     <section aria-label="Seus feitiços" className="flex flex-col gap-2">
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Feitiços</h3>
+      {/* Passar o mouse num feitiço abre a escolha para cima, por cima da tela, numa grade 3x3 (#475). */}
       <div className="flex flex-wrap gap-2">
         {slotNames.map((label, index) => {
           const slot = index as 0 | 1;
           return (
-            <button key={label} ref={element => { slotButtons.current[slot] = element; }} type="button" aria-label={`${label}: ${spellName(catalog, current[slot] || null)}`}
-              aria-expanded={open === slot} disabled={disabled}
-              onClick={() => setOpen(open === slot ? null : slot)}
-              className="flex items-center gap-2 rounded-control border border-control bg-surface px-2 py-1 text-ink aria-expanded:border-accent aria-expanded:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50">
-              <SpellIcon id={current[slot] || null} />
-              <span className="text-body">{spellName(catalog, current[slot] || null)}</span>
-            </button>
+            <div key={label} className="relative"
+              onMouseEnter={() => { if (!disabled) { setByHover(true); setOpen(slot); } }}
+              onMouseLeave={() => { if (byHover && open === slot) setOpen(null); }}>
+              <button ref={element => { slotButtons.current[slot] = element; }} type="button" aria-label={`${label}: ${spellName(catalog, current[slot] || null)}`}
+                aria-expanded={open === slot} disabled={disabled}
+                onClick={() => { setByHover(false); setOpen(open === slot && !byHover ? null : slot); }}
+                className="flex items-center gap-2 rounded-control border border-control bg-surface px-2 py-1 text-ink aria-expanded:border-accent aria-expanded:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50">
+                <SpellIcon id={current[slot] || null} />
+                <span className="text-body">{spellName(catalog, current[slot] || null)}</span>
+              </button>
+              {open === slot && (
+                // O espaço em branco embaixo da grade faz parte da área do mouse: ir do botão até a grade não fecha.
+                <div className="absolute bottom-full left-0 z-30 pb-2">
+                  <ul ref={list} aria-label={`Escolher ${slotNames[slot]}`}
+                    className="grid w-max grid-cols-3 gap-1 rounded-card border border-edge bg-surface p-2 shadow-lift animate-fade-up"
+                    onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); close(slot); } }}>
+                    {spells.map(spell => {
+                      const unlocked = spellUnlocked(spell, summonerLevel);
+                      return (
+                        <li key={spell.id}>
+                          <button type="button" aria-pressed={current[slot] === spell.id} disabled={disabled || !unlocked}
+                            title={unlocked ? spell.name : `${spell.name} (libera no nível ${spell.summonerLevel})`}
+                            onClick={() => choose(slot, spell.id)}
+                            className="flex w-20 flex-col items-center gap-1 rounded-control border-2 border-transparent p-1 text-caption text-ink hover:bg-raised aria-pressed:border-accent aria-pressed:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40">
+                            <SpellIcon id={spell.id} />
+                            <span className="w-full truncate text-center">{spell.name}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
       {!catalog && <p className="text-muted">Carregando feitiços…</p>}
-      {open !== null && (
-        <ul ref={list} aria-label={`Escolher ${slotNames[open]}`} className="flex flex-wrap gap-1 rounded-card border border-edge bg-surface card p-1"
-          onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); close(open); } }}>
-          {spells.map(spell => {
-            const unlocked = spellUnlocked(spell, summonerLevel);
-            return (
-              <li key={spell.id}>
-                <button type="button" aria-pressed={current[open] === spell.id} disabled={disabled || !unlocked}
-                  title={unlocked ? spell.name : `${spell.name} (libera no nível ${spell.summonerLevel})`}
-                  onClick={() => choose(open, spell.id)}
-                  className="flex w-20 flex-col items-center gap-1 rounded-control border-2 border-transparent p-1 text-caption text-ink hover:bg-raised aria-pressed:border-accent aria-pressed:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40">
-                  <SpellIcon id={spell.id} />
-                  <span className="w-full truncate text-center">{spell.name}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
       {command.feedback.status !== 'idle' && (
         <p role={command.feedback.status === 'error' ? 'alert' : 'status'}
           className={command.feedback.status === 'error' ? 'text-danger' : 'text-muted'}>{command.feedback.message}</p>
