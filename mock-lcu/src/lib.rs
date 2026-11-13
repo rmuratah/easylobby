@@ -876,6 +876,14 @@ async fn handle_request(
             }
             response
         }
+        // Sair da seleção da personalizada (#488).
+        (&Method::POST, lobby::CUSTOM_CANCEL_CHAMP_SELECT) => {
+            let (response, events) = lobby::cancel_custom_champ_select(&shared.state());
+            for event in events {
+                emit(&shared, event);
+            }
+            response
+        }
         (&Method::DELETE, lobby::LOBBY) => {
             let (response, events) = lobby::leave(&shared.state());
             for event in events {

@@ -13,6 +13,7 @@ import { ChampSelectChatPanel } from './ChampSelectChatPanel';
 import { RuneQuickPick } from './RuneQuickPick';
 import { SkinCarousel } from './SkinCarousel';
 import { AramChampSelectContent } from './AramChampSelect';
+import { QuitCustomChampSelect } from './QuitCustomChampSelect';
 import { LANES, positionNames, type Lane } from '../agent/positions';
 import { PositionIcon } from './PositionIcon';
 import type { AgentState } from '../bindings/AgentState';
@@ -92,7 +93,7 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
   // Na fase de banimento (#423) a tela ganha detalhes vermelhos (estilos em index.css).
   return (
     <section aria-label="Seleção de campeões" className="champ-select text-ink" data-ban-phase={isBanPhase(champSelect) || undefined}>
-      <ChampSelectStatus champSelect={champSelect} />
+      <ChampSelectStatus champSelect={champSelect} send={send} />
       <AutofillNotice champSelect={champSelect} send={send} />
       <div className="champ-select-board">
         <div className="flex min-w-0 flex-col gap-4">
@@ -175,7 +176,7 @@ function turnLabel(champSelect: ChampSelect): string {
   return 'Aguardando os outros jogadores.';
 }
 
-function ChampSelectStatus({ champSelect }: { champSelect: ChampSelect }) {
+function ChampSelectStatus({ champSelect, send }: { champSelect: ChampSelect; send: AgentClient['send'] }) {
   const ban = isBanPhase(champSelect);
   return (
     <div className={cx('champ-select-status flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card border bg-surface card px-5 py-3 text-ink',
@@ -190,6 +191,8 @@ function ChampSelectStatus({ champSelect }: { champSelect: ChampSelect }) {
           <Countdown key={`${champSelect.timer.phase}:${champSelect.timer.endsAtMs}`} champSelect={champSelect} />
         </span>
       </p>
+      {/* Na personalizada dá para sair da seleção, como no client oficial (#488). */}
+      <QuitCustomChampSelect champSelect={champSelect} send={send} />
       {/* Barra do tempo da etapa (#475): começa cheia e esvazia da direita para a esquerda. */}
       <TimeBar key={`${champSelect.timer.phase}:${champSelect.timer.endsAtMs}`} champSelect={champSelect} ban={ban} />
     </div>

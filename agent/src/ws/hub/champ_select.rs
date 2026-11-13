@@ -256,6 +256,47 @@ impl Hub {
         }
     }
 
+    /// Sai da seleção de campeões da personalizada (comando
+    /// `quitCustomChampSelect`, #488): todos voltam para o lobby, como o
+    /// Sair do client oficial. Fora da seleção ou numa seleção que não é de
+    /// personalizada (sair ali seria esquiva, com penalidade) responde
+    /// `invalidCommand` sem falar com a LCU.
+    pub async fn quit_custom_champ_select(&self) -> CommandResult {
+        let (client, custom) = {
+            let shared = self.lock();
+            (
+                shared.client.clone(),
+                shared
+                    .state
+                    .champ_select
+                    .as_ref()
+                    .map(|cs| cs.is_custom_game),
+            )
+        };
+        let Some(client) = client else {
+            return not_connected();
+        };
+        match custom {
+            None => {
+                return CommandResult::error(
+                    ErrorCode::InvalidCommand,
+                    "fora da seleção de campeões",
+                )
+            }
+            Some(false) => {
+                return CommandResult::error(
+                    ErrorCode::InvalidCommand,
+                    "só dá para sair da seleção numa personalizada",
+                )
+            }
+            Some(true) => {}
+        }
+        match champ_select::quit_custom_champ_select(&client).await {
+            Ok(()) => CommandResult::Ok,
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
     /// Pede, aceita, recusa ou cancela uma troca na seleção (comandos
     /// `requestSwap`, `acceptSwap`, `declineSwap` e `cancelSwap`, #25).
     /// Confere o pedido contra a seleção atual, e relê a sessão pelo REST e
