@@ -91,6 +91,8 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
       <AutofillNotice champSelect={champSelect} send={send} />
       <div className="champ-select-board">
         <div className="flex min-w-0 flex-col gap-4">
+          {/* Os bans de cada time ficam em cima do nome dele (#475). */}
+          <TeamBans label="Bans do seu time" ids={champSelect.bans.myTeam} slots={banSlots(champSelect, true)} catalog={catalog} />
           <TeamList label="Seu time" players={champSelect.myTeam} ally acting={acting} catalog={catalog}
             onCardHeight={setAllyCardHeight}
             renderActions={player => player.isLocalPlayer ? null
@@ -100,7 +102,6 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
           <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />
         </div>
         <div className="champ-select-center">
-          <Bans champSelect={champSelect} catalog={catalog} />
           <ChampSelectSwaps champSelect={champSelect} busy={swap.pending} run={swap.run} feedback={swap.feedback} />
           {/* O botão de banir e escolher fica dentro da seção de campeões, embaixo e no meio (#475). */}
           <ChampionGrid state={state} champSelect={champSelect} grid={grid} selected={chosen || null}
@@ -109,6 +110,7 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
               busy={confirm.pending} onConfirm={lockIn} feedback={[confirm.feedback, hover.feedback]} />} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
+          <TeamBans label="Bans do time adversário" ids={champSelect.bans.theirTeam} slots={banSlots(champSelect, false)} catalog={catalog} />
           <TeamList label="Time adversário" players={champSelect.theirTeam} ally={false} acting={acting} catalog={catalog}
             minCardHeight={allyCardHeight} />
           {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}
@@ -258,25 +260,32 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions,
   );
 }
 
-function Bans({ champSelect, catalog }: { champSelect: ChampSelect; catalog: ChampionCatalog | null }) {
-  const teams = [['Bans do seu time', champSelect.bans.myTeam], ['Bans do time adversário', champSelect.bans.theirTeam]] as const;
-  if (teams.every(([, ids]) => ids.length === 0)) return null;
+/** Quantos bans o time tem nesta seleção: as ações de ban dele ou, se forem menos, os bans já feitos. */
+function banSlots(champSelect: ChampSelect, ally: boolean): number {
+  const actions = champSelect.actions.filter(action => action.type === 'ban' && action.isAllyAction === ally).length;
+  return Math.max(actions, (ally ? champSelect.bans.myTeam : champSelect.bans.theirTeam).length);
+}
+
+/** Bans de um time, em cima da lista dele; os que faltam aparecem como espaços vazios. */
+function TeamBans({ label, ids, slots, catalog }: { label: string; ids: number[]; slots: number; catalog: ChampionCatalog | null }) {
+  if (slots === 0) return null;
   return (
-    <div className="flex flex-wrap gap-4">
-      {teams.map(([label, ids]) => ids.length > 0 && (
-        <section key={label} aria-label={label}>
-          <h3 className="text-caption text-muted">{label}</h3>
-          <ul className="flex flex-wrap gap-1">
-            {ids.map(id => (
-              <li key={id} title={championName(catalog, id)}>
-                <ChampionIcon id={id} size={28} dim />
-                <span className="sr-only">{championName(catalog, id)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
+    <section aria-label={label} className="flex min-w-0 flex-col gap-1">
+      <h3 className="text-caption text-muted">{label}</h3>
+      <ul className="flex flex-wrap gap-1">
+        {Array.from({ length: slots }, (_, index) => {
+          const id = ids[index];
+          return id ? (
+            <li key={index} title={championName(catalog, id)}>
+              <ChampionIcon id={id} size={28} dim />
+              <span className="sr-only">{championName(catalog, id)}</span>
+            </li>
+          ) : (
+            <li key={index} aria-hidden="true" className="h-7 w-7 rounded-control-sm border border-dashed border-line" />
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
