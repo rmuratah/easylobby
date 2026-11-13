@@ -9,7 +9,7 @@ Este documento registra as decisões acordadas do easylobby. Elas orientam a imp
 - **React + TypeScript**, com Vite e Tailwind, compõem a interface.
 - A UI se comunica somente com o canal interno `/ws` do agente. Os tipos TypeScript são gerados a partir do Rust com `ts-rs` ou `specta`; a escolha entre essas ferramentas ainda não está definida neste documento. A UI não acessa a LCU diretamente nem inventa formatos de mensagens.
 - O **mock-lcu** permite desenvolver sem abrir o LoL, usando fixtures de sessões reais em `agent/tests/fixtures/<patch>/`.
-- **API oficial da Riot (proposta no #436):** a única chamada fora da LCU é o `spectator-v5`, para a aba "Em jogo" do perfil de outro jogador, que a LCU não tem. Só o agente chama. A chave não entra no app: por enquanto fica na máquina de quem testa (`EASYLOBBY_RIOT_API_KEY` ou arquivo local) e, antes da beta, num servidor do easylobby com a chave de produto (#37).
+- **API oficial da Riot (proposta no #436):** a única chamada fora da LCU é o `spectator-v5`, para a aba "Em jogo" do perfil de outro jogador, que a LCU não tem. Só o agente chama. A chave não entra no app: por enquanto fica na máquina de quem testa (`EASYLOBBY_RIOT_API_KEY` ou arquivo local) e, antes do alfa fechado, num servidor do easylobby com a chave de produto (#37).
 
 ## Interface oficial e recuperação
 
@@ -25,9 +25,20 @@ A LCU é um servidor local autenticado: porta e senha são obtidas do lockfile. 
 
 - O app substitui a interface do client para lobby, fila e seleção de campeões; não automatiza jogadas nem oferece vantagem dentro da partida.
 - **Não haverá loja:** compras de skins ou itens ficam fora do app.
-- O MVP termina na fase 3: ranqueada solo com ban e troca de runas sem a interface oficial.
-- O aceite automático de partida é opcional e está **fora do MVP**, no [backlog #39](https://github.com/rmuratah/easylobby/issues/39). Isso não exclui o aceite ou a recusa manual da [issue #20](https://github.com/rmuratah/easylobby/issues/20).
-- Antes da beta, é necessário registrar o app no **Riot Developer Portal** e revisar a política da Riot, conforme a [issue #37](https://github.com/rmuratah/easylobby/issues/37). Este documento não representa aprovação da Riot.
+- O primeiro marco é o **alfa fechado**: o fluxo de jogar inteiro sem a interface oficial, do lobby ao Jogar de novo, para 3 a 5 amigos. A **beta** sai quando todas as funções escolhidas estiverem prontas (veja "Etapas" abaixo).
+- O aceite automático de partida é opcional e fica **para depois da beta**, na [issue #39](https://github.com/rmuratah/easylobby/issues/39). Isso não exclui o aceite ou a recusa manual da [issue #20](https://github.com/rmuratah/easylobby/issues/20).
+- Antes do alfa fechado, é necessário registrar o app no **Riot Developer Portal** e revisar a política da Riot, conforme a [issue #37](https://github.com/rmuratah/easylobby/issues/37). Este documento não representa aprovação da Riot.
+
+## Etapas: alfa fechado, beta e depois da beta
+
+Em novembro de 2026 as Fases 0 a 8 foram trocadas por três milestones no GitHub ([issue #472](https://github.com/rmuratah/easylobby/issues/472)):
+
+- **Alfa fechado:** o fluxo de jogar completo (seleção de campeões nos 6 fluxos, incluindo Arena e votação; pós-jogo com honra e Jogar de novo), testes no LoL real, instalador, assinatura e registro na Riot. Mandar o app para os amigos já é distribuir, por isso o registro na Riot vem antes do alfa.
+- **Beta:** todas as funções escolhidas. Inclui o perfil completo e estatísticas no estilo op.gg e deeplol (nota por partida, gráfico de PDL gravado pelo app, detalhe da partida); o que precisa de dados globais depende da [issue #462](https://github.com/rmuratah/easylobby/issues/462).
+- **Depois da beta:** celular, aceite automático, Clash, chat de voz, assistir amigo, Discord e Hextec.
+- **Fora do app:** estimativa de MMR, revelar aliados na seleção ranqueada (contra a política da Riot), estandarte e replays.
+
+As seções abaixo que citam fases ficam como histórico.
 
 ## Redesign (Fase 5)
 

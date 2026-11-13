@@ -47,23 +47,19 @@ Não reabra sem conversar com os dois devs. Consulte também o [registro de deci
 - Tauri 2, núcleo em Rust, front em React + TypeScript.
 - Fechar a UI oficial com `kill-ux` (com opção para desligar) e reabrir com `launch-ux`.
 - **Sem loja**: nada de comprar skins ou itens pelo app.
-- **Aceite automático de partida fora do MVP** (issue #39, backlog).
+- **Aceite automático de partida fora do alfa e da beta** (issue #39, Depois da beta).
 - Nada que automatize jogadas ou dê vantagem dentro da partida; o app só substitui a interface do client.
-- O app será publicado: antes da beta, registro no **Riot Developer Portal** e revisão da política da Riot (issue #37).
+- O app será publicado: antes do alfa fechado, registro no **Riot Developer Portal** e revisão da política da Riot (issue #37).
 
-## Fases (milestones)
+## Etapas (milestones)
 
-| Fase | Pronto quando |
+| Etapa | Pronto quando |
 | --- | --- |
-| 0 · Fundação | O agente lê o lockfile e mostra o invocador logado, no LoL real e no mock |
-| 1 · Núcleo do agente e janela Tauri | O app abre o LoL, fecha a UI oficial sozinho e reabre pelo botão; fechar e reabrir o LoL não derruba o agente |
-| 2 · Fila e partida | Uma normal do início ao fim sem abrir a UI oficial |
-| 3 · Seleção de campeões e runas | Ranqueada solo com ban e troca de runas sem a UI oficial (MVP pronto) |
-| 4 · Social | Duo montada e chat com amigos só pelo app |
-| 5 · Redesign | Todas as telas do app seguem o novo visual |
-| 6 · Pós-jogo | Depois de uma normal e de uma ranqueada, o app mostra o resultado e as estatísticas e volta ao lobby com Jogar de novo, sem abrir a UI oficial |
-| 7 · Refinamento e testes | Todas as telas testadas no LoL real, sem bug aberto de criticidade média ou alta |
-| 8 · Celular e beta | 3 a 5 amigos usam a beta por uma semana |
+| Alfa fechado | O fluxo de jogar inteiro funciona sem a UI oficial (modo e lobby, fila, seleção de campeões nos 6 fluxos, partida, pós-jogo com honra e Jogar de novo), testado no LoL real, com instalador e registro na Riot; 3 a 5 amigos usam o app |
+| Beta | Todas as funções escolhidas para o app estão prontas: perfil completo, estatísticas no estilo op.gg, detalhe da partida e paridade com o client oficial |
+| Depois da beta | Sem data: celular, aceite automático, Clash, chat de voz e outros extras |
+
+As Fases 0 a 8 do plano original foram substituídas por essas etapas em novembro de 2026 (#472); veja o [registro de decisões](docs/decisoes.md).
 
 ## Quem faz cada tarefa
 
