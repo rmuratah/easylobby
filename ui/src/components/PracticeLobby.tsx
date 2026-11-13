@@ -8,14 +8,13 @@ import { useCommand } from '../agent/useCommand';
 import { BOT_POSITIONS, botDifficultyNames } from '../agent/customLobby';
 import { customLobbySummary, customLobbyTitle, spectatorNames } from '../agent/customGame';
 import type { AgentState } from '../bindings/AgentState';
-import type { BotDifficulty } from '../bindings/BotDifficulty';
 import type { Champion } from '../bindings/Champion';
 import type { CustomBot } from '../bindings/CustomBot';
 import type { CustomMember } from '../bindings/CustomMember';
 import type { CustomTeam } from '../bindings/CustomTeam';
 import type { Lobby } from '../bindings/Lobby';
 import type { Position } from '../bindings/Position';
-import { Avatar } from './base';
+import { Avatar, Select } from './base';
 import { cx } from './base/cx';
 import { ChampionIcon } from './ChampSelectPanel';
 import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
@@ -39,7 +38,6 @@ const DIFFICULTIES = Object.keys(botDifficultyNames) as (keyof typeof botDifficu
 const teamNames: Record<CustomTeam, string> = { team1: 'Equipe 1', team2: 'Equipe 2' };
 
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
-const selectClass = `h-9 min-w-0 rounded-control border border-control bg-raised px-2 text-caption text-ink disabled:cursor-not-allowed disabled:text-muted ${focusRing}`;
 const pill = `inline-flex h-9 items-center justify-center gap-1.5 rounded-full px-4 text-caption font-semibold transition-colors disabled:cursor-not-allowed disabled:text-muted ${focusRing}`;
 
 /** Quem escolhe o campeão: um bot novo numa equipe, ou um bot que já está no lobby. */
@@ -268,20 +266,15 @@ function BotRow({ bot, state, editable, onChampion, onChange, onRemove }: {
         </span>
       )}
       <label htmlFor={positionId} className="sr-only">Posição do bot {name}</label>
-      <span className="relative flex items-center">
-        <PositionIcon position={bot.position} className="pointer-events-none absolute left-2 z-10" />
-        <select id={positionId} value={bot.position} disabled={!editable} className={`${selectClass} pl-8`}
-          onChange={event => onChange({ position: event.target.value as Position })}>
-          {!(BOT_POSITIONS as readonly Position[]).includes(bot.position) && <option value={bot.position} disabled>Sem posição</option>}
-          {BOT_POSITIONS.map(position => <option key={position} value={position}>{positionNames[position]}</option>)}
-        </select>
-      </span>
+      <Select id={positionId} size="sm" value={(BOT_POSITIONS as readonly Position[]).includes(bot.position) ? bot.position : null}
+        placeholder="Sem posição" disabled={!editable} className="w-36"
+        options={BOT_POSITIONS.map(position => ({ value: position, label: positionNames[position], icon: <PositionIcon position={position} size={16} /> }))}
+        onChange={position => onChange({ position })} />
       <label htmlFor={difficultyId} className="sr-only">Dificuldade do bot {name}</label>
-      <select id={difficultyId} value={bot.difficulty} disabled={!editable} className={selectClass}
-        onChange={event => onChange({ difficulty: event.target.value as BotDifficulty })}>
-        {bot.difficulty === 'unknown' && <option value="unknown" disabled>Dificuldade</option>}
-        {DIFFICULTIES.map(d => <option key={d} value={d}>{botDifficultyNames[d]}</option>)}
-      </select>
+      <Select id={difficultyId} size="sm" value={bot.difficulty === 'unknown' ? null : bot.difficulty}
+        placeholder="Dificuldade" disabled={!editable} className="w-32"
+        options={DIFFICULTIES.map(d => ({ value: d, label: botDifficultyNames[d] }))}
+        onChange={difficulty => onChange({ difficulty })} />
       {editable && (
         <button type="button" aria-label={`Tirar o bot ${name}`} title="Tirar o bot" onClick={onRemove}
           className={`flex size-8 items-center justify-center rounded-full text-muted transition-colors hover:text-danger ${focusRing}`}>

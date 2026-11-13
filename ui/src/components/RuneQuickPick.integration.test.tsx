@@ -7,6 +7,7 @@ import type { RunePage } from '../bindings/RunePage';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { champSelectState, spellCatalog } from '../test/champSelect';
 import { testFullRuneCatalog, testRunePage } from '../test/runes';
+import { chooseOption } from '../test/select';
 
 class Socket {
   static OPEN = 1;
@@ -40,15 +41,15 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 it('troca a página de runas sem sair da seleção', async () => {
   render(<App />); hello();
   const select = runes().getByRole('combobox', { name: 'Página de runas' });
-  expect(select).toHaveValue('10');
+  expect(select).toHaveAttribute('data-value', '10');
   expect(runes().getByText('Pressione o Ataque · Dominação')).toBeInTheDocument();
-  fireEvent.change(select, { target: { value: '11' } });
+  chooseOption(select, '11');
   expect(last()).toMatchObject({ command: { type: 'selectRunePage', pageId: 11 } });
   expect(runes().getByRole('status')).toHaveTextContent('Aplicando página…');
   expect(select).toBeDisabled();
   await act(async () => socket().receive({ type: 'response', id: last().id, result: { status: 'ok' } }));
   // A página só muda quando o agente confirma pelo estado.
-  expect(select).toHaveValue('10');
+  expect(select).toHaveAttribute('data-value', '10');
   expect(select).toBeEnabled();
 });
 

@@ -14,6 +14,7 @@ import type { Queue } from '../bindings/Queue';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { testFriend } from '../test/events';
 import { testLobby, testState } from '../test/lobby';
+import { chooseOption, optionLabels, optionByLabel } from '../test/select';
 
 class Socket {
   static OPEN = 1;
@@ -340,7 +341,7 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByRole('radio', { name: 'Todos' })).toBeChecked();
     expect(panel().getByRole('radio', { name: 'Adicionar intervalo' })).toBeChecked();
     const pick = panel().getByRole('combobox', { name: 'Tipo de jogo' });
-    expect(within(pick).getAllByRole('option').map(o => o.textContent))
+    expect(optionLabels(pick))
       .toEqual(['Escolha às Cegas', 'Modo alternado', 'Todos aleatórios', 'Alternada Torneio']);
     // Nome vazio não sai.
     fireEvent.change(name, { target: { value: '   ' } });
@@ -348,12 +349,12 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByText('Dê um nome para a partida.')).toBeInTheDocument();
     fireEvent.change(name, { target: { value: '  Treino da firma ' } });
     fireEvent.change(panel().getByRole('textbox', { name: 'Senha (opcional)' }), { target: { value: 'segredo' } });
-    fireEvent.change(pick, { target: { value: 'allRandom' } });
+    chooseOption(pick, 'allRandom');
     // Rift Clássico: só alternada e às cegas; o tipo que não existe nele volta para o primeiro.
     fireEvent.click(radio('Rift Clássico'));
-    expect(within(pick).getAllByRole('option').map(o => o.textContent)).toEqual(['Escolha Alternada', 'Escolha às Cegas']);
-    expect(pick).toHaveValue('draftMode');
-    fireEvent.change(panel().getByRole('combobox', { name: 'Tamanho da equipe' }), { target: { value: '3' } });
+    expect(optionLabels(pick)).toEqual(['Escolha Alternada', 'Escolha às Cegas']);
+    expect(pick).toHaveAttribute('data-value', 'draftMode');
+    chooseOption(panel().getByRole('combobox', { name: 'Tamanho da equipe' }), '3');
     fireEvent.click(panel().getByRole('radio', { name: 'Somente da lista de amigos' }));
     fireEvent.click(panel().getByRole('radio', { name: 'Sem intervalo' }));
     fireEvent.click(panel().getByRole('checkbox', { name: 'Esconder da lista de saguões públicos' }));
@@ -375,14 +376,14 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().queryByRole('combobox', { name: 'Seleção de mapas' })).not.toBeInTheDocument();
     fireEvent.click(radio('Mapa aleatório'));
     const pick = panel().getByRole('combobox', { name: 'Tipo de jogo' });
-    expect(within(pick).getAllByRole('option').map(o => o.textContent))
+    expect(optionLabels(pick))
       .toEqual(['Todos aleatórios', 'ARAM: Desordem', 'Escolha às Cegas', 'Alternada Torneio', 'Modo alternado']);
     const maps = panel().getByRole('combobox', { name: 'Seleção de mapas' });
-    expect(maps).toHaveValue('howlingAbyss');
-    expect(within(maps).getAllByRole('option').map(o => o.textContent))
+    expect(maps).toHaveAttribute('data-value', 'howlingAbyss');
+    expect(optionLabels(maps))
       .toEqual(['Howling Abyss', 'Travessia de Koeshin', 'Ponte da Carnificina', 'Mapa aleatório']);
-    fireEvent.change(pick, { target: { value: 'aramMayhem' } });
-    fireEvent.change(maps, { target: { value: 'butchersBridge' } });
+    chooseOption(pick, 'aramMayhem');
+    chooseOption(maps, 'butchersBridge');
     expect(panel().getByText('Ponte da Carnificina · 5v5 · ARAM: Desordem')).toBeInTheDocument();
     fireEvent.click(button('Confirmar'));
     expect(request().command).toMatchObject({ type: 'createCustomGame', options: {
@@ -391,7 +392,7 @@ describe('lobby pelo único /ws do App', () => {
     await ok();
     // A Desordem só existe no Mapa aleatório: no Summoner's Rift, o tipo volta para o primeiro.
     fireEvent.click(radio("Summoner's Rift"));
-    expect(pick).toHaveValue('blindPick');
+    expect(pick).toHaveAttribute('data-value', 'blindPick');
     expect(panel().queryByRole('combobox', { name: 'Seleção de mapas' })).not.toBeInTheDocument();
   });
 
@@ -524,27 +525,26 @@ const positionSelect = (name: string) => panel().getByRole('combobox', { name })
 // Cargos confirmados de um jogador, como aparecem nas etiquetas da linha dele.
 const roles = (name: string) => panel().getByRole('list', { name: `Posições de ${name}` });
 function choosePositions(first: string, second = 'unselected') {
-  fireEvent.change(positionSelect('Posição primária'), { target: { value: first } });
-  fireEvent.change(positionSelect('Posição secundária'), { target: { value: second } });
+  chooseOption(positionSelect('Posição primária'), first);
+  chooseOption(positionSelect('Posição secundária'), second);
 }
 
 describe('cargos pelo /ws', () => {
   it('marca as posições prioritárias da fila nas duas listas (#410)', () => {
     render(<App />);
     hello({ lobby: { ...testLobby, scarcePositions: ['jungle', 'utility'] }, gameflowPhase: 'Lobby' });
-    for (const name of ['Posição primária', 'Posição secundária']) {
-      const select = within(positionSelect(name));
-      expect(select.getByRole('option', { name: 'Selva (prioritária)' })).toBeInTheDocument();
-      expect(select.getByRole('option', { name: 'Suporte (prioritária)' })).toBeInTheDocument();
-      expect(select.getByRole('option', { name: 'Topo' })).toBeInTheDocument();
-    }
+    const marked = expect.arrayContaining(['Selva (prioritária)', 'Suporte (prioritária)', 'Topo']);
+    expect(optionLabels(positionSelect('Posição primária'))).toEqual(marked);
+    // A secundária só abre com uma primária escolhida.
+    chooseOption(positionSelect('Posição primária'), 'top');
+    expect(optionLabels(positionSelect('Posição secundária'))).toEqual(marked);
     expect(panel().getByText(/Prioritárias: Selva, Suporte\./)).toBeInTheDocument();
   });
 
   it('sem posições prioritárias, as listas ficam como antes (#410)', () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
-    expect(within(positionSelect('Posição primária')).getByRole('option', { name: 'Selva' })).toBeInTheDocument();
+    expect(optionLabels(positionSelect('Posição primária'))).toContain('Selva');
     expect(panel().queryByText(/Prioritárias:/)).not.toBeInTheDocument();
   });
 
@@ -556,12 +556,12 @@ describe('cargos pelo /ws', () => {
     ] };
     hello({ lobby, gameflowPhase: 'Lobby' });
     expect(panel().queryByRole('button', { name: 'Salvar posições' })).not.toBeInTheDocument();
-    fireEvent.change(positionSelect('Posição primária'), { target: { value: 'middle' } });
+    chooseOption(positionSelect('Posição primária'), 'middle');
     await settle();
     // Só o primário: espera o secundário.
     expect(socket().send).not.toHaveBeenCalled();
     expect(panel().getByText('Escolha a posição secundária para salvar.')).toBeInTheDocument();
-    fireEvent.change(positionSelect('Posição secundária'), { target: { value: 'jungle' } });
+    chooseOption(positionSelect('Posição secundária'), 'jungle');
     expect(socket().send).not.toHaveBeenCalled();
     await settle();
     expect(request().command).toEqual({ type: 'setPositions', first: 'middle', second: 'jungle' });
@@ -582,8 +582,8 @@ describe('cargos pelo /ws', () => {
     expect(roles('Victor#BR1')).toHaveTextContent(/Meio Primária.*Selva Secundária/);
     expect(roles('Victor#BR1').querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(2);
     expect(roles('Jogador')).toHaveTextContent(/Topo Primária.*Não selecionado Secundária/);
-    expect(positionSelect('Posição primária')).toHaveValue('middle');
-    expect(positionSelect('Posição secundária')).toHaveValue('jungle');
+    expect(positionSelect('Posição primária')).toHaveAttribute('data-value', 'middle');
+    expect(positionSelect('Posição secundária')).toHaveAttribute('data-value', 'jungle');
   });
 
   it('mostra o Riot ID dos amigos no lobby e "Jogador" para quem não é amigo', () => {
@@ -613,24 +613,24 @@ describe('cargos pelo /ws', () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
     choosePositions('middle', 'jungle');
-    expect(within(positionSelect('Posição secundária')).getByRole('option', { name: 'Meio' })).toBeDisabled();
-    fireEvent.change(positionSelect('Posição primária'), { target: { value: 'jungle' } });
-    expect(positionSelect('Posição secundária')).toHaveValue('unselected');
+    expect(optionByLabel(positionSelect('Posição secundária'), 'Meio')).toHaveAttribute('aria-disabled', 'true');
+    chooseOption(positionSelect('Posição primária'), 'jungle');
+    expect(positionSelect('Posição secundária')).toHaveAttribute('data-value', 'unselected');
     choosePositions('middle', 'fill');
     await settle();
     expect(socket().send).toHaveBeenCalledTimes(1);
     expect(request().command).toEqual({ type: 'setPositions', first: 'middle', second: 'fill' });
     await ok();
-    fireEvent.change(positionSelect('Posição primária'), { target: { value: 'fill' } });
+    chooseOption(positionSelect('Posição primária'), 'fill');
     expect(positionSelect('Posição secundária')).toBeDisabled();
-    expect(positionSelect('Posição secundária')).toHaveValue('unselected');
+    expect(positionSelect('Posição secundária')).toHaveAttribute('data-value', 'unselected');
     await settle();
     expect(request().command).toEqual({ type: 'setPositions', first: 'fill', second: 'unselected' });
     await ok();
     act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, members: [
       { ...testLobby.members[0], firstPosition: 'fill' },
     ] } }));
-    fireEvent.change(positionSelect('Posição primária'), { target: { value: 'unselected' } });
+    chooseOption(positionSelect('Posição primária'), 'unselected');
     expect(positionSelect('Posição secundária')).toBeDisabled();
     await settle();
     expect(request().command).toEqual({ type: 'setPositions', first: 'unselected', second: 'unselected' });
@@ -653,8 +653,8 @@ describe('cargos pelo /ws', () => {
       { ...testLobby.members[0], firstPosition: 'middle', secondPosition: 'bottom' },
     ] } }));
     // O evento do par anterior não apaga a escolha que ainda vai sair.
-    expect(positionSelect('Posição primária')).toHaveValue('utility');
-    expect(positionSelect('Posição secundária')).toHaveValue('top');
+    expect(positionSelect('Posição primária')).toHaveAttribute('data-value', 'utility');
+    expect(positionSelect('Posição secundária')).toHaveAttribute('data-value', 'top');
     await ok();
     await settle(0);
     expect(socket().send).toHaveBeenCalledTimes(2);
@@ -672,7 +672,7 @@ describe('cargos pelo /ws', () => {
     choosePositions('top', 'jungle');
     await settle();
     expect(socket().send).toHaveBeenCalledTimes(1);
-    expect(positionSelect('Posição primária')).toHaveValue('top');
+    expect(positionSelect('Posição primária')).toHaveAttribute('data-value', 'top');
   });
 
   it.each([
@@ -696,12 +696,12 @@ describe('cargos pelo /ws', () => {
     hello({ lobby: testLobby, gameflowPhase: 'Matchmaking' });
     expect(positionSelect('Posição primária')).toBeDisabled();
     act(() => socket().receive({ type: 'gameflowPhase', phase: 'Lobby' }));
-    fireEvent.change(positionSelect('Posição primária'), { target: { value: 'middle' } });
+    chooseOption(positionSelect('Posição primária'), 'middle');
     act(() => socket().receive({ type: 'lobby', lobby: { ...testLobby, members: [
       { ...testLobby.members[0], firstPosition: 'bottom', secondPosition: 'utility' },
     ] } }));
-    expect(positionSelect('Posição primária')).toHaveValue('bottom');
-    expect(positionSelect('Posição secundária')).toHaveValue('utility');
+    expect(positionSelect('Posição primária')).toHaveAttribute('data-value', 'bottom');
+    expect(positionSelect('Posição secundária')).toHaveAttribute('data-value', 'utility');
     await settle();
     expect(socket().send).not.toHaveBeenCalled();
   });
@@ -724,8 +724,8 @@ describe('cargos pelo /ws', () => {
       result: { status: 'error', code, message: 'Posições indisponíveis' } }));
     expect(panel().getByRole('alert')).toHaveTextContent(code === 'notConnected' ? 'desconectou' : 'Posições indisponíveis');
     expect(roles('Victor#BR1')).toHaveTextContent(/Não selecionado Primária.*Não selecionado Secundária/);
-    expect(positionSelect('Posição primária')).toHaveValue('unselected');
-    expect(positionSelect('Posição secundária')).toHaveValue('unselected');
+    expect(positionSelect('Posição primária')).toHaveAttribute('data-value', 'unselected');
+    expect(positionSelect('Posição secundária')).toHaveAttribute('data-value', 'unselected');
     await settle();
     expect(socket().send).toHaveBeenCalledTimes(1);
     choosePositions('top', 'jungle');
@@ -741,7 +741,7 @@ describe('cargos pelo /ws', () => {
     socket().send.mockImplementationOnce(() => { throw new Error('envio'); });
     await act(async () => { vi.advanceTimersByTime(AUTO_SAVE_DELAY_MS); });
     expect(panel().getByRole('alert')).toHaveTextContent('Não foi possível confirmar');
-    expect(positionSelect('Posição primária')).toHaveValue('unselected');
+    expect(positionSelect('Posição primária')).toHaveAttribute('data-value', 'unselected');
     choosePositions('top', 'jungle');
     await settle();
     const id = request().id;

@@ -4,8 +4,8 @@ import {
 } from '../agent/customGame';
 import type { AramMap } from '../bindings/AramMap';
 import type { CustomGameOptions } from '../bindings/CustomGameOptions';
-import type { CustomPickType } from '../bindings/CustomPickType';
 import type { SpectatorPolicy } from '../bindings/SpectatorPolicy';
+import { Select } from './base';
 import { cx } from './base/cx';
 
 type Props = {
@@ -63,10 +63,9 @@ export function CustomGameForm({ options, onChange, locked, problem }: Props) {
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor={`${baseId}-size`} className={labelClass}>Tamanho da equipe</label>
-            <select id={`${baseId}-size`} value={options.teamSize} disabled={locked} className={field}
-              onChange={event => set('teamSize', Number(event.target.value))}>
-              {TEAM_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
-            </select>
+            <Select id={`${baseId}-size`} value={options.teamSize} disabled={locked} className="w-full"
+              options={TEAM_SIZES.map(size => ({ value: size, label: String(size) }))}
+              onChange={size => set('teamSize', size)} />
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor={`${baseId}-password`} className={labelClass}>Senha (opcional)</label>
@@ -83,18 +82,16 @@ export function CustomGameForm({ options, onChange, locked, problem }: Props) {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor={`${baseId}-pick`} className={labelClass}>Tipo de jogo</label>
-            <select id={`${baseId}-pick`} value={options.pickType} disabled={locked} className={field}
-              onChange={event => set('pickType', event.target.value as CustomPickType)}>
-              {pickTypesByMap[options.map].map(pick => <option key={pick} value={pick}>{pickTypeName(options.map, pick)}</option>)}
-            </select>
+            <Select id={`${baseId}-pick`} value={options.pickType} disabled={locked} className="w-full"
+              options={pickTypesByMap[options.map].map(pick => ({ value: pick, label: pickTypeName(options.map, pick) }))}
+              onChange={pick => set('pickType', pick)} />
           </div>
           {options.map === 'howlingAbyss' && (
             <div className="flex flex-col gap-1.5">
               <label htmlFor={`${baseId}-aram-map`} className={labelClass}>Seleção de mapas</label>
-              <select id={`${baseId}-aram-map`} value={options.aramMap} disabled={locked} className={field}
-                onChange={event => set('aramMap', event.target.value as AramMap)}>
-                {(Object.keys(aramMapNames) as AramMap[]).map(map => <option key={map} value={map}>{aramMapNames[map]}</option>)}
-              </select>
+              <Select id={`${baseId}-aram-map`} value={options.aramMap} disabled={locked} className="w-full"
+                options={(Object.keys(aramMapNames) as AramMap[]).map(map => ({ value: map, label: aramMapNames[map] }))}
+                onChange={map => set('aramMap', map)} />
             </div>
           )}
           <fieldset disabled={locked} className="flex flex-col gap-2">

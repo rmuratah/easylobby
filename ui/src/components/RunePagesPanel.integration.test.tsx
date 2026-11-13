@@ -6,6 +6,7 @@ import type { RunePages } from '../bindings/RunePages';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { champSelectState } from '../test/champSelect';
 import { testFullRuneCatalog, testRunePage } from '../test/runes';
+import { chooseOption } from '../test/select';
 
 class Socket {
   static OPEN = 1;
@@ -39,16 +40,16 @@ describe('páginas de runas pelo /ws', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Editar runas' }));
     // O mesmo editor do Jogo Dinâmico (#420), com a página em uso.
     const select = () => panel().getByRole('combobox', { name: 'Página de runas' });
-    expect(select()).toHaveValue('10');
-    act(() => { fireEvent.change(select(), { target: { value: '11' } }); });
+    expect(select()).toHaveAttribute('data-value', '10');
+    chooseOption(select(), '11');
     expect(request().command).toEqual({ type: 'selectRunePage', pageId: 11 });
     expect(select()).toBeDisabled();
     expect(Socket.instances).toHaveLength(1);
     // Só muda quando o agente publica as páginas de novo.
-    expect(select()).toHaveValue('10');
+    expect(select()).toHaveAttribute('data-value', '10');
     act(() => socket().receive({ type: 'runePages', runePages: { ...pages, currentPageId: 11 } }));
     await act(async () => socket().receive({ type: 'response', id: request().id, result: { status: 'ok' } }));
-    expect(select()).toHaveValue('11');
+    expect(select()).toHaveAttribute('data-value', '11');
     expect(select()).toBeEnabled();
   });
 });

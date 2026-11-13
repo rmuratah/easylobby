@@ -10,6 +10,7 @@ import type { RunePage } from '../bindings/RunePage';
 import type { RunePages } from '../bindings/RunePages';
 import type { RuneStyle } from '../bindings/RuneStyle';
 import type { SlotRunesInput } from '../bindings/SlotRunesInput';
+import { Select } from './base';
 import { cx } from './base/cx';
 import {
   allowedSubStyles, draftFromPage, draftProblem, draftToInput, findStyle, newDraft, newPageName, primarySlots, slotRunes, statSlots, subSlots,
@@ -384,19 +385,20 @@ export function RunePageEditor({ catalog, runePages, send, slot, className }: Ed
             : (
               <>
                 <label htmlFor={pageSelectId} className="sr-only">Página de runas</label>
-                <select id={pageSelectId} disabled={busy || (!slot && pages.length === 0 && effective.kind !== 'new')}
-                  value={effective.kind === 'page' ? String(effective.id) : effective.kind}
-                  onChange={event => choosePage(event.target.value)}
-                  className={cx('h-9 min-w-0 flex-1 truncate rounded-control border border-control bg-raised px-3 text-body font-semibold text-ink', focusRing)}>
-                  {slot && <option value="slot">Runas do slot</option>}
-                  {effective.kind === 'new' && <option value="new">{title} (nova)</option>}
-                  {effective.kind === 'page' && !page && <option value={String(effective.id)} disabled>Escolha uma página</option>}
-                  {pages.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {(effective.kind === 'page' && p.id === effective.id ? title : p.name)}{p.isTemporary ? ' (recomendada)' : ''}
-                    </option>
-                  ))}
-                </select>
+                <Select id={pageSelectId} size="sm" className="h-9 min-w-0 flex-1 text-body font-semibold"
+                  disabled={busy || (!slot && pages.length === 0 && effective.kind !== 'new')}
+                  value={effective.kind === 'page' ? (page ? String(effective.id) : null) : effective.kind}
+                  placeholder="Escolha uma página"
+                  options={[
+                    ...(slot ? [{ value: 'slot', label: 'Runas do slot' }] : []),
+                    ...(effective.kind === 'new' ? [{ value: 'new', label: `${title} (nova)` }] : []),
+                    ...pages.map(p => ({
+                      value: String(p.id),
+                      label: effective.kind === 'page' && p.id === effective.id ? title : p.name,
+                      hint: p.isTemporary ? 'Recomendada' : undefined,
+                    })),
+                  ]}
+                  onChange={choosePage} />
               </>
             )}
         </div>

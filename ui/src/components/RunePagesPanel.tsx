@@ -56,7 +56,7 @@ export function RunesDialog({ connection, send, onClose }: Props & { onClose: ()
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     // Foco na escolha de página; sem ela (carregando), no Fechar.
-    (ref.current?.querySelector<HTMLElement>('select') ?? ref.current?.querySelector<HTMLElement>('button'))?.focus();
+    (ref.current?.querySelector<HTMLElement>('[role="combobox"]') ?? ref.current?.querySelector<HTMLElement>('button'))?.focus();
     // Esc tratado por um campo do editor (como desfazer o nome) não chega aqui.
     function onKey(event: KeyboardEvent) { if (event.key === 'Escape') closeRef.current(); }
     document.addEventListener('keydown', onKey);

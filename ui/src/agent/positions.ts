@@ -15,10 +15,6 @@ export const LANES = ['top', 'jungle', 'middle', 'bottom', 'utility'] as const s
 
 export type Lane = (typeof LANES)[number];
 
-export function isPosition(value: unknown): value is Position {
-  return typeof value === 'string' && Object.hasOwn(positionNames, value);
-}
-
 // Mesmas regras de check_positions em agent/src/lobby.rs.
 export function validPositions(first: Position, second: Position): boolean {
   return second === 'unselected' || (first !== 'unselected' && first !== 'fill' && first !== second);

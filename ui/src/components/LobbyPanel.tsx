@@ -6,11 +6,11 @@ import type { Command } from '../bindings/Command';
 import { memberName } from '../agent/friends';
 import { FRIEND_DRAG_TYPE, useLobbyInvite } from '../agent/lobbyInvite';
 import { InvitePicker } from './LobbyInvites';
-import { isPosition, positionNames, validPositions } from '../agent/positions';
+import { positionNames, validPositions } from '../agent/positions';
 import { queuePenalty } from '../agent/matchmaking';
 import type { Position } from '../bindings/Position';
 import { assetUrl } from '../agent/assets';
-import { Avatar } from './base';
+import { Avatar, Select, type SelectOption } from './base';
 import { cx } from './base/cx';
 import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
 import { PositionIcon } from './PositionIcon';
@@ -37,7 +37,6 @@ type Props = {
 type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' | 'startTutorial' | 'startPracticeTool' | 'createCustomGame' | 'joinCustomGame' }>;
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
-const selectClass = `h-10 rounded-tile border border-control bg-raised px-3 text-body text-ink transition-colors disabled:cursor-not-allowed disabled:text-muted ${focusRing}`;
 /** Botão em pílula do layout de referência: o principal leva o destaque com brilho; o secundário fica na superfície. */
 
 export function LobbyPanel({ connection, send, onOpenProfile }: Props) {
@@ -301,7 +300,13 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
   const queueLabel = lobbyQueueName(lobby, state.queues);
   // Posições que faltam na fila agora (#410): marcadas na escolha, como no client oficial.
   const scarce = lobby.scarcePositions;
-  const positionOption = (position: Position) => `${positionNames[position]}${scarce.includes(position) ? ' (prioritária)' : ''}`;
+  const positionChoices = (allowed: (position: Position) => boolean): SelectOption<Position>[] =>
+    (Object.keys(positionNames) as Position[]).map(position => ({
+      value: position,
+      label: `${positionNames[position]}${scarce.includes(position) ? ' (prioritária)' : ''}`,
+      icon: <PositionIcon position={position} />,
+      disabled: !allowed(position),
+    }));
   const freeSlots = Math.max(0, lobby.maxLobbySize - lobby.members.length);
   return (
     <section aria-label="Lobby" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
@@ -461,31 +466,19 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
             {!localMember && <p className="px-1 text-body text-muted">Aguarde a identificação do seu membro no lobby.</p>}
             {phase !== 'Lobby' && <p className="px-1 text-body text-muted">A escolha de posições está disponível na fase de lobby.</p>}
             <div className="grid grid-cols-2 gap-2">
-              <label className="flex min-w-0 flex-col gap-1.5 px-1 text-caption font-medium text-muted" htmlFor={firstId}>Posição primária
-                <span className="relative flex items-center">
-                  <PositionIcon position={positions.first} className="pointer-events-none absolute left-3 z-10" />
-                <select id={firstId} value={positions.first} className={`${selectClass} w-full pl-10`}
-                  onChange={event => {
-                    if (!isPosition(event.target.value)) return;
-                    const next = event.target.value;
-                    choosePositions({ first: next, second: validPositions(next, positions.second) ? positions.second : 'unselected' });
-                  }}>
-                  {(Object.keys(positionNames) as Position[]).map(position =>
-                    <option key={position} value={position}>{positionOption(position)}</option>)}
-                </select></span>
-              </label>
-              <label className="flex min-w-0 flex-col gap-1.5 px-1 text-caption font-medium text-muted" htmlFor={secondId}>Posição secundária
-                <span className="relative flex items-center">
-                  <PositionIcon position={positions.second} className="pointer-events-none absolute left-3 z-10" />
-                <select id={secondId} value={positions.second} className={`${selectClass} w-full pl-10`}
+              <div className="flex min-w-0 flex-col gap-1.5 px-1">
+                <label className="text-caption font-medium text-muted" htmlFor={firstId}>Posição primária</label>
+                <Select id={firstId} value={positions.first} className="w-full" disabled={!canSetPositions}
+                  options={positionChoices(() => true)}
+                  onChange={first => choosePositions({ first, second: validPositions(first, positions.second) ? positions.second : 'unselected' })} />
+              </div>
+              <div className="flex min-w-0 flex-col gap-1.5 px-1">
+                <label className="text-caption font-medium text-muted" htmlFor={secondId}>Posição secundária</label>
+                <Select id={secondId} value={positions.second} className="w-full"
                   disabled={!canSetPositions || positions.first === 'fill' || positions.first === 'unselected'}
-                  onChange={event => {
-                    if (isPosition(event.target.value)) choosePositions({ first: positions.first, second: event.target.value });
-                  }}>
-                  {(Object.keys(positionNames) as Position[]).map(position =>
-                    <option key={position} value={position} disabled={!validPositions(positions.first, position)}>{positionOption(position)}</option>)}
-                </select></span>
-              </label>
+                  options={positionChoices(position => validPositions(positions.first, position))}
+                  onChange={second => choosePositions({ first: positions.first, second })} />
+              </div>
             </div>
             {scarce.length > 0 && (
               <p className="flex items-center gap-2 px-1 text-caption text-muted">

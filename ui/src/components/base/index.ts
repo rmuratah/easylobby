@@ -5,6 +5,7 @@ export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from ".
 export { Card } from "./Card";
 export { EmptyState, ErrorMessage } from "./Feedback";
 export { Segmented, type SegmentedOption } from "./Segmented";
+export { Select, type SelectOption, type SelectSize } from "./Select";
 export { Spinner } from "./Spinner";
 export { StatusBadge, StatusDot, type PresenceStatus } from "./StatusBadge";
 export { SearchField, TextField } from "./TextField";

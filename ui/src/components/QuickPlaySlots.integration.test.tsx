@@ -8,6 +8,7 @@ import type { PlayerSlot } from '../bindings/PlayerSlot';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { testLobby, testState } from '../test/lobby';
 import { testFullRuneCatalog } from '../test/runes';
+import { chooseOption } from '../test/select';
 
 class Socket {
   static OPEN = 1;
@@ -128,7 +129,7 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     const editor = within(dialog().getByRole('form', { name: 'Editar runas' }));
     // Começa com as runas do slot, e o nome e a descrição aparecem no hover (#420).
     expect(editor.getByRole('button', { name: 'Pressione o Ataque' })).toHaveAttribute('aria-pressed', 'true');
-    expect(editor.getByRole('combobox', { name: 'Página de runas' })).toHaveDisplayValue('Runas do slot');
+    expect(editor.getByRole('combobox', { name: 'Página de runas' })).toHaveTextContent('Runas do slot');
     fireEvent.mouseEnter(editor.getByRole('button', { name: 'Ritmo Fatal' }));
     expect(screen.getByRole('tooltip')).toHaveTextContent(/Ritmo Fatal\s*Descrição completa de Ritmo Fatal/);
     fireEvent.mouseLeave(editor.getByRole('button', { name: 'Ritmo Fatal' }));
@@ -214,7 +215,7 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     open(/^Segunda posição: runas/);
     const editor = within(dialog().getByRole('form', { name: 'Editar runas' }));
     expect(editor.getByRole('button', { name: 'Pressione o Ataque' })).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.change(editor.getByRole('combobox', { name: 'Página de runas' }), { target: { value: '7' } });
+    chooseOption(editor.getByRole('combobox', { name: 'Página de runas' }), '7');
     // A página entra no editor, mas nada vai para o LoL.
     expect(editor.getByRole('button', { name: 'Ritmo Fatal' })).toHaveAttribute('aria-pressed', 'true');
     expect(socket().send).not.toHaveBeenCalled();
@@ -244,13 +245,13 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     expect(editor().getByRole('button', { name: 'Excluir página' })).toBeDisabled();
 
     // Renomear a página carregada: o Salvar grava a página e depois o slot.
-    fireEvent.change(pageSelect(), { target: { value: '7' } });
+    chooseOption(pageSelect(), '7');
     fireEvent.click(editor().getByRole('button', { name: 'Renomear página' }));
     const name = editor().getByRole('textbox', { name: 'Nome da página' });
     fireEvent.change(name, { target: { value: 'Blitz 2' } });
     // Esc no nome não fecha o pop-up.
     fireEvent.keyDown(name, { key: 'Escape' });
-    expect(pageSelect()).toHaveDisplayValue('Blitz');
+    expect(pageSelect()).toHaveTextContent(/^Blitz$/);
     fireEvent.click(editor().getByRole('button', { name: 'Renomear página' }));
     fireEvent.change(editor().getByRole('textbox', { name: 'Nome da página' }), { target: { value: 'Blitz 2' } });
     fireEvent.click(editor().getByRole('button', { name: 'Salvar' }));
@@ -271,12 +272,12 @@ describe('posições e campeões do Jogo Dinâmico (#218)', () => {
     expect(request().command).toMatchObject({ type: 'setPlayerSlots' });
 
     // Excluir a página carregada, depois de confirmar; o editor volta para as runas do slot.
-    fireEvent.change(pageSelect(), { target: { value: '7' } });
+    chooseOption(pageSelect(), '7');
     fireEvent.click(editor().getByRole('button', { name: 'Excluir página' }));
     fireEvent.click(within(editor().getByRole('alertdialog', { name: 'Excluir página' })).getByRole('button', { name: 'Excluir' }));
     expect(request().command).toEqual({ type: 'deleteRunePage', pageId: 7 });
     await ok();
-    expect(pageSelect()).toHaveDisplayValue('Runas do slot');
+    expect(pageSelect()).toHaveTextContent('Runas do slot');
     expect(dialog().getByRole('form', { name: 'Editar runas' })).toBeInTheDocument();
   });
 

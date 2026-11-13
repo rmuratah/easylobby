@@ -103,6 +103,11 @@
   animation: el-fade-up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
+/* Lista de seleção aberta (#479): aparece rápido, sem deslocar o layout. */
+@utility animate-select-in {
+  animation: el-select-in 0.12s ease-out both;
+}
+
 @utility animate-search-ring {
   animation: el-search-ring 1.8s ease-out infinite;
 }
@@ -112,11 +117,16 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes el-select-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes el-search-ring {
   0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--el-accent) 45%, transparent); }
   100% { box-shadow: 0 0 0 18px color-mix(in oklab, var(--el-accent) 0%, transparent); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-fade-up, .animate-search-ring { animation: none; }
+  .animate-fade-up, .animate-search-ring, .animate-select-in { animation: none; }
 }

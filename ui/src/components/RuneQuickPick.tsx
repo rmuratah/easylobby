@@ -3,7 +3,7 @@ import type { AgentClient } from '../agent/client';
 import { useCommand } from '../agent/useCommand';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
 import type { RunePages } from '../bindings/RunePages';
-import { Button } from './base';
+import { Button, Select } from './base';
 import { RuneIcon } from './RuneEditor';
 import { findStyle } from './runePage';
 
@@ -40,12 +40,10 @@ export function RuneQuickPick({ runePages, catalog, send, onEdit }: Props) {
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <label htmlFor={selectId} className="sr-only">Página de runas</label>
-                <select id={selectId} value={runePages.currentPageId ?? ''} disabled={command.pending || runePages.pages.length === 0}
-                  onChange={event => choose(Number(event.target.value))}
-                  className="h-9 w-full min-w-0 rounded-control border border-control bg-surface px-2 text-body text-ink disabled:opacity-50">
-                  {runePages.currentPageId === null && <option value="" disabled>Escolha uma página</option>}
-                  {runePages.pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}
-                </select>
+                <Select id={selectId} size="sm" className="w-full" value={runePages.currentPageId}
+                  disabled={command.pending || runePages.pages.length === 0} placeholder="Escolha uma página"
+                  options={runePages.pages.map(page => ({ value: page.id, label: page.name }))}
+                  onChange={choose} />
                 {(keystone || sub) && <span className="truncate text-caption text-muted">{[keystone?.name, sub?.name].filter(Boolean).join(' · ')}</span>}
               </div>
             </div>

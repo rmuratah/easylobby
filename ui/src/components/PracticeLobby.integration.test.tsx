@@ -8,6 +8,7 @@ import type { CustomMember } from '../bindings/CustomMember';
 import type { Lobby } from '../bindings/Lobby';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { testLobby, testState } from '../test/lobby';
+import { chooseOption, optionLabels } from '../test/select';
 
 class Socket {
   static OPEN = 1;
@@ -56,11 +57,11 @@ describe('lobby do Modo de Treino (#229)', () => {
     expect(team('Equipe 1').getAllByRole('listitem', { name: 'Vaga livre' })).toHaveLength(4);
     expect(team('Equipe 2').getAllByRole('listitem', { name: 'Vaga livre' })).toHaveLength(4);
     expect(team('Equipe 2').getByText('Ashe')).toBeInTheDocument();
-    expect(team('Equipe 2').getByRole('combobox', { name: 'Dificuldade do bot Ashe' })).toHaveValue('beginner');
+    expect(team('Equipe 2').getByRole('combobox', { name: 'Dificuldade do bot Ashe' })).toHaveAttribute('data-value', 'beginner');
     const position = team('Equipe 2').getByRole('combobox', { name: 'Posição do bot Ashe' });
-    expect(position).toHaveValue('bottom');
+    expect(position).toHaveAttribute('data-value', 'bottom');
     // Só as 5 rotas.
-    expect(within(position).getAllByRole('option').map(o => o.textContent)).toEqual(['Topo', 'Selva', 'Meio', 'Atirador', 'Suporte']);
+    expect(optionLabels(position)).toEqual(['Topo', 'Selva', 'Meio', 'Atirador', 'Suporte']);
     // Juntar-se só na equipe do outro lado.
     expect(team('Equipe 2').getByRole('button', { name: 'Juntar-se' })).toBeInTheDocument();
     expect(team('Equipe 1').queryByRole('button', { name: 'Juntar-se' })).not.toBeInTheDocument();
@@ -84,7 +85,7 @@ describe('lobby do Modo de Treino (#229)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await ok();
 
-    fireEvent.change(team('Equipe 2').getByRole('combobox', { name: 'Dificuldade do bot Ashe' }), { target: { value: 'intermediate' } });
+    chooseOption(team('Equipe 2').getByRole('combobox', { name: 'Dificuldade do bot Ashe' }), 'intermediate');
     expect(request().command).toEqual({ type: 'updateBot', botUuid: 'bot-ashe', championId: 22, difficulty: 'intermediate', position: 'bottom' });
     await ok();
     fireEvent.click(team('Equipe 2').getByRole('button', { name: /Trocar o campeão do bot/ }));
