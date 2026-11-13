@@ -159,3 +159,10 @@ it('escolhe uma das cartas de campeão no início da seleção', async () => {
   expect(mine().getByText('Ahri')).toBeVisible();
   expect(bench().getByRole('button', { name: 'Pegar Wukong do banco' })).toBeEnabled();
 });
+
+it('o banco fica em cima do card do seu campeão (#494)', () => {
+  render(<App />); hello();
+  const benchRegion = panel().getByRole('region', { name: 'Banco' });
+  const mineRegion = panel().getByRole('region', { name: 'Seu campeão' });
+  expect(benchRegion.compareDocumentPosition(mineRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});

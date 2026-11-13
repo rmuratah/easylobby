@@ -78,6 +78,9 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
           {runes && <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />}
         </div>
         <div className="champ-select-center">
+          {/* O banco fica em cima das cartas e do seu campeão (#494). */}
+          <Bench champSelect={champSelect} catalog={catalog} pickable={state.champSelectChampions.pickable}
+            busy={busy} onTake={takeFromBench} />
           {choice ? (
             <ChampionCards offers={state.champSelectChampions.subset} catalog={catalog} busy={busy}
               onChoose={chooseCard} feedback={pick.feedback} />
@@ -86,8 +89,6 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
               busy={busy} onReroll={rollAgain} feedback={[pick.feedback, reroll.feedback, bench.feedback]} />
           )}
           <ChampSelectSwaps champSelect={champSelect} busy={swap.pending} run={swap.run} feedback={swap.feedback} />
-          <Bench champSelect={champSelect} catalog={catalog} pickable={state.champSelectChampions.pickable}
-            busy={busy} onTake={takeFromBench} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}
