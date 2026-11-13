@@ -5,6 +5,7 @@ import type { ChampionCatalog } from '../bindings/ChampionCatalog';
 import { Button } from './base';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
 import { ChampionIcon, Countdown, TeamList, type ContentProps } from './ChampSelectPanel';
+import { useLockInSound } from '../agent/useLockInSound';
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
 import { QuitCustomChampSelect } from './QuitCustomChampSelect';
 import { RuneQuickPick } from './RuneQuickPick';
@@ -29,6 +30,8 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
   const bench = useCommand(send);
   const swap = useCommand(send);
   const starting = champSelect.timer.phase === 'GAME_STARTING';
+  // A escolha da carta toca o mesmo som da escolha no draft (#498).
+  useLockInSound(champSelect);
   // Nome da fila no idioma do client (ARAM, ARAM: Desordem), como na lista de filas.
   const mode = state.queues.find(q => q.queueId === champSelect.queueId)?.name || 'ARAM';
   // No ARAM dá para trocar as runas; na ARAM: Desordem (`KIWI`), não (#197).

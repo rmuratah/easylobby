@@ -40,3 +40,16 @@ it('toca o tique da contagem, mais agudo nos últimos segundos', () => {
   const [normal, urgent] = ctx.createOscillator.mock.results.map(r => r.value);
   expect(urgent.frequency.value).toBeGreaterThan(normal.frequency.value);
 });
+
+it('toca a confirmação do ban, mais grave, e a da escolha, subindo', () => {
+  const ctx = fakeContext('running');
+  const player = createSoundPlayer(() => ctx as unknown as AudioContext);
+  player.playLockIn('ban');
+  expect(ctx.createOscillator).toHaveBeenCalledTimes(2);
+  player.playLockIn('pick');
+  expect(ctx.createOscillator).toHaveBeenCalledTimes(5);
+  const [banFirst, banLast, ...pick] = ctx.createOscillator.mock.results.map(r => r.value);
+  expect(banLast.frequency.value).toBeLessThan(banFirst.frequency.value);
+  expect(pick.map(o => o.frequency.value)).toEqual([...pick.map(o => o.frequency.value)].sort((a, b) => a - b));
+  expect(Math.max(banFirst.frequency.value, banLast.frequency.value)).toBeLessThan(pick[0].frequency.value);
+});
