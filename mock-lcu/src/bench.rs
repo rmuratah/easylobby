@@ -4,7 +4,8 @@
 //!   campeão para o jogador logado (o primeiro do jogo que não está no time
 //!   nem no banco), põe o antigo no banco e gasta um reroll.
 //! - `POST /lol-champ-select/v1/session/bench/swap/{id}` troca o campeão do
-//!   jogador pelo `id` do banco; o dele vai para o banco no lugar.
+//!   jogador pelo `id` do banco; o dele vai para o banco no lugar. Campeão
+//!   fora de `pickable-champion-ids` (o jogador não tem), 400.
 //!
 //! Os dois mandam o `Update` da sessão pelo WAMP. Fora da seleção, 404;
 //! sessão sem banco, sem reroll sobrando ou campeão fora do banco, 400.
@@ -97,6 +98,17 @@ pub fn swap(state: &LcuState, champion_id: u64) -> (Response, Vec<EventFixture>)
             Vec::new(),
         );
     };
+    // Campeão que o jogador não tem (#446): a lista gravada ou a do ARAM
+    // simulado diz quais ele pode escolher.
+    let pickable = state.get(champions::PICKABLE);
+    if pickable.status == 200
+        && pickable
+            .body
+            .as_array()
+            .is_some_and(|ids| !ids.contains(&json!(wanted)))
+    {
+        return (Response::error(400, "Champion is not owned"), Vec::new());
+    }
     bench.remove(index);
     let Some(old) = set_local_champion(&mut session, wanted) else {
         return (

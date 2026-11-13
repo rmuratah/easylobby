@@ -279,14 +279,20 @@ impl Hub {
     /// Troca o campeão do jogador por um do banco do ARAM (comando
     /// `swapBenchChampion`, #201). Como [`Hub::reroll_champion`].
     pub async fn swap_bench_champion(&self, champion_id: u32) -> CommandResult {
-        let (client, champ_select) = {
+        let (client, champ_select, pickable) = {
             let shared = self.lock();
-            (shared.client.clone(), shared.state.champ_select.clone())
+            (
+                shared.client.clone(),
+                shared.state.champ_select.clone(),
+                shared.state.champ_select_champions.pickable.clone(),
+            )
         };
         let Some(client) = client else {
             return not_connected();
         };
-        if let Err(invalid) = bench::check_bench_swap(champ_select.as_ref(), champion_id) {
+        if let Err(invalid) =
+            bench::check_bench_swap(champ_select.as_ref(), pickable.as_deref(), champion_id)
+        {
             return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
         }
         if let Err(error) = bench::swap_with_bench(&client, champion_id).await {

@@ -24,9 +24,11 @@ const panel = () => within(screen.getByRole('region', { name: 'Seleção de camp
 const mine = () => within(panel().getByRole('region', { name: 'Seu campeão' }));
 const bench = () => within(panel().getByRole('region', { name: 'Banco' }));
 const last = (): ClientMessage => JSON.parse(socket().send.mock.lastCall![0]);
-function hello(change: Partial<ChampSelect> = {}) {
+// Por padrão o jogador tem todos os campeões do banco (Ahri e Kai'Sa).
+function hello(change: Partial<ChampSelect> = {}, pickable: number[] | null = [20, 62, 103, 145, 266]) {
   act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0',
-    state: { ...champSelectState, runePages: testRunePages, runeCatalog: testRuneCatalog, summonerSpellCatalog: spellCatalog, champSelect: { ...aramChampSelect, ...change } } }));
+    state: { ...champSelectState, runePages: testRunePages, runeCatalog: testRuneCatalog, summonerSpellCatalog: spellCatalog,
+      champSelectChampions: { ...champSelectState.champSelectChampions, pickable }, champSelect: { ...aramChampSelect, ...change } } }));
 }
 async function respond(result: Extract<ServerMessage, { type: 'response' }>['result'] = { status: 'ok' }) {
   await act(async () => socket().receive({ type: 'response', id: last().id, result }));
@@ -83,6 +85,23 @@ it('pega um campeão do banco e mostra o erro da LCU', async () => {
   expect(socket().send).toHaveBeenCalledTimes(1);
   await respond({ status: 'error', code: 'lcu', message: 'espere para trocar de novo' });
   expect(mine().getByRole('alert')).toHaveTextContent('espere para trocar de novo');
+});
+
+it('campeão do banco que o jogador não tem fica em cinza e não dá para clicar', () => {
+  render(<App />); hello({}, [20, 62, 103, 266]);
+  const kaisa = bench().getByRole('button', { name: "Kai'Sa: você não tem esse campeão" });
+  expect(kaisa).toBeDisabled();
+  expect(kaisa).toHaveClass('grayscale');
+  expect(kaisa).toHaveTextContent('não possui');
+  expect(kaisa).toHaveTextContent('prioridade');
+  fireEvent.click(kaisa);
+  expect(socket().send).not.toHaveBeenCalled();
+  const ahri = bench().getByRole('button', { name: 'Pegar Ahri do banco' });
+  expect(ahri).toBeEnabled();
+  expect(ahri).not.toHaveClass('grayscale');
+  // A lista chega depois: sem ela, nada fica bloqueado.
+  act(() => socket().receive({ type: 'champSelectChampions', champSelectChampions: { pickable: null, bannable: null, subset: [] } }));
+  expect(bench().getByRole('button', { name: "Pegar Kai'Sa do banco" })).toBeEnabled();
 });
 
 it('sem reroll na fila e com o banco vazio', () => {

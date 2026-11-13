@@ -60,6 +60,8 @@ pub enum InvalidBenchAction {
     NoBench,
     /// O campeão não está no banco.
     NotOnBench,
+    /// O jogador não tem o campeão (nem está na rotação).
+    NotOwned,
     /// A fila não deixa rolar de novo.
     RerollNotAllowed,
     /// O jogador não tem mais rerolls.
@@ -73,6 +75,7 @@ impl fmt::Display for InvalidBenchAction {
             InvalidBenchAction::GameStarting => "a partida já está abrindo",
             InvalidBenchAction::NoBench => "essa seleção não tem banco de campeões",
             InvalidBenchAction::NotOnBench => "esse campeão não está no banco",
+            InvalidBenchAction::NotOwned => "você não tem esse campeão",
             InvalidBenchAction::RerollNotAllowed => "essa fila não deixa rolar de novo",
             InvalidBenchAction::NoRerolls => "você não tem mais rerolls",
         })
@@ -102,10 +105,13 @@ pub fn check_reroll(champ_select: Option<&ChampSelect>) -> Result<(), InvalidBen
     Ok(())
 }
 
-/// Confere um pedido de troca com o banco: seleção aberta com banco e o
-/// campeão nele.
+/// Confere um pedido de troca com o banco: seleção aberta com banco, o
+/// campeão nele e, quando o agente já sabe quais campeões o jogador pode
+/// escolher (`pickable`, os dele e os da rotação), o campeão nessa lista.
+/// Com `pickable` em `None` a troca passa e a LCU decide.
 pub fn check_bench_swap(
     champ_select: Option<&ChampSelect>,
+    pickable: Option<&[u32]>,
     champion_id: u32,
 ) -> Result<(), InvalidBenchAction> {
     let cs = open(champ_select)?;
@@ -118,6 +124,9 @@ pub fn check_bench_swap(
         .any(|c| c.champion_id == champion_id)
     {
         return Err(InvalidBenchAction::NotOnBench);
+    }
+    if pickable.is_some_and(|ids| !ids.contains(&champion_id)) {
+        return Err(InvalidBenchAction::NotOwned);
     }
     Ok(())
 }
@@ -247,19 +256,25 @@ mod tests {
     #[test]
     fn confere_troca_com_o_banco() {
         let cs = aram(json!({}));
-        assert_eq!(check_bench_swap(Some(&cs), 266), Ok(()));
+        assert_eq!(check_bench_swap(Some(&cs), None, 266), Ok(()));
         assert_eq!(
-            check_bench_swap(Some(&cs), 22),
+            check_bench_swap(Some(&cs), None, 22),
             Err(InvalidBenchAction::NotOnBench)
         );
         assert_eq!(
-            check_bench_swap(None, 1),
+            check_bench_swap(None, None, 1),
             Err(InvalidBenchAction::NoChampSelect)
         );
         assert_eq!(
-            check_bench_swap(Some(&aram(json!({"benchEnabled": false}))), 1),
+            check_bench_swap(Some(&aram(json!({"benchEnabled": false}))), None, 1),
             Err(InvalidBenchAction::NoBench)
         );
+        // Campeão que o jogador não tem: recusado sem falar com a LCU.
+        assert_eq!(
+            check_bench_swap(Some(&cs), Some(&[1, 22]), 266),
+            Err(InvalidBenchAction::NotOwned)
+        );
+        assert_eq!(check_bench_swap(Some(&cs), Some(&[1, 22]), 1), Ok(()));
     }
 
     /// As sessões da gravação real de ARAM com cartas (16.22-aram).
@@ -299,7 +314,7 @@ mod tests {
             .collect();
         assert_eq!(bench, [432, 77]);
         assert!(chosen.pending_action.is_none());
-        assert_eq!(check_bench_swap(Some(chosen), 77), Ok(()));
+        assert_eq!(check_bench_swap(Some(chosen), None, 77), Ok(()));
         // Trocou pelo Nunu (77) do banco.
         let swapped = &sessions[2];
         assert_eq!(swapped.local_player().unwrap().champion_id, Some(77));

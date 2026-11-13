@@ -21,6 +21,9 @@ const SYNTHETIC_RECOMMENDED_POSITIONS: &str =
 /// Rotas recomendadas de cada campeão (#250).
 pub const RECOMMENDED_POSITIONS: &str = "/lol-perks/v1/recommended-champion-positions";
 
+/// Campeões que o jogador pode escolher na seleção (os dele e os da rotação).
+pub const PICKABLE: &str = "/lol-champ-select/v1/pickable-champion-ids";
+
 /// Campeões do jogador (#218).
 pub const OWNED_CHAMPIONS: &str = "/lol-champions/v1/owned-champions-minimal";
 
