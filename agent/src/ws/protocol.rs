@@ -740,6 +740,16 @@ pub enum Command {
     /// antes da resposta. Responde `notConnected` com o LoL fechado e `lcu`
     /// se a LCU recusar.
     SetSummonerSpells { spell1_id: u32, spell2_id: u32 },
+    /// Troca a skin do jogador logado na seleção (#477), como o carrossel do
+    /// client oficial. `skinId` é o `id` de uma skin em `championSkins`, que a
+    /// UI pede com `openChampionSkins` para o campeão do jogador. Responde
+    /// `invalidCommand` sem falar com a LCU fora da seleção (ou com a partida
+    /// abrindo), sem campeão, com skin de outro campeão, sem as skins dele
+    /// carregadas, com skin que não existe ou que a conta não tem. A seleção
+    /// nova (com `selectedSkinId`) chega numa mensagem `champSelect` antes da
+    /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
+    /// recusar.
+    SelectSkin { skin_id: u32 },
     /// Pede uma troca a um aliado na seleção (#25): de campeão
     /// (`kind: "champion"`), de vez no draft (`"pickOrder"`) ou de cargo
     /// (`"position"`). `swapId` é o `id` de uma entrada `AVAILABLE` em
@@ -1433,6 +1443,12 @@ mod tests {
                 spell2_id: 14
             }
         );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 14,
+            "command": {"type": "selectSkin", "skinId": 103001},
+        }))
+        .unwrap();
+        assert_eq!(msg.command, Command::SelectSkin { skin_id: 103_001 });
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 15,
             "command": {"type": "requestSwap", "kind": "pickOrder", "swapId": 28},

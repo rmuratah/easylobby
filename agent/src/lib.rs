@@ -91,6 +91,7 @@ pub mod ready_check;
 pub mod rest;
 pub mod riot_api;
 pub mod runes;
+pub mod skin_select;
 pub mod summoner;
 pub mod summoner_spells;
 pub mod swaps;

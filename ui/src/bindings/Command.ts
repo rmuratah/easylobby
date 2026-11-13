@@ -48,6 +48,7 @@ export type Command =
   | { "type": "hoverChampion", actionId: number, championId: number, }
   | { "type": "confirmAction", actionId: number, championId: number, }
   | { "type": "setSummonerSpells", spell1Id: number, spell2Id: number, }
+  | { "type": "selectSkin", skinId: number, }
   | { "type": "requestSwap", kind: SwapKind, swapId: number, }
   | { "type": "acceptSwap", kind: SwapKind, swapId: number, }
   | { "type": "declineSwap", kind: SwapKind, swapId: number, }

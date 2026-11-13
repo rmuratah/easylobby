@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  actingCells, championName, gridChampions, gridPurpose, markedChampion, myAction, playerName, remainingMs, searchChampions,
+  actingCells, championName, gridChampions, gridPurpose, lockedPick, markedChampion, myAction, playerName, remainingMs, searchChampions,
   searchKey,
 } from './champSelect';
 import { testChampionCatalog } from '../test/events';
@@ -79,5 +79,13 @@ describe('ação do jogador', () => {
   it('sem pick pendente não há ação', () => {
     const done = { ...draftChampSelect, pendingAction: null, actions: draftChampSelect.actions.map(a => ({ ...a, completed: true })) };
     expect(myAction(done)).toBeNull();
+  });
+});
+
+describe('campeão confirmado (#477)', () => {
+  it('é o do pick concluído do jogador; o pick do inimigo ou o pendente não contam', () => {
+    expect(lockedPick(draftChampSelect)).toBeNull();
+    const done = { ...draftChampSelect, actions: draftChampSelect.actions.map(a => a.id === 4 ? { ...a, championId: 103, completed: true } : a) };
+    expect(lockedPick(done)).toBe(103);
   });
 });

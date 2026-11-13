@@ -3,13 +3,14 @@ import { assetUrl } from '../agent/assets';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import {
   actingCells, champSelectPhaseLabels, championName, filterByLane, gridChampions, gridPurpose, hasLanes, isAramChampSelect, isBanPhase, markedChampion,
-  myAction, playerName, remainingMs, searchChampions, type GridChampion, type MyAction,
+  lockedPick, myAction, playerName, remainingMs, searchChampions, type GridChampion, type MyAction,
 } from '../agent/champSelect';
 import { useCommand, type CommandFeedback } from '../agent/useCommand';
 import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
 import { RuneQuickPick } from './RuneQuickPick';
+import { SkinCarousel } from './SkinCarousel';
 import { AramChampSelectContent } from './AramChampSelect';
 import { LANES, positionNames, type Lane } from '../agent/positions';
 import { PositionIcon } from './PositionIcon';
@@ -82,6 +83,8 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
     void confirm.run({ type: 'confirmAction', actionId: mine.action.id, championId },
       { pending: mine.action.type === 'ban' ? 'Confirmando o ban…' : 'Confirmando a escolha…', failure: verb });
   }
+  const me = champSelect.myTeam.find(player => player.isLocalPlayer);
+  const lockedChampion = lockedPick(champSelect);
   const grid = gridChampions(state, champSelect);
   const chosenAvailable = !!chosen && grid.some(item => item.champion.id === chosen && item.available);
   // Na fase de banimento (#423) a tela ganha detalhes vermelhos (estilos em index.css).
@@ -103,11 +106,17 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
         </div>
         <div className="champ-select-center">
           <ChampSelectSwaps champSelect={champSelect} busy={swap.pending} run={swap.run} feedback={swap.feedback} />
-          {/* O botão de banir e escolher fica dentro da seção de campeões, embaixo e no meio (#475). */}
+          {/* Com o campeão confirmado, a seção de campeões vira a escolha de skin (#477). */}
+          {me && lockedChampion ? (
+            <SkinCarousel state={state} send={send} championId={lockedChampion}
+              championName={championName(catalog, lockedChampion)} selectedSkinId={me.selectedSkinId} />
+          ) : (
+          // O botão de banir e escolher fica dentro da seção de campeões, embaixo e no meio (#475).
           <ChampionGrid state={state} champSelect={champSelect} grid={grid} selected={chosen || null}
             onSelect={mine && !confirm.pending ? select : null}
             footer={<ActionBar mine={mine} chosen={chosen || null} chosenAvailable={chosenAvailable} catalog={catalog}
               busy={confirm.pending} onConfirm={lockIn} feedback={[confirm.feedback, hover.feedback]} />} />
+          )}
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           <TeamBans label="Bans do time adversário" ids={champSelect.bans.theirTeam} slots={banSlots(champSelect, false)} catalog={catalog} />

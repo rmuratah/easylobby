@@ -125,3 +125,10 @@ const aramQueueIds = new Set([450, 2400]);
 export function isAramChampSelect(champSelect: ChampSelect): boolean {
   return champSelect.benchEnabled || champSelect.queue === 'aram' || aramQueueIds.has(champSelect.queueId);
 }
+
+/** Campeão que o jogador logado já confirmou (pick concluído), ou `null` (#477). */
+export function lockedPick(champSelect: ChampSelect): number | null {
+  const pick = champSelect.actions.find(action => action.type === 'pick' && action.completed
+    && action.actorCellId === champSelect.localPlayerCellId && action.championId);
+  return pick?.championId ?? null;
+}
