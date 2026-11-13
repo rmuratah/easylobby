@@ -270,7 +270,8 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions,
                         <PositionIcon position="fill" size={12} />(autofill)
                       </span>
                     )}
-                    {acting.has(player.cellId) && ((ally ? player.assignedPosition === 'unselected' : !champion) ? 'na vez' : ' · na vez')}
+                    {/* Quem está na vez já tem o card em destaque; o texto fica só para o leitor de tela (#475). */}
+                    {acting.has(player.cellId) && <span className="sr-only">{(ally ? player.assignedPosition === 'unselected' : !champion) ? 'na vez' : ' · na vez'}</span>}
                   </p>
                   {renderActions?.(player)}
                 </div>
