@@ -269,16 +269,17 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions,
                   </p>
                   {/* No seu time o card mostra só o ícone do campeão (#475); o nome fica para o leitor de tela. */}
                   <p className="text-caption text-muted">
-                    {ally ? <span className="sr-only">{champion ? championName(catalog, champion) : 'Sem campeão'}
-                      {(player.assignedPosition !== 'unselected' || acting.has(player.cellId)) && ' · '}</span>
-                      : champion ? championName(catalog, champion) : 'Sem campeão'}
+                    {/* "Sem campeão" também não aparece, nos dois times (#475). */}
+                    {ally || !champion ? <span className="sr-only">{champion ? championName(catalog, champion) : 'Sem campeão'}
+                      {((ally && player.assignedPosition !== 'unselected') || acting.has(player.cellId)) && ' · '}</span>
+                      : championName(catalog, champion)}
                     {ally && player.assignedPosition !== 'unselected' && positionNames[player.assignedPosition]}
                     {ally && player.isAutofilled && (
                       <span title="Posição de autofill: o jogador não escolheu esta posição" className="ml-1 inline-flex items-center gap-0.5 align-middle font-semibold text-accent-ink">
                         <PositionIcon position="fill" size={12} />(autofill)
                       </span>
                     )}
-                    {acting.has(player.cellId) && (ally && player.assignedPosition === 'unselected' ? 'na vez' : ' · na vez')}
+                    {acting.has(player.cellId) && ((ally ? player.assignedPosition === 'unselected' : !champion) ? 'na vez' : ' · na vez')}
                   </p>
                   {renderActions?.(player)}
                 </div>
