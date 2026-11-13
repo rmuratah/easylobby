@@ -736,7 +736,10 @@ pub enum Command {
     /// fora da seleção (ou com a partida abrindo), com um feitiço `0`, com os
     /// dois iguais, com feitiço que não existe, que não vale na fila
     /// (`queues` do feitiço) ou acima do nível do invocador
-    /// (`summonerLevel`). A seleção nova chega numa mensagem `champSelect`
+    /// (`summonerLevel`). Na Solo/Duo e na Flex (#480), também responde
+    /// `invalidCommand` se o caçador (`assignedPosition: "jungle"`) ficar sem
+    /// o Golpear (id 11) ou se outra posição escolher o Golpear. A seleção
+    /// nova chega numa mensagem `champSelect`
     /// antes da resposta. Responde `notConnected` com o LoL fechado e `lcu`
     /// se a LCU recusar.
     SetSummonerSpells { spell1_id: u32, spell2_id: u32 },

@@ -55,3 +55,20 @@ export function spellName(catalog: SummonerSpellCatalog | null, id: number | nul
   if (!id) return 'Nenhum';
   return catalog?.spells.find(spell => spell.id === id)?.name ?? `Feitiço ${id}`;
 }
+
+/** Id do Golpear. */
+export const SMITE_ID = 11;
+
+/**
+ * Regra do Golpear na Solo/Duo e na Flex (#480): o caçador precisa ficar com
+ * ele (pode só trocar de tecla) e as outras posições não podem escolher.
+ * `null` nas outras filas ou sem posição.
+ */
+export function smiteRule(champSelect: ChampSelect): 'required' | 'forbidden' | null {
+  if (champSelect.queue !== 'rankedSolo' && champSelect.queue !== 'rankedFlex') return null;
+  const me = champSelect.myTeam.find(p => p.cellId === champSelect.localPlayerCellId);
+  if (!me) return null;
+  if (me.assignedPosition === 'jungle') return 'required';
+  if (me.assignedPosition === 'unselected' || me.assignedPosition === 'fill') return null;
+  return 'forbidden';
+}

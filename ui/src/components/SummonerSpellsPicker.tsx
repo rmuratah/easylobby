@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { assetUrl } from '../agent/assets';
 import type { AgentClient } from '../agent/client';
-import { spellName, spellsForChampSelect, spellUnlocked, withSpell } from '../agent/summonerSpells';
+import { SMITE_ID, smiteRule, spellName, spellsForChampSelect, spellUnlocked, withSpell } from '../agent/summonerSpells';
 import { useCommand } from '../agent/useCommand';
 import type { ChampSelect } from '../bindings/ChampSelect';
 import type { GameQueue } from '../bindings/GameQueue';
@@ -48,7 +48,10 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queu
   if (!me) return null;
   const current: [number, number] = [me.spell1Id ?? 0, me.spell2Id ?? 0];
   const disabled = champSelect.timer.phase === 'GAME_STARTING' || command.pending || !catalog;
-  const spells = spellsForChampSelect(catalog, champSelect, queues);
+  // Na ranqueada (#480), só o caçador vê o Golpear, e ele não pode tirá-lo (só trocar de tecla).
+  const rule = smiteRule(champSelect);
+  const spells = spellsForChampSelect(catalog, champSelect, queues).filter(spell => rule !== 'forbidden' || spell.id !== SMITE_ID);
+  const dropsSmite = (slot: 0 | 1, spellId: number) => rule === 'required' && !withSpell(current, slot, spellId).includes(SMITE_ID);
   function choose(slot: 0 | 1, spellId: number) {
     if (disabled) return;
     close(slot);
@@ -84,10 +87,12 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queu
                     onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); close(slot); } }}>
                     {spells.map(spell => {
                       const unlocked = spellUnlocked(spell, summonerLevel);
+                      const locked = dropsSmite(slot, spell.id);
                       return (
                         <li key={spell.id}>
-                          <button type="button" aria-pressed={current[slot] === spell.id} disabled={disabled || !unlocked}
-                            title={unlocked ? spell.name : `${spell.name} (libera no nível ${spell.summonerLevel})`}
+                          <button type="button" aria-pressed={current[slot] === spell.id} disabled={disabled || !unlocked || locked}
+                            title={locked ? `${spell.name} (na ranqueada, o caçador precisa ficar com o Golpear)`
+                              : unlocked ? spell.name : `${spell.name} (libera no nível ${spell.summonerLevel})`}
                             onClick={() => choose(slot, spell.id)}
                             className="flex w-20 flex-col items-center gap-1 rounded-control border-2 border-transparent p-1 text-caption text-ink hover:bg-raised aria-pressed:border-accent aria-pressed:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40">
                             <SpellIcon id={spell.id} />
@@ -104,6 +109,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queu
         })}
       </div>
       {!catalog && <p className="text-muted">Carregando feitiços…</p>}
+      {rule === 'required' && <p className="text-caption text-muted">Na ranqueada, o caçador fica com o Golpear; dá para trocar a tecla.</p>}
       {command.feedback.status !== 'idle' && (
         <p role={command.feedback.status === 'error' ? 'alert' : 'status'}
           className={command.feedback.status === 'error' ? 'text-danger' : 'text-muted'}>{command.feedback.message}</p>
