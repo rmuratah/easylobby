@@ -44,8 +44,10 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
     if (busy) return;
     void reroll.run({ type: 'rerollChampion' }, { pending: 'Rolando de novo…', failure: 'rolar de novo' });
   }
+  // Os campeões que o jogador pode pegar (os dele e os da rotação). Sem a lista, nada fica bloqueado.
+  const pickable = state.champSelectChampions.pickable;
   function takeFromBench(championId: number) {
-    if (busy) return;
+    if (busy || (pickable && !pickable.includes(championId))) return;
     void bench.run({ type: 'swapBenchChampion', championId },
       { pending: `Pegando ${championName(catalog, championId)} do banco…`, failure: 'pegar o campeão do banco' });
   }
@@ -82,7 +84,8 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
               busy={busy} onReroll={rollAgain} feedback={[pick.feedback, reroll.feedback, bench.feedback]} />
           )}
           <ChampSelectSwaps champSelect={champSelect} busy={swap.pending} run={swap.run} feedback={swap.feedback} />
-          <Bench champSelect={champSelect} catalog={catalog} busy={busy} onTake={takeFromBench} />
+          <Bench champSelect={champSelect} catalog={catalog} pickable={state.champSelectChampions.pickable}
+            busy={busy} onTake={takeFromBench} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}
@@ -167,10 +170,22 @@ function MyChampion({ championId, champSelect, catalog, busy, onReroll, feedback
   );
 }
 
-type BenchProps = { champSelect: ChampSelect; catalog: ChampionCatalog | null; busy: boolean; onTake: (championId: number) => void };
+type BenchProps = {
+  champSelect: ChampSelect;
+  catalog: ChampionCatalog | null;
+  /** Os campeões que o jogador pode pegar; `null` enquanto o agente não sabe (aí nada fica bloqueado). */
+  pickable: number[] | null;
+  busy: boolean;
+  onTake: (championId: number) => void;
+};
 
-function Bench({ champSelect, catalog, busy, onTake }: BenchProps) {
+/**
+ * O banco do time. Campeão que o jogador não tem (fora de `pickable`) fica em
+ * cinza e não dá para clicar (#446), como no client oficial.
+ */
+function Bench({ champSelect, catalog, pickable, busy, onTake }: BenchProps) {
   const champions = champSelect.benchChampions;
+  const owned = pickable ? new Set(pickable) : null;
   return (
     <section aria-label="Banco" className="flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
       <div className="flex flex-wrap items-baseline gap-x-3">
@@ -183,14 +198,18 @@ function Bench({ champSelect, catalog, busy, onTake }: BenchProps) {
         <ul className="champion-grid" aria-label="Campeões no banco">
           {champions.map(({ championId, isPriority }) => {
             const name = championName(catalog, championId);
+            const notOwned = owned !== null && !owned.has(championId);
             return (
               <li key={championId}>
-                <button type="button" disabled={busy} title={`Pegar ${name}`} aria-label={`Pegar ${name} do banco`}
+                <button type="button" disabled={busy || notOwned}
+                  title={notOwned ? `Você não tem ${name}` : `Pegar ${name}`}
+                  aria-label={notOwned ? `${name}: você não tem esse campeão` : `Pegar ${name} do banco`}
                   onClick={() => onTake(championId)}
-                  className="flex w-full flex-col items-center gap-1 rounded-control border-2 border-transparent p-1 text-caption text-ink hover:border-accent hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent disabled:hover:bg-transparent">
+                  className={`flex w-full flex-col items-center gap-1 rounded-control border-2 border-transparent p-1 text-caption text-ink hover:border-accent hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent disabled:hover:bg-transparent${notOwned ? ' grayscale' : ''}`}>
                   <ChampionIcon id={championId} size={56} />
                   <span className="w-full truncate text-center">{name}</span>
                   {isPriority && <span className="text-caption font-semibold text-accent-ink">prioridade</span>}
+                  {notOwned && <span className="text-caption text-muted">não possui</span>}
                 </button>
               </li>
             );

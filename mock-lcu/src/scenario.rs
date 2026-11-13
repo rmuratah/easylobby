@@ -16,7 +16,9 @@
 //!   R2 | B2 B3 | R3, bans R4 B4 R5 B5 e picks R4 | B4 B5 | R5.
 //! - `blind`: escolha às cegas (fila 430), os 5 aliados escolhem ao mesmo
 //!   tempo, sem bans e sem ver os adversários.
-//! - `aram`: ARAM (fila 450), campeões sorteados, banco e reroll.
+//! - `aram`: ARAM (fila 450), campeões sorteados, banco e reroll. O último
+//!   campeão do banco fica fora de `pickable-champion-ids`, como um campeão
+//!   que o jogador não tem (#446).
 //!
 //! Controle (rotas só do mock, ou as teclas do terminal do `--selecao`):
 //!
@@ -238,6 +240,9 @@ impl Scenario {
                 scenario.enter(Stage::Finalization, timings.finalization * 2, now);
             }
         }
+        let not_owned = (options.mode == Mode::Aram)
+            .then(|| session["benchChampions"].as_array()?.last()?["championId"].as_i64())
+            .flatten();
         scenario.write_timer(&mut session, now);
         step.log.push(format!(
             "seleção {} começou; você é a célula {}. {}",
@@ -252,6 +257,15 @@ impl Scenario {
                 .push(event(GAMEFLOW_PHASE, "Update", json!("ChampSelect")));
         }
         step.events.push(event(SESSION, "Create", session));
+        if let Some(not_owned) = not_owned {
+            step.events.push(event(
+                champions::PICKABLE,
+                "Update",
+                json!(pickable_without(state, not_owned)),
+            ));
+            step.log
+                .push(format!("o campeão {not_owned} do banco você não tem"));
+        }
         (scenario, step)
     }
 
@@ -568,6 +582,19 @@ impl Scenario {
             "totalTimeInPhase": self.ends_at.saturating_sub(self.started_at),
         });
     }
+}
+
+/// Todos os campeões do jogo menos `not_owned`: o `pickable-champion-ids`
+/// do ARAM simulado.
+fn pickable_without(state: &LcuState, not_owned: i64) -> Vec<i64> {
+    champions::game_data(state)
+        .body
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|c| c["id"].as_i64())
+        .filter(|id| *id > 0 && *id != not_owned)
+        .collect()
 }
 
 /// Dodge: a seleção some e a fase volta para `Lobby` (ou `None`).
@@ -1299,5 +1326,11 @@ mod tests {
         unique.dedup();
         assert_eq!(unique.len(), champions.len());
         assert_eq!(s["allowRerolling"], true);
+        // O último do banco o jogador não tem.
+        let last = s["benchChampions"][3]["championId"].as_i64().unwrap();
+        let pickable = state.get(champions::PICKABLE).body;
+        let pickable = pickable.as_array().unwrap();
+        assert!(!pickable.contains(&json!(last)));
+        assert!(pickable.contains(&s["benchChampions"][0]["championId"]));
     }
 }
