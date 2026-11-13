@@ -57,9 +57,10 @@ export function SkinCarousel({ state, send, championId, championName, selectedSk
   }
   const error = [load.feedback, choose.feedback].find(f => f.status === 'error');
   return (
-    <section aria-label="Skins" className="flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
+    // Mesmo tamanho do card da grade de campeões (#477): a splash ocupa o que sobra.
+    <section aria-label="Skins" className="champ-select-picker flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
       <h3 className="text-section font-semibold">Escolha a skin de {championName}</h3>
-      <div className="relative aspect-[1215/717] w-full overflow-hidden rounded-control bg-raised">
+      <div className="relative min-h-0 w-full flex-1 overflow-hidden rounded-control bg-raised">
         <img key={selected} src={assetUrl('skinSplash', selected)} alt="" aria-hidden="true"
           className="h-full w-full object-cover animate-fade-up"
           onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />
@@ -72,9 +73,9 @@ export function SkinCarousel({ state, send, championId, championName, selectedSk
       {!loaded ? (
         <p className={cx('text-body', error ? 'text-danger' : 'text-muted')}>{error ? error.message : 'Carregando as skins…'}</p>
       ) : (
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <ArrowButton label="Skins anteriores" direction={-1} onClick={() => scroll(-1)} />
-          <ul ref={rowRef} aria-label="Miniaturas das skins" className="flex min-w-0 flex-1 gap-2 overflow-x-auto scroll-smooth pb-1">
+          <ul ref={rowRef} aria-label="Miniaturas das skins" className="flex min-w-0 flex-1 gap-2 overflow-x-auto scroll-smooth pb-1 [justify-content:safe_center]">
             {skins.map(skin => {
               const name = skin.isBase ? `${championName} (padrão)` : skin.name;
               return (
