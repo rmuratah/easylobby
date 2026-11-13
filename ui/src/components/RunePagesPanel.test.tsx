@@ -9,6 +9,7 @@ import type { Summoner } from '../bindings/Summoner';
 import { testFullRuneCatalog, testRunePage } from '../test/runes';
 import { makeState } from '../test/state';
 import { RunePagesPanel } from './RunePagesPanel';
+import { chooseOption } from '../test/select';
 
 const summoner: Summoner = {
   puuid: 'p1', summonerId: 1, gameName: 'Victor', tagLine: 'BR1', displayName: '', summonerLevel: 30, profileIconId: 1,
@@ -41,19 +42,19 @@ describe('RunePagesPanel', () => {
     const request = deferred();
     const send = vi.fn(() => request.promise);
     const { rerender } = render(<RunePagesPanel connection={connection()} send={send} />);
-    expect(pageSelect()).toHaveValue('10');
+    expect(pageSelect()).toHaveAttribute('data-value', '10');
     expect(row('Runa principal').getByRole('button', { name: 'Pressione o Ataque' })).toHaveAttribute('aria-pressed', 'true');
     // Sem mudança, não há o que salvar.
     expect(editor().getByRole('button', { name: 'Salvar' })).toBeDisabled();
 
-    act(() => { fireEvent.change(pageSelect(), { target: { value: '11' } }); });
+    chooseOption(pageSelect(), '11');
     expect(send).toHaveBeenCalledExactlyOnceWith({ type: 'selectRunePage', pageId: 11 });
     expect(panel().getByRole('status')).toHaveTextContent('Aplicando página');
     expect(pageSelect()).toBeDisabled();
     // O editor só troca quando o agente confirma a página em uso.
     rerender(<RunePagesPanel connection={connection({ runePages: { ...basePages, currentPageId: 11 } })} send={send} />);
     await act(async () => { request.resolve({ status: 'ok' }); });
-    expect(pageSelect()).toHaveValue('11');
+    expect(pageSelect()).toHaveAttribute('data-value', '11');
     expect(row('Runa principal').getByRole('button', { name: 'Ritmo Fatal' })).toHaveAttribute('aria-pressed', 'true');
   });
 
@@ -67,7 +68,7 @@ describe('RunePagesPanel', () => {
     // Enter fecha o nome sem salvar; a escolha de página volta com o nome novo.
     fireEvent.keyDown(name, { key: 'Enter' });
     expect(send).not.toHaveBeenCalled();
-    expect(pageSelect()).toHaveDisplayValue(' Mid AP ');
+    expect(pageSelect()).toHaveTextContent(' Mid AP ', { normalizeWhitespace: false });
     click(row('Runa principal').getByRole('button', { name: 'Ritmo Fatal' }));
     await act(async () => { fireEvent.click(editor().getByRole('button', { name: 'Salvar' })); });
     expect(send).toHaveBeenCalledExactlyOnceWith({ type: 'updateRunePage', pageId: 10, page: {
@@ -82,7 +83,7 @@ describe('RunePagesPanel', () => {
     const name = editor().getByRole('textbox', { name: 'Nome da página' });
     fireEvent.change(name, { target: { value: 'Outro' } });
     fireEvent.keyDown(name, { key: 'Escape' });
-    expect(pageSelect()).toHaveDisplayValue('Mid');
+    expect(pageSelect()).toHaveTextContent(/^Mid$/);
     expect(editor().getByRole('button', { name: 'Salvar' })).toBeDisabled();
   });
 
@@ -94,7 +95,7 @@ describe('RunePagesPanel', () => {
     expect(name).toHaveValue('Nova página de runas 3');
     fireEvent.change(name, { target: { value: 'Jungle' } });
     fireEvent.blur(name);
-    expect(pageSelect()).toHaveDisplayValue('Jungle (nova)');
+    expect(pageSelect()).toHaveTextContent(/^Jungle \(nova\)$/);
     expect(editor().getByRole('button', { name: 'Criar página' })).toBeDisabled();
     click(row('Runa principal').getByRole('button', { name: 'Ritmo Fatal' }));
     act(() => { fireEvent.click(editor().getByRole('button', { name: 'Salvar' })); });
@@ -105,7 +106,7 @@ describe('RunePagesPanel', () => {
     const jungle = { ...top, id: 30, name: 'Jungle' };
     rerender(<RunePagesPanel connection={connection({ runePages: { ...basePages, pages: [...basePages.pages, jungle], currentPageId: 30 } })} send={send} />);
     await act(async () => {});
-    expect(pageSelect()).toHaveValue('30');
+    expect(pageSelect()).toHaveAttribute('data-value', '30');
     expect(panel().getByRole('status')).toHaveTextContent('Página criada.');
   });
 
@@ -113,7 +114,7 @@ describe('RunePagesPanel', () => {
     render(<RunePagesPanel connection={connection()} send={ok()} />);
     click(editor().getByRole('button', { name: 'Criar página' }));
     click(editor().getByRole('button', { name: 'Descartar página nova' }));
-    expect(pageSelect()).toHaveValue('10');
+    expect(pageSelect()).toHaveAttribute('data-value', '10');
   });
 
   it('exclui a página só depois de confirmar', async () => {
@@ -134,7 +135,7 @@ describe('RunePagesPanel', () => {
 
   it('página recomendada não se edita nem se exclui, mas vira cópia pelo +', () => {
     render(<RunePagesPanel connection={connection({ runePages: { ...basePages, currentPageId: 20 } })} send={ok()} />);
-    expect(pageSelect()).toHaveDisplayValue('Recomendada (recomendada)');
+    expect(pageSelect()).toHaveTextContent(/^Recomendada$/);
     expect(editor().getByRole('button', { name: 'Renomear página' })).toBeDisabled();
     expect(editor().getByRole('button', { name: 'Excluir página' })).toBeDisabled();
     expect(editor().getByRole('button', { name: 'Salvar' })).toBeDisabled();
