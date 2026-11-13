@@ -239,15 +239,18 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions,
                   <p className="truncate text-body font-semibold">
                     {playerName(player, index, ally)}{player.isLocalPlayer && ' (você)'}
                   </p>
+                  {/* No seu time o card mostra só o ícone do campeão (#475); o nome fica para o leitor de tela. */}
                   <p className="text-caption text-muted">
-                    {champion ? championName(catalog, champion) : 'Sem campeão'}
-                    {ally && player.assignedPosition !== 'unselected' && ` · ${positionNames[player.assignedPosition]}`}
+                    {ally ? <span className="sr-only">{champion ? championName(catalog, champion) : 'Sem campeão'}
+                      {(player.assignedPosition !== 'unselected' || acting.has(player.cellId)) && ' · '}</span>
+                      : champion ? championName(catalog, champion) : 'Sem campeão'}
+                    {ally && player.assignedPosition !== 'unselected' && positionNames[player.assignedPosition]}
                     {ally && player.isAutofilled && (
                       <span title="Posição de autofill: o jogador não escolheu esta posição" className="ml-1 inline-flex items-center gap-0.5 align-middle font-semibold text-accent-ink">
                         <PositionIcon position="fill" size={12} />(autofill)
                       </span>
                     )}
-                    {acting.has(player.cellId) && ' · na vez'}
+                    {acting.has(player.cellId) && (ally && player.assignedPosition === 'unselected' ? 'na vez' : ' · na vez')}
                   </p>
                   {renderActions?.(player)}
                 </div>
@@ -320,11 +323,11 @@ function ActionBar({ mine, chosen, chosenAvailable, catalog, busy, onConfirm, fe
   return (
     <div className="flex flex-col items-center gap-1 text-center">
       <div className="flex flex-col items-center gap-1">
-        {/* O ban mostra só "Banir" (#311); o nome do campeão fica para o leitor de tela. */}
+        {/* O botão mostra só "Banir" (#311) ou "Confirmar" (#475); o nome do campeão fica para o leitor de tela. */}
         <Button variant={ban ? 'danger' : 'primary'} size="lg" className="min-w-48" disabled={!chosen || !chosenAvailable || busy}
-          aria-label={chosen ? `${ban ? 'Banir' : 'Escolher'} ${championName(catalog, chosen)}` : undefined}
+          aria-label={chosen ? `${ban ? 'Banir' : 'Confirmar'} ${championName(catalog, chosen)}` : undefined}
           onClick={() => { if (chosen) onConfirm(chosen); }}>
-          {ban ? 'Banir' : chosen ? `Escolher ${championName(catalog, chosen)}` : 'Escolher'}
+          {ban ? 'Banir' : 'Confirmar'}
         </Button>
         {!chosen && <p className="text-body text-muted">{ban ? 'Escolha na grade quem banir.' : 'Escolha seu campeão na grade.'}</p>}
         {chosen && !chosenAvailable && <p className="text-body text-warn">Esse campeão não está mais disponível.</p>}

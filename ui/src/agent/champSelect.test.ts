@@ -53,7 +53,7 @@ describe('textos da seleção', () => {
     expect(championName(testChampionCatalog, 266)).toBe('Aatrox');
     expect(championName(null, 266)).toBe('Campeão 266');
     expect(playerName(draftChampSelect.myTeam[0], 0, true)).toBe('Victor#BR1');
-    expect(playerName(draftChampSelect.theirTeam[0], 0, false)).toBe('Adversário 1');
+    expect(playerName(draftChampSelect.theirTeam[0], 0, false)).toBe('Inimigo 1');
     expect(playerName({ ...draftChampSelect.myTeam[0], gameName: null }, 2, true)).toBe('Aliado 3');
   });
   it('calcula o tempo restante sem ficar negativo e quem está na vez', () => {

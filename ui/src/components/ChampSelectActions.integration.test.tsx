@@ -74,11 +74,11 @@ it('na vez do pick escolhe, e mostra o erro da LCU sem travar', async () => {
   hello({ champSelect: { ...draftChampSelect, pendingAction: { ...pickAction, isInProgress: true } } });
   fireEvent.click(tile('Aatrox'));
   expect(last().command).toEqual({ type: 'hoverChampion', actionId: 4, championId: 266 });
-  fireEvent.click(panel().getByRole('button', { name: 'Escolher Aatrox' }));
+  fireEvent.click(panel().getByRole('button', { name: 'Confirmar Aatrox' }));
   expect(last().command).toEqual({ type: 'confirmAction', actionId: 4, championId: 266 });
   await respond({ status: 'error', code: 'lcu', message: 'campeão indisponível' });
   expect(panel().getByRole('alert')).toHaveTextContent('Não foi possível escolher: campeão indisponível');
-  expect(panel().getByRole('button', { name: 'Escolher Aatrox' })).toBeEnabled();
+  expect(panel().getByRole('button', { name: 'Confirmar Aatrox' })).toBeEnabled();
 });
 
 it('fora da vez marca a intenção do pick, sem botão de confirmar', () => {

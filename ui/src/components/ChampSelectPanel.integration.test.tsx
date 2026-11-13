@@ -51,8 +51,8 @@ it('mostra os dois times, a etapa, a vez e o timer', () => {
   expect(me).toHaveTextContent('Sem campeão · Meio · na vez');
   expect(mine.getByText('Amigo#BR1').closest('li')).toHaveTextContent('Wukong · Selva · na vez');
   const theirs = within(panel().getByRole('region', { name: 'Time adversário' }));
-  expect(theirs.getByText('Adversário 1')).toBeVisible();
-  expect(theirs.getByText('Adversário 2').closest('li')).toHaveTextContent('Ahri');
+  expect(theirs.getByText('Inimigo 1')).toBeVisible();
+  expect(theirs.getByText('Inimigo 2').closest('li')).toHaveTextContent('Ahri');
 });
 
 it('destaca em vermelho a fase de banimento e volta ao normal nas escolhas (#423)', () => {
