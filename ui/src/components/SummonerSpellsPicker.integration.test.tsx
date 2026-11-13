@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
 import type { AgentState } from '../bindings/AgentState';
 import type { ClientMessage } from '../bindings/ClientMessage';
@@ -34,8 +34,14 @@ async function respond(result: Extract<ServerMessage, { type: 'response' }>['res
 beforeEach(() => { vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal('WebSocket', Socket); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
+// Sem posição, a regra do Golpear da ranqueada (#480) não vale.
+const normal = {
+  ...draftChampSelect,
+  myTeam: draftChampSelect.myTeam.map(p => p.isLocalPlayer ? { ...p, assignedPosition: 'unselected' as const } : p),
+};
+
 it('mostra os feitiços atuais e troca um deles', async () => {
-  render(<App />); hello();
+  render(<App />); hello({ champSelect: normal });
   expect(spells().getByRole('button', { name: 'Feitiço 1 (D): Flash' })).toBeVisible();
   fireEvent.click(spells().getByRole('button', { name: 'Feitiço 2 (F): Incendiar' }));
   const list = within(spells().getByRole('list', { name: 'Escolher Feitiço 2 (F)' }));
@@ -62,7 +68,7 @@ it('troca os dois de lugar e não manda nada ao repetir o mesmo', () => {
 
 it('bloqueia feitiço acima do nível, mostra erro e trava quando a partida abre', async () => {
   render(<App />);
-  hello({ summoner: { ...champSelectState.summoner!, summonerLevel: 8 } });
+  hello({ champSelect: normal, summoner: { ...champSelectState.summoner!, summonerLevel: 8 } });
   fireEvent.click(spells().getByRole('button', { name: /Feitiço 2/ }));
   expect(spells().getByRole('button', { name: 'Golpear' })).toBeDisabled();
   fireEvent.click(spells().getByRole('button', { name: 'Barreira' }));
@@ -164,4 +170,30 @@ it('abre a lista com o foco no feitiço atual e fecha com Esc devolvendo o foco'
   expect(spells().queryByRole('list')).toBeNull();
   expect(slot).toHaveFocus();
   expect(socket().send).not.toHaveBeenCalledWith(expect.stringContaining('setSummonerSpells'));
+});
+
+describe('Golpear na ranqueada (#480)', () => {
+  const asJungle = (spell1Id: number, spell2Id: number) => ({
+    ...draftChampSelect,
+    myTeam: draftChampSelect.myTeam.map(p => p.isLocalPlayer ? { ...p, assignedPosition: 'jungle' as const, spell1Id, spell2Id } : p),
+  });
+
+  it('o caçador não tira o Golpear, mas troca a tecla dele', () => {
+    render(<App />); hello({ champSelect: asJungle(4, 11) });
+    expect(spells().getByText(/o caçador fica com o Golpear/)).toBeVisible();
+    fireEvent.click(spells().getByRole('button', { name: /Feitiço 2/ }));
+    const list = within(spells().getByRole('list', { name: 'Escolher Feitiço 2 (F)' }));
+    expect(list.getByRole('button', { name: 'Incendiar' })).toBeDisabled();
+    // Escolher o Flash no espaço do Golpear troca os dois de tecla.
+    fireEvent.click(list.getByRole('button', { name: 'Flash' }));
+    expect(last().command).toEqual({ type: 'setSummonerSpells', spell1Id: 11, spell2Id: 4 });
+  });
+
+  it('as outras posições nem veem o Golpear', () => {
+    render(<App />); hello();
+    fireEvent.click(spells().getByRole('button', { name: /Feitiço 2/ }));
+    const list = within(spells().getByRole('list', { name: 'Escolher Feitiço 2 (F)' }));
+    expect(list.queryByRole('button', { name: 'Golpear' })).not.toBeInTheDocument();
+    expect(list.getByRole('button', { name: 'Barreira' })).toBeEnabled();
+  });
 });
