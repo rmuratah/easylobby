@@ -215,14 +215,15 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions,
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">{label}</h3>
       {players.length === 0 ? <p className="text-body text-muted">Sem jogadores.</p> : (
         // Todos os cards do time com a altura do maior (#428): as linhas da grade dividem o espaço por igual.
-        <ul ref={listRef} className="grid auto-rows-fr gap-2"
+        // Uma coluna que não passa da largura do time: o nome longo é cortado em vez de esticar os cards (#475).
+        <ul ref={listRef} className="grid grid-cols-[minmax(0,1fr)] auto-rows-fr gap-2"
           style={minCardHeight ? { gridAutoRows: `minmax(${minCardHeight}px, 1fr)` } : undefined}>
           {players.map((player, index) => {
             const intent = !player.championId && player.championPickIntent ? player.championPickIntent : null;
             const champion = player.championId ?? intent;
             return (
               <li key={player.cellId} aria-current={player.isLocalPlayer ? 'true' : undefined}
-                className={cx('flex items-center gap-2 rounded-card border p-2 text-ink',
+                className={cx('flex min-w-0 items-center gap-2 rounded-card border p-2 text-ink',
                   acting.has(player.cellId) ? 'border-accent bg-accent-soft' : player.isLocalPlayer ? 'border-control bg-surface' : 'border-line bg-surface')}>
                 <ChampionIcon id={champion} dim={intent !== null} />
                 {ally && (player.spell1Id || player.spell2Id) ? (
@@ -236,7 +237,7 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions,
                     {playerName(player, index, ally)}{player.isLocalPlayer && ' (você)'}
                   </p>
                   <p className="text-caption text-muted">
-                    {champion ? championName(catalog, champion) + (intent ? ' (intenção)' : '') : 'Sem campeão'}
+                    {champion ? championName(catalog, champion) : 'Sem campeão'}
                     {ally && player.assignedPosition !== 'unselected' && ` · ${positionNames[player.assignedPosition]}`}
                     {ally && player.isAutofilled && (
                       <span title="Posição de autofill: o jogador não escolheu esta posição" className="ml-1 inline-flex items-center gap-0.5 align-middle font-semibold text-accent-ink">
@@ -371,7 +372,7 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect }: Gri
             if (event.key === 'Escape') { setQuery(''); return; }
             if (event.key === 'Enter' && query && first && onSelect) { event.preventDefault(); onSelect(first.champion.id); }
           }}
-          className="h-9 min-w-0 flex-1 rounded-control border border-control bg-surface px-3 text-body text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" />
+          className="h-9 min-w-32 flex-1 rounded-control border border-control bg-surface px-3 text-body text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" />
         <span id={hintId} className="sr-only">Enter marca o primeiro campeão da busca; Esc limpa.</span>
         {showLanes && (
           <ul aria-label="Filtrar por rota" className="flex gap-1">
