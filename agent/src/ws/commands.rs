@@ -96,6 +96,7 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
             spell1_id,
             spell2_id,
         } => hub.set_summoner_spells(spell1_id, spell2_id).await,
+        Command::SelectSkin { skin_id } => hub.select_skin(skin_id).await,
         Command::RequestSwap { kind, swap_id } => {
             hub.champ_select_swap(kind, swap_id, SwapIntent::Request)
                 .await

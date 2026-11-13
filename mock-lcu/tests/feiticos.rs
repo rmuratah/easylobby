@@ -9,7 +9,7 @@ use std::time::Duration;
 use easylobby_agent::champ_select::{ChampSelect, ChampSelectActionType};
 use easylobby_agent::connection::{CredentialSource, LcuConnection, ReconnectConfig};
 use easylobby_agent::fixtures::FixtureSet;
-use easylobby_agent::lobby::Queue;
+use easylobby_agent::lobby::{Position, Queue};
 use easylobby_agent::summoner_spells::SummonerSpellCatalog;
 use easylobby_agent::ws::protocol::{
     ClientMessage, Command, CommandResult, ErrorCode, LcuStatus, ServerMessage,
@@ -195,18 +195,32 @@ async fn troca_os_feiticos_pelo_ws() {
     set_spells(&mut ui, 4, 4, 9999).await;
     assert!(invalid(&until_response(&mut ui, 4).await.1));
 
-    // Teleporte e Flash: a seleção nova chega antes da resposta.
-    set_spells(&mut ui, 5, 12, 4).await;
+    // Na gravação o jogador é o caçador da Solo/Duo: sem Golpear não vale (#480).
+    assert_eq!(
+        cs.local_player().unwrap().assigned_position,
+        Position::Jungle
+    );
+    set_spells(&mut ui, 7, 12, 4).await;
+    match until_response(&mut ui, 7).await.1 {
+        CommandResult::Error {
+            code: ErrorCode::InvalidCommand,
+            message,
+        } => assert!(message.contains("Golpear"), "{message}"),
+        other => panic!("esperava invalidCommand: {other:?}"),
+    }
+
+    // Teleporte e Golpear: a seleção nova chega antes da resposta.
+    set_spells(&mut ui, 5, 12, 11).await;
     let (changed, result) = until_response(&mut ui, 5).await;
     assert_eq!(result, CommandResult::Ok);
     let changed = changed.expect("a seleção nova chega antes da resposta");
-    assert_eq!(spells(&changed), (Some(12), Some(4)));
+    assert_eq!(spells(&changed), (Some(12), Some(11)));
 
     // Inverter D e F é mandar os mesmos trocados.
-    set_spells(&mut ui, 6, 4, 12).await;
+    set_spells(&mut ui, 6, 11, 12).await;
     let (swapped, result) = until_response(&mut ui, 6).await;
     assert_eq!(result, CommandResult::Ok);
-    assert_eq!(spells(&swapped.unwrap()), (Some(4), Some(12)));
+    assert_eq!(spells(&swapped.unwrap()), (Some(11), Some(12)));
 
     mock.shutdown().await;
     let _ = std::fs::remove_dir_all(&dir);

@@ -5,11 +5,16 @@
 const NOTES: ReadonlyArray<readonly [frequency: number, offset: number]> = [[659.25, 0], [880, 0.16], [1318.5, 0.32]];
 const NOTE_SECONDS = 0.45;
 const VOLUME = 0.25;
+/** Tique curto da contagem da seleção. */
+const TICK_SECONDS = 0.09;
+const TICK_VOLUME = 0.18;
 
 export type SoundPlayer = {
   /** Libera o áudio; chame num clique ou tecla, que o navegador exige. */
   unlock(): void;
   playMatchFound(): void;
+  /** Tique da contagem regressiva da sua vez na seleção (#475); `urgent` nos últimos segundos. */
+  playTick(urgent?: boolean): void;
 };
 
 export function createSoundPlayer(create: () => AudioContext | null): SoundPlayer {
@@ -40,6 +45,21 @@ export function createSoundPlayer(create: () => AudioContext | null): SoundPlaye
         oscillator.start(at);
         oscillator.stop(at + NOTE_SECONDS + 0.05);
       }
+    },
+    playTick(urgent = false) {
+      const ctx = audio();
+      if (!ctx) return;
+      const at = ctx.currentTime + 0.01;
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = 'triangle';
+      oscillator.frequency.value = urgent ? 1046.5 : 784;
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(TICK_VOLUME, at + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + TICK_SECONDS);
+      oscillator.connect(gain).connect(ctx.destination);
+      oscillator.start(at);
+      oscillator.stop(at + TICK_SECONDS + 0.02);
     },
   };
 }

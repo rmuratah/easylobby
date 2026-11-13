@@ -30,3 +30,13 @@ it('não quebra sem Web Audio', () => {
   expect(() => { player.unlock(); player.playMatchFound(); }).not.toThrow();
   expect(() => createSoundPlayer(() => null).playMatchFound()).not.toThrow();
 });
+
+it('toca o tique da contagem, mais agudo nos últimos segundos', () => {
+  const ctx = fakeContext('running');
+  const player = createSoundPlayer(() => ctx as unknown as AudioContext);
+  player.playTick();
+  player.playTick(true);
+  expect(ctx.createOscillator).toHaveBeenCalledTimes(2);
+  const [normal, urgent] = ctx.createOscillator.mock.results.map(r => r.value);
+  expect(urgent.frequency.value).toBeGreaterThan(normal.frequency.value);
+});

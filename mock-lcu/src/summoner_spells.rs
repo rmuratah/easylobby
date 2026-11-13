@@ -3,7 +3,8 @@
 //! - `PATCH /lol-champ-select/v1/session/my-selection` com
 //!   `{"spell1Id": N, "spell2Id": M}` troca os feitiços do jogador logado na
 //!   sessão atual e manda o `Update` dela pelo WAMP, como a LCU. Um dos dois
-//!   campos sozinho troca só aquele.
+//!   campos sozinho troca só aquele. `{"selectedSkinId": N}` troca a skin
+//!   (#477), como o carrossel do client oficial.
 //! - `GET /lol-game-data/assets/v1/summoner-spells.json` sai da gravação ou,
 //!   enquanto ela não tiver, do arquivo **sintético** em `mock-lcu/data/`.
 //!
@@ -37,8 +38,8 @@ pub fn game_data(state: &LcuState) -> Response {
     }
 }
 
-/// `PATCH .../my-selection`: troca os feitiços do jogador logado. 404 fora
-/// da seleção; 400 sem nenhum dos dois campos.
+/// `PATCH .../my-selection`: troca os feitiços e a skin do jogador logado.
+/// 404 fora da seleção; 400 sem nenhum dos campos.
 pub fn select(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
     let current = state.get(SESSION);
     if current.status != 200 {
@@ -46,9 +47,13 @@ pub fn select(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
     }
     let spell1 = body["spell1Id"].as_i64();
     let spell2 = body["spell2Id"].as_i64();
-    if spell1.is_none() && spell2.is_none() {
+    let skin = body["selectedSkinId"].as_i64();
+    if spell1.is_none() && spell2.is_none() && skin.is_none() {
         return (
-            Response::error(400, "mock-lcu: corpo sem spell1Id nem spell2Id"),
+            Response::error(
+                400,
+                "mock-lcu: corpo sem spell1Id, spell2Id nem selectedSkinId",
+            ),
             Vec::new(),
         );
     }
@@ -68,6 +73,9 @@ pub fn select(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
     }
     if let Some(id) = spell2 {
         player["spell2Id"] = json!(id);
+    }
+    if let Some(id) = skin {
+        player["selectedSkinId"] = json!(id);
     }
     let event = EventFixture {
         t_ms: 0,
@@ -133,6 +141,20 @@ mod tests {
         let session = state.get(SESSION).body;
         assert_eq!(session["myTeam"][1]["spell1Id"], 12);
         assert_eq!(session["myTeam"][1]["spell2Id"], 11);
+    }
+
+    #[test]
+    fn troca_a_skin_do_jogador() {
+        let mut state = state();
+        let (response, events) = select(&state, &json!({"selectedSkinId": 103001}));
+        assert_eq!(response.status, 204);
+        for e in &events {
+            state.apply(e);
+        }
+        let session = state.get(SESSION).body;
+        assert_eq!(session["myTeam"][1]["selectedSkinId"], 103001);
+        // Os feitiços não mudam.
+        assert_eq!(session["myTeam"][1]["spell2Id"], 14);
     }
 
     #[test]

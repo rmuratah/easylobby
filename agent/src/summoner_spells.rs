@@ -23,9 +23,49 @@ use serde_json::{json, Value};
 use ts_rs::TS;
 
 use crate::champ_select::{ChampSelect, ChampSelectPhase};
-use crate::lobby::Queue;
+use crate::lobby::{Position, Queue};
 use crate::queues::GameQueue;
 use crate::rest::{LcuClient, LcuError};
+
+/// Id do Golpear.
+pub const SMITE_ID: u32 = 11;
+
+/// Na Solo/Duo e na Flex, o caçador precisa ficar com o Golpear (#480): pode
+/// trocar de tecla, mas não tirar.
+pub fn smite_required(champ_select: &ChampSelect) -> bool {
+    matches!(
+        champ_select.queue,
+        Some(Queue::RankedSolo | Queue::RankedFlex)
+    ) && champ_select
+        .local_player()
+        .is_some_and(|me| me.assigned_position == Position::Jungle)
+}
+
+/// Na Solo/Duo e na Flex, só o caçador usa o Golpear (#480): quem caiu em
+/// outra posição nem pode escolher.
+pub fn smite_forbidden(champ_select: &ChampSelect) -> bool {
+    matches!(
+        champ_select.queue,
+        Some(Queue::RankedSolo | Queue::RankedFlex)
+    ) && champ_select.local_player().is_some_and(|me| {
+        matches!(
+            me.assigned_position,
+            Position::Top | Position::Middle | Position::Bottom | Position::Utility
+        )
+    })
+}
+
+/// Confere a regra do Golpear da ranqueada (#480).
+fn check_smite(cs: &ChampSelect, spell1_id: u32, spell2_id: u32) -> Result<(), InvalidSpells> {
+    let has_smite = spell1_id == SMITE_ID || spell2_id == SMITE_ID;
+    if smite_required(cs) && !has_smite {
+        return Err(InvalidSpells::SmiteRequired);
+    }
+    if smite_forbidden(cs) && has_smite {
+        return Err(InvalidSpells::SmiteNotAllowed);
+    }
+    Ok(())
+}
 
 /// Escolhas do jogador logado na seleção (feitiços, skin...).
 pub const MY_SELECTION_PATH: &str = "/lol-champ-select/v1/session/my-selection";
@@ -181,6 +221,10 @@ pub enum InvalidSpells {
     NotInQueue(u32),
     /// Feitiço ainda bloqueado no nível do jogador.
     LevelTooLow(u32),
+    /// O caçador da Solo/Duo ou da Flex precisa ficar com o Golpear (#480).
+    SmiteRequired,
+    /// Na Solo/Duo e na Flex, só o caçador pode usar o Golpear (#480).
+    SmiteNotAllowed,
 }
 
 impl fmt::Display for InvalidSpells {
@@ -194,6 +238,12 @@ impl fmt::Display for InvalidSpells {
             InvalidSpells::NotInQueue(id) => write!(f, "o feitiço {id} não vale nesta fila"),
             InvalidSpells::LevelTooLow(id) => {
                 write!(f, "o feitiço {id} ainda está bloqueado no seu nível")
+            }
+            InvalidSpells::SmiteRequired => {
+                f.write_str("na ranqueada, o caçador precisa ficar com o Golpear")
+            }
+            InvalidSpells::SmiteNotAllowed => {
+                f.write_str("na ranqueada, só o caçador pode usar o Golpear")
             }
         }
     }
@@ -247,7 +297,7 @@ pub fn check_spells_in(
         return Err(InvalidSpells::SameSpell);
     }
     let Some(catalog) = catalog else {
-        return Ok(());
+        return check_smite(cs, spell1_id, spell2_id);
     };
     for id in [spell1_id, spell2_id] {
         let spell = catalog.get(id).ok_or(InvalidSpells::UnknownSpell(id))?;
@@ -266,7 +316,8 @@ pub fn check_spells_in(
             return Err(InvalidSpells::LevelTooLow(id));
         }
     }
-    Ok(())
+    // A regra do Golpear da ranqueada (#480) vem depois das dos feitiços.
+    check_smite(cs, spell1_id, spell2_id)
 }
 
 /// Troca os dois feitiços do jogador logado. A LCU responde sem corpo; a
@@ -312,6 +363,61 @@ mod tests {
             "myTeam": [{"cellId": 0, "spell1Id": 4, "spell2Id": 14}],
         });
         ChampSelect::from_json(&raw).unwrap()
+    }
+
+    fn jungle(queue_id: u32) -> ChampSelect {
+        let raw = json!({
+            "id": "s",
+            "queueId": queue_id,
+            "localPlayerCellId": 0,
+            "timer": {"phase": "BAN_PICK"},
+            "myTeam": [{"cellId": 0, "assignedPosition": "JUNGLE", "spell1Id": 4, "spell2Id": 11}],
+        });
+        ChampSelect::from_json(&raw).unwrap()
+    }
+
+    #[test]
+    fn cacador_da_ranqueada_fica_com_o_golpear() {
+        let catalog = SummonerSpellCatalog::from_json(&raw_catalog()).unwrap();
+        for queue_id in [420, 440] {
+            let cs = jungle(queue_id);
+            let check = |s1, s2| check_spells(Some(&cs), Some(&catalog), Some(30), s1, s2);
+            // Trocar o Golpear de tecla pode; tirar, não.
+            assert_eq!(check(11, 4), Ok(()));
+            assert_eq!(check(4, 11), Ok(()));
+            assert_eq!(check(4, 14), Err(InvalidSpells::SmiteRequired));
+        }
+        // Na normal, a regra não vale.
+        let normal = jungle(400);
+        assert!(!smite_required(&normal));
+        assert_eq!(check_spells(Some(&normal), None, Some(30), 4, 14), Ok(()));
+        // Fora da selva, também não.
+        assert!(!smite_required(&session(420, "BAN_PICK")));
+    }
+
+    #[test]
+    fn so_o_cacador_da_ranqueada_usa_o_golpear() {
+        let mid = |queue_id: u32| {
+            ChampSelect::from_json(&json!({
+                "id": "s", "queueId": queue_id, "localPlayerCellId": 0,
+                "timer": {"phase": "BAN_PICK"},
+                "myTeam": [{"cellId": 0, "assignedPosition": "MIDDLE", "spell1Id": 4, "spell2Id": 14}],
+            }))
+            .unwrap()
+        };
+        for queue_id in [420, 440] {
+            let cs = mid(queue_id);
+            assert!(smite_forbidden(&cs));
+            assert_eq!(
+                check_spells(Some(&cs), None, Some(30), 4, 11),
+                Err(InvalidSpells::SmiteNotAllowed)
+            );
+            assert_eq!(check_spells(Some(&cs), None, Some(30), 4, 14), Ok(()));
+        }
+        assert!(!smite_forbidden(&mid(400)));
+        assert!(!smite_forbidden(&jungle(420)));
+        // Sem posição (como na personalizada), a regra não vale.
+        assert!(!smite_forbidden(&session(420, "BAN_PICK")));
     }
 
     #[test]

@@ -3,13 +3,15 @@ import { assetUrl } from '../agent/assets';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import {
   actingCells, champSelectPhaseLabels, championName, filterByLane, gridChampions, gridPurpose, hasLanes, isAramChampSelect, isBanPhase, markedChampion,
-  myAction, playerName, remainingMs, searchChampions, type GridChampion, type MyAction,
+  lockedPick, myAction, playerName, remainingMs, searchChampions, type GridChampion, type MyAction,
 } from '../agent/champSelect';
 import { useCommand, type CommandFeedback } from '../agent/useCommand';
+import { sound } from '../agent/sound';
 import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
 import { RuneQuickPick } from './RuneQuickPick';
+import { SkinCarousel } from './SkinCarousel';
 import { AramChampSelectContent } from './AramChampSelect';
 import { LANES, positionNames, type Lane } from '../agent/positions';
 import { PositionIcon } from './PositionIcon';
@@ -22,10 +24,10 @@ import { cx } from './base/cx';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send']; onOpenRunes?: () => void };
 
-export function ChampionIcon({ id, size = 40, dim = false }: { id: number | null; size?: number; dim?: boolean }) {
+export function ChampionIcon({ id, size = 40, dim = false, gray = false }: { id: number | null; size?: number; dim?: boolean; gray?: boolean }) {
   // O fundo fica no lugar da imagem enquanto ela carrega ou quando não há ícone.
   return (
-    <span aria-hidden="true" className={cx('inline-block shrink-0 overflow-hidden rounded-control-sm bg-raised', dim && 'opacity-50')}
+    <span aria-hidden="true" className={cx('inline-block shrink-0 overflow-hidden rounded-control-sm bg-raised', dim && 'opacity-50', gray && 'grayscale')}
       style={{ width: size, height: size }}>
       {id ? <img src={assetUrl('champion', id)} alt="" width={size} height={size}
         onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }} /> : null}
@@ -82,6 +84,9 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
     void confirm.run({ type: 'confirmAction', actionId: mine.action.id, championId },
       { pending: mine.action.type === 'ban' ? 'Confirmando o ban…' : 'Confirmando a escolha…', failure: verb });
   }
+  const me = champSelect.myTeam.find(player => player.isLocalPlayer);
+  const lockedChampion = lockedPick(champSelect);
+  useTurnCountdownSound(champSelect, !!mine?.turn);
   const grid = gridChampions(state, champSelect);
   const chosenAvailable = !!chosen && grid.some(item => item.champion.id === chosen && item.available);
   // Na fase de banimento (#423) a tela ganha detalhes vermelhos (estilos em index.css).
@@ -91,6 +96,8 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
       <AutofillNotice champSelect={champSelect} send={send} />
       <div className="champ-select-board">
         <div className="flex min-w-0 flex-col gap-4">
+          {/* Os bans de cada time ficam em cima do nome dele (#475). */}
+          <TeamBans label="Bans do seu time" ids={champSelect.bans.myTeam} slots={banSlots(champSelect, true)} catalog={catalog} />
           <TeamList label="Seu time" players={champSelect.myTeam} ally acting={acting} catalog={catalog}
             onCardHeight={setAllyCardHeight}
             renderActions={player => player.isLocalPlayer ? null
@@ -100,14 +107,21 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
           <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />
         </div>
         <div className="champ-select-center">
-          <Bans champSelect={champSelect} catalog={catalog} />
           <ChampSelectSwaps champSelect={champSelect} busy={swap.pending} run={swap.run} feedback={swap.feedback} />
-          <ActionBar mine={mine} chosen={chosen || null} chosenAvailable={chosenAvailable} catalog={catalog}
-            busy={confirm.pending} onConfirm={lockIn} feedback={[confirm.feedback, hover.feedback]} />
+          {/* Com o campeão confirmado, a seção de campeões vira a escolha de skin (#477). */}
+          {me && lockedChampion ? (
+            <SkinCarousel state={state} send={send} championId={lockedChampion}
+              championName={championName(catalog, lockedChampion)} selectedSkinId={me.selectedSkinId} />
+          ) : (
+          // O botão de banir e escolher fica dentro da seção de campeões, embaixo e no meio (#475).
           <ChampionGrid state={state} champSelect={champSelect} grid={grid} selected={chosen || null}
-            onSelect={mine && !confirm.pending ? select : null} />
+            onSelect={mine && !confirm.pending ? select : null}
+            footer={<ActionBar mine={mine} chosen={chosen || null} chosenAvailable={chosenAvailable} catalog={catalog}
+              busy={confirm.pending} onConfirm={lockIn} feedback={[confirm.feedback, hover.feedback]} />} />
+          )}
         </div>
         <div className="flex min-w-0 flex-col gap-4">
+          <TeamBans label="Bans do time adversário" ids={champSelect.bans.theirTeam} slots={banSlots(champSelect, false)} catalog={catalog} />
           <TeamList label="Time adversário" players={champSelect.theirTeam} ally={false} acting={acting} catalog={catalog}
             minCardHeight={allyCardHeight} />
           {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}
@@ -115,6 +129,30 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
       </div>
     </section>
   );
+}
+
+/** Segundos finais da sua vez que tocam o tique (#475). */
+const TICK_FROM_SECONDS = 10;
+
+/**
+ * Na sua vez de banir ou escolher, toca um tique por segundo nos últimos 10
+ * segundos (#475), mais agudo nos 3 últimos.
+ */
+function useTurnCountdownSound(champSelect: ChampSelect, myTurn: boolean) {
+  const { endsAtMs, isInfinite } = champSelect.timer;
+  useEffect(() => {
+    if (!myTurn || isInfinite) return;
+    let last: number | null = null;
+    const check = () => {
+      const seconds = Math.ceil(Math.max(0, endsAtMs - Date.now()) / 1000);
+      if (seconds < 1 || seconds > TICK_FROM_SECONDS || seconds === last) return;
+      last = seconds;
+      sound.playTick(seconds <= 3);
+    };
+    check();
+    const interval = setInterval(check, 200);
+    return () => clearInterval(interval);
+  }, [myTurn, endsAtMs, isInfinite]);
 }
 
 export function Countdown({ champSelect }: { champSelect: ChampSelect }) {
@@ -152,6 +190,25 @@ function ChampSelectStatus({ champSelect }: { champSelect: ChampSelect }) {
           <Countdown key={`${champSelect.timer.phase}:${champSelect.timer.endsAtMs}`} champSelect={champSelect} />
         </span>
       </p>
+      {/* Barra do tempo da etapa (#475): começa cheia e esvazia da direita para a esquerda. */}
+      <TimeBar key={`${champSelect.timer.phase}:${champSelect.timer.endsAtMs}`} champSelect={champSelect} ban={ban} />
+    </div>
+  );
+}
+
+function TimeBar({ champSelect, ban }: { champSelect: ChampSelect; ban: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(interval);
+  }, []);
+  const total = champSelect.timer.totalTimeMs;
+  if (champSelect.timer.isInfinite || total <= 0) return null;
+  const left = Math.min(1, remainingMs(champSelect, now) / total);
+  return (
+    <div aria-hidden="true" className="h-1.5 w-full basis-full overflow-hidden rounded-full bg-raised">
+      <div className={cx('h-full rounded-full transition-[width] duration-300 ease-linear', ban ? 'bg-danger' : 'bg-accent')}
+        style={{ width: `${left * 100}%` }} />
     </div>
   );
 }
@@ -215,14 +272,15 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions,
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">{label}</h3>
       {players.length === 0 ? <p className="text-body text-muted">Sem jogadores.</p> : (
         // Todos os cards do time com a altura do maior (#428): as linhas da grade dividem o espaço por igual.
-        <ul ref={listRef} className="grid auto-rows-fr gap-2"
+        // Uma coluna que não passa da largura do time: o nome longo é cortado em vez de esticar os cards (#475).
+        <ul ref={listRef} className="grid grid-cols-[minmax(0,1fr)] auto-rows-fr gap-2"
           style={minCardHeight ? { gridAutoRows: `minmax(${minCardHeight}px, 1fr)` } : undefined}>
           {players.map((player, index) => {
             const intent = !player.championId && player.championPickIntent ? player.championPickIntent : null;
             const champion = player.championId ?? intent;
             return (
               <li key={player.cellId} aria-current={player.isLocalPlayer ? 'true' : undefined}
-                className={cx('flex items-center gap-2 rounded-card border p-2 text-ink',
+                className={cx('flex min-w-0 items-center gap-2 rounded-card border p-2 text-ink',
                   acting.has(player.cellId) ? 'border-accent bg-accent-soft' : player.isLocalPlayer ? 'border-control bg-surface' : 'border-line bg-surface')}>
                 <ChampionIcon id={champion} dim={intent !== null} />
                 {ally && (player.spell1Id || player.spell2Id) ? (
@@ -235,15 +293,20 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions,
                   <p className="truncate text-body font-semibold">
                     {playerName(player, index, ally)}{player.isLocalPlayer && ' (você)'}
                   </p>
+                  {/* No seu time o card mostra só o ícone do campeão (#475); o nome fica para o leitor de tela. */}
                   <p className="text-caption text-muted">
-                    {champion ? championName(catalog, champion) + (intent ? ' (intenção)' : '') : 'Sem campeão'}
-                    {ally && player.assignedPosition !== 'unselected' && ` · ${positionNames[player.assignedPosition]}`}
+                    {/* "Sem campeão" também não aparece, nos dois times (#475). */}
+                    {ally || !champion ? <span className="sr-only">{champion ? championName(catalog, champion) : 'Sem campeão'}
+                      {((ally && player.assignedPosition !== 'unselected') || acting.has(player.cellId)) && ' · '}</span>
+                      : championName(catalog, champion)}
+                    {ally && player.assignedPosition !== 'unselected' && positionNames[player.assignedPosition]}
                     {ally && player.isAutofilled && (
                       <span title="Posição de autofill: o jogador não escolheu esta posição" className="ml-1 inline-flex items-center gap-0.5 align-middle font-semibold text-accent-ink">
                         <PositionIcon position="fill" size={12} />(autofill)
                       </span>
                     )}
-                    {acting.has(player.cellId) && ' · na vez'}
+                    {/* Quem está na vez já tem o card em destaque; o texto fica só para o leitor de tela (#475). */}
+                    {acting.has(player.cellId) && <span className="sr-only">{(ally ? player.assignedPosition === 'unselected' : !champion) ? 'na vez' : ' · na vez'}</span>}
                   </p>
                   {renderActions?.(player)}
                 </div>
@@ -256,25 +319,45 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions,
   );
 }
 
-function Bans({ champSelect, catalog }: { champSelect: ChampSelect; catalog: ChampionCatalog | null }) {
-  const teams = [['Bans do seu time', champSelect.bans.myTeam], ['Bans do time adversário', champSelect.bans.theirTeam]] as const;
-  if (teams.every(([, ids]) => ids.length === 0)) return null;
+/** Quantos bans o time tem nesta seleção: as ações de ban dele ou, se forem menos, os bans já feitos. */
+function banSlots(champSelect: ChampSelect, ally: boolean): number {
+  const actions = champSelect.actions.filter(action => action.type === 'ban' && action.isAllyAction === ally).length;
+  return Math.max(actions, (ally ? champSelect.bans.myTeam : champSelect.bans.theirTeam).length);
+}
+
+/** Bans de um time, em cima da lista dele; os que faltam aparecem como espaços vazios. */
+function TeamBans({ label, ids, slots, catalog }: { label: string; ids: number[]; slots: number; catalog: ChampionCatalog | null }) {
+  if (slots === 0) return null;
   return (
-    <div className="flex flex-wrap gap-4">
-      {teams.map(([label, ids]) => ids.length > 0 && (
-        <section key={label} aria-label={label}>
-          <h3 className="text-caption text-muted">{label}</h3>
-          <ul className="flex flex-wrap gap-1">
-            {ids.map(id => (
-              <li key={id} title={championName(catalog, id)}>
-                <ChampionIcon id={id} size={28} dim />
-                <span className="sr-only">{championName(catalog, id)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
+    <section aria-label={label} className="flex min-w-0 flex-col gap-1">
+      <h3 className="text-caption text-muted">{label}</h3>
+      <ul className="flex flex-wrap gap-1">
+        {Array.from({ length: slots }, (_, index) => {
+          const id = ids[index];
+          return id ? (
+            <li key={index} title={championName(catalog, id)}>
+              {/* Banido fica em cinza (#475). */}
+              <ChampionIcon id={id} size={28} dim gray />
+              <span className="sr-only">{championName(catalog, id)}</span>
+            </li>
+          ) : (
+            <li key={index} aria-hidden="true" className="h-7 w-7 rounded-control-sm border border-dashed border-line" />
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/** Sinal de bloqueio em cima do campeão marcado para banir (#475). */
+function BanMark() {
+  return (
+    <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center rounded-control-sm bg-black/35 text-danger">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+        <circle cx="12" cy="12" r="9" fill="rgb(255 255 255 / .85)" />
+        <path d="M5.6 5.6l12.8 12.8" />
+      </svg>
+    </span>
   );
 }
 
@@ -297,7 +380,7 @@ function ActionBar({ mine, chosen, chosenAvailable, catalog, busy, onConfirm, fe
   if (!mine) return message ?? null;
   if (!mine.turn) {
     return (
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col items-center gap-1 text-center">
         <p className="text-body text-muted">
           {chosen ? `Intenção: ${championName(catalog, chosen)}. ` : ''}Ainda não é sua vez; o campeão marcado aparece para o time.
         </p>
@@ -307,13 +390,13 @@ function ActionBar({ mine, chosen, chosenAvailable, catalog, busy, onConfirm, fe
   }
   const ban = mine.action.type === 'ban';
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap items-center gap-3">
-        {/* O ban mostra só "Banir" (#311); o nome do campeão fica para o leitor de tela. */}
-        <Button variant={ban ? 'danger' : 'primary'} size="lg" disabled={!chosen || !chosenAvailable || busy}
-          aria-label={chosen ? `${ban ? 'Banir' : 'Escolher'} ${championName(catalog, chosen)}` : undefined}
+    <div className="flex flex-col items-center gap-1 text-center">
+      <div className="flex flex-col items-center gap-1">
+        {/* O botão mostra só "Banir" (#311) ou "Confirmar" (#475); o nome do campeão fica para o leitor de tela. */}
+        <Button variant={ban ? 'danger' : 'primary'} size="lg" className="min-w-48" disabled={!chosen || !chosenAvailable || busy}
+          aria-label={chosen ? `${ban ? 'Banir' : 'Confirmar'} ${championName(catalog, chosen)}` : undefined}
           onClick={() => { if (chosen) onConfirm(chosen); }}>
-          {ban ? 'Banir' : chosen ? `Escolher ${championName(catalog, chosen)}` : 'Escolher'}
+          {ban ? 'Banir' : 'Confirmar'}
         </Button>
         {!chosen && <p className="text-body text-muted">{ban ? 'Escolha na grade quem banir.' : 'Escolha seu campeão na grade.'}</p>}
         {chosen && !chosenAvailable && <p className="text-body text-warn">Esse campeão não está mais disponível.</p>}
@@ -330,9 +413,11 @@ type GridProps = {
   selected: number | null;
   /** `null` quando o jogador não tem ação para marcar agora. */
   onSelect: ((id: number) => void) | null;
+  /** Fica embaixo da grade, no meio: o botão de banir e escolher. */
+  footer?: ReactNode;
 };
 
-function ChampionGrid({ state, champSelect, grid: all, selected, onSelect }: GridProps) {
+function ChampionGrid({ state, champSelect, grid: all, selected, onSelect, footer }: GridProps) {
   const [query, setQuery] = useState('');
   const [lane, setLane] = useState<Lane | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -361,7 +446,7 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect }: Gri
   }, []);
   const first = shown.find(item => item.available);
   return (
-    <section aria-label={label} className="flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
+    <section aria-label={label} className="champ-select-picker flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
       <div className="flex flex-wrap items-center gap-3">
         <h3 className="text-section font-semibold">{label}</h3>
         <input ref={searchRef} type="search" aria-label="Buscar campeão" placeholder="Digite para buscar" value={query}
@@ -371,7 +456,7 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect }: Gri
             if (event.key === 'Escape') { setQuery(''); return; }
             if (event.key === 'Enter' && query && first && onSelect) { event.preventDefault(); onSelect(first.champion.id); }
           }}
-          className="h-9 min-w-0 flex-1 rounded-control border border-control bg-surface px-3 text-body text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" />
+          className="h-9 min-w-32 flex-1 rounded-control border border-control bg-surface px-3 text-body text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" />
         <span id={hintId} className="sr-only">Enter marca o primeiro campeão da busca; Esc limpa.</span>
         {showLanes && (
           <ul aria-label="Filtrar por rota" className="flex gap-1">
@@ -389,22 +474,27 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect }: Gri
           </ul>
         )}
       </div>
-      {!state.championCatalog ? <p className="text-body text-muted">Carregando campeões…</p>
-        : shown.length === 0 ? <p className="text-body text-muted">{query || activeLane ? 'Nenhum campeão encontrado.' : 'Nenhum campeão disponível.'}</p> : (
-          <ul className="champion-grid" aria-label="Grade de campeões">
+      {!state.championCatalog ? <p className="champion-grid-area text-body text-muted">Carregando campeões…</p>
+        : shown.length === 0 ? <p className="champion-grid-area text-body text-muted">{query || activeLane ? 'Nenhum campeão encontrado.' : 'Nenhum campeão disponível.'}</p> : (
+          <ul className="champion-grid champion-grid-area" aria-label="Grade de campeões">
             {shown.map(({ champion, available }) => (
               <li key={champion.id}>
                 <button type="button" aria-pressed={selected === champion.id} disabled={!available || !onSelect}
                   title={available ? champion.name : `${champion.name} (indisponível)`}
                   onClick={() => onSelect?.(champion.id)}
                   className="flex w-full flex-col items-center gap-1 rounded-control border-2 border-transparent p-1 text-caption text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-accent aria-pressed:border-accent aria-pressed:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent">
-                  <ChampionIcon id={champion.id} size={48} />
+                  {/* Banido ou já escolhido fica em cinza (#475). O marcado para banir ganha o sinal de bloqueio. */}
+                  <span className="relative">
+                    <ChampionIcon id={champion.id} size={48} gray={!available} />
+                    {purpose === 'ban' && selected === champion.id && <BanMark />}
+                  </span>
                   <span className="w-full truncate text-center">{champion.name}</span>
                 </button>
               </li>
             ))}
           </ul>
         )}
+      {footer && <div className="flex min-h-[5.25rem] shrink-0 items-start justify-center border-t border-line pt-3">{footer}</div>}
     </section>
   );
 }

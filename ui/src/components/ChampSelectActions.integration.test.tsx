@@ -6,6 +6,7 @@ import type { ChampSelect } from '../bindings/ChampSelect';
 import type { ClientMessage } from '../bindings/ClientMessage';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { champSelectState, draftChampSelect } from '../test/champSelect';
+import { sound } from '../agent/sound';
 
 class Socket {
   static OPEN = 1;
@@ -42,6 +43,8 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 it('na vez do ban, marca na grade e confirma pelo botão', async () => {
   render(<App />); hello();
   expect(panel().getByRole('button', { name: 'Banir' })).toBeDisabled();
+  // O botão fica dentro da seção de campeões, embaixo da grade (#475).
+  expect(within(panel().getByRole('region', { name: 'Campeões para banir' })).getByRole('button', { name: 'Banir' })).toBeVisible();
   fireEvent.click(tile('Wukong'));
   expect(last().command).toEqual({ type: 'hoverChampion', actionId: 1, championId: 62 });
   expect(tile('Wukong')).toHaveAttribute('aria-pressed', 'true');
@@ -72,11 +75,11 @@ it('na vez do pick escolhe, e mostra o erro da LCU sem travar', async () => {
   hello({ champSelect: { ...draftChampSelect, pendingAction: { ...pickAction, isInProgress: true } } });
   fireEvent.click(tile('Aatrox'));
   expect(last().command).toEqual({ type: 'hoverChampion', actionId: 4, championId: 266 });
-  fireEvent.click(panel().getByRole('button', { name: 'Escolher Aatrox' }));
+  fireEvent.click(panel().getByRole('button', { name: 'Confirmar Aatrox' }));
   expect(last().command).toEqual({ type: 'confirmAction', actionId: 4, championId: 266 });
   await respond({ status: 'error', code: 'lcu', message: 'campeão indisponível' });
   expect(panel().getByRole('alert')).toHaveTextContent('Não foi possível escolher: campeão indisponível');
-  expect(panel().getByRole('button', { name: 'Escolher Aatrox' })).toBeEnabled();
+  expect(panel().getByRole('button', { name: 'Confirmar Aatrox' })).toBeEnabled();
 });
 
 it('fora da vez marca a intenção do pick, sem botão de confirmar', () => {
@@ -140,4 +143,30 @@ it('não rouba o que é digitado num campo, como o chat', () => {
   fireEvent.keyDown(input, { key: 'a' });
   expect(panel().getByRole('searchbox', { name: 'Buscar campeão' })).toHaveValue('');
   input.remove();
+});
+
+it('na sua vez, toca um tique por segundo nos últimos 10 segundos (#475)', () => {
+  const tick = vi.spyOn(sound, 'playTick').mockImplementation(() => {});
+  // A vez do ban acaba às 12:00:30.
+  vi.setSystemTime(Date.UTC(2026, 10, 6, 12, 0, 15));
+  render(<App />); hello();
+  expect(tick).not.toHaveBeenCalled();
+  act(() => vi.advanceTimersByTime(5_100));
+  expect(tick).toHaveBeenCalledTimes(1);
+  expect(tick).toHaveBeenLastCalledWith(false);
+  act(() => vi.advanceTimersByTime(7_000));
+  expect(tick).toHaveBeenCalledTimes(8);
+  expect(tick).toHaveBeenLastCalledWith(true);
+  act(() => vi.advanceTimersByTime(5_000));
+  expect(tick).toHaveBeenCalledTimes(10);
+  tick.mockRestore();
+});
+
+it('fora da sua vez, não toca o tique', () => {
+  const tick = vi.spyOn(sound, 'playTick').mockImplementation(() => {});
+  vi.setSystemTime(Date.UTC(2026, 10, 6, 12, 0, 25));
+  render(<App />); hello({ champSelect: { ...draftChampSelect, pendingAction: null } });
+  act(() => vi.advanceTimersByTime(6_000));
+  expect(tick).not.toHaveBeenCalled();
+  tick.mockRestore();
 });

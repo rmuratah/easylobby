@@ -50,7 +50,7 @@ export function remainingMs(champSelect: ChampSelect, now: number): number {
 /** Nome do jogador na seleção, ou um nome pela posição quando a LCU esconde. */
 export function playerName(player: ChampSelectPlayer, index: number, ally: boolean): string {
   if (player.gameName) return player.gameName + (player.tagLine ? '#' + player.tagLine : '');
-  return `${ally ? 'Aliado' : 'Adversário'} ${index + 1}`;
+  return `${ally ? 'Aliado' : 'Inimigo'} ${index + 1}`;
 }
 
 /** O que a grade mostra agora: a ação da vez do jogador decide entre ban e pick. */
@@ -124,4 +124,11 @@ const aramQueueIds = new Set([450, 2400]);
  */
 export function isAramChampSelect(champSelect: ChampSelect): boolean {
   return champSelect.benchEnabled || champSelect.queue === 'aram' || aramQueueIds.has(champSelect.queueId);
+}
+
+/** Campeão que o jogador logado já confirmou (pick concluído), ou `null` (#477). */
+export function lockedPick(champSelect: ChampSelect): number | null {
+  const pick = champSelect.actions.find(action => action.type === 'pick' && action.completed
+    && action.actorCellId === champSelect.localPlayerCellId && action.championId);
+  return pick?.championId ?? null;
 }

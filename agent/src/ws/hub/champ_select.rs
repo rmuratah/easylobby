@@ -6,6 +6,7 @@ use crate::champ_select::{self, ActionIntent, ChampSelect, ChampSelectActionType
 use crate::champions::{
     self, ChampSelectChampions, ChampionCatalog, PICKABLE_CHAMPIONS_PATH, SUBSET_CHAMPIONS_PATH,
 };
+use crate::skin_select;
 use crate::summoner_spells::{self, SummonerSpellCatalog};
 use crate::swaps::{self, SwapIntent, SwapKind};
 use crate::wamp::{EventType, LcuEvent};
@@ -133,6 +134,33 @@ impl Hub {
             return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
         }
         if let Err(error) = summoner_spells::set_spells(&client, spell1_id, spell2_id).await {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        self.refresh_champ_select().await;
+        CommandResult::Ok
+    }
+
+    /// Troca a skin do jogador logado (comando `selectSkin`, #477). Confere o
+    /// pedido contra a seleção e as skins do campeão, e relê a sessão pelo
+    /// REST e a publica antes de devolver.
+    pub async fn select_skin(&self, skin_id: u32) -> CommandResult {
+        let (client, checked) = {
+            let shared = self.lock();
+            let state = &shared.state;
+            let checked = skin_select::check_skin(
+                state.champ_select.as_ref(),
+                state.champion_skins.as_ref(),
+                skin_id,
+            );
+            (shared.client.clone(), checked)
+        };
+        let Some(client) = client else {
+            return not_connected();
+        };
+        if let Err(invalid) = checked {
+            return CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string());
+        }
+        if let Err(error) = skin_select::set_skin(&client, skin_id).await {
             return CommandResult::error(ErrorCode::Lcu, error.to_string());
         }
         self.refresh_champ_select().await;
