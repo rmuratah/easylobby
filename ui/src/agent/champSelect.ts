@@ -127,6 +127,16 @@ export function isAramChampSelect(champSelect: ChampSelect): boolean {
 }
 
 /** Campeão que o jogador logado já confirmou (pick concluído), ou `null` (#477). */
+/**
+ * Ações de ban e de escolha que o jogador já confirmou com um campeão, para
+ * o som de confirmação (#498).
+ */
+export function myConfirmedActions(champSelect: ChampSelect): { id: number; type: 'ban' | 'pick' }[] {
+  return champSelect.actions.flatMap(action => action.completed && action.championId
+    && action.actorCellId === champSelect.localPlayerCellId && (action.type === 'ban' || action.type === 'pick')
+    ? [{ id: action.id, type: action.type }] : []);
+}
+
 export function lockedPick(champSelect: ChampSelect): number | null {
   const pick = champSelect.actions.find(action => action.type === 'pick' && action.completed
     && action.actorCellId === champSelect.localPlayerCellId && action.championId);

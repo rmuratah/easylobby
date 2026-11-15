@@ -7,6 +7,7 @@ import {
 } from '../agent/champSelect';
 import { useCommand, type CommandFeedback } from '../agent/useCommand';
 import { sound } from '../agent/sound';
+import { useLockInSound } from '../agent/useLockInSound';
 import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
@@ -88,6 +89,7 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
   const me = champSelect.myTeam.find(player => player.isLocalPlayer);
   const lockedChampion = lockedPick(champSelect);
   useTurnCountdownSound(champSelect, !!mine?.turn);
+  useLockInSound(champSelect);
   const grid = gridChampions(state, champSelect);
   const chosenAvailable = !!chosen && grid.some(item => item.champion.id === chosen && item.available);
   // Na fase de banimento (#423) a tela ganha detalhes vermelhos (estilos em index.css).
