@@ -155,7 +155,9 @@ Testado no LoL real (patch 16.22, ranqueada solo/duo) com o example `eventos` fe
 - Quando o processo do jogo fecha, o client **reabre o `LeagueClientUx` sozinho**, cerca de 1,5 s depois ("Client is no longer running" e em seguida "Starting UX process"), antes até de `WaitingForStats`. A LCU não cai, então a `LcuConnection` não vê um `Connected` novo e não chama o `kill-ux` de novo: a UI oficial fica aberta no pós-jogo.
 - Com a UI reaberta, o `PreEndOfGame` avançou sozinho para `EndOfGame` em 10,6 s, passando pela sequência de `/lol-pre-end-of-game/v1/currentSequenceEvent`: `honor-vote`, `challenge-level-up-celebration`, `missions-celebration` e `ranked-celebration`.
 
-Ainda não dá para dizer se o `PreEndOfGame` avança com a UI fechada de verdade, porque ela voltou antes dessa fase. Para o pós-jogo sem a UI oficial, o agente precisa chamar o `kill-ux` de novo quando a partida acaba (por exemplo, ao entrar em `WaitingForStats`) e então conferir se a fase avança sozinha ou se ele precisa encerrar a sequência.
+Isso vale para o example `eventos`, que só chama o `kill-ux` ao conectar. O app (o `Hub`) já fecha a UI de novo no fim da partida desde a #448, pela guarda de `ws::hub::ux_guard`: na `Reconnect` a janela fica escondida e, ao entrar em `WaitingForStats`, a guarda manda uma sequência de `kill-ux` (0,3 s a 15 s depois), que cobre o `PreEndOfGame`. Um pedido do LoL para mostrar a UI (`/riotclient/ux-state/request`) arma a sequência de novo em qualquer fase coberta.
+
+Ainda não dá para dizer se o `PreEndOfGame` avança com a UI fechada de verdade, porque nessa gravação ela voltou antes dessa fase. Falta um teste no LoL real com o app aberto (e o `gravar_fixtures` gravando ao lado) para conferir se a fase avança sozinha ou se o agente precisa encerrar a sequência (#180).
 
 ## Canal `/ws` para a UI (`ws`)
 
