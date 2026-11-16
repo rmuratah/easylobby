@@ -114,4 +114,11 @@ describe('InvitationsPanel', () => {
     expect(screen.getByRole('button', { name: 'Recusar convite de Um amigo' })).toBeEnabled();
     expect(screen.getByText(/Não dá para aceitar agora/)).toBeInTheDocument();
   });
+
+  it('não deixa aceitar na seleção de campeões, que viraria dodge (#506)', () => {
+    render(panel(connected({ gameflowPhase: 'ChampSelect', receivedInvitations: [testInvitation] }), vi.fn()));
+    expect(screen.getByRole('button', { name: 'Aceitar convite de Um amigo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Recusar convite de Um amigo' })).toBeEnabled();
+    expect(screen.getByText(/Não dá para aceitar na seleção de campeões/)).toBeInTheDocument();
+  });
 });

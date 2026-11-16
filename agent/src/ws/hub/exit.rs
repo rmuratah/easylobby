@@ -31,11 +31,13 @@ pub enum ExitAction {
 }
 
 /// Se dá para encerrar o LoL nessa fase sem prejuízo para o jogador. Fases
-/// desconhecidas ficam do lado seguro (não encerra).
+/// desconhecidas ficam do lado seguro (não encerra), inclusive a fase que o
+/// agente ainda não leu (`None`, por exemplo logo depois de reconectar): o
+/// jogador pode estar na seleção, e encerrar ali é esquiva (#506).
 pub(super) fn can_quit(phase: Option<GameflowPhase>) -> bool {
     matches!(
         phase,
-        None | Some(
+        Some(
             GameflowPhase::Idle
                 | GameflowPhase::Lobby
                 | GameflowPhase::Matchmaking
@@ -107,7 +109,6 @@ mod tests {
     #[test]
     fn encerra_fora_da_partida_e_da_selecao() {
         for phase in [
-            None,
             Some(GameflowPhase::Idle),
             Some(GameflowPhase::Lobby),
             Some(GameflowPhase::Matchmaking),
@@ -142,6 +143,8 @@ mod tests {
                 "{phase:?}"
             );
         }
+        // Fase ainda não lida (#506).
+        assert_eq!(exit_action(true, true, None), ExitAction::LaunchUx);
     }
 
     #[test]
