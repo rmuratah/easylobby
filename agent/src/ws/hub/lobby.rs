@@ -2,6 +2,7 @@
 
 use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
 use crate::custom_game::{self, CustomGameOptions};
+use crate::gameflow::GameflowPhase;
 use crate::lobby::{
     self, Lobby, Position, Queue, SetPositionOrderError, SetPositionsError, SubteamSlot,
 };
@@ -12,7 +13,27 @@ use crate::quick_play::{self, PlayerSlotInput, SetSlotsError};
 use crate::training::{self, TutorialPart};
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 
+/// Fases em que o jogador não pode trocar de grupo (#506): na seleção de
+/// campeões sair do grupo é esquiva (dodge), e da abertura da partida até a
+/// reconexão o grupo já virou partida.
+pub(crate) fn party_locked_in(phase: Option<GameflowPhase>) -> bool {
+    matches!(
+        phase,
+        Some(
+            GameflowPhase::ChampSelect
+                | GameflowPhase::GameStart
+                | GameflowPhase::InProgress
+                | GameflowPhase::Reconnect
+        )
+    )
+}
+
 impl Hub {
+    /// Se trocar de grupo agora faria mal ao jogador (veja [`party_locked_in`]).
+    pub(crate) fn party_locked(&self) -> bool {
+        party_locked_in(self.lock().state.gameflow_phase)
+    }
+
     pub fn set_lobby(&self, lobby: Option<Lobby>) {
         self.update(|shared| write_lobby(shared, lobby));
         self.drop_lobby_link_without_lobby();

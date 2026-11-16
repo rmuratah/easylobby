@@ -35,6 +35,8 @@ function ChatLine({ state, message }: { state: AgentState; message: LobbyChatMes
 }
 
 const cardClass = 'flex w-full min-w-0 flex-col gap-2 rounded-panel surface card p-4 text-ink shadow-soft animate-fade-up';
+// Altura fixa da área de mensagens: o card não cresce a cada mensagem nova; o histórico rola por dentro.
+const logBoxClass = 'h-56 shrink-0 px-1';
 
 /**
  * Chat do grupo no lobby (#206), embaixo da busca de partida e do card do grupo.
@@ -48,7 +50,7 @@ export function LobbyChatPanel({ connection, send }: Props) {
   if (!state.lobbyChat) return (
     <section aria-label="Chat do grupo" className={cardClass}>
       <h2 className="px-1 text-section font-semibold">Chat do grupo</h2>
-      <p className="px-1 text-body text-muted">Aguardando a sala do grupo abrir…</p>
+      <p className={`${logBoxClass} text-body text-muted`}>Aguardando a sala do grupo abrir…</p>
     </section>
   );
   // Trocar de sessão ou de jogador desmonta o formulário e invalida respostas em trânsito.
@@ -102,12 +104,12 @@ function OpenChat({ state, chat, send }: { state: AgentState; chat: LobbyChat; s
   return (
     <section aria-label="Chat do grupo" className={cardClass}>
       <h2 className="px-1 text-section font-semibold">Chat do grupo</h2>
-      {messages.length === 0 ? <p className="px-1 text-body text-muted">Nenhuma mensagem ainda.</p>
+      {messages.length === 0 ? <p className={`${logBoxClass} text-body text-muted`}>Nenhuma mensagem ainda.</p>
         : (
           <ol ref={log} onScroll={() => {
             const element = log.current;
             if (element) follow.current = element.scrollHeight - element.scrollTop - element.clientHeight <= 32;
-          }} role="log" aria-label="Mensagens do grupo" className="flex max-h-56 flex-col gap-1 overflow-y-auto px-1">
+          }} role="log" aria-label="Mensagens do grupo" className={`${logBoxClass} flex flex-col gap-1 overflow-y-auto`}>
             {messages.map(message => <ChatLine key={message.id} state={state} message={message} />)}
           </ol>
         )}

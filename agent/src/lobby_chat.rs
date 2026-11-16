@@ -9,7 +9,8 @@
 //! - a sala é reconhecida pelo `type` ou pelo `id`, que começa com o
 //!   `multiUserChatId` do lobby (`<id>@<servidor>`). Os dois juntos cobrem o
 //!   caso de a LCU trocar o nome do tipo;
-//! - as mensagens chegam como no chat 1:1 (`.../{id}/messages/{msg}`), e
+//! - as mensagens chegam como no chat 1:1 (`.../{id}/messages/{msg}`), mas
+//!   com `type: "groupchat"` (inclusive as do próprio jogador), e
 //!   `POST .../{id}/messages {"body", "type": "chat"}` manda uma;
 //! - no lobby os nomes não são escondidos: a mensagem traz `fromPuuid`, e o
 //!   agente preenche o Riot ID de quem mandou (o jogador logado é `fromMe`);
@@ -39,7 +40,8 @@ const ROOM_DOMAIN: &str = "sec";
 /// `type` da LCU para a sala do lobby.
 const ROOM_TYPE: &str = "customGame";
 
-/// `type` das mensagens escritas por jogadores.
+/// `type` com que o agente manda uma mensagem. Na sala, as mensagens de
+/// jogadores voltam com `groupchat`.
 const CHAT_TYPE: &str = "chat";
 
 /// `type` dos avisos da sala, e o corpo dos avisos de entrada e saída.
@@ -125,10 +127,14 @@ impl LobbyChatMessage {
             return None;
         }
         let (kind, body) = match (raw.kind.as_str(), raw.body.as_str()) {
-            (CHAT_TYPE, _) => (LobbyChatMessageKind::Chat, raw.body),
             (SYSTEM_TYPE, JOINED_BODY) => (LobbyChatMessageKind::Joined, String::new()),
             (SYSTEM_TYPE, LEFT_BODY) => (LobbyChatMessageKind::Left, String::new()),
-            _ => return None,
+            (SYSTEM_TYPE, _) => return None,
+            // Numa sala a LCU devolve `groupchat` (o tipo do XMPP), não o
+            // `chat` com que o agente manda: qualquer tipo fora `system` é
+            // mensagem de jogador.
+            _ if raw.body.trim().is_empty() => return None,
+            _ => (LobbyChatMessageKind::Chat, raw.body),
         };
         // Sem `fromPuuid`, o `fromId` (`<puuid>@<servidor>`) diz quem foi.
         let from_puuid = if raw.from_puuid.is_empty() {
@@ -429,6 +435,24 @@ mod tests {
         assert!(mensagens[1].from_me);
         let uma = LobbyChatMessage::list_from_json(&mensagem("4", "amigo", "chat", t), None);
         assert_eq!(uma.len(), 1);
+    }
+
+    #[test]
+    fn le_as_mensagens_groupchat_da_sala() {
+        // Na sala a LCU devolve `groupchat`, inclusive as minhas.
+        let t = "2026-11-07T20:00:00.000Z";
+        let lista = json!([
+            mensagem("1", "amigo", "groupchat", t),
+            mensagem("2", EU, "groupchat", t),
+        ]);
+        let mensagens = LobbyChatMessage::list_from_json(&lista, Some(EU));
+        assert_eq!(mensagens.len(), 2);
+        assert_eq!(mensagens[0].kind, LobbyChatMessageKind::Chat);
+        assert_eq!(mensagens[0].body, "texto 1");
+        assert!(mensagens[1].from_me);
+        let mut vazia = mensagem("3", "amigo", "groupchat", t);
+        vazia["body"] = json!("  ");
+        assert!(LobbyChatMessage::from_json(&vazia, Some(EU)).is_none());
     }
 
     #[test]

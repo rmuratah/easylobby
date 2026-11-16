@@ -66,19 +66,10 @@ export function Notifications({ connection, quiet = false, sidebarOpen = false, 
 }
 
 /**
- * Toca o som uma vez quando a partida é encontrada. O navegador só libera o
- * áudio depois de um clique ou tecla; o primeiro já basta para os próximos.
+ * Toca o som uma vez quando a partida é encontrada. O áudio é liberado no
+ * primeiro clique ou tecla por `useAppSounds` (#501).
  */
 function useMatchFoundSound(matchFound: boolean) {
-  useEffect(() => {
-    const unlock = () => sound.unlock();
-    window.addEventListener('pointerdown', unlock, { once: true });
-    window.addEventListener('keydown', unlock, { once: true });
-    return () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
-    };
-  }, []);
   useEffect(() => {
     if (matchFound) sound.playMatchFound();
   }, [matchFound]);

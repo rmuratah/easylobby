@@ -13,6 +13,12 @@ use super::Hub;
 /// Executa `command` e devolve a resposta para a UI. O `getState` mexe na
 /// assinatura da sessão e é tratado por ela.
 pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> CommandResult {
+    if leaves_party(&command) && hub.party_locked() {
+        return CommandResult::error(
+            ErrorCode::InvalidCommand,
+            "não dá para trocar de grupo na seleção de campeões ou em partida",
+        );
+    }
     match command {
         // Canal e LoL
         Command::Ping | Command::GetState => CommandResult::Ok,
@@ -165,11 +171,81 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
     }
 }
 
+/// Comandos que tiram o jogador do grupo atual (#506): criar ou sair do
+/// lobby, entrar em outro e aceitar convite. Na seleção de campeões isso é
+/// esquiva (dodge, com penalidade), e na partida não faz sentido; nessas
+/// fases ([`Hub::party_locked`]) o agente recusa sem falar com a LCU.
+fn leaves_party(command: &Command) -> bool {
+    matches!(
+        command,
+        Command::CreateLobby { .. }
+            | Command::CreateLobbyById { .. }
+            | Command::LeaveLobby
+            | Command::StartTutorial { .. }
+            | Command::StartPracticeTool
+            | Command::CreateCustomGame { .. }
+            | Command::JoinCustomGame { .. }
+            | Command::AcceptInvitation { .. }
+    )
+}
+
 /// Abre o LoL e traduz o resultado para a UI. Não espera o LoL subir: isso
 /// chega pelas mensagens `lcu`.
 async fn launch_league(options: &LaunchOptions) -> CommandResult {
     match launcher::launch_league(options).await {
         Ok(_) => CommandResult::Ok,
         Err(e) => CommandResult::error(ErrorCode::LaunchFailed, e.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gameflow::GameflowPhase;
+    use crate::lobby::Queue;
+
+    fn is_invalid(result: &CommandResult) -> bool {
+        matches!(
+            result,
+            CommandResult::Error {
+                code: ErrorCode::InvalidCommand,
+                ..
+            }
+        )
+    }
+
+    #[tokio::test]
+    async fn recusa_trocar_de_grupo_na_selecao_e_na_partida() {
+        let launch = LaunchOptions::default();
+        for phase in [
+            GameflowPhase::ChampSelect,
+            GameflowPhase::GameStart,
+            GameflowPhase::InProgress,
+            GameflowPhase::Reconnect,
+        ] {
+            let hub = Hub::new();
+            hub.set_gameflow_phase(Some(phase));
+            for command in [
+                Command::AcceptInvitation {
+                    invitation_id: "convite-1".into(),
+                },
+                Command::LeaveLobby,
+                Command::CreateLobby { queue: Queue::Aram },
+                Command::StartPracticeTool,
+            ] {
+                let result = run(&hub, &launch, command.clone()).await;
+                assert!(is_invalid(&result), "{phase:?} {command:?}: {result:?}");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn fora_da_selecao_o_comando_segue_para_a_lcu() {
+        // Sem LoL conectado, o comando chega ao hub, que responde
+        // `notConnected` em vez de `invalidCommand`.
+        let hub = Hub::new();
+        hub.set_gameflow_phase(Some(GameflowPhase::Lobby));
+        let result = run(&hub, &LaunchOptions::default(), Command::LeaveLobby).await;
+        assert!(!is_invalid(&result), "{result:?}");
     }
 }

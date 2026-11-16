@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { sound } from '../agent/sound';
+import { hoverSound } from '../agent/buttonSounds';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import type { AgentState } from '../bindings/AgentState';
 import type { LobbyMember } from '../bindings/LobbyMember';
 import type { Command } from '../bindings/Command';
-import { queuePenalty } from '../agent/matchmaking';
+import { duration, lowPriorityText, matchmakingErrorText, queuePenalty } from '../agent/matchmaking';
 import { awayMembers, awayReasons, pendingChoices, restrictionReasons } from '../agent/lobbyRestrictions';
 import { memberName } from '../agent/friends';
 import { cx } from './base/cx';
@@ -12,12 +14,6 @@ import { useDismiss } from '../agent/useDismiss';
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type QueueCommand = Extract<Command, { type: 'startQueue' | 'stopQueue' }>;
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
-
-function duration(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds));
-  const minutes = Math.floor(total / 60);
-  return `${minutes}:${String(total % 60).padStart(2, '0')}`;
-}
 
 function stateLabel(state: AgentState['matchmaking']): string {
   switch (state?.searchState) {
@@ -151,14 +147,13 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
         </div>
       )}
       {matchmaking && matchmaking.lowPriorityTimeRemaining > 0 && (
-        <p role="alert" className="px-1 text-body text-warn">Baixa prioridade: {duration(matchmaking.lowPriorityTimeRemaining)} restantes.</p>
+        <p role="alert" className="px-1 text-body text-warn">{lowPriorityText(matchmaking.lowPriorityTimeRemaining)}</p>
       )}
       {matchmaking && matchmaking.errors.length > 0 && (
         <ul aria-label="Erros da busca" className="px-1 text-body text-warn">
           {matchmaking.errors.map((error, index) => (
             <li key={`${error.errorType}:${index}`}>
-              {error.message || error.errorType || 'Erro de matchmaking'}
-              {error.penaltyTimeRemaining > 0 ? ` · ${duration(error.penaltyTimeRemaining)} restantes` : ''}
+              {matchmakingErrorText(error)}
             </li>
           ))}
         </ul>
@@ -175,7 +170,8 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
         className={cx('px-1', feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted')}>{feedback.message}</p>}
       <div className="mt-auto flex items-center gap-2">
         <button ref={startRef} type="button" hidden={active} aria-busy={pending}
-          disabled={!canStart || pending} onClick={() => { void execute({ type: 'startQueue' }); }}
+          disabled={!canStart || pending} onMouseEnter={hoverSound}
+          onClick={() => { sound.play('click'); void execute({ type: 'startQueue' }); }}
           className={cx(big, 'bg-accent text-on-accent shadow-soft enabled:hover:-translate-y-0.5 disabled:bg-raised disabled:text-muted disabled:shadow-none')}>
           Iniciar busca
         </button>
