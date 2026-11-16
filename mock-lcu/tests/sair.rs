@@ -47,8 +47,12 @@ async fn start_agent(dir: &Path) -> Hub {
         WsConfig::default(),
         hub.clone(),
     ));
+    // Com a fase ainda não lida, sair reabre a UI em vez de encerrar (#506):
+    // espera também a fase.
     let connected = async {
-        while !matches!(hub.state().lcu, LcuStatus::Connected { .. }) {
+        while !matches!(hub.state().lcu, LcuStatus::Connected { .. })
+            || hub.state().gameflow_phase.is_none()
+        {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     };

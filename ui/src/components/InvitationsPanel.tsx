@@ -12,6 +12,8 @@ import { Avatar, Button, Card } from './base';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type InvitationCommand = Extract<Command, { type: 'acceptInvitation' | 'declineInvitation' }>;
+/** Fases em que o agente recusa trocar de grupo (#506), as mesmas do `party_locked_in`. */
+const partyLockedPhases = new Set<string>(['ChampSelect', 'GameStart', 'InProgress', 'Reconnect']);
 type Feedback = { status: 'idle' | 'success' | 'error'; message: string };
 
 /**
@@ -34,6 +36,8 @@ function commandKey(command: InvitationCommand): string {
 
 function InvitationsActions({ state, send }: { state: AgentState; send: AgentClient['send'] }) {
   const { friends, receivedInvitations: received } = state;
+  // Aceitar convite tira o jogador do grupo: na seleção vira dodge (#506).
+  const locked = partyLockedPhases.has(state.gameflowPhase ?? '');
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   // Comandos aceitos pelo agente cujo evento ainda não chegou: o botão fica
   // desligado até o convite sair da lista (ou aparecer no lobby).
@@ -89,7 +93,7 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
           <ul aria-label="Convites recebidos" className="flex flex-col gap-2">
             {received.map(invitation => (
               <ReceivedItem
-                key={invitation.invitationId} invitation={invitation} friends={friends} queues={state.queues} busy={busy(`invitation:${invitation.invitationId}`)}
+                key={invitation.invitationId} invitation={invitation} friends={friends} queues={state.queues} busy={busy(`invitation:${invitation.invitationId}`)} locked={locked}
                 onAccept={() => { void execute({ type: 'acceptInvitation', invitationId: invitation.invitationId },
                   `Convite de ${inviterName(invitation, friends)} aceito.`); }}
                 onDecline={() => { void execute({ type: 'declineInvitation', invitationId: invitation.invitationId },
@@ -107,8 +111,8 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
   );
 }
 
-function ReceivedItem({ invitation, friends, queues, busy, onAccept, onDecline }: {
-  invitation: ReceivedInvitation; friends: Friend[]; queues: GameQueue[]; busy: boolean; onAccept: () => void; onDecline: () => void;
+function ReceivedItem({ invitation, friends, queues, busy, locked, onAccept, onDecline }: {
+  invitation: ReceivedInvitation; friends: Friend[]; queues: GameQueue[]; busy: boolean; locked: boolean; onAccept: () => void; onDecline: () => void;
 }) {
   const sender = invitationSender(invitation, friends);
   const name = inviterName(invitation, friends);
@@ -122,10 +126,11 @@ function ReceivedItem({ invitation, friends, queues, busy, onAccept, onDecline }
           para <strong>{invitationQueueName(invitation, queues)}</strong>.
         </span>
       </span>
-      {!invitation.canAccept && <span className="text-caption text-warn">Não dá para aceitar agora (na fila ou em partida).</span>}
+      {locked ? <span className="text-caption text-warn">Não dá para aceitar na seleção de campeões ou em partida.</span>
+        : !invitation.canAccept && <span className="text-caption text-warn">Não dá para aceitar agora (na fila ou em partida).</span>}
       <span className="flex gap-2">
         <Button variant="primary" size="sm" aria-label={`Aceitar convite de ${name}`} aria-busy={busy}
-          disabled={busy || !invitation.canAccept} onClick={onAccept}>Aceitar</Button>
+          disabled={busy || locked || !invitation.canAccept} onClick={onAccept}>Aceitar</Button>
         <Button size="sm" aria-label={`Recusar convite de ${name}`} aria-busy={busy}
           disabled={busy} onClick={onDecline}>Recusar</Button>
       </span>
