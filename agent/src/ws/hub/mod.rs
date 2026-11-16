@@ -22,6 +22,7 @@ mod lobby_chat;
 mod lobby_ranks;
 mod patch_notes;
 mod player_live_game;
+mod pre_end_of_game;
 mod profile;
 mod ready_check;
 mod runes;
@@ -377,6 +378,10 @@ impl Hub {
                 if ux_guard::reopens_ux(phase) {
                     self.guard_ux();
                 }
+                // Conectou no meio das telas do fim de partida (#180).
+                if phase == Some(GameflowPhase::PreEndOfGame) {
+                    self.spawn_advance_pre_end_of_game();
+                }
                 // Conectou no meio de uma partida (#268).
                 self.follow_live_game(phase);
                 // Antes do lobby, para a UI já achar a fila dele na lista.
@@ -566,6 +571,12 @@ impl Hub {
                     if before != Some(phase) && ux_guard::reopens_ux(Some(phase)) {
                         self.guard_ux();
                     }
+                    // Com a UI oficial fechada, ninguém encerra as telas
+                    // do fim de partida (#180). O evento da tela também
+                    // chega, mas pode ter chegado antes da fase.
+                    if before != Some(phase) && phase == GameflowPhase::PreEndOfGame {
+                        self.spawn_advance_pre_end_of_game();
+                    }
                     // A partida ao vivo começa ou termina (#268).
                     if before != Some(phase) {
                         self.follow_live_game(Some(phase));
@@ -601,6 +612,13 @@ impl Hub {
             RANKED_STATS_PATH => {
                 if let Some(ranked) = crate::ranked::from_json(&event.data) {
                     self.set_ranked(Some(ranked));
+                }
+            }
+            // Uma tela do fim de partida começou (#180).
+            crate::pre_end_of_game::CURRENT_SEQUENCE_EVENT_PATH if deleted => {}
+            crate::pre_end_of_game::CURRENT_SEQUENCE_EVENT_PATH => {
+                if let Some(event) = crate::pre_end_of_game::SequenceEvent::from_json(&event.data) {
+                    self.advance_pre_end_of_game(&event);
                 }
             }
             // O LoL pediu para mostrar ou esconder a UI oficial (#188).
