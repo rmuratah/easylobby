@@ -30,6 +30,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'gameflowPhase': return { ...state, gameflowPhase: message.phase,
       champSelectChat: message.phase === 'ChampSelect' ? state.champSelectChat : null };
     case 'readyCheck': return { ...state, readyCheck: message.readyCheck };
+    case 'honorBallot': return { ...state, honorBallot: message.honorBallot };
     // Sem lobby não há grupo: o chat dele some junto (#206).
     case 'lobby': return { ...state, lobby: message.lobby, lobbyChat: message.lobby ? state.lobbyChat : null,
       lobbyLink: message.lobby ? state.lobbyLink : null };

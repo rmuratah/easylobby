@@ -165,6 +165,12 @@ No teste no LoL real com o app (16.22, ranqueada em duo), a UI oficial ficou fec
 
 Com a UI aberta a `honor-vote` também acaba em segundos e a cédula (`/lol-honor-v2/v1/ballot`) continua até o `EndOfGame`, então encerrar a tela não tira a votação de honra (#182).
 
+### Cédula de honra (`honor`, #182)
+
+A cédula do fim de partida fica em `GET /lol-honor-v2/v1/ballot` e chega pelo WAMP no mesmo URI. Nas gravações do LoL real (16.22) ela abre no pós-jogo e fica até a volta ao lobby, inclusive no `EndOfGame` depois de o agente encerrar a tela `honor-vote`. O `Hub` manda a cédula para a UI em `honorBallot` (`gameId`, os aliados em `eligibleAllies`, quem já foi honrado em `honoredPuuids` e os `votes`), relê pelo REST ao entrar no `PreEndOfGame` e no `EndOfGame` e limpa fora do pós-jogo. A cédula vazia de fora do pós-jogo (`gameId: 0`) vira `null`.
+
+Os comandos são `honorPlayer {"puuid"}` e `skipHonor`, os dois em `POST /lol-honor-v2/v1/honor-player` com o `gameId` da cédula: o voto com `honorCategory: "HEART"`, o `puuid` e o `summonerId` do aliado, e o pulo com `honorCategory: "OPT_OUT"`. O formato do pedido ainda precisa ser confirmado no LoL real.
+
 ## Canal `/ws` para a UI (`ws`)
 
 O agente expõe um WebSocket em `ws://127.0.0.1:47800/ws` (#15). A UI nunca fala com a LCU: ela recebe o estado e as mudanças por aqui e manda comandos por aqui. As mensagens são JSON, definidas em `ws::protocol`, e os tipos TypeScript saem desses tipos com `ts-rs` em `ui/src/bindings/`.

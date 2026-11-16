@@ -57,6 +57,7 @@ use crate::custom_game_list::CustomGameListing;
 use crate::custom_lobby::{BotDifficulty, CustomTeam};
 use crate::friends::{Friend, FriendGroup};
 use crate::gameflow::GameflowPhase;
+use crate::honor::HonorBallot;
 use crate::invitations::{Invitee, ReceivedInvitation};
 use crate::live_game::{LiveGame, PlayerLiveGame};
 use crate::lobby::{Lobby, Position, Queue};
@@ -128,6 +129,10 @@ pub enum ServerMessage {
     /// mais ou menos a cada segundo enquanto ele está aberto, com o `timer`
     /// novo. `null` quando não há ready check (fechou, ou o LoL fechou).
     ReadyCheck { ready_check: Option<ReadyCheck> },
+    /// A cédula de honra do fim de partida (#182) abriu, mudou (alguém foi
+    /// honrado) ou fechou. Abre no pós-jogo (em geral no `EndOfGame`) e
+    /// fecha na volta ao lobby. `null` fora do pós-jogo e com o LoL fechado.
+    HonorBallot { honor_ballot: Option<HonorBallot> },
     /// Mudou a lista de filas em que dá para criar lobby agora (#146): chega
     /// logo depois de conectar e quando uma fila entra ou sai de rotação.
     /// Sempre a lista inteira, na ordem do `queueId`. Vazia com o LoL
@@ -331,6 +336,8 @@ pub struct AgentState {
     pub matchmaking: Option<Matchmaking>,
     /// Ready check aberto (partida encontrada, #20), ou `null`.
     pub ready_check: Option<ReadyCheck>,
+    /// Cédula de honra do fim de partida (#182), ou `null`.
+    pub honor_ballot: Option<HonorBallot>,
     /// Filas em que dá para criar lobby agora (#146), lidas da LCU, mais as
     /// fixas da tela de escolha de modo que estão fechadas, com `available:
     /// false` (#209). Vazia com o LoL fechado.
@@ -548,6 +555,15 @@ pub enum Command {
     /// /lol-matchmaking/v1/ready-check/decline`, #20). Mesmos erros do
     /// `acceptReadyCheck`.
     DeclineReadyCheck,
+    /// Honra o aliado `puuid` da cédula aberta (`POST
+    /// /lol-honor-v2/v1/honor-player`, #182). Responde `invalidCommand` sem
+    /// falar com a LCU se não há cédula ou se o jogador não está nela,
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (voto
+    /// repetido, por exemplo). A mudança chega como `honorBallot`.
+    HonorPlayer { puuid: String },
+    /// Pula a votação de honra da cédula aberta (#182). Mesmos erros do
+    /// `honorPlayer`, menos o do jogador.
+    SkipHonor,
     /// Inicia uma parte do Tutorial (filas 2000, 2010 e 2020, #209 e #228):
     /// cria o lobby na fila da parte e entra na busca. Com `queueId`, a parte
     /// escolhida (fora dessas três filas responde `invalidCommand` sem falar
@@ -1056,6 +1072,7 @@ mod tests {
                     "summoner": null,
                     "gameflowPhase": null,
                     "readyCheck": null,
+                    "honorBallot": null,
                     "lobby": null,
                     "lobbyLink": null,
                     "matchmaking": null,
@@ -1176,6 +1193,7 @@ mod tests {
             ("acceptReadyCheck", Command::AcceptReadyCheck),
             ("playAgain", Command::PlayAgain),
             ("declineReadyCheck", Command::DeclineReadyCheck),
+            ("skipHonor", Command::SkipHonor),
             ("startTutorial", Command::StartTutorial { queue_id: None }),
             ("startPracticeTool", Command::StartPracticeTool),
             ("startCustomGame", Command::StartCustomGame),
@@ -1372,6 +1390,16 @@ mod tests {
         )
         .unwrap();
         assert_eq!(msg.command, Command::CreateLobbyById { queue_id: 2400 });
+        let msg: ClientMessage = serde_json::from_value(
+            json!({"id": 11, "command": {"type": "honorPlayer", "puuid": "fake-puuid-0092"}}),
+        )
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::HonorPlayer {
+                puuid: "fake-puuid-0092".into()
+            }
+        );
         let msg: ClientMessage = serde_json::from_value(
             json!({"id": 12, "command": {"type": "selectRunePage", "pageId": 994528921}}),
         )
