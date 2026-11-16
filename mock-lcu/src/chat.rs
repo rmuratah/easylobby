@@ -59,6 +59,9 @@ pub fn send(state: &LcuState, encoded_id: &str, body: &Value) -> (Response, Vec<
     let my_pid = me["pid"].as_str().unwrap_or("mock-pid").to_owned();
     let n = NEXT_MESSAGE.fetch_add(1, Ordering::Relaxed);
     let message_id = format!("{}:{n}", now_millis());
+    // Numa sala (grupo, seleção) a LCU devolve `groupchat`, não o `chat` do
+    // envio; no 1:1, `chat`.
+    let kind = if is_room(&id) { "groupchat" } else { "chat" };
     let message = json!({
         "body": text,
         "fromId": my_pid,
@@ -70,7 +73,7 @@ pub fn send(state: &LcuState, encoded_id: &str, body: &Value) -> (Response, Vec<
         "id": message_id,
         "isHistorical": false,
         "timestamp": iso_now(),
-        "type": "chat",
+        "type": kind,
     });
 
     let current = state.get(&conversation_uri);
@@ -153,6 +156,13 @@ fn new_conversation(state: &LcuState, id: &str) -> Value {
         "type": "chat",
         "unreadMessageCount": 0,
     })
+}
+
+/// Se `id` é uma sala (`<id>@sec.br1.pvp.net`, `<id>@lol-pre-game.br1.pvp.net`,
+/// `<id>@lol-champ-select.br1.pvp.net`) e não um amigo (`<puuid>@br1.pvp.net`).
+fn is_room(id: &str) -> bool {
+    id.split_once('@')
+        .is_some_and(|(_, host)| host.starts_with("sec.") || host.starts_with("lol-"))
 }
 
 fn no_content() -> Response {
@@ -257,6 +267,15 @@ mod tests {
         );
         assert_eq!(messages_path("/lol-chat/v1/conversations//messages"), None);
         assert_eq!(messages_path("/lol-chat/v1/conversations/a"), None);
+    }
+
+    #[test]
+    fn reconhece_as_salas() {
+        assert!(is_room("grupo@sec.br1.pvp.net"));
+        assert!(is_room("grupo@lol-pre-game.br1.pvp.net"));
+        assert!(is_room("sala@lol-champ-select.br1.pvp.net"));
+        assert!(!is_room("amigo@br1.pvp.net"));
+        assert!(!is_room("fake-pid-0016"));
     }
 
     #[test]
