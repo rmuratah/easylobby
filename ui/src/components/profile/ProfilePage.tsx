@@ -214,27 +214,32 @@ function Overview({ state, data }: { state: AgentState; data: ProfileData }) {
         <RankCard title="Ranqueada Solo/Duo" entry={data.ranked?.soloDuo ?? null} missing={missing} />
         <RankCard title="Ranqueada Flex" entry={data.ranked?.flex ?? null} missing={missing} />
       </section>
-      <section aria-labelledby="perfil-maestria" className="rounded-panel surface card p-5 shadow-soft">
-        <h3 id="perfil-maestria" className="text-section font-semibold text-ink">Maestria</h3>
-        {data.championMasteries.length === 0
-          ? <p className="mt-3 text-body text-muted">Nenhuma maestria para mostrar.</p>
-          : <ol className="mt-3 flex flex-col gap-3">
-            {data.championMasteries.map((m, i) => {
-              const champion = championName(state, m.championId);
-              return (
-                <li key={m.championId} className="flex items-center gap-3">
-                  <span className="w-4 text-caption font-semibold text-muted">{i + 1}</span>
-                  <Avatar name={champion} src={assetUrl('champion', m.championId)} size={40} shape="rounded" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-body font-semibold text-ink">{champion}</p>
-                    <p className="text-caption text-muted">Nível {m.level} · {m.points.toLocaleString('pt-BR')} pontos</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>}
-      </section>
-      <section aria-labelledby="perfil-resumo" className="rounded-panel surface card p-5 shadow-soft">
+      <div className="grid gap-4 @min-[44rem]:col-span-2 @min-[22rem]:grid-cols-2 @min-[52rem]:grid-cols-3">
+        <section aria-labelledby="perfil-maestria" className="rounded-panel surface card p-5 shadow-soft @min-[22rem]:col-span-2 @min-[52rem]:col-span-1">
+          <h3 id="perfil-maestria" className="text-section font-semibold text-ink">Maestria</h3>
+          {data.championMasteries.length === 0
+            ? <p className="mt-3 text-body text-muted">Nenhuma maestria para mostrar.</p>
+            : <ol className="mt-3 flex flex-col gap-3">
+              {data.championMasteries.map((m, i) => {
+                const champion = championName(state, m.championId);
+                return (
+                  <li key={m.championId} className="flex items-center gap-3">
+                    <span className="w-4 text-caption font-semibold text-muted">{i + 1}</span>
+                    <Avatar name={champion} src={assetUrl('champion', m.championId)} size={40} shape="rounded" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-body font-semibold text-ink">{champion}</p>
+                      <p className="text-caption text-muted">Nível {m.level} · {m.points.toLocaleString('pt-BR')} pontos</p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>}
+        </section>
+        {/* Cards ainda sem conteúdo definido (#519): troque cada um pelo card novo quando decidir. */}
+        <PlaceholderCard />
+        <PlaceholderCard />
+      </div>
+      <section aria-labelledby="perfil-resumo" className="rounded-panel surface card p-5 shadow-soft @min-[44rem]:col-span-2">
         <h3 id="perfil-resumo" className="text-section font-semibold text-ink">Últimas {stats.games} partidas</h3>
         {stats.games === 0
           ? <p className="mt-3 text-body text-muted">{emptyHistory(data)}</p>
@@ -261,6 +266,12 @@ function Overview({ state, data }: { state: AgentState; data: ProfileData }) {
       </section>
     </div>
   );
+}
+
+/** Espaço reservado na linha da Maestria, vazio até o conteúdo ser decidido. */
+function PlaceholderCard() {
+  return <div aria-hidden="true" data-testid="perfil-card-reservado"
+    className="min-h-32 rounded-panel border border-dashed border-line" />;
 }
 
 /** Texto do histórico sem partidas: carregando, privado, indisponível ou vazio. */
