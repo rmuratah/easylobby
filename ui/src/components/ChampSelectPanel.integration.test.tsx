@@ -2,7 +2,6 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from '../App';
 import type { AgentState } from '../bindings/AgentState';
-import type { ClientMessage } from '../bindings/ClientMessage';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { champSelectState, draftChampSelect } from '../test/champSelect';
 
@@ -183,27 +182,18 @@ it('espera a sessão e o catálogo, e some quando a seleção fecha', () => {
   expect(screen.getByText(/A partida está abrindo/)).toBeVisible();
 });
 
-it('avisa do autofill, marca como visto e mostra quem caiu em autofill', async () => {
+it('não mostra aviso de autofill, só a marca no card de quem caiu em autofill', () => {
   const [me, ally] = draftChampSelect.myTeam;
   const autofilled = {
     ...draftChampSelect, autofillNotice: true,
     myTeam: [{ ...me, isAutofilled: true }, { ...ally, isAutofilled: true }],
   };
   render(<App />); hello({ champSelect: autofilled });
-  const notice = within(panel().getByRole('region', { name: 'Aviso de autofill' }));
-  expect(notice.getByText('Você foi colocado em Meio (autofill).')).toBeVisible();
+  expect(panel().queryByRole('region', { name: 'Aviso de autofill' })).not.toBeInTheDocument();
+  expect(panel().queryByText(/Você foi colocado/)).not.toBeInTheDocument();
   const mine = within(panel().getByRole('region', { name: 'Seu time' }));
   expect(mine.getByText('Victor#BR1 (você)').closest('li')).toHaveTextContent('Meio(autofill)');
   expect(mine.getByText('Amigo#BR1').closest('li')).toHaveTextContent('Selva(autofill)');
-
-  fireEvent.click(notice.getByRole('button', { name: 'Entendi' }));
-  const sent = socket().send.mock.calls.map(([text]) => JSON.parse(text as string) as ClientMessage);
-  expect(sent.at(-1)!.command).toEqual({ type: 'ackAutofill' });
-  // O agente esconde o aviso e responde; o ícone no card continua.
-  receive({ type: 'champSelect', champSelect: { ...autofilled, autofillNotice: false } });
-  await act(async () => socket().receive({ type: 'response', id: sent.at(-1)!.id, result: { status: 'ok' } }));
-  expect(panel().queryByRole('region', { name: 'Aviso de autofill' })).not.toBeInTheDocument();
-  expect(mine.getByText('Victor#BR1 (você)').closest('li')).toHaveTextContent('(autofill)');
 });
 
 it('sem autofill não mostra aviso nem ícone', () => {
