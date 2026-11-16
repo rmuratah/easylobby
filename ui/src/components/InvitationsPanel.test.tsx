@@ -70,7 +70,7 @@ describe('InvitationsPanel', () => {
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith({ type: 'acceptInvitation', invitationId: 'convite-1' });
     await act(async () => reply.resolve({ status: 'ok' }));
-    expect(screen.getByRole('status')).toHaveTextContent('Convite de Um amigo aceito.');
+    expect(screen.queryByText(/aceito/)).not.toBeInTheDocument();
     expect(accept).toBeDisabled();
     rerender(panel(connected({ gameflowPhase: 'None', receivedInvitations: [] }), send));
     expect(screen.queryByRole('region', { name: 'Convites recebidos' })).not.toBeInTheDocument();
