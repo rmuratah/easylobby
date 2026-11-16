@@ -15,6 +15,8 @@
 //!   (#11)
 //! - [`ux`]: fecha a UI oficial ao conectar (`kill-ux`) e reabre
 //!   (`launch-ux`) (#12)
+//! - [`pre_end_of_game`]: avança as telas do `PreEndOfGame` com a UI oficial
+//!   fechada (#180)
 //! - [`ux_window`]: esconde a janela da UI oficial enquanto o `kill-ux`
 //!   espera o Vanguard (#286)
 //! - [`lobby`]: lobby e escolha de fila (#17)
@@ -84,6 +86,7 @@ pub mod matchmaking;
 pub mod patch_notes;
 pub mod player_profile;
 pub mod players;
+pub mod pre_end_of_game;
 pub mod queues;
 pub mod quick_play;
 pub mod ranked;

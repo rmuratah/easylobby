@@ -159,6 +159,12 @@ Isso vale para o example `eventos`, que só chama o `kill-ux` ao conectar. O app
 
 Ainda não dá para dizer se o `PreEndOfGame` avança com a UI fechada de verdade, porque nessa gravação ela voltou antes dessa fase. Falta um teste no LoL real com o app aberto (e o `gravar_fixtures` gravando ao lado) para conferir se a fase avança sozinha ou se o agente precisa encerrar a sequência (#180).
 
+### Telas do fim de partida com a UI fechada (`pre_end_of_game`, #180)
+
+No teste no LoL real com o app (16.22, ranqueada em duo), a UI oficial ficou fechada no pós-jogo, mas o `PreEndOfGame` parou em `honor-vote` por 22,6 s, até o jogador clicar em "Jogar de novo" e o grupo ir direto para o lobby, sem `EndOfGame`. A UI oficial encerra cada tela da sequência com `POST /lol-pre-end-of-game/v1/complete/{nome}`; sem ela, ninguém encerra. Por isso o `Hub`, enquanto a guarda da UI estiver ligada, lê a tela atual (`currentSequenceEvent`) ao entrar em `PreEndOfGame` ou ao conectar no meio dela, e a cada evento dessa URI, e chama o `complete` da tela. Com a UI oficial aberta pelo botão de emergência, é ela quem conduz.
+
+Com a UI aberta a `honor-vote` também acaba em segundos e a cédula (`/lol-honor-v2/v1/ballot`) continua até o `EndOfGame`, então encerrar a tela não tira a votação de honra (#182).
+
 ## Canal `/ws` para a UI (`ws`)
 
 O agente expõe um WebSocket em `ws://127.0.0.1:47800/ws` (#15). A UI nunca fala com a LCU: ela recebe o estado e as mudanças por aqui e manda comandos por aqui. As mensagens são JSON, definidas em `ws::protocol`, e os tipos TypeScript saem desses tipos com `ts-rs` em `ui/src/bindings/`.
