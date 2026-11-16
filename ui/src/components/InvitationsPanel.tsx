@@ -51,7 +51,8 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
 
   const busy = (key: string) => pending.has(key) || done.has(key);
 
-  async function execute(command: InvitationCommand, success: string) {
+  /** `success` vazio não mostra aviso (aceitar: o lobby novo já basta, #507). */
+  async function execute(command: InvitationCommand, success = '') {
     const key = commandKey(command);
     if (inFlight.current.has(key) || done.has(key)) return;
     inFlight.current.add(key);
@@ -61,7 +62,7 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
       if (!mounted.current) return;
       if (result.status === 'ok') {
         setDone(current => new Set(current).add(key));
-        setFeedback({ status: 'success', message: success });
+        setFeedback(success ? { status: 'success', message: success } : { status: 'idle', message: '' });
       } else {
         setFeedback({ status: 'error', message: result.code === 'notConnected'
           ? 'O League of Legends desconectou. Aguarde a reconexão e confira os convites antes de tentar novamente.'
@@ -90,8 +91,7 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
             {received.map(invitation => (
               <ReceivedItem
                 key={invitation.invitationId} invitation={invitation} friends={friends} queues={state.queues} busy={busy(`invitation:${invitation.invitationId}`)}
-                onAccept={() => { void execute({ type: 'acceptInvitation', invitationId: invitation.invitationId },
-                  `Convite de ${inviterName(invitation, friends)} aceito.`); }}
+                onAccept={() => { void execute({ type: 'acceptInvitation', invitationId: invitation.invitationId }); }}
                 onDecline={() => { void execute({ type: 'declineInvitation', invitationId: invitation.invitationId },
                   `Convite de ${inviterName(invitation, friends)} recusado.`); }}
               />
