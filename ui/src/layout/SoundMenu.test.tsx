@@ -18,5 +18,5 @@ it('liga e desliga o som e muda o volume, com som de teste', () => {
   act(() => { vi.runAllTimers(); });
   expect(play).toHaveBeenCalledWith('matchFound');
   fireEvent.keyDown(window, { key: 'Escape' });
-  expect(screen.queryByRole('dialog', { name: 'Configurações de som' })).toBeNull();
+  expect(screen.queryByRole('dialog', { name: 'Configurações' })).toBeNull();
 });

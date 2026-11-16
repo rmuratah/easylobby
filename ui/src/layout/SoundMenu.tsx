@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { sound } from '../agent/sound';
 import type { SoundSettings } from '../agent/soundSettings';
+import { OpenWithLeagueSetting } from './OpenWithLeagueSetting';
 
 /** Espera depois de mexer no volume antes de tocar o som de teste. */
 const PREVIEW_DELAY_MS = 250;
@@ -12,9 +13,9 @@ type Props = {
 };
 
 /**
- * Botão de Configurações da barra lateral (#501): por enquanto só a parte de
- * som, com liga/desliga e volume. Ao mexer no volume, toca o som de partida
- * encontrada para o jogador ouvir a altura.
+ * Botão de Configurações da barra lateral (#501): a parte de som, com
+ * liga/desliga e volume, e a de abrir o app junto com o LoL (#511). Ao mexer
+ * no volume, toca o som de partida encontrada para o jogador ouvir a altura.
  */
 export function SoundMenu({ settings, onChange, icon }: Props) {
   const [open, setOpen] = useState(false);
@@ -63,7 +64,7 @@ export function SoundMenu({ settings, onChange, icon }: Props) {
         {muted && <span aria-hidden="true" data-muted className="absolute -right-0.5 -top-0.5 rounded-full border border-line bg-surface p-0.5 text-muted"><MutedIcon /></span>}
       </button>
       {open && (
-        <section id={panelId} role="dialog" aria-label="Configurações de som"
+        <section id={panelId} role="dialog" aria-label="Configurações"
           className="fixed bottom-4 left-[7.25rem] z-50 flex w-64 flex-col gap-3 rounded-card border border-line bg-surface p-4 text-ink shadow-[0_8px_24px_-12px_var(--el-overlay)]">
           <h2 className="text-section font-semibold">Som</h2>
           <label className="flex items-center justify-between gap-3 text-body">
@@ -77,6 +78,7 @@ export function SoundMenu({ settings, onChange, icon }: Props) {
               aria-valuetext={`${percent}%`} className="w-full accent-[var(--el-accent)]"
               onChange={event => setVolume(Number(event.target.value))} />
           </label>
+          <OpenWithLeagueSetting />
         </section>
       )}
     </div>

@@ -2,6 +2,7 @@
 
 mod champ_select_turn;
 mod match_found;
+mod startup;
 
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -108,6 +109,10 @@ async fn run_channel(app: &AppHandle, listener: TcpListener, source: CredentialS
         let (app, hub) = (app.clone(), hub.clone());
         tauri::async_runtime::spawn(async move { champ_select_turn::watch(app, &hub).await })
     };
+    let league_watcher = {
+        let (app, hub) = (app.clone(), hub.clone());
+        tauri::async_runtime::spawn(async move { startup::watch(app, &hub).await })
+    };
     let task = tauri::async_runtime::spawn(async move {
         let listener = tokio::net::TcpListener::from_std(listener)?;
         let lcu = LcuConnection::new(ReconnectConfig::with_source(source));
@@ -120,6 +125,7 @@ async fn run_channel(app: &AppHandle, listener: TcpListener, source: CredentialS
     };
     watcher.abort();
     turn_watcher.abort();
+    league_watcher.abort();
     app.state::<Channel>().set_hub(None);
     reason
 }
@@ -209,6 +215,14 @@ pub fn run() {
             open_from_tray(app);
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![startup::HIDDEN_ARG]),
+        ))
+        .invoke_handler(tauri::generate_handler![
+            startup::open_with_league_enabled,
+            startup::set_open_with_league
+        ])
         .manage(Channel::default())
         .setup(|app| {
             let handle = app.handle().clone();
@@ -235,6 +249,12 @@ pub fn run() {
                     return Ok(());
                 }
             };
+            // Aberto pelo início com o Windows, fica só na bandeja até o LoL
+            // abrir (#511). A janela começa escondida para não piscar.
+            if !startup::started_hidden() {
+                open_from_tray(&handle);
+            }
+            startup::apply_default(&handle);
             tauri::async_runtime::spawn(supervise_channel(handle, listener, credential_source()));
 
             let open = MenuItem::with_id(app, "open", "Abrir easylobby", true, None::<&str>)?;

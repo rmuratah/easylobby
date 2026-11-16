@@ -20,6 +20,7 @@ o ícone pode ficar no grupo de ícones ocultos próximo ao relógio.
 - Clique direito abre o menu; **Sair** reabre a interface oficial do LoL (`launch-ux`), se o agente estiver conectado, e encerra o aplicativo. Se a LCU não responder em 3 s, o app fecha mesmo assim (#89).
 - Abrir o easylobby com ele já aberto mostra a janela da instância que está rodando, em vez de abrir outra (#90).
 - Quando a partida é encontrada, a janela vem para a frente (mesmo minimizada ou na bandeja) e a UI toca um som. Se o Windows não deixar a janela tomar o foco, o ícone pisca na barra de tarefas.
+- **Abrir junto com o LoL** (#511): o app inicia com o Windows com `--bandeja`, só com o ícone na bandeja e sem a janela. Quando o LoL abre e o agente conecta, a janela aparece (se estava escondida ou minimizada) e o `kill-ux` tira a UI oficial. A opção fica em Configurações, na barra lateral, e mexe na chave `Run` do registro pelo `tauri-plugin-autostart`. Ela é ligada na primeira vez que um build de release abre (um arquivo `abrir-com-lol-padrao` na pasta de configuração lembra disso); o `tauri dev` nunca liga sozinho.
 - A janela libera o áudio sem clique (`--autoplay-policy=no-user-gesture-required` em `additionalBrowserArgs`), para o som tocar mesmo quando a fila foi iniciada por outro jogador do lobby. Os outros argumentos da linha são os padrões do Tauri, que essa opção substitui.
 
 O shell inicia o agente e o canal `/ws` em `127.0.0.1:47800` ao abrir.
