@@ -48,6 +48,7 @@ describe('ProfilePage', () => {
     expect(screen.getAllByText('Ahri').length).toBeGreaterThan(0);
     expect(screen.getByText('287.450 pontos', { exact: false })).toBeInTheDocument();
     expect(screen.getByText('Últimas 2 partidas')).toBeInTheDocument();
+    expect(screen.getAllByTestId('perfil-card-reservado')).toHaveLength(2);
     expect(screen.getByRole('tab', { name: 'Visão geral' })).toHaveAttribute('aria-selected', 'true');
   });
 
