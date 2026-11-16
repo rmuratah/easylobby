@@ -55,6 +55,19 @@ it('mostra os dois times, a etapa, a vez e o timer', () => {
   expect(theirs.getByText('Inimigo 2').closest('li')).toHaveTextContent('Ahri');
 });
 
+it('mostra o ícone da rota ao lado do nome da rota no seu time (#517)', () => {
+  render(<App />); hello();
+  const mine = within(panel().getByRole('region', { name: 'Seu time' }));
+  for (const lane of ['Meio', 'Selva']) {
+    const label = mine.getByText(lane);
+    const icon = label.querySelector('svg');
+    expect(icon).toHaveAttribute('aria-hidden', 'true');
+    expect(icon).toHaveAttribute('viewBox', '0 0 34 34');
+  }
+  const theirs = panel().getByRole('region', { name: 'Time adversário' });
+  expect(theirs.querySelector('svg[viewBox="0 0 34 34"]')).toBeNull();
+});
+
 it('destaca em vermelho a fase de banimento e volta ao normal nas escolhas (#423)', () => {
   render(<App />); hello();
   const region = () => screen.getByRole('region', { name: 'Seleção de campeões' });
