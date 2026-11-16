@@ -33,13 +33,15 @@ type Props = {
   send: AgentClient['send'];
   /** Abre o perfil de outro jogador ao clicar no card dele (#308). */
   onOpenProfile?: (puuid: string) => void;
+  /** Avisa quando a tela de trocar modo abre ou fecha no lobby, para a tela ocupar a área inteira (#513). */
+  onModeSelectChange?: (open: boolean) => void;
 };
 type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' | 'startTutorial' | 'startPracticeTool' | 'createCustomGame' | 'joinCustomGame' }>;
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 /** Botão em pílula do layout de referência: o principal leva o destaque com brilho; o secundário fica na superfície. */
 
-export function LobbyPanel({ connection, send, onOpenProfile }: Props) {
+export function LobbyPanel({ connection, send, onOpenProfile, onModeSelectChange }: Props) {
   const state = connection.state;
   const lcu = state?.lcu;
   if (connection.status !== 'connected' || !state || lcu?.state !== 'connected') {
@@ -51,7 +53,7 @@ export function LobbyPanel({ connection, send, onOpenProfile }: Props) {
     );
   }
   // Trocar a sessão ou o jogador descarta feedback e respostas da sessão anterior.
-  return <LobbyActions key={`${lcu.session}:${state.summoner?.puuid ?? ''}`} state={state} send={send} onOpenProfile={onOpenProfile} />;
+  return <LobbyActions key={`${lcu.session}:${state.summoner?.puuid ?? ''}`} state={state} send={send} onOpenProfile={onOpenProfile} onModeSelectChange={onModeSelectChange} />;
 }
 
 /** Espera depois da última escolha antes de enviar, para trocas rápidas (ex.: setas do teclado) virarem um comando só. */
@@ -68,7 +70,7 @@ function positionsComplete(first: Position, second: Position) {
   return second !== 'unselected' || first === 'fill' || first === 'unselected';
 }
 
-function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send: AgentClient['send']; onOpenProfile?: (puuid: string) => void }) {
+function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { state: AgentState; send: AgentClient['send'] } & Pick<Props, 'onOpenProfile' | 'onModeSelectChange'>) {
   const { lobby, matchmaking, summoner, gameflowPhase: phase } = state;
   const localMember = summoner?.puuid ? lobby?.members.find(member => member.puuid === summoner.puuid) : undefined;
   // Quem ainda está na tela de fim de jogo (#346): o card fica esmaecido, como no client oficial.
@@ -163,7 +165,7 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
   async function execute(command: LobbyCommand): Promise<Outcome> {
     if (inFlight.current || (command.type === 'createLobby' || command.type === 'createLobbyById'
       ? !canCreate || commandKey(command) === currentKey
-      : command.type === 'startTutorial' || command.type === 'startPracticeTool' || command.type === 'createCustomGame' || command.type === 'joinCustomGame' ? !canCreate || !!lobby
+      : command.type === 'startTutorial' || command.type === 'startPracticeTool' || command.type === 'createCustomGame' || command.type === 'joinCustomGame' ? !canCreate
       : command.type === 'leaveLobby' ? !canLeave
       : !canSetPositions || !validPositions(command.first, command.second)
         || (command.first === saved.first && command.second === saved.second))) return 'skipped';
@@ -245,30 +247,33 @@ function LobbyActions({ state, send, onOpenProfile }: { state: AgentState; send:
   }
 
   const searching = !!matchmaking || !!state.readyCheck;
+  const modeSelectOpen = !!lobby && changingMode && !searching;
+  // Sem lobby (saiu, ou a troca levou para fora dele), a próxima vez abre no lobby, não na troca.
+  if (!lobby && changingMode) setChangingMode(false);
+  // A tela de troca ocupa a área inteira, sem a busca e o grupo ao lado (#513).
+  useEffect(() => {
+    onModeSelectChange?.(modeSelectOpen);
+  }, [modeSelectOpen, onModeSelectChange]);
+  useEffect(() => () => onModeSelectChange?.(false), [onModeSelectChange]);
   const feedbackLine = feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}
     className={feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{feedback.message}</p>;
-  // Sem lobby, o painel vira a tela de escolha de modo de jogo (#210).
-  if (!lobby) {
-    return (
-      <ModeSelect queues={state.queues} canCreate={canCreate} pending={pending} restriction={restriction}
-        descriptionId={descriptionId} feedback={feedbackLine} tutorial={state.tutorial} summonerName={summoner?.gameName || summoner?.displayName}
-        onCreate={command => { void execute(command); }} onStart={command => { void execute(command); }}
-        onCreateCustom={options => { void execute({ type: 'createCustomGame', options }); }}
-        customJoin={{ games: state.customGames, send,
-          onJoin: (partyId, password) => { void execute({ type: 'joinCustomGame', partyId, ...(password ? { password } : {}) }); } }} />
-    );
-  }
-  // No lobby, "Trocar modo" abre a mesma tela para trocar a fila (#231); na busca ou na partida, volta ao lobby.
-  if (changingMode && !searching) {
+  // Sem lobby, o painel vira a tela de escolha de modo de jogo (#210). No lobby,
+  // "Trocar modo" abre a mesma tela, com as mesmas abas (#231, #513); na busca ou na partida, volta ao lobby.
+  if (!lobby || modeSelectOpen) {
+    // Na troca, deu certo: volta ao lobby (o novo, se a escolha saiu do lobby).
+    const closeOnSuccess = (outcome: Promise<Outcome>) => {
+      void outcome.then(result => { if (result === 'ok' && mounted.current) setChangingMode(false); });
+    };
+    const run = (command: LobbyCommand) => closeOnSuccess(execute(command));
     return (
       <ModeSelect queues={state.queues} canCreate={canCreate} pending={pending}
-        restriction={canCreate ? 'Escolha outra fila e confirme em Trocar fila.' : restriction}
-        descriptionId={descriptionId} feedback={feedbackLine}
-        lobby={{ queueId: lobby.queueId, queueName: lobbyQueueName(lobby, state.queues), onBack: () => setChangingMode(false) }}
-        onCreate={command => {
-          void execute(command).then(outcome => { if (outcome === 'ok' && mounted.current) setChangingMode(false); });
-        }}
-        onStart={() => {}} />
+        restriction={lobby && canCreate ? 'Escolha outro modo e confirme. Treinamento e Personalizada saem deste lobby e abrem um novo.' : restriction}
+        descriptionId={descriptionId} feedback={feedbackLine} tutorial={state.tutorial} summonerName={summoner?.gameName || summoner?.displayName}
+        lobby={lobby ? { queueId: lobby.queueId, queueName: lobbyQueueName(lobby, state.queues), onBack: () => setChangingMode(false) } : undefined}
+        onCreate={run} onStart={run}
+        onCreateCustom={options => run({ type: 'createCustomGame', options })}
+        customJoin={{ games: state.customGames, send,
+          onJoin: (partyId, password) => run({ type: 'joinCustomGame', partyId, ...(password ? { password } : {}) }) }} />
     );
   }
 

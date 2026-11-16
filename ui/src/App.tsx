@@ -63,6 +63,8 @@ export default function App() {
     if (document.activeElement?.closest('[hidden]')) flowButtonRef.current?.focus();
   }, [screen, ready]);
   const [runesOpen, setRunesOpen] = useState(false);
+  // Trocar modo no lobby (#513): a tela de modos ocupa a área inteira, sem a busca e o grupo ao lado.
+  const [changingMode, setChangingMode] = useState(false);
   // Sair da seleção fecha o pop-up de runas.
   if (runesOpen && screen !== 'champSelect') setRunesOpen(false);
   const [navigation, setNavigation] = useState<{ screen: typeof screen; page: 'main' | Page }>({ screen, page: 'main' });
@@ -171,7 +173,7 @@ export default function App() {
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
             {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}
             <div hidden={!playable || (activePage !== 'flow' && activePage !== 'home')} className={homeLayout ? 'home-primary'
-              : lobbyMain ? 'grid min-h-0 flex-1 items-stretch gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]'
+              : lobbyMain && !changingMode ? 'grid min-h-0 flex-1 items-stretch gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]'
               : 'flex flex-1 flex-col gap-4'}>
               {homeReserved && <article aria-label="Área reservada para atualização"
                 className="flex h-full min-h-[24rem] flex-col items-start justify-end gap-3 rounded-panel surface card p-8 shadow-soft animate-fade-up @min-[44rem]:p-10">
@@ -180,10 +182,10 @@ export default function App() {
                 <p className="max-w-md text-section text-muted">Este espaço vai ganhar uma nova função numa futura atualização. Para jogar, use “Jogar” na barra lateral.</p>
               </article>}
               <div hidden={homeReserved} className="contents">
-                <LobbyPanel connection={connection} send={connection.send} onOpenProfile={openPlayerProfile} />
+                <LobbyPanel connection={connection} send={connection.send} onOpenProfile={openPlayerProfile} onModeSelectChange={setChangingMode} />
               </div>
               {/* Coluna da direita com largura, só da altura do conteúdo (sem sobra); embaixo, presa à borda, quando a janela é estreita. */}
-              <div hidden={activePage !== 'flow' || screen === 'home' || found} className="sticky bottom-0 z-10 flex h-fit flex-col gap-4 self-start @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
+              <div hidden={activePage !== 'flow' || screen === 'home' || found || changingMode} className="sticky bottom-0 z-10 flex h-fit flex-col gap-4 self-start @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
                 <QueuePanel connection={connection} send={connection.send} />
                 {/* Embaixo da busca, quem foi convidado e o status, e o chat do grupo (#206). */}
                 <LobbyGroupCard connection={connection} />
