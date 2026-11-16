@@ -1,0 +1,8 @@
+{
+  "formatVersion": 1,
+  "patch": "16.22-pos-jogo",
+  "gameVersion": "16.22.8348910+branch.releases-16-22.code.public.content.release.anticheat.vanguard",
+  "recordedAt": "2026-11-16T09:57:06Z",
+  "synthetic": false,
+  "notes": "Ranqueada Solo/Duo (fila 420) do início ao fim (#177): fila, ready check, seleção, partida, WaitingForStats, PreEndOfGame (honor-vote e challenge-level-up-celebration), EndOfGame com eog-stats-block e votação de honra, PDL de 804 para 868, Jogar de novo e volta para a fila."
+}

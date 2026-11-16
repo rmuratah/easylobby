@@ -302,7 +302,7 @@
           "state": "Accepted",
           "timestamp": "0",
           "toPuuid": "fake-puuid-0001",
-          "toSummonerId": 10171978,
+          "toSummonerId": 1002,
           "toSummonerName": ""
         }
       ],
@@ -36974,7 +36974,7 @@
           "state": "Accepted",
           "timestamp": "0",
           "toPuuid": "fake-puuid-0001",
-          "toSummonerId": 10171978,
+          "toSummonerId": 1002,
           "toSummonerName": ""
         }
       ],
@@ -55880,7 +55880,7 @@
           "state": "Accepted",
           "timestamp": "0",
           "toPuuid": "fake-puuid-0001",
-          "toSummonerId": 10171978,
+          "toSummonerId": 1002,
           "toSummonerName": ""
         }
       ],
@@ -74679,7 +74679,7 @@
           "state": "Accepted",
           "timestamp": "0",
           "toPuuid": "fake-puuid-0001",
-          "toSummonerId": 10171978,
+          "toSummonerId": 1002,
           "toSummonerName": ""
         }
       ],
