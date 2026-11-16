@@ -40,6 +40,15 @@ describe('chat do grupo', () => {
     expect(screen.getAllByRole('listitem').at(-1)).toHaveTextContent('Kyoto #村田1: teste');
   });
 
+  it('a área de mensagens tem altura fixa e rola por dentro, sem o card crescer', () => {
+    const { rerender } = render(<LobbyChatPanel connection={connected({ lobbyChat: { messages: [] } })} send={vi.fn()} />);
+    expect(screen.getByText('Nenhuma mensagem ainda.')).toHaveClass('h-56');
+    rerender(<LobbyChatPanel connection={connected({})} send={vi.fn()} />);
+    const log = screen.getByRole('log', { name: 'Mensagens do grupo' });
+    expect(log).toHaveClass('h-56', 'overflow-y-auto');
+    expect(log).not.toHaveClass('max-h-56');
+  });
+
   it('manda a mensagem e limpa o campo', async () => {
     const send = vi.fn(async (): Promise<CommandResult> => ({ status: 'ok' }));
     render(<LobbyChatPanel connection={connected({})} send={send} />);
