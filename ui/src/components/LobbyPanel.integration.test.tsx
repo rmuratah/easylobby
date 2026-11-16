@@ -120,7 +120,7 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByRole('img', { name: 'Líder do grupo' })).toBeInTheDocument();
     expect(panel().getByText(/1 \/ 2 jogadores/)).toBeInTheDocument();
     fireEvent.click(button('Trocar modo'));
-    // A tela abre na aba da fila atual, sem a aba Treinamento; a fila atual fica bloqueada (#239)
+    // A tela abre na aba da fila atual; a fila atual fica bloqueada (#239)
     // e a seleção começa em outra fila aberta do mesmo modo.
     expect(panel().getByText('Você está no lobby de Ranqueada Solo/Duo.')).toBeInTheDocument();
     expect(radio('Ranqueada Solo/Duo')).toBeDisabled();
@@ -129,7 +129,6 @@ describe('lobby pelo único /ws do App', () => {
     expect(radio('Ranqueada Solo/Duo').closest('label')).toHaveTextContent('Você já está nesta fila.');
     expect(radio('Partida Dinâmica')).toBeChecked();
     expect(button('Trocar fila')).toBeEnabled();
-    expect(panel().queryByRole('tab', { name: 'Treinamento' })).not.toBeInTheDocument();
     fireEvent.click(radio('ARAM Normal'));
     expect(socket().send).not.toHaveBeenCalled();
     act(() => { fireEvent.click(button('Trocar fila')); fireEvent.click(button('Trocar fila')); });
@@ -450,12 +449,44 @@ describe('lobby pelo único /ws do App', () => {
     expect(request().command).toEqual({ type: 'refreshCustomGames' });
   });
 
-  it('não mostra a aba Personalizada ao trocar a fila de um lobby', () => {
+  it('mostra todas as abas ao trocar o modo e esconde a busca e o grupo ao lado (#513)', () => {
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    const side = () => screen.getByRole('region', { name: 'Busca de partida' }).closest('[hidden]');
+    expect(side()).toBeNull();
+    fireEvent.click(button('Trocar modo'));
+    expect(panel().getAllByRole('tab').map(tab => tab.textContent)).toEqual(['PvP', 'Co-op versus IA', 'Treinamento', 'Personalizada']);
+    expect(side()).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'Grupo' }).closest('[hidden]')).not.toBeNull();
+    fireEvent.click(button('Voltar ao lobby'));
+    expect(side()).toBeNull();
+  });
+
+  it('inicia o Modo de Treino a partir do lobby e fecha a troca (#513)', async () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
     fireEvent.click(button('Trocar modo'));
-    expect(panel().queryByRole('tab', { name: 'Personalizada' })).not.toBeInTheDocument();
+    fireEvent.click(panel().getByRole('tab', { name: 'Treinamento' }));
+    fireEvent.click(radio('Modo de Treino'));
+    fireEvent.click(button('Iniciar'));
+    expect(request().command).toEqual({ type: 'startPracticeTool' });
+    await ok();
+    expect(panel().getByRole('status')).toHaveTextContent('Modo de Treino iniciado');
+    expect(panel().queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Busca de partida' }).closest('[hidden]')).toBeNull();
   });
+
+  it('cria uma personalizada a partir do lobby (#513)', async () => {
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    fireEvent.click(button('Trocar modo'));
+    fireEvent.click(panel().getByRole('tab', { name: 'Personalizada' }));
+    fireEvent.click(button('Confirmar'));
+    expect(request().command).toMatchObject({ type: 'createCustomGame' });
+    await ok();
+    expect(panel().getByRole('status')).toHaveTextContent('Partida personalizada criada');
+  });
+
 
   it('acinzenta o modo fechado e não deixa escolher', () => {
     render(<App />);

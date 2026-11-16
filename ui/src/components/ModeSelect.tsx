@@ -31,8 +31,9 @@ type Props = {
   tutorial?: TutorialPart[] | null;
   /**
    * Já em lobby (#231): a tela troca a fila em vez de criar o lobby. Abre na
-   * aba da fila atual, sem a aba Treinamento, e tem um botão para voltar ao
-   * lobby. A fila atual fica bloqueada (#239).
+   * aba da fila atual e tem um botão para voltar ao lobby. A fila atual fica
+   * bloqueada (#239). Treinamento e Personalizada também aparecem: escolher um
+   * deles sai do lobby e abre o novo, como no client oficial.
    */
   lobby?: { queueId: number; queueName: string; onBack: () => void };
   /** Nome do invocador, para o nome sugerido da personalizada ("Partida de ..."). */
@@ -99,10 +100,9 @@ const currentQueueText = 'Você já está nesta fila.';
 
 export function ModeSelect({ queues, canCreate, pending, restriction, descriptionId, feedback, onCreate, onStart, tutorial = null, lobby, summonerName, onCreateCustom, customJoin }: Props) {
   const allTabs = buildModeTabs(queues);
-  // Tutorial, Modo de Treino e personalizada não trocam a fila de um lobby.
-  // A fila atual do lobby não pode ser escolhida (#239).
-  const tabs = lobby ? blockCurrentQueue(allTabs.filter(t => t.id !== 'training' && t.id !== 'custom'), lobby.queueId)
-    : allTabs.filter(t => t.id !== 'custom' || onCreateCustom);
+  // As mesmas abas dentro e fora do lobby; no lobby, a fila atual não pode ser escolhida (#239).
+  const offered = allTabs.filter(t => t.id !== 'custom' || onCreateCustom);
+  const tabs = lobby ? blockCurrentQueue(offered, lobby.queueId) : offered;
   const baseId = useId();
   const [selection, setSelection] = useState<Selection>(() => selectionOf(tabs, lobby?.queueId));
   const tab = tabs.find(t => t.id === selection.tab) ?? tabs[0];
