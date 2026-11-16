@@ -205,7 +205,7 @@ fn write(path: &Path, content: &str) -> Result<(), FixtureError> {
 }
 
 /// Chaves com identificadores da conta, trocados por texto falso.
-const ID_STRING_KEYS: [&str; 9] = [
+const ID_STRING_KEYS: [&str; 12] = [
     "puuid",
     "obfuscatedPuuid",
     "pid",
@@ -218,11 +218,21 @@ const ID_STRING_KEYS: [&str; 9] = [
     // Com o id da partida e a região dá para achar os participantes no
     // histórico, inclusive a partida em que um amigo está agora.
     "gameId",
+    // Pós-jogo (#177): o mesmo id da partida, e quem mandou cada mensagem.
+    "reportGameId",
+    "fromSummonerId",
+    "toSummonerId",
 ];
 
+/// Chaves com listas de ids de invocador (#177): o grupo na sessão do
+/// gameflow, as restrições de fila e quem desistiu da seleção.
+const ID_LIST_KEYS: [&str; 3] = ["memberSummonerIds", "summonerIds", "dodgeIds"];
+
 /// Chaves com nomes de jogadores.
-const NAME_KEYS: [&str; 6] = [
+const NAME_KEYS: [&str; 7] = [
     "gameName",
+    // Placar do fim de partida (#177).
+    "riotIdGameName",
     "displayName",
     "internalName",
     "summonerName",
@@ -232,6 +242,9 @@ const NAME_KEYS: [&str; 6] = [
 
 /// Recursos cujo corpo é só uma lista de ids de jogadores.
 const ID_LIST_RESOURCES: [&str; 1] = ["/lol-chat/v1/obfuscated-puuids"];
+
+/// Recursos cujo corpo é só o id de uma partida (#177).
+const GAME_ID_RESOURCES: [&str; 1] = ["/lol-honor-v2/v1/latest-eligible-game"];
 
 /// Chaves com nomes de grupos de amigos, que o jogador escolhe.
 const GROUP_KEYS: [&str; 2] = ["groupName", "displayGroupName"];
@@ -313,6 +326,9 @@ impl Sanitizer {
             let replaced = self.fake_id("puuid", value);
             return self.replace_embedded(&replaced);
         }
+        if GAME_ID_RESOURCES.contains(&resource) {
+            return self.fake_id(key_kind("gameId"), value);
+        }
         self.sanitize(value)
     }
 
@@ -360,11 +376,18 @@ impl Sanitizer {
                         redact(child)
                     } else if ID_STRING_KEYS.contains(&key.as_str()) {
                         self.fake_id(key_kind(key), child)
+                    } else if ID_LIST_KEYS.contains(&key.as_str()) {
+                        match child {
+                            Value::Array(ids) => Value::Array(
+                                ids.iter().map(|id| self.fake_id("summoner", id)).collect(),
+                            ),
+                            other => self.fake_id("summoner", other),
+                        }
                     } else if NAME_KEYS.contains(&key.as_str()) || (is_player && key == "name") {
                         self.fake_text("name", child)
                     } else if GROUP_KEYS.contains(&key.as_str()) || (is_group && key == "name") {
                         self.fake_group(child)
-                    } else if key == "tagLine" {
+                    } else if key == "tagLine" || key == "riotIdTagLine" {
                         self.fake_text("tag", child)
                     } else if key == "body" {
                         replace_text(child, FAKE_CHAT_BODY)
@@ -462,7 +485,7 @@ fn key_kind(key: &str) -> &'static str {
         "puuid" | "obfuscatedPuuid" => "puuid",
         "pid" => "pid",
         "accountId" | "currentAccountId" => "account",
-        "summonerId" | "obfuscatedSummonerId" => "summoner",
+        "summonerId" | "obfuscatedSummonerId" | "fromSummonerId" | "toSummonerId" => "summoner",
         _ => "player",
     }
 }
@@ -554,6 +577,36 @@ mod tests {
         assert_eq!(out["friend"]["groupName"], "fake-group-0001");
         assert_eq!(out["friend"]["displayGroupName"], "**Default");
         assert_eq!(out["group"]["name"], "fake-group-0001");
+    }
+
+    #[test]
+    fn fim_de_partida_sem_nome_nem_partida_real() {
+        let mut s = Sanitizer::new();
+        let out = s.sanitize(&json!({
+            "gameId": 3304801130_u64,
+            "reportGameId": 3304801130_u64,
+            "teams": [{"players": [{
+                "puuid": "aaaa-real", "summonerName": "Jogador",
+                "riotIdGameName": "Jogador", "riotIdTagLine": "BR1"
+            }]}],
+            "message": { "fromSummonerId": 2761794975450176_u64 },
+            "gameClient": { "memberSummonerIds": [2761794975450176_u64] }
+        }));
+        let player = &out["teams"][0]["players"][0];
+        assert_eq!(out["reportGameId"], out["gameId"]);
+        assert_ne!(out["reportGameId"], 3304801130_u64);
+        assert_eq!(player["riotIdGameName"], player["summonerName"]);
+        assert_eq!(player["riotIdTagLine"], "fake-tag-0001");
+        assert_ne!(out["message"]["fromSummonerId"], 2761794975450176_u64);
+        assert_eq!(
+            out["gameClient"]["memberSummonerIds"][0],
+            out["message"]["fromSummonerId"]
+        );
+        let game = s.sanitize_resource(
+            "/lol-honor-v2/v1/latest-eligible-game",
+            &json!(3304801130_u64),
+        );
+        assert_eq!(game, out["gameId"]);
     }
 
     #[test]

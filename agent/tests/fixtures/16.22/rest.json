@@ -9131,7 +9131,7 @@
           "state": "Accepted",
           "timestamp": "0",
           "toPuuid": "fake-puuid-0001",
-          "toSummonerId": 31056838,
+          "toSummonerId": 1002,
           "toSummonerName": ""
         }
       ],
@@ -9235,7 +9235,7 @@
           "restrictionArgs": {},
           "restrictionCode": "QPInvalidNumberOfPlayerSlotsRestriction",
           "summonerIds": [
-            31056838
+            1002
           ],
           "summonerIdsString": "1002"
         }
@@ -10790,7 +10790,7 @@
           "state": "Accepted",
           "timestamp": "0",
           "toPuuid": "fake-puuid-0001",
-          "toSummonerId": 31056838,
+          "toSummonerId": 1002,
           "toSummonerName": ""
         }
       ],
@@ -12490,7 +12490,7 @@
           "state": "Accepted",
           "timestamp": "0",
           "toPuuid": "fake-puuid-0001",
-          "toSummonerId": 31056838,
+          "toSummonerId": 1002,
           "toSummonerName": ""
         }
       ],
@@ -14190,7 +14190,7 @@
           "state": "Accepted",
           "timestamp": "0",
           "toPuuid": "fake-puuid-0001",
-          "toSummonerId": 31056838,
+          "toSummonerId": 1002,
           "toSummonerName": ""
         }
       ],

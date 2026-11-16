@@ -148,6 +148,15 @@ O resultado vem em `session.kill_ux`: `Killed`, `Disabled` (opção desligada) o
 
 O example `eventos` fecha a UI ao conectar e a reabre com `launch-ux` ao sair com Ctrl+C; `--manter-ui` não chama o `kill-ux`. Os testes em `mock-lcu/tests/kill_ux.rs` conferem o kill-ux ao conectar, o `launch-ux`, a opção desligada, o kill-ux de novo quando o LoL reabre e a troca da opção entre conexões.
 
+### UI oficial no fim da partida (#177)
+
+Testado no LoL real (patch 16.22, ranqueada solo/duo) com o example `eventos` fechando a UI durante a partida. O que o log do client mostrou:
+
+- Quando o processo do jogo fecha, o client **reabre o `LeagueClientUx` sozinho**, cerca de 1,5 s depois ("Client is no longer running" e em seguida "Starting UX process"), antes até de `WaitingForStats`. A LCU não cai, então a `LcuConnection` não vê um `Connected` novo e não chama o `kill-ux` de novo: a UI oficial fica aberta no pós-jogo.
+- Com a UI reaberta, o `PreEndOfGame` avançou sozinho para `EndOfGame` em 10,6 s, passando pela sequência de `/lol-pre-end-of-game/v1/currentSequenceEvent`: `honor-vote`, `challenge-level-up-celebration`, `missions-celebration` e `ranked-celebration`.
+
+Ainda não dá para dizer se o `PreEndOfGame` avança com a UI fechada de verdade, porque ela voltou antes dessa fase. Para o pós-jogo sem a UI oficial, o agente precisa chamar o `kill-ux` de novo quando a partida acaba (por exemplo, ao entrar em `WaitingForStats`) e então conferir se a fase avança sozinha ou se ele precisa encerrar a sequência.
+
 ## Canal `/ws` para a UI (`ws`)
 
 O agente expõe um WebSocket em `ws://127.0.0.1:47800/ws` (#15). A UI nunca fala com a LCU: ela recebe o estado e as mudanças por aqui e manda comandos por aqui. As mensagens são JSON, definidas em `ws::protocol`, e os tipos TypeScript saem desses tipos com `ts-rs` em `ui/src/bindings/`.
@@ -217,7 +226,7 @@ Respostas REST e eventos WAMP gravados de sessões reais ficam em `tests/fixture
 | `rest.json` | Respostas de `GET`, cada uma com a fase do gameflow em que foi tirada (`None`, `Lobby`, `Matchmaking`, `ReadyCheck`, `ChampSelect`...) |
 | `events.jsonl` | Eventos de `OnJsonApiEvent`, um por linha: `tMs` desde o início, `uri`, `eventType` e `data` |
 
-O módulo `fixtures` lê e grava esse formato (`FixtureSet::load`/`save`). A pasta `exemplo/` é um conjunto **sintético**, escrito à mão, para desenvolver antes da primeira gravação real: normal às cegas em duo, mensagem no chat, fila, ready check e champ select até travar o campeão.
+O módulo `fixtures` lê e grava esse formato (`FixtureSet::load`/`save`). A pasta `16.22-pos-jogo/` tem uma ranqueada solo/duo inteira, do início ao fim (#177): `WaitingForStats`, `PreEndOfGame`, `EndOfGame` com `eog-stats-block` e votação de honra, PDL antes e depois e Jogar de novo. A pasta `exemplo/` é um conjunto **sintético**, escrito à mão, para desenvolver antes da primeira gravação real: normal às cegas em duo, mensagem no chat, fila, ready check e champ select até travar o campeão.
 
 Para gravar uma sessão real, com o LoL aberto e logado:
 
@@ -225,7 +234,7 @@ Para gravar uma sessão real, com o LoL aberto e logado:
 cargo run -p easylobby-agent --example gravar_fixtures
 ```
 
-Jogue a sessão pela UI oficial (lobby, fila, ready check, champ select, chat) e aperte Ctrl+C. O gravador tira uma foto dos endpoints no início e a cada mudança de fase, grava os eventos dos tópicos usados pelo easylobby e salva em `tests/fixtures/<patch>/` (`--patch`, `--saida` e `--segundos` mudam isso). A conexão usa o certificado `certs/riotgames.pem` fixado, nunca desliga a verificação TLS.
+Jogue a sessão pela UI oficial (lobby, fila, ready check, champ select, chat; para o pós-jogo, jogue até o fim, vote na honra e clique em Jogar de novo) e aperte Ctrl+C. O gravador tira uma foto dos endpoints no início e a cada mudança de fase, grava os eventos dos tópicos usados pelo easylobby e salva em `tests/fixtures/<patch>/` (`--patch`, `--saida` e `--segundos` mudam isso). A conexão usa o certificado `certs/riotgames.pem` fixado, nunca desliga a verificação TLS.
 
 Antes de salvar, o `Sanitizer` troca puuid, ids (inclusive o `gameId` das partidas), nomes, tags e nomes de grupos de amigos por valores `fake-...` (o mesmo valor real vira sempre o mesmo falso, então as relações continuam valendo), troca o texto das mensagens de chat e apaga tokens, senhas e a senha do lockfile. Para passar uma gravação antiga pelo sanitizer atual, use `--ressanitizar tests/fixtures/<patch>`. Para descobrir onde a LCU guarda algo que os tópicos do easylobby não mostram, `--todos-eventos` grava os eventos de todos os tópicos (também sanitizados); essa gravação é para conferir, não para commitar. O teste `fixtures_validas` falha se algum conjunto tiver dado que o sanitizer trocaria ou texto com cara de id ou token real. Mesmo assim, **confira os arquivos antes de commitar.**
 
