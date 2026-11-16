@@ -711,6 +711,9 @@ pub enum InvalidAction {
     AlreadyCompleted,
     /// Não é a vez dessa ação. Fora da vez só vale marcar o pick (intenção).
     NotYourTurn,
+    /// Ban de um campeão que um aliado marcou como intenção ou escolheu
+    /// (#515). O client oficial também bloqueia.
+    AllyChampion,
 }
 
 impl fmt::Display for InvalidAction {
@@ -723,6 +726,7 @@ impl fmt::Display for InvalidAction {
             InvalidAction::NotBanOrPick => "essa ação não é um ban nem um pick",
             InvalidAction::AlreadyCompleted => "essa ação já foi confirmada",
             InvalidAction::NotYourTurn => "ainda não é a vez dessa ação",
+            InvalidAction::AllyChampion => "um aliado já marcou ou escolheu esse campeão",
         })
     }
 }
@@ -773,7 +777,33 @@ pub fn check_action(
     if !in_turn && !early_pick_intent {
         return Err(InvalidAction::NotYourTurn);
     }
+    if action.action_type == ChampSelectActionType::Ban && ally_champions(cs).contains(&champion_id)
+    {
+        return Err(InvalidAction::AllyChampion);
+    }
     Ok(())
+}
+
+/// Campeões que um aliado (fora o jogador logado) marcou como intenção ou
+/// escolheu, em hover na vez do pick ou confirmado. O client oficial não
+/// deixa banir esses campeões (#515).
+pub fn ally_champions(cs: &ChampSelect) -> Vec<u32> {
+    let local = cs.local_player_cell_id;
+    let intents = cs
+        .my_team
+        .iter()
+        .filter(|p| p.cell_id != local)
+        .filter_map(|p| p.champion_pick_intent);
+    let picks = cs
+        .actions
+        .iter()
+        .filter(|a| {
+            a.action_type == ChampSelectActionType::Pick
+                && a.is_ally_action
+                && a.actor_cell_id != local
+        })
+        .filter_map(|a| a.champion_id);
+    intents.chain(picks).collect()
 }
 
 /// Marca o campeão `champion_id` na ação `action_id`, sem confirmar. A LCU
@@ -1053,6 +1083,34 @@ mod tests {
             check_action(Some(&cs), 13, 121, Hover),
             Err(InvalidAction::NotBanOrPick)
         );
+    }
+
+    #[test]
+    fn nao_bane_campeao_do_aliado() {
+        use ActionIntent::{Confirm, Hover};
+        // Vez de banir do jogador (célula 1). O aliado 0 marcou Akali (84)
+        // como intenção e escolheu Ezreal (81) no pick em hover.
+        let mut raw = session();
+        raw["myTeam"][0]["championPickIntent"] = json!(84);
+        raw["actions"][0][1]["completed"] = json!(false);
+        raw["actions"][0][1]["isInProgress"] = json!(true);
+        raw["actions"][2][0]["championId"] = json!(81);
+        raw["actions"][2][0]["completed"] = json!(false);
+        raw["actions"][4][0]["isInProgress"] = json!(false);
+        let cs = ChampSelect::from_json_at(&raw, 0).unwrap();
+        assert_eq!(ally_champions(&cs), vec![84, 81]);
+        let check = |champion, intent| check_action(Some(&cs), 1, champion, intent);
+        assert_eq!(check(84, Hover), Err(InvalidAction::AllyChampion));
+        assert_eq!(check(84, Confirm), Err(InvalidAction::AllyChampion));
+        assert_eq!(check(81, Confirm), Err(InvalidAction::AllyChampion));
+        assert_eq!(check(99, Confirm), Ok(()));
+        // O pick do inimigo (238) e a intenção do próprio jogador não bloqueiam.
+        raw["myTeam"][1]["championPickIntent"] = json!(99);
+        let cs = ChampSelect::from_json_at(&raw, 0).unwrap();
+        assert_eq!(check_action(Some(&cs), 1, 238, Confirm), Ok(()));
+        assert_eq!(check_action(Some(&cs), 1, 99, Confirm), Ok(()));
+        // No pick, marcar o campeão da intenção do aliado continua valendo.
+        assert_eq!(check_action(Some(&cs), 13, 84, Hover), Ok(()));
     }
 
     #[test]

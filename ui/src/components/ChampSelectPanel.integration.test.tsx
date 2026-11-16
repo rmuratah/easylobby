@@ -105,10 +105,12 @@ it('busca na grade e marca a escolha', () => {
   expect(panel().getByRole('region', { name: 'Campeões para banir' })).toBeVisible();
   expect(grid().getAllByRole('button')).toHaveLength(5);
   expect(grid().getByRole('button', { name: 'Ahri' })).toBeDisabled();
-  fireEvent.change(panel().getByRole('searchbox', { name: 'Buscar campeão' }), { target: { value: 'monkey' } });
+  // Wukong é a intenção do aliado: não dá para banir (#515).
+  expect(grid().getByRole('button', { name: 'Wukong' })).toBeDisabled();
+  fireEvent.change(panel().getByRole('searchbox', { name: 'Buscar campeão' }), { target: { value: 'nunu' } });
   expect(grid().getAllByRole('button')).toHaveLength(1);
-  fireEvent.click(grid().getByRole('button', { name: 'Wukong' }));
-  expect(grid().getByRole('button', { name: 'Wukong' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(grid().getByRole('button', { name: 'Nunu e Willump' }));
+  expect(grid().getByRole('button', { name: 'Nunu e Willump' })).toHaveAttribute('aria-pressed', 'true');
   fireEvent.change(panel().getByRole('searchbox', { name: 'Buscar campeão' }), { target: { value: 'xyz' } });
   expect(panel().getByText('Nenhum campeão encontrado.')).toBeVisible();
 });

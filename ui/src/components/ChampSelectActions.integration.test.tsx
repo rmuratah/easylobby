@@ -45,26 +45,28 @@ it('na vez do ban, marca na grade e confirma pelo botão', async () => {
   expect(panel().getByRole('button', { name: 'Banir' })).toBeDisabled();
   // O botão fica dentro da seção de campeões, embaixo da grade (#475).
   expect(within(panel().getByRole('region', { name: 'Campeões para banir' })).getByRole('button', { name: 'Banir' })).toBeVisible();
-  fireEvent.click(tile('Wukong'));
-  expect(last().command).toEqual({ type: 'hoverChampion', actionId: 1, championId: 62 });
-  expect(tile('Wukong')).toHaveAttribute('aria-pressed', 'true');
+  // Wukong é a intenção do aliado: fica bloqueado no ban (#515).
+  expect(tile('Wukong')).toBeDisabled();
+  fireEvent.click(tile('Nunu e Willump'));
+  expect(last().command).toEqual({ type: 'hoverChampion', actionId: 1, championId: 20 });
+  expect(tile('Nunu e Willump')).toHaveAttribute('aria-pressed', 'true');
   // Marcar não mostra mensagem embaixo do botão (#311).
   expect(panel().queryByText('Marcando o campeão…')).toBeNull();
   await respond();
   // A sessão confirma o hover; o botão usa o campeão marcado.
-  session({ pendingAction: { ...banAction, championId: 62 } });
-  expect(panel().getByRole('button', { name: 'Banir Wukong' })).toHaveTextContent(/^Banir$/);
-  fireEvent.click(panel().getByRole('button', { name: 'Banir Wukong' }));
-  expect(last().command).toEqual({ type: 'confirmAction', actionId: 1, championId: 62 });
+  session({ pendingAction: { ...banAction, championId: 20 } });
+  expect(panel().getByRole('button', { name: 'Banir Nunu e Willump' })).toHaveTextContent(/^Banir$/);
+  fireEvent.click(panel().getByRole('button', { name: 'Banir Nunu e Willump' }));
+  expect(last().command).toEqual({ type: 'confirmAction', actionId: 1, championId: 20 });
   expect(panel().getByText('Confirmando o ban…')).toBeVisible();
   // Sem clique duplo nem troca de campeão enquanto confirma.
-  fireEvent.click(panel().getByRole('button', { name: 'Banir Wukong' }));
+  fireEvent.click(panel().getByRole('button', { name: 'Banir Nunu e Willump' }));
   expect(tile('Aatrox')).toBeDisabled();
   expect(sent()).toHaveLength(2);
   await respond();
   session({
-    pendingAction: null, bans: { myTeam: [62], theirTeam: [] },
-    actions: draftChampSelect.actions.map(a => a.id === 1 ? { ...banAction, championId: 62, completed: true, isInProgress: false } : a),
+    pendingAction: null, bans: { myTeam: [20], theirTeam: [] },
+    actions: draftChampSelect.actions.map(a => a.id === 1 ? { ...banAction, championId: 20, completed: true, isInProgress: false } : a),
   });
   expect(panel().queryByRole('button', { name: /Banir/ })).not.toBeInTheDocument();
   expect(panel().getByText(/Ainda não é sua vez/)).toBeVisible();
@@ -113,8 +115,8 @@ it('sem ação do jogador a grade só mostra', () => {
 
 it('ignora a resposta atrasada de uma seleção que já acabou', async () => {
   render(<App />); hello();
-  fireEvent.click(tile('Wukong'));
-  fireEvent.click(panel().getByRole('button', { name: 'Banir Wukong' }));
+  fireEvent.click(tile('Nunu e Willump'));
+  fireEvent.click(panel().getByRole('button', { name: 'Banir Nunu e Willump' }));
   const id = last().id;
   session({ id: 'nova-sessao' });
   await respond({ status: 'error', code: 'lcu', message: 'antigo' }, id);
@@ -128,10 +130,10 @@ it('digitar em qualquer lugar busca, Enter marca o primeiro e Esc limpa', () => 
   fireEvent.keyDown(document.body, { key: 'w' });
   expect(search).toHaveFocus();
   expect(search).toHaveValue('w');
-  expect(grid().getAllByRole('button').map(b => b.title)).toEqual(['Nunu e Willump', 'Wukong']);
-  fireEvent.change(search, { target: { value: 'wuk' } });
+  expect(grid().getAllByRole('button').map(b => b.title)).toEqual(['Nunu e Willump', 'Wukong (indisponível)']);
+  fireEvent.change(search, { target: { value: 'nunu' } });
   fireEvent.keyDown(search, { key: 'Enter' });
-  expect(last().command).toEqual({ type: 'hoverChampion', actionId: banAction.id, championId: 62 });
+  expect(last().command).toEqual({ type: 'hoverChampion', actionId: banAction.id, championId: 20 });
   fireEvent.keyDown(search, { key: 'Escape' });
   expect(search).toHaveValue('');
 });

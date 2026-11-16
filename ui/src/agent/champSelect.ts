@@ -66,6 +66,7 @@ export type GridChampion = { champion: Champion; available: boolean };
  * Campeões da grade: os que o jogador pode banir (na vez do ban) ou
  * escolher, conforme a LCU. Enquanto a LCU não mandou a lista, todos os do
  * catálogo. Banidos e já escolhidos por outro jogador ficam indisponíveis.
+ * Na vez do ban, o campeão que um aliado marcou ou escolheu também (#515).
  */
 export function gridChampions(state: Pick<AgentState, 'championCatalog' | 'champSelectChampions'>, champSelect: ChampSelect): GridChampion[] {
   const catalog = state.championCatalog?.champions ?? [];
@@ -76,9 +77,27 @@ export function gridChampions(state: Pick<AgentState, 'championCatalog' | 'champ
   for (const action of champSelect.actions) {
     if (action.completed && action.championId && action.actorCellId !== champSelect.localPlayerCellId) taken.add(action.championId);
   }
+  if (purpose === 'ban') for (const id of allyChampions(champSelect)) taken.add(id);
   return catalog
     .filter(c => !allowedSet || allowedSet.has(c.id))
     .map(champion => ({ champion, available: !taken.has(champion.id) }));
+}
+
+/**
+ * Campeões que um aliado (fora o jogador logado) marcou como intenção ou
+ * escolheu, em hover na vez do pick ou confirmado. Como no client oficial,
+ * não dá para banir esses campeões (#515).
+ */
+export function allyChampions(champSelect: ChampSelect): Set<number> {
+  const local = champSelect.localPlayerCellId;
+  const ids = new Set<number>();
+  for (const player of champSelect.myTeam) {
+    if (player.cellId !== local && player.championPickIntent) ids.add(player.championPickIntent);
+  }
+  for (const action of champSelect.actions) {
+    if (action.type === 'pick' && action.isAllyAction && action.actorCellId !== local && action.championId) ids.add(action.championId);
+  }
+  return ids;
 }
 
 /** `cellId`s de quem está na vez agora (ban ou pick em andamento). */
