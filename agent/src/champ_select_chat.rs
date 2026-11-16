@@ -36,6 +36,9 @@ const ROOM_TYPE: &str = "championSelect";
 /// `type` das mensagens escritas por jogadores.
 const CHAT_TYPE: &str = "chat";
 
+/// `type` dos avisos da sala (entrada e saída), que ficam de fora.
+const SYSTEM_TYPE: &str = "system";
+
 /// A sala de chat do time na seleção de campeões.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -113,7 +116,9 @@ impl ChampSelectChatMessage {
     /// (`type: "system"`) e valores sem o formato esperado.
     pub fn from_json(value: &Value, senders: &Senders) -> Option<Self> {
         let raw = LcuMessage::deserialize(value).ok()?;
-        if raw.kind != CHAT_TYPE || raw.id.is_empty() {
+        // Numa sala a LCU devolve `groupchat` (o tipo do XMPP), não o `chat`
+        // com que o agente manda: qualquer tipo fora `system` é mensagem.
+        if raw.kind == SYSTEM_TYPE || raw.id.is_empty() || raw.body.trim().is_empty() {
             return None;
         }
         let mut message = ChampSelectChatMessage {
@@ -379,6 +384,16 @@ mod tests {
         assert!(sala.resolve_senders(&senders));
         assert_eq!(sala.messages[0].from_cell_id, Some(2));
         assert!(!sala.messages[0].from_me);
+    }
+
+    #[test]
+    fn le_as_mensagens_groupchat_da_sala() {
+        // Na sala a LCU devolve `groupchat`, não o `chat` do envio.
+        let senders = Senders::default();
+        let m =
+            ChampSelectChatMessage::from_json(&mensagem("1", "", "x", "groupchat", T), &senders)
+                .unwrap();
+        assert_eq!(m.body, "oi 1");
     }
 
     #[test]
