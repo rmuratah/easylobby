@@ -17,6 +17,8 @@ import { ChampSelectPanel } from './components/ChampSelectPanel';
 import { PostGamePanel } from './components/PostGamePanel';
 import { TitleBar } from './components/titlebar/TitleBar';
 import { useTheme } from './theme/theme';
+import { useSoundSettings } from './agent/soundSettings';
+import { useAppSounds } from './agent/useAppSounds';
 import { useSidebar } from './layout/sidebar';
 import { SideNavigation, type NavigationPage } from './layout/SideNavigation';
 import { SidebarToggle } from './layout/SidebarToggle';
@@ -35,6 +37,7 @@ type Page = NavigationPage | 'friendProfile';
 export default function App() {
   const connection = useAgent();
   const { theme, setPreference } = useTheme();
+  const soundSettings = useSoundSettings();
   /** Última conversa aberta: o botão Conversas volta para ela (#251). */
   const [chatWith, setChatWith] = useState<string | null>(null);
   /**
@@ -109,6 +112,7 @@ export default function App() {
   // Início (#128) e lobby (#129) no layout de referência: cartões lado a lado quando há largura.
   const playable = screen === 'home' || screen === 'lobby' || screen === 'queue' || found;
   const homeLayout = activePage === 'home' && playable;
+  useAppSounds(connection, ready && activePage === 'conversations' ? chatWith : null);
   // Sem lobby, o cartão principal do Início ainda não tem função definida: criar lobby fica só no Jogar.
   const homeReserved = activePage === 'home' && screen === 'home';
   // A partida em andamento mostra as duas equipes (#268).
@@ -126,7 +130,8 @@ export default function App() {
       <div data-tauri-drag-region className={sidebar.open || !ready ? 'app-body' : 'app-body sidebar-collapsed'}>
         <div hidden={!ready} className="contents">
           <SideNavigation active={activePage === 'friendProfile' ? 'profile' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'} flowButtonRef={flowButtonRef} theme={theme} unread={unread}
-            onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference} />
+            onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference}
+            sound={soundSettings.settings} onSoundChange={soundSettings.update} />
         </div>
         <div data-tauri-drag-region className="app-main-column">
           <main ref={contentRef} className="app-content">

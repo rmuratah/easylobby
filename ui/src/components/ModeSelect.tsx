@@ -1,4 +1,6 @@
 import { useId, useState, type ReactNode } from 'react';
+import { sound } from '../agent/sound';
+import { hoverSound } from '../agent/buttonSounds';
 import { blockCurrentQueue, buildModeTabs, firstAvailable, type CreateLobby, type GameMode, type ModeTab, type ModeTabId, type Submode, type TrainingCommand } from '../agent/gameModes';
 import type { GameQueue } from '../bindings/GameQueue';
 import type { TutorialPart } from '../bindings/TutorialPart';
@@ -321,7 +323,8 @@ export function ModeSelect({ queues, canCreate, pending, restriction, descriptio
           </button>
         )}
         <button type="button" className={primaryPill} aria-describedby={descriptionId} aria-busy={pending}
-          disabled={joining ? joinBlocked || locked : isCustom ? !!customProblem || locked : !current || locked || unchanged} onClick={confirm}>
+          disabled={joining ? joinBlocked || locked : isCustom ? !!customProblem || locked : !current || locked || unchanged}
+          onMouseEnter={hoverSound} onClick={() => { sound.play('click'); confirm(); }}>
           {joining ? 'Entrar' : isCustom ? 'Confirmar' : isTraining ? 'Iniciar' : lobby ? 'Trocar fila' : 'Criar lobby'}
         </button>
       </footer>

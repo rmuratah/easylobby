@@ -53,3 +53,16 @@ it('toca a confirmação do ban, mais grave, e a da escolha, subindo', () => {
   expect(pick.map(o => o.frequency.value)).toEqual([...pick.map(o => o.frequency.value)].sort((a, b) => a - b));
   expect(Math.max(banFirst.frequency.value, banLast.frequency.value)).toBeLessThan(pick[0].frequency.value);
 });
+
+it('não toca nada com o volume em zero e segue o volume geral', () => {
+  const ctx = fakeContext('running');
+  const player = createSoundPlayer(() => ctx as unknown as AudioContext);
+  player.setVolume(0);
+  player.play('invite');
+  expect(ctx.createOscillator).not.toHaveBeenCalled();
+  player.setVolume(0.35);
+  player.play('click');
+  const gain = ctx.createGain.mock.results[0].value.gain;
+  // 0,35 é metade do volume padrão (0,7): o pico cai pela metade.
+  expect(gain.exponentialRampToValueAtTime.mock.calls[0][0]).toBeCloseTo(0.05);
+});
