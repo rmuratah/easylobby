@@ -94,8 +94,8 @@ describe('matchmaking pelo /ws', () => {
       errors: [{ errorType: 'QUEUE_DODGER', message: '', penaltyTimeRemaining: 300 }],
     } });
     expect(panel().getByText('1:35', { selector: 'strong' })).toBeInTheDocument();
-    expect(panel().getByText(/Baixa prioridade: 2:00/)).toBeInTheDocument();
-    expect(within(panel().getByRole('list', { name: 'Erros da busca' })).getByText(/QUEUE_DODGER.*5:00/)).toBeInTheDocument();
+    expect(panel().getByText(/esperar 2:00 na fila de baixa prioridade/)).toBeInTheDocument();
+    expect(within(panel().getByRole('list', { name: 'Erros da busca' })).getByText('Você saiu de uma seleção de campeões e precisa esperar 5:00 para entrar na fila.')).toBeInTheDocument();
   });
 
   it('cancela a busca parada por punição mesmo fora da fase Matchmaking', async () => {
