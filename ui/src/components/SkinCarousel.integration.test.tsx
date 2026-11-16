@@ -82,3 +82,54 @@ it('com o campeão confirmado, a grade vira o carrossel e clicar numa skin troca
   expect(thumbs.getByRole('button', { name: 'Ahri Fliperama' })).toHaveAttribute('aria-pressed', 'true');
   expect(carousel.getByRole('status')).toHaveTextContent('Ahri Fliperama');
 });
+
+it('mostra só os cromas que a conta tem da skin marcada e troca o croma na LCU (#316)', async () => {
+  const withChromas: ChampionSkins = {
+    championId: 103,
+    skins: [
+      skins.skins[0],
+      { ...skins.skins[1], chromas: [
+        { id: 103020, name: 'Rubi', owned: true, colors: ['#c82b2b', '#c82b2b'] },
+        { id: 103021, name: 'Safira', owned: false, colors: ['#2b5dc8'] },
+      ] },
+      { ...skins.skins[2], chromas: [{ id: 103030, name: 'Ouro', owned: true, colors: ['#d4af37'] }] },
+    ],
+  };
+  render(<App />);
+  act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: { ...champSelectState, champSelect: locked } }));
+  act(() => socket().receive({ type: 'championSkins', championSkins: withChromas }));
+  const carousel = within(panel().getByRole('region', { name: 'Skins' }));
+  const thumbs = within(carousel.getByRole('list', { name: 'Miniaturas das skins' }));
+  // A skin padrão não tem cromas: nada de bolinhas.
+  expect(carousel.queryByRole('list', { name: 'Cromas' })).not.toBeInTheDocument();
+  // Skin que a conta não tem: nem os cromas dela aparecem.
+  fireEvent.click(thumbs.getByRole('button', { name: 'Ahri Projeto (você não tem; só ver)' }));
+  expect(carousel.queryByRole('list', { name: 'Cromas' })).not.toBeInTheDocument();
+
+  fireEvent.click(thumbs.getByRole('button', { name: 'Ahri Fliperama' }));
+  expect(last().command).toEqual({ type: 'selectSkin', skinId: 103001 });
+  // A seleção nova chega antes da resposta, como no agente.
+  const skinned = (id: number) => ({ ...locked, myTeam: locked.myTeam.map(p => p.isLocalPlayer ? { ...p, selectedSkinId: id } : p) });
+  act(() => socket().receive({ type: 'champSelect', champSelect: skinned(103001) }));
+  await act(async () => socket().receive({ type: 'response', id: last().id, result: { status: 'ok' } }));
+  const chromaList = within(carousel.getByRole('list', { name: 'Cromas' }));
+  expect(chromaList.getAllByRole('button')).toHaveLength(2);
+  expect(chromaList.queryByRole('button', { name: 'Croma Safira' })).not.toBeInTheDocument();
+  expect(chromaList.getByRole('button', { name: 'Ahri Fliperama sem croma' })).toHaveAttribute('aria-pressed', 'true');
+
+  fireEvent.click(chromaList.getByRole('button', { name: 'Croma Rubi' }));
+  expect(last().command).toEqual({ type: 'selectSkin', skinId: 103020 });
+  // A LCU confirma o croma: a skin dele continua marcada no carrossel.
+  act(() => socket().receive({ type: 'champSelect', champSelect: skinned(103020) }));
+  await act(async () => socket().receive({ type: 'response', id: last().id, result: { status: 'ok' } }));
+  expect(chromaList.getByRole('button', { name: 'Croma Rubi' })).toHaveAttribute('aria-pressed', 'true');
+  expect(thumbs.getByRole('button', { name: 'Ahri Fliperama' })).toHaveAttribute('aria-pressed', 'true');
+  expect(carousel.getByRole('status')).toHaveTextContent('Ahri Fliperama· Rubi');
+  // Clicar de novo na skin mantém o croma.
+  const before = sent().length;
+  fireEvent.click(thumbs.getByRole('button', { name: 'Ahri Fliperama' }));
+  expect(sent()).toHaveLength(before);
+  // Voltar para a skin sem croma.
+  fireEvent.click(chromaList.getByRole('button', { name: 'Ahri Fliperama sem croma' }));
+  expect(last().command).toEqual({ type: 'selectSkin', skinId: 103001 });
+});

@@ -4,6 +4,7 @@ import type { AgentClient } from '../agent/client';
 import { useCommand } from '../agent/useCommand';
 import type { AgentState } from '../bindings/AgentState';
 import type { CollectionSkin } from '../bindings/CollectionSkin';
+import type { SkinChroma } from '../bindings/SkinChroma';
 import { cx } from './base/cx';
 
 type Props = {
@@ -11,7 +12,7 @@ type Props = {
   send: AgentClient['send'];
   championId: number;
   championName: string;
-  /** `selectedSkinId` do jogador; `null` ou `0` é a skin padrão. */
+  /** `selectedSkinId` do jogador (de uma skin ou de um croma); `null` ou `0` é a skin padrão. */
   selectedSkinId: number | null;
 };
 
@@ -21,7 +22,9 @@ const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-
  * Escolha da skin depois de confirmar o campeão (#477): a splash art grande
  * da skin em cima e as miniaturas embaixo, num carrossel. Clicar numa
  * miniatura troca a skin na LCU. As que a conta não tem ficam esmaecidas e,
- * clicadas, só mostram a splash grande, sem trocar a skin (#494).
+ * clicadas, só mostram a splash grande, sem trocar a skin (#494). Quando a
+ * skin marcada tem cromas que a conta tem, eles aparecem como bolinhas de cor
+ * embaixo da splash; o croma vai à LCU no mesmo `selectSkin` (#316).
  */
 export function SkinCarousel({ state, send, championId, championName, selectedSkinId }: Props) {
   const load = useCommand(send);
@@ -41,25 +44,36 @@ export function SkinCarousel({ state, send, championId, championName, selectedSk
   const skins: CollectionSkin[] = loaded ? state.championSkins!.skins : [];
   const confirmed = selectedSkinId || championId * 1000;
   const selected = choose.pending && pending ? pending : confirmed;
+  // A skin de um id que pode ser o de um croma dela.
+  const skinOf = (id: number) => skins.find(skin => skin.id === id || skin.chromas.some(chroma => chroma.id === id));
+  const selectedSkin = skinOf(selected)?.id ?? selected;
+  const selectedChroma = skins.flatMap(skin => skin.chromas).find(chroma => chroma.id === selected) ?? null;
   const previewing = preview !== null && skins.some(skin => skin.id === preview && !skin.owned) ? preview : null;
-  const shown = previewing ?? selected;
+  const shown = previewing ?? selectedSkin;
   const current = skins.find(skin => skin.id === shown) ?? skins.find(skin => skin.isBase) ?? null;
+  // Só os cromas que a conta tem, da skin marcada (e que ela tem).
+  const chromas: SkinChroma[] = previewing === null && current?.owned ? current.chromas.filter(chroma => chroma.owned) : [];
   // A miniatura marcada fica à vista quando a lista abre ou a skin muda.
   useEffect(() => {
     const row = rowRef.current;
     const item = row?.querySelector<HTMLElement>('[aria-pressed="true"]');
     if (!row || !item) return;
     row.scrollLeft = item.offsetLeft - (row.clientWidth - item.offsetWidth) / 2;
-  }, [selected, loaded]);
+  }, [selectedSkin, loaded]);
   function pick(skin: CollectionSkin) {
     if (!skin.owned) {
       setPreview(skin.id === previewing ? null : skin.id);
       return;
     }
     setPreview(null);
-    if (skin.id === confirmed || choose.pending) return;
-    setPending(skin.id);
-    void choose.run({ type: 'selectSkin', skinId: skin.id }, { pending: '', failure: 'trocar a skin' });
+    // Clicar na skin marcada mantém o croma escolhido nela.
+    if (skin.id === (skinOf(confirmed)?.id ?? confirmed)) return;
+    select(skin.id, 'trocar a skin');
+  }
+  function select(id: number, failure: string) {
+    if (id === confirmed || choose.pending) return;
+    setPending(id);
+    void choose.run({ type: 'selectSkin', skinId: id }, { pending: '', failure });
   }
   function scroll(direction: 1 | -1) {
     const row = rowRef.current;
@@ -77,10 +91,31 @@ export function SkinCarousel({ state, send, championId, championName, selectedSk
         {current && (
           <p role="status" className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-4 pb-3 pt-10 text-section font-semibold text-white">
             {current.isBase ? championName : current.name}
+            {selectedChroma && previewing === null && <span className="ml-2 text-body font-normal text-white/80">· {selectedChroma.name || 'Croma'}</span>}
             {previewing !== null && <span className="ml-2 text-body font-normal text-white/80">· Você não tem esta skin</span>}
           </p>
         )}
+        {selectedChroma && previewing === null && (
+          // O croma não tem splash: o retrato dele fica no canto da splash da skin.
+          <img key={selectedChroma.id} src={assetUrl('skin', selectedChroma.id)} alt=""
+            className="absolute right-3 top-3 h-1/2 max-h-48 rounded-control border border-white/30 bg-black/30 object-contain shadow-lg animate-fade-up"
+            onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />
+        )}
       </div>
+      {chromas.length > 0 && current && (
+        <ul aria-label="Cromas" className="flex shrink-0 flex-wrap items-center justify-center gap-2">
+          <li>
+            <ChromaButton label={`${current.isBase ? championName : current.name} sem croma`} colors={[]}
+              pressed={selected === current.id} onClick={() => select(current.id, 'trocar o croma')} />
+          </li>
+          {chromas.map(chroma => (
+            <li key={chroma.id}>
+              <ChromaButton label={`Croma ${chroma.name || chroma.id}`} colors={chroma.colors}
+                pressed={selected === chroma.id} onClick={() => select(chroma.id, 'trocar o croma')} />
+            </li>
+          ))}
+        </ul>
+      )}
       {!loaded ? (
         <p className={cx('text-body', error ? 'text-danger' : 'text-muted')}>{error ? error.message : 'Carregando as skins…'}</p>
       ) : (
@@ -92,7 +127,7 @@ export function SkinCarousel({ state, send, championId, championName, selectedSk
               const viewing = previewing === skin.id;
               return (
                 <li key={skin.id} className="shrink-0">
-                  <button type="button" aria-pressed={selected === skin.id} aria-current={viewing || undefined}
+                  <button type="button" aria-pressed={selectedSkin === skin.id} aria-current={viewing || undefined}
                     aria-label={skin.owned ? name : `${name} (você não tem; só ver)`}
                     title={skin.owned ? name : `${name}: você não tem esta skin. Clique para ver a splash.`}
                     onClick={() => pick(skin)}
@@ -112,6 +147,20 @@ export function SkinCarousel({ state, send, championId, championName, selectedSk
       )}
       {loaded && error && <p role="alert" className="text-body text-danger">{error.message}</p>}
     </section>
+  );
+}
+
+/** Bolinha de cor de um croma; sem cores, a da skin sem croma. */
+function ChromaButton({ label, colors, pressed, onClick }: { label: string; colors: string[]; pressed: boolean; onClick: () => void }) {
+  const background = colors[0]
+    ? colors[1] && colors[1] !== colors[0] ? `linear-gradient(135deg, ${colors[0]} 50%, ${colors[1]} 50%)` : colors[0]
+    : undefined;
+  return (
+    <button type="button" aria-label={label} title={label} aria-pressed={pressed} onClick={onClick}
+      className={cx('flex size-8 items-center justify-center rounded-full border-2 border-transparent hover:border-control aria-pressed:border-accent', focusRing)}>
+      <span aria-hidden="true" style={{ background }}
+        className={cx('block size-5 rounded-full border border-edge', !background && 'bg-raised')} />
+    </button>
   );
 }
 
