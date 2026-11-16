@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { sound } from '../agent/sound';
 import type { SoundSettings } from '../agent/soundSettings';
 import { OpenWithLeagueSetting } from './OpenWithLeagueSetting';
+import { AboutSection } from './AboutSection';
 
 /** Espera depois de mexer no volume antes de tocar o som de teste. */
 const PREVIEW_DELAY_MS = 250;
@@ -16,6 +17,7 @@ type Props = {
  * Botão de Configurações da barra lateral (#501): a parte de som, com
  * liga/desliga e volume, e a de abrir o app junto com o LoL (#511). Ao mexer
  * no volume, toca o som de partida encontrada para o jogador ouvir a altura.
+ * No fim, a seção Sobre com o aviso legal da Riot (#217).
  */
 export function SoundMenu({ settings, onChange, icon }: Props) {
   const [open, setOpen] = useState(false);
@@ -65,7 +67,7 @@ export function SoundMenu({ settings, onChange, icon }: Props) {
       </button>
       {open && (
         <section id={panelId} role="dialog" aria-label="Configurações"
-          className="fixed bottom-4 left-[7.25rem] z-50 flex w-64 flex-col gap-3 rounded-card border border-line bg-surface p-4 text-ink shadow-[0_8px_24px_-12px_var(--el-overlay)]">
+          className="fixed bottom-4 left-[7.25rem] z-50 flex max-h-[calc(100vh-2rem)] w-64 flex-col gap-3 overflow-y-auto rounded-card border border-line bg-surface p-4 text-ink shadow-[0_8px_24px_-12px_var(--el-overlay)]">
           <h2 className="text-section font-semibold">Som</h2>
           <label className="flex items-center justify-between gap-3 text-body">
             Sons do app
@@ -79,6 +81,7 @@ export function SoundMenu({ settings, onChange, icon }: Props) {
               onChange={event => setVolume(Number(event.target.value))} />
           </label>
           <OpenWithLeagueSetting />
+          <AboutSection />
         </section>
       )}
     </div>

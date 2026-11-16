@@ -83,3 +83,9 @@ As Fases 0 a 8 do plano original foram substituídas por essas etapas em novembr
 
 - [Rafa Murata](https://github.com/rmuratah)
 - [Victor Ricco](https://github.com/Victor-Ricco)
+
+## Aviso legal
+
+easylobby isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
+
+O registro do app na Riot e a lista de endpoints que ele usa estão em [docs/registro-riot.md](docs/registro-riot.md).
