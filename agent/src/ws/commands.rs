@@ -36,6 +36,8 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::StopQueue => hub.stop_queue().await,
         Command::AcceptReadyCheck => hub.accept_ready_check().await,
         Command::DeclineReadyCheck => hub.decline_ready_check().await,
+        Command::HonorPlayer { puuid } => hub.honor_player(&puuid).await,
+        Command::SkipHonor => hub.skip_honor().await,
         Command::StartTutorial { queue_id } => hub.start_tutorial(queue_id).await,
         Command::StartPracticeTool => hub.start_practice_tool().await,
         Command::CreateCustomGame { options } => hub.create_custom_game(options).await,

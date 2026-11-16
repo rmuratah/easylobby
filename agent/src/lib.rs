@@ -15,6 +15,7 @@
 //!   (#11)
 //! - [`ux`]: fecha a UI oficial ao conectar (`kill-ux`) e reabre
 //!   (`launch-ux`) (#12)
+//! - [`honor`]: cédula de honra do fim de partida, votar e pular (#182)
 //! - [`pre_end_of_game`]: avança as telas do `PreEndOfGame` com a UI oficial
 //!   fechada (#180)
 //! - [`ux_window`]: esconde a janela da UI oficial enquanto o `kill-ux`
@@ -71,6 +72,7 @@ pub mod custom_lobby;
 pub mod fixtures;
 pub mod friends;
 pub mod gameflow;
+pub mod honor;
 pub mod invitations;
 pub mod launcher;
 pub mod live_client;

@@ -15,6 +15,7 @@ mod custom_games;
 mod custom_lobby;
 mod exit;
 mod friends;
+mod honor;
 mod invitations;
 mod live_game;
 mod lobby;
@@ -382,6 +383,10 @@ impl Hub {
                 if phase == Some(GameflowPhase::PreEndOfGame) {
                     self.spawn_advance_pre_end_of_game();
                 }
+                // A cédula de honra aberta antes da conexão (#182).
+                if honor::post_game(phase) {
+                    self.spawn_refresh_honor_ballot();
+                }
                 // Conectou no meio de uma partida (#268).
                 self.follow_live_game(phase);
                 // Antes do lobby, para a UI já achar a fila dele na lista.
@@ -492,6 +497,7 @@ impl Hub {
                 self.set_summoner(None);
                 self.set_gameflow_phase(None);
                 self.set_ready_check(None);
+                self.set_honor_ballot(None);
                 self.set_lobby(None);
                 self.set_queues(Vec::new());
                 self.set_matchmaking(None);
@@ -577,6 +583,18 @@ impl Hub {
                     if before != Some(phase) && phase == GameflowPhase::PreEndOfGame {
                         self.spawn_advance_pre_end_of_game();
                     }
+                    // A cédula de honra abre no pós-jogo e fecha fora dele
+                    // (#182), mesmo se o evento dela se perder.
+                    if before != Some(phase) {
+                        if matches!(
+                            phase,
+                            GameflowPhase::PreEndOfGame | GameflowPhase::EndOfGame
+                        ) {
+                            self.spawn_refresh_honor_ballot();
+                        } else if !honor::post_game(Some(phase)) {
+                            self.set_honor_ballot(None);
+                        }
+                    }
                     // A partida ao vivo começa ou termina (#268).
                     if before != Some(phase) {
                         self.follow_live_game(Some(phase));
@@ -613,6 +631,11 @@ impl Hub {
                 if let Some(ranked) = crate::ranked::from_json(&event.data) {
                     self.set_ranked(Some(ranked));
                 }
+            }
+            // A cédula de honra abriu, mudou ou fechou (#182).
+            crate::honor::BALLOT_PATH if deleted => self.set_honor_ballot(None),
+            crate::honor::BALLOT_PATH => {
+                self.set_honor_ballot(crate::honor::HonorBallot::from_json(&event.data));
             }
             // Uma tela do fim de partida começou (#180).
             crate::pre_end_of_game::CURRENT_SEQUENCE_EVENT_PATH if deleted => {}

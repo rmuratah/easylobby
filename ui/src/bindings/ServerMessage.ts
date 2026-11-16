@@ -14,6 +14,7 @@ import type { Friend } from "./Friend";
 import type { FriendGroup } from "./FriendGroup";
 import type { GameQueue } from "./GameQueue";
 import type { GameflowPhase } from "./GameflowPhase";
+import type { HonorBallot } from "./HonorBallot";
 import type { LcuStatus } from "./LcuStatus";
 import type { LiveGame } from "./LiveGame";
 import type { Lobby } from "./Lobby";
@@ -57,6 +58,7 @@ export type ServerMessage =
   | { "type": "lobbyLink", lobbyLink: LobbyLink | null, }
   | { "type": "matchmaking", matchmaking: Matchmaking | null, }
   | { "type": "readyCheck", readyCheck: ReadyCheck | null, }
+  | { "type": "honorBallot", honorBallot: HonorBallot | null, }
   | { "type": "queues", queues: Array<GameQueue>, }
   | { "type": "playableChampions", playableChampions: Array<number> | null, }
   | { "type": "tutorial", tutorial: Array<TutorialPart> | null, }

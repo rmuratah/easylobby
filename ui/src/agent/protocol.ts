@@ -1,6 +1,8 @@
 import type { ReadyCheckState } from '../bindings/ReadyCheckState';
 import type { ReadyCheckResponse } from '../bindings/ReadyCheckResponse';
 import type { ServerMessage } from '../bindings/ServerMessage';
+import type { HonorBallot } from '../bindings/HonorBallot';
+import type { HonorCandidate } from '../bindings/HonorCandidate';
 import type { PatchChange } from '../bindings/PatchChange';
 import type { PatchLine } from '../bindings/PatchLine';
 import type { PatchLineKind } from '../bindings/PatchLineKind';
@@ -165,6 +167,15 @@ const readyCheckResponses = { None: true, Accepted: true, Declined: true, Unknow
 function readyCheck(v: unknown): v is ReadyCheck | null {
   return v === null || (object(v) && typeof v.state === 'string' && Object.hasOwn(readyCheckStates, v.state) &&
     typeof v.playerResponse === 'string' && Object.hasOwn(readyCheckResponses, v.playerResponse) && nums(v, ['timer', 'duration']));
+}
+// Cédula de honra do fim de partida (#182).
+function honorCandidate(v: unknown): v is HonorCandidate {
+  return object(v) && strings(v, ['puuid', 'championName', 'role', 'summonerName']) &&
+    uints(v, ['summonerId', 'championId']) && typeof v.bot === 'boolean';
+}
+function honorBallot(v: unknown): v is HonorBallot | null {
+  return v === null || (object(v) && uints(v, ['gameId', 'votes']) && list(v.eligibleAllies, honorCandidate) &&
+    list(v.honoredPuuids, (x: unknown): x is string => typeof x === 'string'));
 }
 const searchStates = {
   Searching: true, Found: true, Error: true, AbandonedLowPriorityQueue: true, Unknown: true,
@@ -364,7 +375,7 @@ function lobbyLink(v: unknown): v is LobbyLink | null {
 }
 function state(v: unknown): v is AgentState {
   return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) && lobbyLink(v.lobbyLink) &&
-    readyCheck(v.readyCheck) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && nullableIds(v.availableBots) && lobbyChat(v.lobbyChat) && customGames(v.customGames) && champSelect(v.champSelect) &&
+    readyCheck(v.readyCheck) && honorBallot(v.honorBallot) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && nullableIds(v.availableBots) && lobbyChat(v.lobbyChat) && customGames(v.customGames) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
@@ -388,6 +399,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'lobby': valid = lobby(v.lobby); break;
     case 'gameflowPhase': valid = nullableString(v.phase); break;
     case 'readyCheck': valid = readyCheck(v.readyCheck); break;
+    case 'honorBallot': valid = honorBallot(v.honorBallot); break;
     case 'matchmaking': valid = matchmaking(v.matchmaking); break;
     case 'queues': valid = list(v.queues, gameQueue); break;
     case 'playableChampions': valid = nullableIds(v.playableChampions); break;

@@ -12,6 +12,7 @@ import type { Friend } from "./Friend";
 import type { FriendGroup } from "./FriendGroup";
 import type { GameQueue } from "./GameQueue";
 import type { GameflowPhase } from "./GameflowPhase";
+import type { HonorBallot } from "./HonorBallot";
 import type { LcuStatus } from "./LcuStatus";
 import type { LiveGame } from "./LiveGame";
 import type { Lobby } from "./Lobby";
@@ -53,6 +54,10 @@ export type AgentState = {
    * Ready check aberto (partida encontrada, #20), ou `null`.
    */
   readyCheck: ReadyCheck | null,
+  /**
+   * Cédula de honra do fim de partida (#182), ou `null`.
+   */
+  honorBallot: HonorBallot | null,
   /**
    * Filas em que dá para criar lobby agora (#146), lidas da LCU, mais as
    * fixas da tela de escolha de modo que estão fechadas, com `available:

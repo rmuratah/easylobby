@@ -12,6 +12,7 @@ const emptyState: AgentState = {
   lobbyLink: null,
   matchmaking: null,
   readyCheck: null,
+  honorBallot: null,
   queues: [],
   playableChampions: null,
   tutorial: null,

@@ -27,6 +27,8 @@ export type Command =
   | { "type": "createLobbyById", queueId: number, }
   | { "type": "acceptReadyCheck" }
   | { "type": "declineReadyCheck" }
+  | { "type": "honorPlayer", puuid: string, }
+  | { "type": "skipHonor" }
   | { "type": "startTutorial", queueId?: number, }
   | { "type": "startPracticeTool" }
   | { "type": "createCustomGame", options: CustomGameOptions, }
