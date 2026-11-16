@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  actingCells, championName, gridChampions, gridPurpose, lockedPick, markedChampion, myAction, playerName, remainingMs, searchChampions,
+  actingCells, allyChampions, championName, gridChampions, gridPurpose, lockedPick, markedChampion, myAction, playerName, remainingMs, searchChampions,
   searchKey,
 } from './champSelect';
 import { testChampionCatalog } from '../test/events';
@@ -26,7 +26,7 @@ describe('grade', () => {
   it('na vez do ban mostra os que dá para banir, com os escolhidos indisponíveis', () => {
     expect(gridPurpose(draftChampSelect)).toBe('ban');
     const grid = gridChampions(champSelectState, draftChampSelect);
-    expect(grid.map(g => [g.champion.id, g.available])).toEqual([[266, true], [103, false], [145, true], [20, true], [62, true]]);
+    expect(grid.map(g => [g.champion.id, g.available])).toEqual([[266, true], [103, false], [145, true], [20, true], [62, false]]);
   });
   it('fora do ban mostra os que dá para escolher, sem os banidos', () => {
     const champSelect = { ...draftChampSelect, pendingAction: null, bans: { myTeam: [266], theirTeam: [] } };
@@ -38,6 +38,22 @@ describe('grade', () => {
     const unknown = { ...champSelectState, champSelectChampions: { pickable: null, bannable: null, subset: null } };
     expect(gridChampions(unknown, draftChampSelect)).toHaveLength(testChampionCatalog.champions.length);
     expect(gridChampions({ ...unknown, championCatalog: null }, draftChampSelect)).toEqual([]);
+  });
+  it('na vez do ban bloqueia o campeão que um aliado marcou ou escolheu (#515)', () => {
+    // O aliado (célula 1) tem Wukong (62) como intenção no fixture e Aatrox (266) no pick em hover.
+    const champSelect = {
+      ...draftChampSelect,
+      actions: [...draftChampSelect.actions,
+        { id: 5, type: 'pick' as const, actorCellId: 1, championId: 266, completed: false, isInProgress: true, isAllyAction: true, turn: 1 }],
+    };
+    expect([...allyChampions(champSelect)]).toEqual([62, 266]);
+    const grid = gridChampions(champSelectState, champSelect);
+    expect(grid.filter(g => !g.available).map(g => g.champion.id).sort()).toEqual([103, 266, 62].sort());
+    // A intenção do próprio jogador não bloqueia, e na vez do pick a do aliado também não.
+    const mine = { ...draftChampSelect, myTeam: [{ ...draftChampSelect.myTeam[0], championPickIntent: 20 }, draftChampSelect.myTeam[1]] };
+    expect(gridChampions(champSelectState, mine).find(g => g.champion.id === 20)?.available).toBe(true);
+    const pick = { ...draftChampSelect, pendingAction: null };
+    expect(gridChampions(champSelectState, pick).find(g => g.champion.id === 62)?.available).toBe(true);
   });
   it('não marca como indisponível o campeão do próprio jogador', () => {
     const champSelect = {
