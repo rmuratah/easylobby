@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AgentClient } from '../agent/client';
 import { LANES, positionNames, type Lane } from '../agent/positions';
 import { useCommand } from '../agent/useCommand';
@@ -10,6 +10,12 @@ import { PositionIcon } from './PositionIcon';
 
 type Props = { ballot: HonorBallot; send: AgentClient['send']; disabled?: boolean };
 
+/**
+ * Quanto esperar a cédula trazer o aliado em `honoredPuuids` depois de a LCU
+ * aceitar o voto. A LCU responde antes do servidor da Riot, que pode recusar.
+ */
+export const HONOR_CONFIRM_MS = 10_000;
+
 /** Rota da LCU (`TOP`, `JUNGLE`...) na rota da UI, ou `null` fora do Rift. */
 function lane(role: string): Lane | null {
   const name = role.toLowerCase();
@@ -18,34 +24,48 @@ function lane(role: string): Lane | null {
 
 /**
  * Votação de honra do fim de partida (#182): os aliados da cédula, com um
- * botão para honrar cada um, e "Pular". Depois do voto ou do pulo, mostra
- * só o resultado. A cédula some sozinha quando a LCU a fecha (volta ao
- * lobby), e a tela some junto.
+ * botão para honrar cada um, e "Pular". O voto só é dado como feito quando
+ * o aliado aparece em `honoredPuuids` da cédula; se isso não acontece em
+ * [`HONOR_CONFIRM_MS`], a tela avisa e deixa tentar de novo. A cédula some
+ * sozinha quando a LCU a fecha (volta ao lobby), e a tela some junto.
  */
 export function HonorVote({ ballot, send, disabled = false }: Props) {
   const { feedback, pending, run } = useCommand(send);
   const [choice, setChoice] = useState<{ gameId: number; puuid: string | null } | null>(null);
   const [target, setTarget] = useState<string | null>(null);
+  const [unconfirmed, setUnconfirmed] = useState<string | null>(null);
   // Uma cédula de outra partida começa do zero.
   const mine = choice?.gameId === ballot.gameId ? choice : null;
-  const honored = ballot.eligibleAllies.find(a => ballot.honoredPuuids.includes(a.puuid) || a.puuid === mine?.puuid);
+  const honored = ballot.eligibleAllies.find(a => ballot.honoredPuuids.includes(a.puuid));
+  const waiting = mine?.puuid && !honored ? mine.puuid : null;
+
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setTimeout(() => {
+      setUnconfirmed(waiting);
+      setChoice(null);
+    }, HONOR_CONFIRM_MS);
+    return () => clearTimeout(timer);
+  }, [waiting]);
 
   async function honor(ally: HonorCandidate) {
     setTarget(ally.puuid);
+    setUnconfirmed(null);
     const ok = await run({ type: 'honorPlayer', puuid: ally.puuid },
-      { pending: 'Honrando…', failure: `honrar ${ally.summonerName || ally.championName}` });
+      { pending: 'Honrando…', failure: `honrar ${allyName(ally)}` });
     if (ok) setChoice({ gameId: ballot.gameId, puuid: ally.puuid });
   }
   async function skip() {
     setTarget(null);
+    setUnconfirmed(null);
     const ok = await run({ type: 'skipHonor' }, { pending: 'Pulando…', failure: 'pular a honra' });
     if (ok) setChoice({ gameId: ballot.gameId, puuid: null });
   }
 
-  if (honored) {
-    return <p role="status" className="text-body text-muted">Você honrou {honored.summonerName || honored.championName}.</p>;
-  }
-  if (mine) return <p role="status" className="text-body text-muted">Você pulou a honra desta partida.</p>;
+  if (honored) return <p role="status" className="text-body text-muted">Você honrou {allyName(honored)}.</p>;
+  if (mine && mine.puuid === null) return <p role="status" className="text-body text-muted">Você pulou a honra desta partida.</p>;
+  if (waiting) return <p role="status" className="text-body text-muted">Voto enviado. Esperando a confirmação da Riot…</p>;
+  const notConfirmed = ballot.eligibleAllies.find(a => a.puuid === unconfirmed);
 
   return (
     <section aria-label="Honra" className="flex w-full max-w-[40rem] flex-col items-center gap-3">
@@ -55,7 +75,7 @@ export function HonorVote({ ballot, send, disabled = false }: Props) {
       </div>
       <ul className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">
         {ballot.eligibleAllies.map(ally => {
-          const name = ally.bot ? `${ally.championName} (bot)` : ally.summonerName || ally.championName;
+          const name = allyName(ally);
           const allyLane = lane(ally.role);
           return (
             <li key={ally.puuid}>
@@ -77,7 +97,13 @@ export function HonorVote({ ballot, send, disabled = false }: Props) {
       <Button variant="ghost" size="sm" onClick={() => { void skip(); }} disabled={disabled || pending}>
         {pending && target === null ? 'Pulando…' : 'Pular'}
       </Button>
+      {notConfirmed && feedback.status !== 'error' && <p role="alert" className="max-w-[24rem] text-center text-caption text-danger">
+        A Riot não confirmou o voto em {allyName(notConfirmed)}. Ele pode não ter valido; tente de novo.</p>}
       {feedback.status === 'error' && <p role="alert" className="max-w-[22rem] text-center text-caption text-danger">{feedback.message}</p>}
     </section>
   );
+}
+
+function allyName(ally: HonorCandidate): string {
+  return ally.bot ? `${ally.championName} (bot)` : ally.summonerName || ally.championName;
 }

@@ -559,10 +559,13 @@ pub enum Command {
     /// /lol-honor-v2/v1/honor-player`, #182). Responde `invalidCommand` sem
     /// falar com a LCU se não há cédula ou se o jogador não está nela,
     /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (voto
-    /// repetido, por exemplo). A mudança chega como `honorBallot`.
+    /// repetido, por exemplo). A LCU responde antes do servidor da Riot: o
+    /// voto só valeu quando o `puuid` aparece em `honoredPuuids` da próxima
+    /// `honorBallot`.
     HonorPlayer { puuid: String },
-    /// Pula a votação de honra da cédula aberta (#182). Mesmos erros do
-    /// `honorPlayer`, menos o do jogador.
+    /// Pula a votação de honra da cédula aberta (#182): encerra a tela
+    /// `honor-vote` do pós-jogo, sem voto. Mesmos erros do `honorPlayer`,
+    /// menos o do jogador.
     SkipHonor,
     /// Inicia uma parte do Tutorial (filas 2000, 2010 e 2020, #209 e #228):
     /// cria o lobby na fila da parte e entra na busca. Com `queueId`, a parte

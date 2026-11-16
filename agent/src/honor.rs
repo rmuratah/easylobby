@@ -10,9 +10,20 @@
 //! `EndOfGame`, inclusive depois de o agente encerrar a tela `honor-vote`
 //! do `PreEndOfGame` (#180), então a votação acontece na tela de resultado.
 //!
-//! O voto é `POST /lol-honor-v2/v1/honor-player` com o `gameId` da cédula e
-//! o aliado (`puuid` e `summonerId`); pular é o mesmo pedido com a categoria
-//! `OPT_OUT` e sem aliado, como a UI oficial fazia.
+//! O voto é `POST /lol-honor-v2/v1/honor-player` com o `gameId` da cédula, o
+//! aliado (`puuid` e `summonerId`) e o `honorType`. O formato saiu do
+//! `/help` da própria LCU (example `ajuda_lcu`, 16.22): o campo é
+//! `honorType`, e não `honorCategory`. Com `honorCategory`, a LCU respondia
+//! 200 ao app, mas o servidor da Riot recusava o voto (403) nas três partidas
+//! de teste.
+//!
+//! A LCU responde 200 antes de saber o que o servidor disse. O voto só vale
+//! quando o aliado aparece em `honoredPlayers` da cédula
+//! (`{recipientPuuid, honorType}`), e é isso que a UI usa para confirmar.
+//!
+//! Pular não fala com o servidor: só encerra a tela `honor-vote` do
+//! `PreEndOfGame` (`crate::pre_end_of_game`), como quem fecha a votação sem
+//! votar.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -26,11 +37,11 @@ pub const BALLOT_PATH: &str = "/lol-honor-v2/v1/ballot";
 /// Endpoint do voto (e do pulo).
 pub const HONOR_PLAYER_PATH: &str = "/lol-honor-v2/v1/honor-player";
 
-/// Categoria do voto. Desde a mudança da honra em 2025 há uma só.
-pub const VOTE_CATEGORY: &str = "HEART";
+/// Tipo do voto (`honorType`). Desde a mudança da honra há um só.
+pub const HONOR_TYPE: &str = "HEART";
 
-/// Categoria de quem pula a votação.
-pub const SKIP_CATEGORY: &str = "OPT_OUT";
+/// Tela do `PreEndOfGame` da votação, encerrada ao pular.
+pub const HONOR_VOTE_SEQUENCE: &str = "honor-vote";
 
 /// Cédula de honra aberta no fim de uma partida.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -126,11 +137,16 @@ impl HonorBallot {
                     bot: c.bot_player,
                 })
                 .collect(),
-            // A LCU já mandou só o puuid ou um objeto com ele.
+            // `{recipientPuuid, honorType}` no 16.22; aceita também só o
+            // puuid ou `puuid`, de versões antigas.
             honored_puuids: raw
                 .honored_players
                 .iter()
-                .filter_map(|p| p.as_str().or_else(|| p["puuid"].as_str()))
+                .filter_map(|p| {
+                    p.as_str()
+                        .or_else(|| p["recipientPuuid"].as_str())
+                        .or_else(|| p["puuid"].as_str())
+                })
                 .filter(|p| !p.is_empty())
                 .map(str::to_owned)
                 .collect(),
@@ -148,19 +164,9 @@ impl HonorBallot {
 pub fn vote_body(game_id: u64, candidate: &HonorCandidate) -> Value {
     json!({
         "gameId": game_id,
-        "honorCategory": VOTE_CATEGORY,
+        "honorType": HONOR_TYPE,
         "puuid": candidate.puuid,
         "summonerId": candidate.summoner_id,
-    })
-}
-
-/// Corpo do pulo.
-pub fn skip_body(game_id: u64) -> Value {
-    json!({
-        "gameId": game_id,
-        "honorCategory": SKIP_CATEGORY,
-        "puuid": "",
-        "summonerId": 0,
     })
 }
 
@@ -182,12 +188,9 @@ pub async fn vote(
         .map(|_| ())
 }
 
-/// Pula a votação da partida `game_id`.
-pub async fn skip(client: &LcuClient, game_id: u64) -> Result<(), LcuError> {
-    client
-        .post::<_, Option<Value>>(HONOR_PLAYER_PATH, &skip_body(game_id))
-        .await
-        .map(|_| ())
+/// Pula a votação: encerra a tela `honor-vote` sem votar.
+pub async fn skip(client: &LcuClient) -> Result<(), LcuError> {
+    crate::pre_end_of_game::complete(client, HONOR_VOTE_SEQUENCE).await
 }
 
 #[cfg(test)]
@@ -248,7 +251,10 @@ mod tests {
     #[test]
     fn quem_ja_foi_honrado() {
         let mut value = gravada();
-        value["honoredPlayers"] = json!(["fake-puuid-0092", {"puuid": "fake-puuid-0093"}]);
+        value["honoredPlayers"] = json!([
+            {"recipientPuuid": "fake-puuid-0092", "honorType": "HEART"},
+            {"puuid": "fake-puuid-0093"}
+        ]);
         let ballot = HonorBallot::from_json(&value).unwrap();
         assert_eq!(
             ballot.honored_puuids,
@@ -257,16 +263,12 @@ mod tests {
     }
 
     #[test]
-    fn corpos_do_voto_e_do_pulo() {
+    fn corpo_do_voto() {
         let ballot = HonorBallot::from_json(&gravada()).unwrap();
         assert_eq!(
             vote_body(1124, &ballot.eligible_allies[0]),
-            json!({"gameId": 1124, "honorCategory": "HEART",
+            json!({"gameId": 1124, "honorType": "HEART",
                    "puuid": "fake-puuid-0092", "summonerId": 1134})
-        );
-        assert_eq!(
-            skip_body(1124),
-            json!({"gameId": 1124, "honorCategory": "OPT_OUT", "puuid": "", "summonerId": 0})
         );
     }
 }

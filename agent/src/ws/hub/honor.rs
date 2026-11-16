@@ -73,10 +73,10 @@ impl Hub {
         let Some(client) = self.client() else {
             return not_connected();
         };
-        let Some(game_id) = self.lock().state.honor_ballot.as_ref().map(|b| b.game_id) else {
+        if self.lock().state.honor_ballot.is_none() {
             return no_ballot();
-        };
-        command_result(honor::skip(&client, game_id).await)
+        }
+        command_result(honor::skip(&client).await)
     }
 }
 
