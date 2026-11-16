@@ -2,6 +2,8 @@ import type { ReactNode, RefObject } from 'react';
 import type { Theme } from '../theme/theme';
 import { Segmented } from '../components/base';
 import { cx } from '../components/base/cx';
+import type { SoundSettings } from '../agent/soundSettings';
+import { SoundMenu } from './SoundMenu';
 
 export type NavigationPage = 'flow' | 'home' | 'profile' | 'collection' | 'conversations';
 
@@ -14,6 +16,9 @@ type Props = {
   unread?: number;
   onNavigate: (page: NavigationPage) => void;
   onThemeChange: (theme: Theme) => void;
+  /** Som do app (#501), no botão de Configurações. */
+  sound: SoundSettings;
+  onSoundChange: (settings: SoundSettings) => void;
 };
 
 const themeOptions: { value: Theme; label: ReactNode; ariaLabel: string }[] = [
@@ -26,7 +31,7 @@ const themeOptions: { value: Theme; label: ReactNode; ariaLabel: string }[] = [
  * Fica estreita, só com os ícones das telas, e se expande sobre o conteúdo
  * ao passar o mouse ou ao navegar pelo teclado.
  */
-export function SideNavigation({ active, flowLabel, flowButtonRef, theme, unread = 0, onNavigate, onThemeChange }: Props) {
+export function SideNavigation({ active, flowLabel, flowButtonRef, theme, unread = 0, onNavigate, onThemeChange, sound, onSoundChange }: Props) {
   const conversationsLabel = unread > 0 ? `Conversas, ${unread} não ${unread === 1 ? 'lida' : 'lidas'}` : 'Conversas';
   return (
     <div className="app-navigation-slot">
@@ -53,10 +58,7 @@ export function SideNavigation({ active, flowLabel, flowButtonRef, theme, unread
         <div className="mt-auto flex flex-col items-center gap-3">
           <Segmented label="Tema" value={theme} onChange={onThemeChange} options={themeOptions}
             appearance="embedded" className="theme-switch max-w-full flex-col rounded-full p-1" />
-          <button type="button" disabled aria-label="Configurações — em breve" title="Configurações — em breve"
-            className="flex size-11 items-center justify-center rounded-full border border-control text-muted disabled:cursor-not-allowed disabled:opacity-60">
-            <SettingsIcon />
-          </button>
+          <SoundMenu settings={sound} onChange={onSoundChange} icon={<SettingsIcon />} />
         </div>
       </aside>
     </div>

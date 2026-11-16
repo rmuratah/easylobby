@@ -11,7 +11,7 @@ import { MESSAGE_NOTICE_MS } from './Notifications';
 import { SIDEBAR_STORAGE_KEY } from '../layout/sidebar';
 import { sound } from '../agent/sound';
 
-vi.mock('../agent/sound', () => ({ sound: { unlock: vi.fn(), playMatchFound: vi.fn() } }));
+vi.mock('../agent/sound', () => ({ DEFAULT_VOLUME: 0.7, sound: { unlock: vi.fn(), setVolume: vi.fn(), play: vi.fn(), playMatchFound: vi.fn() } }));
 
 class Socket {
   static OPEN = 1;

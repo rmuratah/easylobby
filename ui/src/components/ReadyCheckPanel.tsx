@@ -1,4 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { sound } from '../agent/sound';
+import { hoverSound } from '../agent/buttonSounds';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import type { ReadyCheck } from '../bindings/ReadyCheck';
 import { readyCheckLabels, responseLabels } from '../agent/readyCheck';
@@ -87,6 +89,7 @@ function ReadyCheckActions({ check, active, send, clock }: { check: ReadyCheck; 
   async function answer(type: 'acceptReadyCheck' | 'declineReadyCheck') {
     if (!canAnswer || locked.current) return;
     locked.current = true;
+    sound.play(type === 'acceptReadyCheck' ? 'accept' : 'decline');
     setPending(true);
     setError(false);
     setFeedback('Enviando resposta…');
@@ -138,8 +141,8 @@ function ReadyCheckActions({ check, active, send, clock }: { check: ReadyCheck; 
     {answering && <TimeBar check={check} clock={clock} />}
     <div className="flex flex-wrap items-center gap-3">
       <Button variant="primary" size="lg" className="min-w-[10rem]" disabled={!canAnswer || pending}
-        aria-keyshortcuts="Enter" onClick={() => { void answer('acceptReadyCheck'); }}>Aceitar</Button>
-      <Button variant="secondary" size="lg" disabled={!canAnswer || pending}
+        aria-keyshortcuts="Enter" onMouseEnter={hoverSound} onClick={() => { void answer('acceptReadyCheck'); }}>Aceitar</Button>
+      <Button variant="secondary" size="lg" disabled={!canAnswer || pending} onMouseEnter={hoverSound}
         onClick={() => { void answer('declineReadyCheck'); }}>Recusar</Button>
       {canAnswer && <span className="text-caption text-muted">Enter aceita</span>}
     </div>

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { sound } from '../agent/sound';
+import { hoverSound } from '../agent/buttonSounds';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import type { AgentState } from '../bindings/AgentState';
 import type { LobbyMember } from '../bindings/LobbyMember';
@@ -175,7 +177,8 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
         className={cx('px-1', feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted')}>{feedback.message}</p>}
       <div className="mt-auto flex items-center gap-2">
         <button ref={startRef} type="button" hidden={active} aria-busy={pending}
-          disabled={!canStart || pending} onClick={() => { void execute({ type: 'startQueue' }); }}
+          disabled={!canStart || pending} onMouseEnter={hoverSound}
+          onClick={() => { sound.play('click'); void execute({ type: 'startQueue' }); }}
           className={cx(big, 'bg-accent text-on-accent shadow-soft enabled:hover:-translate-y-0.5 disabled:bg-raised disabled:text-muted disabled:shadow-none')}>
           Iniciar busca
         </button>

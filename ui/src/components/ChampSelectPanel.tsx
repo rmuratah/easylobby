@@ -7,6 +7,7 @@ import {
 } from '../agent/champSelect';
 import { useCommand, type CommandFeedback } from '../agent/useCommand';
 import { sound } from '../agent/sound';
+import { hoverSound } from '../agent/buttonSounds';
 import { useLockInSound } from '../agent/useLockInSound';
 import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
@@ -400,7 +401,7 @@ function ActionBar({ mine, chosen, chosenAvailable, catalog, busy, onConfirm, fe
         {/* O botão mostra só "Banir" (#311) ou "Confirmar" (#475); o nome do campeão fica para o leitor de tela. */}
         <Button variant={ban ? 'danger' : 'primary'} size="lg" className="min-w-48" disabled={!chosen || !chosenAvailable || busy}
           aria-label={chosen ? `${ban ? 'Banir' : 'Confirmar'} ${championName(catalog, chosen)}` : undefined}
-          onClick={() => { if (chosen) onConfirm(chosen); }}>
+          onMouseEnter={hoverSound} onClick={() => { if (chosen) { sound.play('click'); onConfirm(chosen); } }}>
           {ban ? 'Banir' : 'Confirmar'}
         </Button>
         {!chosen && <p className="text-body text-muted">{ban ? 'Escolha na grade quem banir.' : 'Escolha seu campeão na grade.'}</p>}
