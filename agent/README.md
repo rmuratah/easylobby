@@ -169,7 +169,7 @@ Com a UI aberta a `honor-vote` também acaba em segundos e a cédula (`/lol-hono
 
 A cédula do fim de partida fica em `GET /lol-honor-v2/v1/ballot` e chega pelo WAMP no mesmo URI. Nas gravações do LoL real (16.22) ela abre no pós-jogo e fica até a volta ao lobby, inclusive no `EndOfGame` depois de o agente encerrar a tela `honor-vote`. O `Hub` manda a cédula para a UI em `honorBallot` (`gameId`, os aliados em `eligibleAllies`, quem já foi honrado em `honoredPuuids` e os `votes`), relê pelo REST ao entrar no `PreEndOfGame` e no `EndOfGame` e limpa fora do pós-jogo. A cédula vazia de fora do pós-jogo (`gameId: 0`) vira `null`.
 
-Os comandos são `honorPlayer {"puuid"}` e `skipHonor`, os dois em `POST /lol-honor-v2/v1/honor-player` com o `gameId` da cédula: o voto com `honorCategory: "HEART"`, o `puuid` e o `summonerId` do aliado, e o pulo com `honorCategory: "OPT_OUT"`. O formato do pedido ainda precisa ser confirmado no LoL real.
+Os comandos são `honorPlayer {"puuid"}` e `skipHonor`. O voto é `POST /lol-honor-v2/v1/honor-player` com `gameId`, `puuid`, `summonerId` e `honorType: "HEART"`; o formato saiu do `/help` da própria LCU (`cargo run -p easylobby-agent --example ajuda_lcu -- honor`). Com `honorCategory` no lugar de `honorType`, a LCU respondia 200 e o servidor da Riot recusava o voto (403, no log do client). Como a LCU responde antes do servidor, a UI só confirma o voto quando o aliado aparece em `honoredPlayers` da cédula (`{recipientPuuid, honorType}`). Pular só encerra a tela `honor-vote` (`POST /lol-pre-end-of-game/v1/complete/honor-vote`).
 
 ## Canal `/ws` para a UI (`ws`)
 

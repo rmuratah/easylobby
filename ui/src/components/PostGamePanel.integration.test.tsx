@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from '../App';
+import { HONOR_CONFIRM_MS } from './HonorVote';
 import type { AgentState } from '../bindings/AgentState';
 import type { ClientMessage } from '../bindings/ClientMessage';
 import type { HonorBallot } from '../bindings/HonorBallot';
@@ -80,9 +81,24 @@ it('honra um aliado da cédula e mostra quem foi honrado', async () => {
   expect(request().command).toEqual({ type: 'honorPlayer', puuid: 'p-viego' });
   expect(honor.getByRole('button', { name: 'Honrar Rafa' })).toBeDisabled();
   await respond();
+  // A LCU aceitou, mas o voto só vale quando a cédula traz o aliado.
+  expect(panel().getByRole('status')).toHaveTextContent('Voto enviado. Esperando a confirmação da Riot…');
+  act(() => socket().receive({ type: 'honorBallot', honorBallot: { ...ballot, honoredPuuids: ['p-viego'] } }));
+  expect(panel().getByRole('status')).toHaveTextContent('Você honrou Victor.');
+  act(() => { vi.advanceTimersByTime(HONOR_CONFIRM_MS); });
   expect(panel().getByRole('status')).toHaveTextContent('Você honrou Victor.');
   expect(panel().queryByRole('region', { name: 'Honra' })).not.toBeInTheDocument();
   expect(panel().getByRole('button', { name: 'Voltar ao lobby' })).toBeEnabled();
+});
+
+it('avisa quando a Riot não confirma o voto e deixa tentar de novo', async () => {
+  render(<App />);
+  hello({ gameflowPhase: 'EndOfGame', honorBallot: ballot });
+  fireEvent.click(panel().getByRole('button', { name: 'Honrar Rafa' }));
+  await respond();
+  act(() => { vi.advanceTimersByTime(HONOR_CONFIRM_MS); });
+  expect(panel().getByRole('alert')).toHaveTextContent('A Riot não confirmou o voto em Rafa.');
+  expect(panel().getByRole('button', { name: 'Honrar Rafa' })).toBeEnabled();
 });
 
 it('pula a honra', async () => {
