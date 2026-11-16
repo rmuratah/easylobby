@@ -745,10 +745,12 @@ pub enum Command {
     SetSummonerSpells { spell1_id: u32, spell2_id: u32 },
     /// Troca a skin do jogador logado na seleção (#477), como o carrossel do
     /// client oficial. `skinId` é o `id` de uma skin em `championSkins`, que a
-    /// UI pede com `openChampionSkins` para o campeão do jogador. Responde
+    /// UI pede com `openChampionSkins` para o campeão do jogador, ou o `id` de
+    /// um croma dela (`chromas`, #316). Responde
     /// `invalidCommand` sem falar com a LCU fora da seleção (ou com a partida
     /// abrindo), sem campeão, com skin de outro campeão, sem as skins dele
-    /// carregadas, com skin que não existe ou que a conta não tem. A seleção
+    /// carregadas, com skin ou croma que não existe ou que a conta não tem
+    /// (no croma, nem a skin dele). A seleção
     /// nova (com `selectedSkinId`) chega numa mensagem `champSelect` antes da
     /// resposta. Responde `notConnected` com o LoL fechado e `lcu` se a LCU
     /// recusar.

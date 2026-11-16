@@ -9,6 +9,9 @@
 //!   `{"selectedSkinId": N}`, como o client oficial. A LCU responde sem corpo
 //!   e a sessão nova chega pelo WAMP.
 //!
+//! - Croma (#316): o mesmo `selectedSkinId`, com o `id` do croma no lugar
+//!   do da skin. Vale só croma que a conta tem, de uma skin que ela tem.
+//!
 //! [`check_skin`] confere o pedido antes de falar com a LCU.
 
 use std::fmt;
@@ -37,6 +40,8 @@ pub enum InvalidSkin {
     UnknownSkin(u32),
     /// A conta não tem a skin.
     NotOwned(u32),
+    /// A conta não tem o croma.
+    ChromaNotOwned(u32),
 }
 
 impl fmt::Display for InvalidSkin {
@@ -49,11 +54,13 @@ impl fmt::Display for InvalidSkin {
             Self::SkinsNotLoaded => f.write_str("as skins do campeão ainda não carregaram"),
             Self::UnknownSkin(id) => write!(f, "skin {id} não existe nesse campeão"),
             Self::NotOwned(id) => write!(f, "você não tem a skin {id}"),
+            Self::ChromaNotOwned(id) => write!(f, "você não tem o croma {id}"),
         }
     }
 }
 
-/// Confere um pedido de skin contra a seleção atual e as skins do campeão.
+/// Confere um pedido de skin (ou de croma, #316) contra a seleção atual e
+/// as skins do campeão.
 pub fn check_skin(
     champ_select: Option<&ChampSelect>,
     skins: Option<&ChampionSkins>,
@@ -72,13 +79,24 @@ pub fn check_skin(
     let skins = skins
         .filter(|s| s.champion_id == champion)
         .ok_or(InvalidSkin::SkinsNotLoaded)?;
-    let skin = skins
+    if let Some(skin) = skins.skins.iter().find(|s| s.id == skin_id) {
+        return if skin.owned {
+            Ok(())
+        } else {
+            Err(InvalidSkin::NotOwned(skin_id))
+        };
+    }
+    // Um croma: precisa da skin dele e do próprio croma na conta.
+    let (skin, chroma) = skins
         .skins
         .iter()
-        .find(|s| s.id == skin_id)
+        .find_map(|s| s.chromas.iter().find(|c| c.id == skin_id).map(|c| (s, c)))
         .ok_or(InvalidSkin::UnknownSkin(skin_id))?;
     if !skin.owned {
-        return Err(InvalidSkin::NotOwned(skin_id));
+        return Err(InvalidSkin::NotOwned(skin.id));
+    }
+    if !chroma.owned {
+        return Err(InvalidSkin::ChromaNotOwned(skin_id));
     }
     Ok(())
 }
@@ -94,7 +112,7 @@ pub async fn set_skin(lcu: &LcuClient, skin_id: u32) -> Result<(), LcuError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::collection::CollectionSkin;
+    use crate::collection::{CollectionSkin, SkinChroma};
 
     fn session(phase: &str, champion: Option<u32>) -> ChampSelect {
         let raw = json!({
@@ -172,6 +190,33 @@ mod tests {
         );
         assert_eq!(
             check_skin(Some(&cs), Some(&skins), 103_002),
+            Err(InvalidSkin::NotOwned(103_002))
+        );
+    }
+
+    fn chroma(id: u32, owned: bool) -> SkinChroma {
+        SkinChroma {
+            id,
+            name: format!("Croma {id}"),
+            owned,
+            colors: vec!["#c82b2b".into()],
+        }
+    }
+
+    #[test]
+    fn aceita_so_croma_que_a_conta_tem_de_skin_que_ela_tem() {
+        let cs = session("FINALIZATION", Some(103));
+        let mut skins = ahri_skins();
+        skins.skins[1].chromas = vec![chroma(103_020, true), chroma(103_021, false)];
+        skins.skins[2].chromas = vec![chroma(103_030, true)];
+        assert_eq!(check_skin(Some(&cs), Some(&skins), 103_020), Ok(()));
+        assert_eq!(
+            check_skin(Some(&cs), Some(&skins), 103_021),
+            Err(InvalidSkin::ChromaNotOwned(103_021))
+        );
+        // Croma de uma skin que a conta não tem.
+        assert_eq!(
+            check_skin(Some(&cs), Some(&skins), 103_030),
             Err(InvalidSkin::NotOwned(103_002))
         );
     }
