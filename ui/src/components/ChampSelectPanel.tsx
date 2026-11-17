@@ -10,7 +10,7 @@ import { sound } from '../agent/sound';
 import { hoverSound } from '../agent/buttonSounds';
 import { useLockInSound } from '../agent/useLockInSound';
 import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
-import { ChampSelectSwaps, SwapOffers } from './ChampSelectSwaps';
+import { AllySwaps, SwapFeedbackToast } from './ChampSelectSwaps';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
 import { RuneQuickPick } from './RuneQuickPick';
 import { SkinCarousel } from './SkinCarousel';
@@ -97,17 +97,17 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
   return (
     <section aria-label="Seleção de campeões" className="champ-select text-ink" data-ban-phase={isBanPhase(champSelect) || undefined}>
       <ChampSelectStatus champSelect={champSelect} send={send} />
+      <SwapFeedbackToast feedback={swap.feedback} />
       <div className="champ-select-board">
         <div className="flex min-w-0 flex-col gap-4">
           {/* Os bans de cada time ficam em cima do nome dele (#475). */}
           <TeamBans label="Bans do seu time" ids={champSelect.bans.myTeam} slots={banSlots(champSelect, true)} catalog={catalog} />
           <TeamList label="Seu time" players={champSelect.myTeam} ally acting={acting} catalog={catalog}
-            onCardHeight={setAllyCardHeight}
+            onCardHeight={setAllyCardHeight} reservedCardHeight={ALLY_CARD_HEIGHT}
             renderActions={player => player.isLocalPlayer ? null
-              : <SwapOffers champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
+              : <AllySwaps champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
         </div>
         <div className="champ-select-center">
-          <ChampSelectSwaps champSelect={champSelect} busy={swap.pending} run={swap.run} feedback={swap.feedback} />
           {/* Com o campeão confirmado, a seção de campeões vira a escolha de skin (#477). */}
           {me && lockedChampion ? (
             <SkinCarousel state={state} send={send} championId={lockedChampion}
@@ -119,23 +119,31 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
             footer={<ActionBar mine={mine} chosen={chosen || null} chosenAvailable={chosenAvailable} catalog={catalog}
               busy={confirm.pending} onConfirm={lockIn} feedback={[confirm.feedback, hover.feedback]} />} />
           )}
-          {/* Feitiços e runas num card embaixo das skins (ou da grade), à esquerda (#536). */}
-          <section aria-label="Feitiços e runas" className="champ-select-loadout flex flex-col gap-4 rounded-card border border-edge bg-surface card p-4 text-ink">
-            <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
-              summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} lobby={state.lobby} send={send} />
-            <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />
-          </section>
+          {/* Embaixo das skins (ou da grade): feitiços e runas lado a lado à esquerda e o chat do time à direita (#562). */}
+          <div className="champ-select-extras">
+            <section aria-label="Feitiços e runas" className="champ-select-loadout rounded-card border border-edge bg-surface card p-4 text-ink">
+              <div className="champ-select-loadout-body">
+                <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
+                  summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} lobby={state.lobby} send={send} />
+                <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />
+              </div>
+            </section>
+            {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}
+          </div>
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           <TeamBans label="Bans do time adversário" ids={champSelect.bans.theirTeam} slots={banSlots(champSelect, false)} catalog={catalog} />
           <TeamList label="Time adversário" players={champSelect.theirTeam} ally={false} acting={acting} catalog={catalog}
             minCardHeight={allyCardHeight} />
-          {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}
         </div>
       </div>
     </section>
   );
 }
+
+/** Altura do card do aliado com os três botões de troca (campeão, vez e posição) ou com um pedido de troca: os cards
+ * já começam com ela, para a tela não mudar de formato no meio da seleção (#562). */
+const ALLY_CARD_HEIGHT = '8.25rem';
 
 /** Segundos finais da sua vez que tocam o tique (#475). */
 const TICK_FROM_SECONDS = 10;
@@ -211,8 +219,8 @@ function TimeBar({ champSelect, ban }: { champSelect: ChampSelect; ban: boolean 
     return () => clearInterval(interval);
   }, []);
   const total = champSelect.timer.totalTimeMs;
-  if (champSelect.timer.isInfinite || total <= 0) return null;
-  const left = Math.min(1, remainingMs(champSelect, now) / total);
+  // Sem limite de tempo, a barra fica vazia em vez de sumir, para o card da etapa não mudar de altura (#562).
+  const left = champSelect.timer.isInfinite || total <= 0 ? 0 : Math.min(1, remainingMs(champSelect, now) / total);
   return (
     <div aria-hidden="true" className="h-1.5 w-full basis-full overflow-hidden rounded-full bg-raised">
       <div className={cx('h-full rounded-full transition-[width] duration-300 ease-linear', ban ? 'bg-danger' : 'bg-accent')}
@@ -233,9 +241,11 @@ type TeamProps = {
   onCardHeight?: (height: number) => void;
   /** Altura mínima de cada card, para igualar à do outro time (#434). */
   minCardHeight?: number | null;
+  /** Altura reservada desde o começo (CSS), para os cards não crescerem quando aparecem botões (#562). */
+  reservedCardHeight?: string;
 };
 
-export function TeamList({ label, players, ally, acting, catalog, renderActions, onCardHeight, minCardHeight }: TeamProps) {
+export function TeamList({ label, players, ally, acting, catalog, renderActions, onCardHeight, minCardHeight, reservedCardHeight }: TeamProps) {
   const listRef = useRef<HTMLUListElement>(null);
   const firstCell = players[0]?.cellId;
   useEffect(() => {
@@ -252,7 +262,8 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions,
         // Todos os cards do time com a altura do maior (#428): as linhas da grade dividem o espaço por igual.
         // Uma coluna que não passa da largura do time: o nome longo é cortado em vez de esticar os cards (#475).
         <ul ref={listRef} className="grid grid-cols-[minmax(0,1fr)] auto-rows-fr gap-2"
-          style={minCardHeight ? { gridAutoRows: `minmax(${minCardHeight}px, 1fr)` } : undefined}>
+          style={minCardHeight ? { gridAutoRows: `minmax(${minCardHeight}px, 1fr)` }
+            : reservedCardHeight ? { gridAutoRows: `minmax(${reservedCardHeight}, 1fr)` } : undefined}>
           {players.map((player, index) => {
             const intent = !player.championId && player.championPickIntent ? player.championPickIntent : null;
             const champion = player.championId ?? intent;

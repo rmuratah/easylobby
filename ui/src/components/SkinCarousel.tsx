@@ -83,7 +83,8 @@ export function SkinCarousel({ state, send, championId, championName, selectedSk
   return (
     // Mesmo tamanho do card da grade de campeões (#477): a splash ocupa o que sobra.
     <section aria-label="Skins" className="champ-select-picker flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
-      <h3 className="text-section font-semibold">Escolha a skin de {championName}</h3>
+      {/* O título fica só para o leitor de tela: a splash já mostra o nome (#562). */}
+      <h3 className="sr-only">Escolha a skin de {championName}</h3>
       <div className="relative min-h-0 w-full flex-1 overflow-hidden rounded-control bg-raised">
         <img key={shown} src={assetUrl('skinSplash', shown)} alt="" aria-hidden="true"
           className="h-full w-full object-cover animate-fade-up"

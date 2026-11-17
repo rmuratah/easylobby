@@ -45,6 +45,49 @@ export function SwapOffers({ champSelect, cellId, busy, run }: OffersProps) {
   );
 }
 
+/** As trocas com um aliado dentro do card dele (#562): o pedido recebido ou enviado com as respostas e, sem pedido,
+ * os botões para pedir. Fica no card para a tela não mudar de formato quando alguém pede uma troca. */
+export function AllySwaps({ champSelect, cellId, busy, run }: OffersProps) {
+  const received = swapsIn(champSelect, 'RECEIVED', cellId);
+  const sent = swapsIn(champSelect, 'SENT', cellId);
+  if (received.length === 0 && sent.length === 0) return <SwapOffers champSelect={champSelect} cellId={cellId} busy={busy} run={run} />;
+  return (
+    <div className="mt-1 flex flex-col gap-1">
+      {received.map(entry => (
+        <div key={`r:${entry.kind}:${entry.swap.id}`} role="group" aria-label={`Pedido de troca de ${swapKindNames[entry.kind]}`}
+          className="flex flex-col gap-1 rounded-control-sm border border-accent bg-accent-soft p-1.5 animate-fade-up">
+          <p className="text-caption font-semibold text-accent-ink">Quer trocar de {swapKindNames[entry.kind]}</p>
+          <div className="flex flex-wrap gap-1">
+            <button type="button" disabled={busy} className={`${buttonClass} border-accent font-semibold`}
+              onClick={() => sendSwap(run, 'acceptSwap', entry)}>Aceitar</button>
+            <button type="button" disabled={busy} className={`${buttonClass} border-control`}
+              onClick={() => sendSwap(run, 'declineSwap', entry)}>Recusar</button>
+          </div>
+        </div>
+      ))}
+      {sent.map(entry => (
+        <div key={`s:${entry.kind}:${entry.swap.id}`} role="group" aria-label={`Seu pedido de troca de ${swapKindNames[entry.kind]}`}
+          className="flex flex-col items-start gap-1">
+          <p className="text-caption text-muted">Aguardando a resposta da troca de {swapKindNames[entry.kind]}.</p>
+          <button type="button" disabled={busy} className={`${buttonClass} border-control`}
+            onClick={() => sendSwap(run, 'cancelSwap', entry)}>Cancelar pedido</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** O andamento e o erro das trocas num aviso flutuante, que não empurra a tela (#562). */
+export function SwapFeedbackToast({ feedback }: { feedback: CommandFeedback }) {
+  if (feedback.status === 'idle') return null;
+  return (
+    <p role={feedback.status === 'error' ? 'alert' : 'status'}
+      className={`fixed bottom-4 left-1/2 z-40 max-w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 rounded-card border bg-surface px-4 py-2 text-body shadow-lift animate-fade-up ${feedback.status === 'error' ? 'border-danger text-danger' : 'border-edge text-muted'}`}>
+      {feedback.message}
+    </p>
+  );
+}
+
 type Props = { champSelect: ChampSelect; busy: boolean; run: Run; feedback: CommandFeedback };
 
 /** Pedidos de troca recebidos e enviados, com as respostas (#25). */

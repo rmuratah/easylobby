@@ -75,9 +75,16 @@ button[aria-current="page"] { background: var(--el-accent-soft); border-color: v
 }
 .champ-select { display: flex; flex-direction: column; gap: 1rem; }
 .champ-select-board { display: grid; grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr) minmax(11rem, 15rem); gap: 1rem; align-items: start; }
-.champ-select-center { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
-/* Card de feitiços e runas embaixo do card do meio, à esquerda (#536). */
-.champ-select-loadout { align-self: flex-start; width: 20rem; max-width: 100%; }
+.champ-select-center { container-type: inline-size; display: flex; flex-direction: column; gap: 1rem; min-width: 0; align-self: stretch; }
+/* Embaixo do card do meio (#562): o card de feitiços e runas na metade esquerda e o chat do time na direita.
+   Com o meio estreito (janela de 960 px), o chat desce para baixo do card. */
+/* Os dois cards descem até o fim dos cards dos times (#562). */
+.champ-select-extras { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: stretch; }
+@container (min-width: 50rem) { .champ-select-extras { grid-template-columns: minmax(0, 5fr) minmax(0, 4fr); } }
+.champ-select-loadout { container-type: inline-size; min-width: 0; }
+/* Dentro do card, feitiços à esquerda e runas à direita; num card muito estreito, um embaixo do outro. */
+.champ-select-loadout-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
+@container (min-width: 22rem) { .champ-select-loadout-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 /* Fase de banimento (#423): o card da etapa fica vermelho e a tela ganha detalhes vermelhos sutis
    (quem está na vez, a grade de banir e o campeão marcado). Nas escolhas, tudo volta ao normal. */
 .champ-select-status.is-ban {
