@@ -1,6 +1,8 @@
 name: Release
 
 # Gera o instalador do Windows e o latest.json do auto-update (#35).
+# A release sai no repositório público rmuratah/easylobby-site (#567), porque
+# este repositório vai ficar privado e os jogadores precisam baixar de lá.
 # Dispare criando uma tag vX.Y.Z igual à versão do app; veja docs/release.md.
 
 on:
@@ -59,12 +61,19 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Build and publish draft release
+        id: tauri
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Token fine-grained só para rmuratah/easylobby-site (Contents: Read
+          # and write). O GITHUB_TOKEN só escreve neste repositório.
+          GITHUB_TOKEN: ${{ secrets.SITE_RELEASE_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          owner: rmuratah
+          repo: easylobby-site
+          # O commit da tag não existe no easylobby-site: a tag de lá nasce da main dele.
+          releaseCommitish: main
           projectPath: desktop
           tauriScript: pnpm tauri
           args: --config src-tauri/tauri.release.conf.json
@@ -76,3 +85,26 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
+
+      # Transição (#567): quem instalou antes desta mudança ainda procura o
+      # latest.json nas releases deste repositório. Copiamos o latest.json
+      # (que já aponta para os arquivos do easylobby-site) para um rascunho
+      # aqui. Pode sair depois que este repositório ficar privado.
+      - name: Copy latest.json to this repository
+        shell: bash
+        env:
+          SITE_TOKEN: ${{ secrets.SITE_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ steps.tauri.outputs.releaseId }}
+          NOTES: ${{ steps.notes.outputs.body }}
+        run: |
+          asset=$(GH_TOKEN="$SITE_TOKEN" gh api "repos/rmuratah/easylobby-site/releases/$RELEASE_ID/assets" \
+            --jq '.[] | select(.name == "latest.json") | .id')
+          if [ -z "$asset" ]; then
+            echo "::error::latest.json não encontrado na release do easylobby-site."
+            exit 1
+          fi
+          GH_TOKEN="$SITE_TOKEN" gh api -H "Accept: application/octet-stream" \
+            "repos/rmuratah/easylobby-site/releases/assets/$asset" > latest.json
+          gh release create "$GITHUB_REF_NAME" latest.json --repo "$GITHUB_REPOSITORY" \
+            --draft --title "easylobby $GITHUB_REF_NAME" --notes "$NOTES"
