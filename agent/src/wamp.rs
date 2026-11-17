@@ -72,7 +72,7 @@ const WAMP_EVENT: u64 = 8;
 /// invocador logado e os ranks dele (#171), e os pedidos do LoL para
 /// mostrar a UI oficial (#188). Os da LCU são os mesmos que o gravador de
 /// fixtures (#5) grava.
-pub const EASYLOBBY_EVENT_PREFIXES: [&str; 16] = [
+pub const EASYLOBBY_EVENT_PREFIXES: [&str; 17] = [
     "/lol-gameflow/v1/",
     "/lol-lobby/v2/",
     "/lol-matchmaking/v1/",
@@ -95,6 +95,8 @@ pub const EASYLOBBY_EVENT_PREFIXES: [&str; 16] = [
     crate::honor::BALLOT_PATH,
     // Resultado da partida (#179).
     crate::end_of_game::EOG_STATS_PATH,
+    // Patch do LoL em andamento (#575). A trava da fila vem pelo gameflow.
+    crate::lol_update::PATCH_STATE_PATH,
 ];
 
 /// URIs dentro dos prefixos que o easylobby não usa e que carregam

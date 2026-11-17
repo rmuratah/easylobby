@@ -36,6 +36,18 @@ beforeEach(() => { configure({ defaultHidden: true }); vi.useFakeTimers(); Socke
 afterEach(() => { configure({ defaultHidden: false }); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('matchmaking pelo /ws', () => {
+  it('trava a busca enquanto o LoL baixa um patch e libera quando termina (#575)', () => {
+    render(<App />);
+    hello({ lobby: testLobby, gameflowPhase: 'Lobby', lolUpdate: { stage: 'downloading', percent: 40, blocksQueue: true } });
+    expect(button('Iniciar busca')).toBeDisabled();
+    expect(panel().getByText(/O League of Legends está se atualizando/)).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Progresso da atualização' })).toHaveAttribute('aria-valuenow', '40');
+    act(() => socket().receive({ type: 'lolUpdate', lolUpdate: null }));
+    expect(button('Iniciar busca')).toBeEnabled();
+    expect(screen.getByRole('status', { name: 'Atualização do League of Legends' }))
+      .toHaveTextContent('Atualização do League of Legends concluída');
+  });
+
   it('inicia uma vez e mantém o agente como fonte de verdade', async () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
