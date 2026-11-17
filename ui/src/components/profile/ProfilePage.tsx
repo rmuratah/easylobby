@@ -25,6 +25,7 @@ import { cx } from '../base/cx';
 import { CopyRiotIdButton } from './CopyRiotIdButton';
 import { LiveGamePanel } from '../LiveGamePanel';
 import { LpChart } from './LpChart';
+import { GameIcon, ItemRow } from '../GameIcons';
 
 type Props = {
   connection: ConnectionSnapshot;
@@ -431,35 +432,18 @@ function MatchRow({ state, match, now, open, onToggle }: {
       <div className="flex items-center gap-2">
         <Avatar name={champion} src={assetUrl('champion', p.championId)} size={44} shape="rounded" />
         <div className="grid grid-cols-2 gap-0.5" aria-hidden="true">
-          <Icon kind="summonerSpell" id={p.spell1Id} />
-          <Icon kind="perk" id={p.perkId} />
-          <Icon kind="summonerSpell" id={p.spell2Id} />
-          <Icon kind="perkStyle" id={p.perkSubStyleId} />
+          <GameIcon kind="summonerSpell" id={p.spell1Id} />
+          <GameIcon kind="perk" id={p.perkId} />
+          <GameIcon kind="summonerSpell" id={p.spell2Id} />
+          <GameIcon kind="perkStyle" id={p.perkSubStyleId} />
         </div>
       </div>
       <div className="w-24 shrink-0">
         <p className="text-body font-semibold text-ink">{p.kills} / {p.deaths} / {p.assists}</p>
         <p className="text-caption text-muted">KDA {kda(p.kills, p.deaths, p.assists)} · {p.cs} CS</p>
       </div>
-      <Items items={p.items} />
+      <ItemRow items={p.items} />
     </button>
-  );
-}
-
-/** Ícone pequeno (feitiço, runa, item); espaço vazio ou imagem que não carregou viram um quadrado neutro. */
-function Icon({ kind, id, size = 20 }: { kind: 'summonerSpell' | 'perk' | 'perkStyle' | 'item'; id: number; size?: number }) {
-  const [failed, setFailed] = useState<string | null>(null);
-  const src = id ? assetUrl(kind, id) : null;
-  if (!src || failed === src) return <span className="shrink-0 rounded-control-sm bg-raised" style={{ width: size, height: size }} />;
-  return <img src={src} alt="" width={size} height={size} loading="lazy" onError={() => setFailed(src)}
-    className="shrink-0 rounded-control-sm bg-raised" />;
-}
-
-function Items({ items, size = 24 }: { items: number[]; size?: number }) {
-  return (
-    <div aria-hidden="true" className="flex gap-0.5">
-      {items.map((item, i) => <Icon key={i} kind="item" id={item} size={size} />)}
-    </div>
   );
 }
 
@@ -520,7 +504,7 @@ function ScoreRow({ state, player: p, me, onOpen }: { state: AgentState; player:
       <td className="whitespace-nowrap px-1 font-semibold text-ink">{p.kills}/{p.deaths}/{p.assists}</td>
       <td className="px-1 text-muted">{p.cs}</td>
       <td className="px-1 text-muted">{p.damageToChampions.toLocaleString('pt-BR')}</td>
-      <td className="py-1 pl-1"><Items items={p.items} size={18} /></td>
+      <td className="py-1 pl-1"><ItemRow items={p.items} size={18} /></td>
     </tr>
   );
 }
