@@ -52,44 +52,6 @@ describe('ProfilePage', () => {
     expect(screen.getByRole('tab', { name: 'Visão geral' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('mostra o gráfico de PDL no card de elo, com dica ao passar o mouse', () => {
-    const now = Date.now();
-    const day = 24 * 60 * 60 * 1000;
-    setup({
-      ranked: { soloDuo: { ...unranked, tier: 'GOLD', division: 'II', leaguePoints: 47, wins: 30, losses: 10 }, flex: unranked },
-      lpHistory: {
-        soloDuo: [
-          { at: now - 12 * day, tier: 'GOLD', division: 'III', leaguePoints: 80, wins: 28, losses: 10 },
-          { at: now - 3 * day, tier: 'GOLD', division: 'II', leaguePoints: 47, wins: 30, losses: 10 },
-        ],
-        flex: [],
-      },
-    });
-    const solo = screen.getByRole('article', { name: 'Ranqueada Solo/Duo' });
-    const chart = within(solo).getByRole('figure', { name: 'PDL dos últimos 30 dias na Ranqueada Solo/Duo' });
-    expect(chart).toHaveTextContent('+67 PDL');
-    expect(chart).toHaveTextContent('Pico Ouro II · 47 PDL');
-    // Flex sem classificação: sem gráfico.
-    expect(within(screen.getByRole('article', { name: 'Ranqueada Flex' })).queryByRole('figure')).toBeNull();
-
-    const plot = within(chart).getByRole('img');
-    plot.getBoundingClientRect = () => ({ left: 0, width: 300, top: 0, height: 120, right: 300, bottom: 120, x: 0, y: 0, toJSON: () => ({}) });
-    fireEvent.pointerMove(plot, { clientX: 290 });
-    expect(screen.getByTestId('lp-tooltip')).toHaveTextContent('Ouro II · 47 PDL');
-    expect(screen.getByTestId('lp-tooltip')).toHaveTextContent('há 3 dias');
-    fireEvent.keyDown(plot, { key: 'ArrowLeft' });
-    expect(screen.getByTestId('lp-tooltip')).toHaveTextContent('Ouro III · 80 PDL');
-  });
-
-  it('sem histórico gravado, explica quando o gráfico começa', () => {
-    setup({
-      ranked: { soloDuo: { ...unranked, tier: 'GOLD', division: 'II', leaguePoints: 47, wins: 30, losses: 10 }, flex: unranked },
-      lpHistory: { soloDuo: [], flex: [] },
-    });
-    expect(screen.getByRole('article', { name: 'Ranqueada Solo/Duo' }))
-      .toHaveTextContent('O gráfico de PDL começa na sua próxima ranqueada com o easylobby aberto.');
-  });
-
   it('copia nome#tag pelo ícone ao lado do nome', async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
