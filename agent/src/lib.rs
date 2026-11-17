@@ -72,6 +72,7 @@ pub mod custom_game;
 pub mod custom_game_list;
 pub mod custom_lobby;
 pub mod end_of_game;
+pub mod error_report;
 pub mod fixtures;
 pub mod friends;
 pub mod gameflow;
