@@ -604,6 +604,13 @@ impl Hub {
     /// busca pelo REST e a publica antes de devolver, sem esperar o evento do
     /// WAMP.
     pub async fn start_queue(&self) -> CommandResult {
+        // Sem o Vanguard a seleção termina em esquiva (#579): melhor não entrar.
+        if self.vanguard_blocks_queue() {
+            return CommandResult::error(
+                ErrorCode::InvalidCommand,
+                "o Vanguard não está conectado; reabra o LoL antes de entrar na fila, senão a partida vira esquiva",
+            );
+        }
         let Some(client) = self.client() else {
             return not_connected();
         };

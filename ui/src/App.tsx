@@ -33,6 +33,7 @@ import { CollectionPage } from './components/collection/CollectionPage';
 import { EmptyState } from './components/base';
 import { totalUnread } from './agent/chat';
 import { CompatibilityBanner, FeatureGate } from './components/CompatibilityNotice';
+import { VanguardBanner } from './components/VanguardNotice';
 import { LolUpdateBanner } from './components/LolUpdateBanner';
 import { unavailableFeature } from './agent/compatibility';
 
@@ -149,6 +150,8 @@ export default function App() {
           <div hidden={!ready} className={homeLayout ? 'home-grid' : activePage === 'conversations' ? 'flex h-full min-h-0 flex-col gap-5' : 'flex min-h-full flex-col gap-5'}>
             {ready && connection.error && <p role="alert" className="col-span-full text-warn">{connection.error}</p>}
             {/* Modo de compatibilidade (#36): o que o LoL quebrou numa atualização. */}
+            {/* Vanguard desconectado (#579): a partida não abriria e viraria esquiva. */}
+            {ready && <VanguardBanner connection={connection} send={connection.send} />}
             {ready && <CompatibilityBanner connection={connection} send={connection.send} />}
             {/* Patch do LoL em andamento (#575): progresso e fila travada. */}
             {ready && <LolUpdateBanner update={connection.state?.lolUpdate ?? null} />}

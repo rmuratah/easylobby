@@ -83,6 +83,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'collection': return { ...state, collection: message.collection };
     case 'championSkins': return { ...state, championSkins: message.championSkins };
     case 'wallet': return { ...state, wallet: message.wallet };
+    case 'vanguard': return { ...state, vanguard: message.vanguard };
     default: return message satisfies never;
   }
 }

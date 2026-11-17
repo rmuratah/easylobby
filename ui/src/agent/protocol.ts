@@ -75,6 +75,7 @@ import type { CustomGameListing } from '../bindings/CustomGameListing';
 import type { Feature } from '../bindings/Feature';
 import type { EndpointProblem } from '../bindings/EndpointProblem';
 import type { UnavailableFeature } from '../bindings/UnavailableFeature';
+import type { Vanguard } from '../bindings/Vanguard';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
 const errorCodes = {
@@ -370,6 +371,11 @@ const nullableUint = (v: unknown) => v === null || uint(v);
 function wallet(v: unknown): v is Wallet | null {
   return v === null || (object(v) && ['blueEssence', 'orangeEssence', 'rp'].every(k => nullableUint(v[k])));
 }
+// Vanguard (#579).
+function vanguard(v: unknown): v is Vanguard | null {
+  return v === null || (object(v) && typeof v.connected === 'boolean' && typeof v.state === 'string' &&
+    (v.status === null || Number.isInteger(v.status)));
+}
 // Partida ao vivo (#268).
 function tierDivision(v: unknown): boolean {
   return v === null || (object(v) && typeof v.tier === 'string' && nullableString(v.division));
@@ -431,7 +437,7 @@ function state(v: unknown): v is AgentState {
     ranked(v.ranked) && list(v.championMasteries, championMastery) && lpHistory(v.lpHistory) && matchHistory(v.matchHistory) &&
     matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && playerLiveGame(v.playerLiveGame) && patchNotes(v.patchNotes) && lolUpdate(v.lolUpdate) &&
     collection(v.collection) && championSkins(v.championSkins) &&
-    wallet(v.wallet);
+    wallet(v.wallet) && vanguard(v.vanguard);
 }
 
 // Os tipos vêm do Rust; esta validação protege a fronteira JSON em runtime.
@@ -485,6 +491,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'collection': valid = collection(v.collection); break;
     case 'championSkins': valid = championSkins(v.championSkins); break;
     case 'wallet': valid = wallet(v.wallet); break;
+    case 'vanguard': valid = vanguard(v.vanguard); break;
     case 'response': valid = uint(v.id) && object(v.result) && (v.result.status === 'ok' ||
       (v.result.status === 'error' && errorCode(v.result.code) && typeof v.result.message === 'string')); break;
     case 'invalidMessage': valid = typeof v.message === 'string'; break;

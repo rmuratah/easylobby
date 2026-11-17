@@ -31,6 +31,7 @@ mod profile;
 mod ready_check;
 mod runes;
 mod ux_guard;
+mod vanguard;
 mod wallet;
 
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -463,6 +464,8 @@ impl Hub {
                 // O saldo do cabeçalho (#370). Antes do login não responde, e
                 // o login relê.
                 self.spawn_refresh_wallet();
+                // O Vanguard (#579): desconectado, a partida não abre.
+                self.spawn_refresh_vanguard();
                 // Os campeões que podem ser bots, se já estiver numa
                 // personalizada (#229).
                 self.spawn_refresh_available_bots();
@@ -568,6 +571,7 @@ impl Hub {
                 self.set_champion_skins(None);
                 self.set_custom_games(None);
                 self.set_wallet(None);
+                self.set_vanguard(None);
                 self.set_unavailable_features(Vec::new());
                 self.clear_lol_update();
                 self.stop_live_game();
@@ -611,6 +615,8 @@ impl Hub {
                         self.spawn_refresh_tutorial();
                         // O saldo também só responde depois do login (#370).
                         self.spawn_refresh_wallet();
+                        // O Vanguard conecta depois do login (#579).
+                        self.spawn_refresh_vanguard();
                         // O modo de compatibilidade (#36).
                         self.spawn_check_health();
                     }
@@ -798,6 +804,11 @@ impl Hub {
                     }
                     _ => {}
                 }
+            }
+            // O Vanguard conectou ou caiu (#579).
+            crate::vanguard::SESSION_PATH if deleted => self.set_vanguard(None),
+            crate::vanguard::SESSION_PATH => {
+                self.set_vanguard(crate::vanguard::Vanguard::from_json(&event.data));
             }
             // Saldo do cabeçalho (#370). O item da Essência Laranja some
             // quando o saldo zera.

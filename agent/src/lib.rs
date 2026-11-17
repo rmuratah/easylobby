@@ -115,6 +115,7 @@ pub mod swaps;
 pub mod training;
 pub mod ux;
 pub mod ux_window;
+pub mod vanguard;
 pub mod wallet;
 pub mod wamp;
 pub mod ws;

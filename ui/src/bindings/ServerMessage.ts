@@ -40,6 +40,7 @@ import type { Summoner } from "./Summoner";
 import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
 import type { TutorialPart } from "./TutorialPart";
 import type { UnavailableFeature } from "./UnavailableFeature";
+import type { Vanguard } from "./Vanguard";
 import type { Wallet } from "./Wallet";
 
 /**
@@ -98,5 +99,6 @@ export type ServerMessage =
   | { "type": "patchNotes", patchNotes: PatchNotes | null, }
   | { "type": "lolUpdate", lolUpdate: LolUpdate | null, }
   | { "type": "wallet", wallet: Wallet | null, }
+  | { "type": "vanguard", vanguard: Vanguard | null, }
   | { "type": "response", id: number, result: CommandResult, }
   | { "type": "invalidMessage", message: string, };
