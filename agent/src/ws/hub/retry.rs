@@ -17,16 +17,24 @@ use super::{Hub, Resource};
 use crate::gameflow::{self, GameflowPhase};
 use crate::rest::LcuError;
 
-/// Espera antes de cada nova leitura. Somadas, pouco mais de um minuto e
-/// meio; depois disso os eventos da LCU continuam corrigindo o estado.
-const DELAYS: [Duration; 6] = [
+/// Espera antes das primeiras leituras. Depois delas, uma a cada
+/// [`STEADY_DELAY`] enquanto a conexão durar: um LoL esperando os servidores
+/// da Riot pode levar minutos para voltar, e o app não pode ficar vazio até
+/// lá.
+const DELAYS: [Duration; 4] = [
     Duration::from_secs(2),
     Duration::from_secs(4),
     Duration::from_secs(8),
     Duration::from_secs(15),
-    Duration::from_secs(30),
-    Duration::from_secs(30),
 ];
+
+/// Espera entre as leituras depois das primeiras.
+const STEADY_DELAY: Duration = Duration::from_secs(30);
+
+/// Espera antes da leitura `attempt` (a partir de 0).
+fn delay(attempt: usize) -> Duration {
+    DELAYS.get(attempt).copied().unwrap_or(STEADY_DELAY)
+}
 
 /// Se a leitura ficou sem resposta da LCU e vale tentar de novo.
 pub(super) fn no_answer<T>(result: &Result<T, LcuError>) -> bool {
@@ -70,7 +78,7 @@ impl Missing {
 impl Hub {
     /// Relê em segundo plano, com espera crescente, o que ficou sem resposta
     /// na releitura do `Connected` da sessão `session`. Para quando tudo
-    /// respondeu, a conexão mudou ou as tentativas acabaram.
+    /// respondeu ou a conexão mudou (o LoL fechou ou reiniciou).
     pub(super) fn spawn_retry_connect_reads(&self, session: u64, missing: Missing) {
         if !missing.any() {
             return;
@@ -85,8 +93,8 @@ impl Hub {
         let hub = self.clone();
         runtime.spawn(async move {
             let mut missing = missing;
-            for delay in DELAYS {
-                tokio::time::sleep(delay).await;
+            for attempt in 0.. {
+                tokio::time::sleep(delay(attempt)).await;
                 if hub.lock().session != session {
                     return;
                 }
@@ -95,11 +103,16 @@ impl Hub {
                     tracing::info!("o LoL respondeu a releitura da conexão");
                     return;
                 }
+                // Uma linha no log quando passa para o ritmo lento, não uma
+                // a cada tentativa.
+                if attempt + 1 == DELAYS.len() {
+                    tracing::warn!(
+                        "o LoL continua sem responder ({}); tento de novo a cada {} s",
+                        missing.names().join(", "),
+                        STEADY_DELAY.as_secs()
+                    );
+                }
             }
-            tracing::warn!(
-                "o LoL continua sem responder ({}); sigo pelos eventos",
-                missing.names().join(", ")
-            );
         });
     }
 
@@ -203,5 +216,18 @@ impl Hub {
         if self.set_gameflow_phase_if(stamp, Some(phase)) {
             self.after_phase(before, phase);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn espera_cresce_e_depois_fica_constante() {
+        assert_eq!(delay(0), Duration::from_secs(2));
+        assert_eq!(delay(3), Duration::from_secs(15));
+        assert_eq!(delay(4), STEADY_DELAY);
+        assert_eq!(delay(1_000), STEADY_DELAY);
     }
 }
