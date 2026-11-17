@@ -43,11 +43,11 @@ pub fn apply_default(app: &AppHandle) {
         return;
     }
     if let Err(error) = app.autolaunch().enable() {
-        eprintln!("erro ao ligar o início com o Windows: {error}");
+        tracing::warn!("erro ao ligar o início com o Windows: {error}");
         return;
     }
     if let Err(error) = std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&marker, b"")) {
-        eprintln!("erro ao salvar a opção de abrir com o LoL: {error}");
+        tracing::warn!("erro ao salvar a opção de abrir com o LoL: {error}");
     }
 }
 
@@ -100,7 +100,7 @@ fn show_window(app: &AppHandle) {
         return;
     }
     if let Err(error) = crate::match_found::raise_main_window(app) {
-        eprintln!("erro ao mostrar a janela com o LoL aberto: {error}");
+        tracing::warn!("erro ao mostrar a janela com o LoL aberto: {error}");
     }
 }
 

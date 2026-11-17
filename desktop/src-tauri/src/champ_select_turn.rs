@@ -52,7 +52,7 @@ pub async fn watch(app: AppHandle, hub: &Hub) {
     loop {
         if raise {
             if let Err(error) = raise_main_window(&app) {
-                eprintln!("erro ao trazer a janela para a frente: {error}");
+                tracing::warn!("erro ao trazer a janela para a frente: {error}");
             }
         }
         raise = match events.recv().await {

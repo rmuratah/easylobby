@@ -283,7 +283,16 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
             let (hub, config) = (hub.clone(), config.clone());
             running = Some((
                 id,
-                Box::pin(async move { commands::run(&hub, &config.launch, command).await }),
+                Box::pin(async move {
+                    // Só o nome do comando vai para o log: os campos podem
+                    // ter o texto de uma mensagem do chat (#534).
+                    let name = command_name(&command);
+                    let result = commands::run(&hub, &config.launch, command).await;
+                    if let CommandResult::Error { code, message } = &result {
+                        tracing::warn!("comando {name} falhou ({code:?}): {message}");
+                    }
+                    result
+                }),
             ));
         }
         let replies = tokio::select! {
@@ -331,9 +340,12 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
                         queued.push_back(message);
                         continue;
                     }
-                    Err(error) => vec![ServerMessage::InvalidMessage {
-                        message: error.to_string(),
-                    }],
+                    Err(error) => {
+                        tracing::warn!("mensagem inválida da UI: {error}");
+                        vec![ServerMessage::InvalidMessage {
+                            message: error.to_string(),
+                        }]
+                    }
                 }
             }
         };
@@ -343,6 +355,14 @@ async fn session(mut socket: WebSocket, hub: Hub, config: Arc<WsConfig>) {
             }
         }
     }
+}
+
+/// O `type` de um comando, como a UI manda (`sendChatMessage`, `voteHonor`).
+fn command_name(command: &Command) -> String {
+    serde_json::to_value(command)
+        .ok()
+        .and_then(|value| value.get("type")?.as_str().map(str::to_owned))
+        .unwrap_or_else(|| "?".to_owned())
 }
 
 fn hello(state: protocol::AgentState) -> ServerMessage {

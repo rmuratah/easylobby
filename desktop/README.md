@@ -40,6 +40,17 @@ O navegador (`pnpm dev:ui`) não oferece a bandeja nativa. No Linux, suporte a
 ícones e eventos de clique depende do ambiente desktop; use o menu quando o clique
 esquerdo não estiver disponível.
 
+## Log de erros
+
+O app grava os erros num arquivo de texto por dia em
+`%LOCALAPPDATA%\io.github.rmuratah.easylobby\logs\easylobby-AAAA-MM-DD.log`
+(#534). Ficam os 7 dias mais recentes, e cada arquivo para em 5 MB. Entram
+os erros do agente, as chamadas que a LCU recusa ou responde com erro, as
+quedas da conexão com o LoL e com o agente e os erros da interface. Não
+entram a senha do lockfile, tokens, a chave da API da Riot nem o texto das
+mensagens do chat. O botão "Abrir pasta de logs" em Configurações abre a
+pasta no Explorer.
+
 ## Conexão com o agente
 
 Não inicie o example `canal_ws` junto com o desktop: ambos usam a porta 47800.

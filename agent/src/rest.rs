@@ -197,13 +197,18 @@ impl LcuClient {
                 .body(body.to_string());
         }
 
-        let response = request.send().await.map_err(request_err)?;
-        let status = response.status().as_u16();
-        let text = response.text().await.map_err(request_err)?;
-        Ok(LcuResponse {
-            status,
-            body: parse_body(&text),
-        })
+        let result = async {
+            let response = request.send().await.map_err(request_err)?;
+            let status = response.status().as_u16();
+            let text = response.text().await.map_err(request_err)?;
+            Ok(LcuResponse {
+                status,
+                body: parse_body(&text),
+            })
+        }
+        .await;
+        log_outcome(&method, path, &result);
+        result
     }
 
     /// Faz a requisição e converte o corpo de uma resposta `2xx` em `T`.
@@ -226,10 +231,14 @@ impl LcuClient {
                 body: response.body,
             });
         }
-        serde_json::from_value(response.body).map_err(|source| LcuError::Decode {
-            method,
-            path: path.to_owned(),
-            source,
+        serde_json::from_value(response.body).map_err(|source| {
+            let error = LcuError::Decode {
+                method,
+                path: path.to_owned(),
+                source,
+            };
+            tracing::warn!("{error}");
+            error
         })
     }
 
@@ -322,6 +331,49 @@ impl fmt::Debug for LcuClient {
     }
 }
 
+/// Tamanho máximo do corpo de um erro no log.
+const LOGGED_BODY_CHARS: usize = 500;
+
+/// Grava no log (#534) uma requisição que falhou ou que a LCU recusou.
+///
+/// Fica de fora o `404` de um `GET`, que o agente usa para saber se algo
+/// existe (lobby, seleção, fila). O corpo da resposta entra cortado; nas
+/// rotas do chat não entra, para não arriscar gravar o texto de uma
+/// mensagem. A senha não aparece: ela só vai no cabeçalho.
+fn log_outcome(method: &Method, path: &str, result: &Result<LcuResponse, LcuError>) {
+    match result {
+        Err(error) => tracing::warn!("{error}"),
+        Ok(response) if should_log_status(method, response.status) => {
+            if path.starts_with("/lol-chat/") {
+                tracing::warn!("{method} {path} respondeu {}", response.status);
+            } else {
+                tracing::warn!(
+                    "{method} {path} respondeu {}: {}",
+                    response.status,
+                    logged_body(&response.body)
+                );
+            }
+        }
+        Ok(_) => {}
+    }
+}
+
+fn should_log_status(method: &Method, status: u16) -> bool {
+    status >= 400 && !(method == Method::GET && status == 404)
+}
+
+fn logged_body(body: &Value) -> String {
+    let text = match body {
+        Value::String(text) => text.clone(),
+        other => other.to_string(),
+    };
+    if text.chars().count() <= LOGGED_BODY_CHARS {
+        return text;
+    }
+    let cut: String = text.chars().take(LOGGED_BODY_CHARS).collect();
+    format!("{cut}…")
+}
+
 /// Corpo em JSON; vazio vira `Null` e texto que não é JSON vira `String`.
 fn parse_body(text: &str) -> Value {
     if text.trim().is_empty() {
@@ -360,6 +412,24 @@ mod tests {
             protocol: Protocol::Https,
             source: Source::ProcessArgs { pid: 1 },
         }
+    }
+
+    #[test]
+    fn quais_respostas_vao_para_o_log() {
+        assert!(should_log_status(&Method::POST, 403));
+        assert!(should_log_status(&Method::GET, 500));
+        assert!(should_log_status(&Method::DELETE, 404));
+        assert!(!should_log_status(&Method::GET, 404));
+        assert!(!should_log_status(&Method::POST, 204));
+    }
+
+    #[test]
+    fn corta_o_corpo_do_erro_no_log() {
+        let body = json!({"message": "x".repeat(800)});
+        let logged = logged_body(&body);
+        assert_eq!(logged.chars().count(), LOGGED_BODY_CHARS + 1);
+        assert!(logged.ends_with('…'));
+        assert_eq!(logged_body(&json!("texto")), "texto");
     }
 
     #[test]

@@ -1,6 +1,7 @@
 //! Shell Tauri 2 com janela, bandeja e canal local do agente.
 
 mod champ_select_turn;
+mod logs;
 mod match_found;
 mod startup;
 
@@ -63,14 +64,14 @@ fn show_main_window(app: &AppHandle) -> tauri::Result<()> {
 
 fn open_from_tray(app: &AppHandle) {
     if let Err(error) = show_main_window(app) {
-        eprintln!("erro ao abrir a janela: {error}");
+        tracing::warn!("erro ao abrir a janela: {error}");
     }
 }
 
 /// Caixa de erro que não trava a thread que chamou. Em release não há
 /// console, então é o único jeito de o jogador ver o motivo.
 fn show_error(app: &AppHandle, message: String, on_close: impl FnOnce(bool) + Send + 'static) {
-    eprintln!("{message}");
+    tracing::error!("{message}");
     app.dialog()
         .message(message)
         .title("easylobby")
@@ -143,7 +144,7 @@ async fn supervise_channel(app: AppHandle, listener: TcpListener, source: Creden
             if started.elapsed() >= HEALTHY_RUN {
                 failures = 0;
             }
-            eprintln!("o canal do agente parou: {reason}");
+            tracing::error!("o canal do agente parou: {reason}");
             failures += 1;
             if failures > MAX_RESTARTS {
                 show_error(
@@ -161,7 +162,7 @@ async fn supervise_channel(app: AppHandle, listener: TcpListener, source: Creden
         match bind_channel() {
             Ok(fresh) => listener = Some(fresh),
             Err(error) => {
-                eprintln!("erro ao reabrir o canal do agente: {error}");
+                tracing::error!("erro ao reabrir o canal do agente: {error}");
                 failures += 1;
                 if failures > MAX_RESTARTS {
                     show_error(
@@ -193,13 +194,13 @@ fn quit(app: &AppHandle) {
     tauri::async_runtime::spawn(async move {
         if let Some(hub) = app.state::<Channel>().hub() {
             match tokio::time::timeout(EXIT_LCU_TIMEOUT, hub.close_league_on_exit()).await {
-                Ok(Ok(ExitAction::QuitClient)) => eprintln!("LoL encerrado junto com o app"),
+                Ok(Ok(ExitAction::QuitClient)) => tracing::info!("LoL encerrado junto com o app"),
                 Ok(Ok(ExitAction::LaunchUx)) => {
-                    eprintln!("LoL em partida ou na seleção: UI oficial reaberta");
+                    tracing::info!("LoL em partida ou na seleção: UI oficial reaberta");
                 }
                 Ok(Ok(ExitAction::NotConnected | ExitAction::KeepOpen)) => {}
-                Ok(Err(error)) => eprintln!("erro ao encerrar o LoL: {error}"),
-                Err(_) => eprintln!("a LCU não respondeu a tempo ao sair"),
+                Ok(Err(error)) => tracing::warn!("erro ao encerrar o LoL: {error}"),
+                Err(_) => tracing::warn!("a LCU não respondeu a tempo ao sair"),
             }
         }
         app.exit(0);
@@ -221,11 +222,14 @@ pub fn run() {
         ))
         .invoke_handler(tauri::generate_handler![
             startup::open_with_league_enabled,
-            startup::set_open_with_league
+            startup::set_open_with_league,
+            logs::log_ui_error,
+            logs::open_logs_folder
         ])
         .manage(Channel::default())
         .setup(|app| {
             let handle = app.handle().clone();
+            logs::init(&handle);
             // Reserve a porta antes de abrir a UI: não conecte silenciosamente
             // a outro processo que já esteja usando o endereço. Outra
             // instância do easylobby já foi tratada pelo single-instance;
@@ -293,7 +297,7 @@ pub fn run() {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     match window.hide() {
                         Ok(()) => api.prevent_close(),
-                        Err(error) => eprintln!("erro ao ocultar a janela: {error}"),
+                        Err(error) => tracing::warn!("erro ao ocultar a janela: {error}"),
                     }
                 }
             }

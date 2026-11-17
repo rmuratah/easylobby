@@ -4,6 +4,7 @@ import type { Command } from '../bindings/Command';
 import type { CommandResult } from '../bindings/CommandResult';
 import type { ServerMessage } from '../bindings/ServerMessage';
 import { parseMessage } from './protocol';
+import { reportError } from './errorLog';
 
 export const AGENT_URL = 'ws://127.0.0.1:47800/ws';
 export type ConnectionSnapshot = {
@@ -133,6 +134,8 @@ export class AgentClient {
   }
   private reconnect(error: string) {
     if (!this.active) return;
+    // Só a primeira falha de cada sequência vai para o log (#534).
+    if (this.attempts === 0) reportError('ws', error);
     this.release();
     this.rejectPending();
     this.publish({ status: 'reconnecting', state: null, error });

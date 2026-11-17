@@ -97,14 +97,14 @@ impl Hub {
             Err(_) => None,
         };
         let Some(platform) = platform else {
-            eprintln!("easylobby: região do client desconhecida; aba Em jogo desligada");
+            tracing::warn!("região do client desconhecida; aba Em jogo desligada");
             return;
         };
         let game = match api.active_game(platform, &puuid).await {
             Ok(Some(body)) => live_game::from_spectator(&body, me.as_deref()),
             Ok(None) => None,
             Err(error) => {
-                eprintln!("easylobby: partida em andamento de outro jogador: {error}");
+                tracing::warn!("partida em andamento de outro jogador: {error}");
                 None
             }
         };
