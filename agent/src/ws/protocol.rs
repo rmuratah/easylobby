@@ -65,6 +65,7 @@ use crate::live_game::{LiveGame, PlayerLiveGame};
 use crate::lobby::{Lobby, Position, Queue};
 use crate::lobby_chat::LobbyChat;
 use crate::lobby_link::LobbyLink;
+use crate::lol_update::LolUpdate;
 use crate::lp_history::LpHistory;
 use crate::mastery::ChampionMastery;
 use crate::match_history::{MatchDetails, MatchHistory};
@@ -325,6 +326,10 @@ pub enum ServerMessage {
     /// no estado quando o LoL fecha. `null` enquanto o agente não conectou
     /// nenhuma vez ou se a LCU não deu a versão do jogo.
     PatchNotes { patch_notes: Option<PatchNotes> },
+    /// O LoL está baixando ou aplicando uma atualização (#575), ou há uma
+    /// esperando. Chega ao conectar e a cada mudança do patcher ou da trava
+    /// da fila. `null` sem atualização e com o LoL fechado.
+    LolUpdate { lol_update: Option<LolUpdate> },
 
     // Saldo
     /// O saldo de Essência Azul, Essência Laranja e RP (#370) mudou: chega
@@ -448,6 +453,8 @@ pub struct AgentState {
     // Início
     /// Notas da atualização atual do LoL (#301), ou `null`.
     pub patch_notes: Option<PatchNotes>,
+    /// Atualização do LoL em andamento (#575), ou `null`.
+    pub lol_update: Option<LolUpdate>,
 
     // Saldo
     /// Essência Azul, Essência Laranja e RP da conta (#370), ou `null`.
@@ -1152,6 +1159,7 @@ mod tests {
                     "collection": null,
                     "championSkins": null,
                     "patchNotes": null,
+                    "lolUpdate": null,
                     "wallet": null,
                 },
             })

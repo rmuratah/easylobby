@@ -81,8 +81,10 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
   // Quem ainda está na tela de fim de jogo (#346): a busca espera todos voltarem.
   // O card do jogador no lobby já marca quem não voltou: aqui fica só o aviso geral.
   const away = awayMembers(lobby, phase);
+  // O LoL trava a fila enquanto baixa um patch (#575).
+  const patching = !!state.lolUpdate?.blocksQueue;
   const canStart = !state.readyCheck && !!summoner && !!lobby && !custom && lobby.isLeader && lobby.canStartActivity && phase === 'Lobby' && !matchmaking
-    && missing.length === 0 && away.length === 0;
+    && missing.length === 0 && away.length === 0 && !patching;
   // A busca parada por punição também sai, mesmo se a fase não for `Matchmaking`.
   const canStop = !state.readyCheck && !!matchmaking && (phase === 'Matchmaking' || queuePenalty(matchmaking));
   // Motivos da LCU para a fila bloqueada (#227), no lugar do aviso genérico.
@@ -92,6 +94,7 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
     : matchmaking ? ''
     : !lobby ? 'Crie ou entre em um lobby antes de buscar uma partida.'
     : custom ? 'Na personalizada, a partida começa pelo botão Iniciar partida, no lobby.'
+    : patching ? 'O League of Legends está se atualizando. A busca libera sozinha quando o patch terminar.'
     : !lobby.isLeader ? 'Somente o líder do lobby pode iniciar a busca.'
     : phase !== 'Lobby' ? 'A busca só pode ser iniciada na fase de lobby.'
     : away.length ? 'Aguarde todos voltarem ao lobby.'
