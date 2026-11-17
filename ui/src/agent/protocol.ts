@@ -59,6 +59,8 @@ import type { GameQueue } from '../bindings/GameQueue';
 import type { RankedStats } from '../bindings/RankedStats';
 import type { RankedEntry } from '../bindings/RankedEntry';
 import type { ChampionMastery } from '../bindings/ChampionMastery';
+import type { LpHistory } from '../bindings/LpHistory';
+import type { LpPoint } from '../bindings/LpPoint';
 import type { MatchHistory } from '../bindings/MatchHistory';
 import type { MatchSummary } from '../bindings/MatchSummary';
 import type { MatchDetails } from '../bindings/MatchDetails';
@@ -177,7 +179,7 @@ function honorCandidate(v: unknown): v is HonorCandidate {
     uints(v, ['summonerId', 'championId']) && typeof v.bot === 'boolean';
 }
 function honorBallot(v: unknown): v is HonorBallot | null {
-  return v === null || (object(v) && uints(v, ['gameId', 'votes']) && list(v.eligibleAllies, honorCandidate) &&
+  return v === null || (object(v) && uints(v, ['gameId', 'votes']) && list(v.eligibleAllies, honorCandidate) && list(v.eligibleOpponents, honorCandidate) &&
     list(v.honoredPuuids, (x: unknown): x is string => typeof x === 'string'));
 }
 const searchStates = {
@@ -268,6 +270,14 @@ function ranked(v: unknown): v is RankedStats | null {
 }
 function championMastery(v: unknown): v is ChampionMastery {
   return object(v) && uints(v, ['championId', 'level', 'points']);
+}
+// Histórico de PDL (#457).
+function lpPoint(v: unknown): v is LpPoint {
+  return object(v) && typeof v.tier === 'string' && nullableString(v.division) &&
+    uints(v, ['at', 'leaguePoints', 'wins', 'losses']);
+}
+function lpHistory(v: unknown): v is LpHistory | null {
+  return v === null || (object(v) && list(v.soloDuo, lpPoint) && list(v.flex, lpPoint));
 }
 const matchResults = { win: true, loss: true, remake: true } satisfies Record<MatchResult, true>;
 function matchPlayer(v: unknown): v is MatchPlayer {
@@ -397,7 +407,7 @@ function state(v: unknown): v is AgentState {
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
     champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) && list(v.suggestedPlayers, suggestedPlayer) &&
-    ranked(v.ranked) && list(v.championMasteries, championMastery) && matchHistory(v.matchHistory) &&
+    ranked(v.ranked) && list(v.championMasteries, championMastery) && lpHistory(v.lpHistory) && matchHistory(v.matchHistory) &&
     matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && playerLiveGame(v.playerLiveGame) && patchNotes(v.patchNotes) &&
     collection(v.collection) && championSkins(v.championSkins) &&
     wallet(v.wallet);
@@ -442,6 +452,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'suggestedPlayers': valid = list(v.suggestedPlayers, suggestedPlayer); break;
     case 'ranked': valid = ranked(v.ranked); break;
     case 'championMasteries': valid = list(v.championMasteries, championMastery); break;
+    case 'lpHistory': valid = lpHistory(v.lpHistory); break;
     case 'matchHistory': valid = matchHistory(v.matchHistory); break;
     case 'matchDetails': valid = matchDetails(v.matchDetails); break;
     case 'playerProfile': valid = playerProfile(v.playerProfile); break;

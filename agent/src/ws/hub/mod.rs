@@ -133,6 +133,11 @@ struct Shared {
     autofill_ack: Option<String>,
     /// O resultado da partida que acabou de terminar (#179).
     game_result: game_result::GameResultSync,
+    /// Pasta onde o histórico de PDL é gravado (#457). `None` não grava
+    /// (testes e exemplos); o app liga com [`Hub::set_lp_history_dir`].
+    lp_history_dir: Option<std::path::PathBuf>,
+    /// `puuid` do histórico de PDL em `state.lp_history`.
+    lp_history_puuid: Option<String>,
 }
 
 /// Recurso do estado que um comando relê ou muda pelo REST.
@@ -214,6 +219,8 @@ impl Hub {
                     riot_api: None,
                     autofill_ack: None,
                     game_result: game_result::GameResultSync::default(),
+                    lp_history_dir: None,
+                    lp_history_puuid: None,
                 }),
                 tx,
             }),
@@ -529,6 +536,7 @@ impl Hub {
                 self.set_recent_players(Vec::new());
                 self.set_suggested_players(Vec::new());
                 self.set_ranked(None);
+                self.set_lp_history(None);
                 self.set_champion_masteries(Vec::new());
                 self.set_match_history(None);
                 self.set_match_details(None);

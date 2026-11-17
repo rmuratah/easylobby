@@ -71,6 +71,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'suggestedPlayers': return { ...state, suggestedPlayers: message.suggestedPlayers };
     case 'ranked': return { ...state, ranked: message.ranked };
     case 'championMasteries': return { ...state, championMasteries: message.championMasteries };
+    case 'lpHistory': return { ...state, lpHistory: message.lpHistory };
     case 'matchHistory': return { ...state, matchHistory: message.matchHistory };
     case 'matchDetails': return { ...state, matchDetails: message.matchDetails };
     case 'playerProfile': return { ...state, playerProfile: message.playerProfile };

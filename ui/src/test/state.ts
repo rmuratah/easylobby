@@ -35,6 +35,7 @@ const emptyState: AgentState = {
   conversations: [],
   ranked: null,
   championMasteries: [],
+  lpHistory: null,
   matchHistory: null,
   matchDetails: null,
   playerProfile: null,

@@ -66,6 +66,8 @@ async fn run() -> Result<(), String> {
     println!("Canal em ws://{addr}{} (Ctrl+C para sair)", ws::WS_PATH);
 
     let hub = Hub::new();
+    // Grava o histórico de PDL como o app (#457).
+    hub.set_lp_history_dir(easylobby_agent::riot_api::config_dir());
     tokio::spawn(ws::drive(lcu, hub.clone()));
     tokio::spawn(print_messages(hub.clone()));
     tokio::select! {

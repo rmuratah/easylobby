@@ -21,6 +21,7 @@ import type { LiveGame } from "./LiveGame";
 import type { Lobby } from "./Lobby";
 import type { LobbyChat } from "./LobbyChat";
 import type { LobbyLink } from "./LobbyLink";
+import type { LpHistory } from "./LpHistory";
 import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
@@ -83,6 +84,7 @@ export type ServerMessage =
   | { "type": "conversationClosed", id: string, }
   | { "type": "ranked", ranked: RankedStats | null, }
   | { "type": "championMasteries", championMasteries: Array<ChampionMastery>, }
+  | { "type": "lpHistory", lpHistory: LpHistory | null, }
   | { "type": "matchHistory", matchHistory: MatchHistory | null, }
   | { "type": "matchDetails", matchDetails: MatchDetails | null, }
   | { "type": "playerProfile", playerProfile: PlayerProfile | null, }

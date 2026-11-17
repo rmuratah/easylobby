@@ -19,6 +19,7 @@ import type { LiveGame } from "./LiveGame";
 import type { Lobby } from "./Lobby";
 import type { LobbyChat } from "./LobbyChat";
 import type { LobbyLink } from "./LobbyLink";
+import type { LpHistory } from "./LpHistory";
 import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
@@ -156,6 +157,10 @@ export type AgentState = {
    * Até 3 campeões com mais maestria (#175).
    */
   championMasteries: Array<ChampionMastery>,
+  /**
+   * Histórico de PDL do jogador logado (#457), ou `null`.
+   */
+  lpHistory: LpHistory | null,
   /**
    * Histórico de partidas já carregado (#172), ou `null`.
    */

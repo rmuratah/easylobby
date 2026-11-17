@@ -11,6 +11,8 @@ import type { ChampionMastery } from '../../bindings/ChampionMastery';
 import type { Summoner } from '../../bindings/Summoner';
 import type { Command } from '../../bindings/Command';
 import type { LiveGame } from '../../bindings/LiveGame';
+import type { LpHistory } from '../../bindings/LpHistory';
+import type { LpPoint } from '../../bindings/LpPoint';
 import { availabilityColors, describeActivity } from '../../agent/friends';
 import { assetUrl } from '../../agent/assets';
 import { useCommand } from '../../agent/useCommand';
@@ -22,6 +24,7 @@ import { Avatar, Button, EmptyState, Segmented, Spinner } from '../base';
 import { cx } from '../base/cx';
 import { CopyRiotIdButton } from './CopyRiotIdButton';
 import { LiveGamePanel } from '../LiveGamePanel';
+import { LpChart } from './LpChart';
 
 type Props = {
   connection: ConnectionSnapshot;
@@ -44,6 +47,8 @@ type ProfileData = {
   loadMore: Command;
   /** Partida em andamento de outro jogador (#436), para a aba Em jogo. `null` quando ele não está jogando. */
   liveGame: LiveGame | null;
+  /** Histórico de PDL gravado pelo app (#457). Só existe para o jogador logado; `null` para os outros. */
+  lpHistory: LpHistory | null;
 };
 
 function connectedState(connection: ConnectionSnapshot): AgentState | null {
@@ -62,6 +67,7 @@ export function ProfilePage({ connection, send, onOpenProfile }: Props) {
   const data: ProfileData = {
     summoner: state.summoner, ranked: state.ranked, championMasteries: state.championMasteries,
     matchHistory: state.matchHistory, loaded: false, privateProfile: false, loadMore: { type: 'loadMoreMatches' }, liveGame: null,
+    lpHistory: state.lpHistory,
   };
   return <ProfileView state={state} data={data} send={send} onOpenProfile={onOpenProfile} />;
 }
@@ -113,6 +119,7 @@ export function FriendProfilePage({ connection, send, puuid, onBack, onChat, onO
     summoner: profile.summoner, ranked: profile.ranked, championMasteries: profile.championMasteries,
     matchHistory: profile.matchHistory, loaded: true, privateProfile: profile.privateProfile, loadMore: { type: 'loadMorePlayerMatches' },
     liveGame: state.playerLiveGame?.puuid === puuid ? state.playerLiveGame.game : null,
+    lpHistory: null,
   };
   const extra = friend && (
     <div className="flex flex-wrap items-center gap-3 @min-[44rem]:ml-auto">
@@ -208,15 +215,19 @@ function Overview({ state, data }: { state: AgentState; data: ProfileData }) {
   const matches = data.matchHistory?.matches ?? [];
   const missing = data.loaded ? 'Indisponível' : 'Carregando…';
   const stats = matchStats(matches);
+  // A hora do gráfico de PDL fica fixa enquanto a Visão geral está aberta.
+  const [now] = useState(() => Date.now());
   return (
     <div className="grid gap-4 @min-[44rem]:grid-cols-2">
       <section aria-label="Ranks" className="grid gap-4 @min-[44rem]:col-span-2 @min-[44rem]:grid-cols-2">
-        <RankCard title="Ranqueada Solo/Duo" entry={data.ranked?.soloDuo ?? null} missing={missing} />
-        <RankCard title="Ranqueada Flex" entry={data.ranked?.flex ?? null} missing={missing} />
+        <RankCard title="Ranqueada Solo/Duo" entry={data.ranked?.soloDuo ?? null} missing={missing}
+          history={data.lpHistory?.soloDuo ?? null} now={now} />
+        <RankCard title="Ranqueada Flex" entry={data.ranked?.flex ?? null} missing={missing}
+          history={data.lpHistory?.flex ?? null} now={now} />
       </section>
       <div className="grid gap-4 @min-[44rem]:col-span-2 @min-[22rem]:grid-cols-2 @min-[52rem]:grid-cols-3">
         <section aria-labelledby="perfil-maestria" className="rounded-panel surface card p-5 shadow-soft @min-[22rem]:col-span-2 @min-[52rem]:col-span-1">
-          <h3 id="perfil-maestria" className="text-section font-semibold text-ink">Maestria</h3>
+          <h3 id="perfil-maestria" className="text-center text-section font-semibold text-ink">Maestria</h3>
           {data.championMasteries.length === 0
             ? <p className="mt-3 text-body text-muted">Nenhuma maestria para mostrar.</p>
             : <ol className="mt-3 flex flex-col gap-3">
@@ -292,22 +303,28 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function RankCard({ title, entry, missing }: { title: string; entry: RankedEntry | null; missing: string }) {
+function RankCard({ title, entry, missing, history, now }: {
+  title: string; entry: RankedEntry | null; missing: string; history: LpPoint[] | null; now: number;
+}) {
   const rate = entry ? winRate(entry.wins, entry.losses) : null;
   return (
-    <article aria-label={title} className="flex items-center gap-4 rounded-panel surface card p-5 shadow-soft">
-      <TierEmblem tier={entry?.tier ?? null} />
-      <div className="min-w-0">
-        <h3 className="text-caption font-semibold text-muted">{title}</h3>
-        {!entry ? <p className="mt-1 text-body text-muted">{missing}</p> : <>
-          <p className="mt-1 text-section font-semibold text-ink">{rankLabel(entry)}{entry.tier && <span className="text-muted"> · {entry.leaguePoints} PDL</span>}</p>
-          <p className="text-caption text-muted">
-            {entry.wins + entry.losses === 0 ? 'Nenhuma partida nesta temporada'
-              : `${entry.wins}V ${entry.losses}D · ${rate}% de vitórias`}
-            {entry.provisional && ' · em classificação'}
-          </p>
-        </>}
+    <article aria-label={title} className="rounded-panel surface card p-5 shadow-soft">
+      <div className="flex items-center gap-4">
+        <TierEmblem tier={entry?.tier ?? null} />
+        <div className="min-w-0">
+          <h3 className="text-caption font-semibold text-muted">{title}</h3>
+          {!entry ? <p className="mt-1 text-body text-muted">{missing}</p> : <>
+            <p className="mt-1 text-section font-semibold text-ink">{rankLabel(entry)}{entry.tier && <span className="text-muted"> · {entry.leaguePoints} PDL</span>}</p>
+            <p className="text-caption text-muted">
+              {entry.wins + entry.losses === 0 ? 'Nenhuma partida nesta temporada'
+                : `${entry.wins}V ${entry.losses}D · ${rate}% de vitórias`}
+              {entry.provisional && ' · em classificação'}
+            </p>
+          </>}
+        </div>
       </div>
+      {/* Só o jogador logado tem histórico; sem classificação, não há o que mostrar. */}
+      {history && entry?.tier && <LpChart history={history} title={title} now={now} />}
     </article>
   );
 }
