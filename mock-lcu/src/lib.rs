@@ -27,6 +27,8 @@
 //! - [`custom_games`]: lista de personalizadas abertas e entrar nelas (#264).
 //! - [`scenario`]: seleção de campeões simulada e controlável, com bots,
 //!   pausa e avanço de etapa (#440).
+//! - [`patch`]: atualização do LoL simulada, com o progresso e a fila
+//!   travada (#575).
 //! - [`post_game`]: fim de partida simulado e controlável, da partida ao
 //!   "jogar de novo", com a votação de honra (#178).
 //! - [`swaps`]: trocas de campeão, de vez e de cargo na seleção (#25).
@@ -53,6 +55,7 @@ pub mod invitations;
 pub mod lobby;
 pub mod matchmaking;
 pub mod members;
+pub mod patch;
 pub mod perks;
 pub mod post_game;
 pub mod scenario;
@@ -139,6 +142,8 @@ pub struct Config {
     /// Endpoints quebrados de propósito, para testar o modo de
     /// compatibilidade do agente (#36).
     pub broken: broken::Broken,
+    /// Começa já um patch simulado com esta duração, em segundos (#575).
+    pub patch_seconds: Option<f64>,
 }
 
 impl Config {
@@ -160,6 +165,7 @@ impl Config {
             timings: scenario::Timings::default(),
             post_game: None,
             broken: broken::Broken::default(),
+            patch_seconds: None,
         }
     }
 }
@@ -216,6 +222,8 @@ struct Shared {
     speed: f64,
     /// Soma um segundo na fila a cada segundo, enquanto procura (#19).
     queue_timer: Mutex<Option<JoinHandle<()>>>,
+    /// Patch simulado em andamento (#575).
+    patch_timer: Mutex<Option<JoinHandle<()>>>,
     /// WebSockets WAMP abertos agora.
     wamp_clients: AtomicUsize,
     /// Respostas que os testes pediram para segurar (#73).
@@ -359,6 +367,7 @@ impl MockLcu {
             verbose: config.verbose,
             speed: config.speed,
             queue_timer: Mutex::new(None),
+            patch_timer: Mutex::new(None),
             wamp_clients: AtomicUsize::new(0),
             holds: Mutex::new(Vec::new()),
             scenario: Mutex::new(None),
@@ -374,6 +383,9 @@ impl MockLcu {
         }
         if let Some(options) = config.post_game {
             restart_post_game(&shared, Some(options));
+        }
+        if let Some(seconds) = config.patch_seconds {
+            start_patch(&shared, seconds);
         }
         let scenario_timer = tokio::spawn(scenario_timer(Arc::downgrade(&shared)));
         let post_game_timer = tokio::spawn(post_game_timer(Arc::downgrade(&shared)));
@@ -981,6 +993,35 @@ fn emit(shared: &Shared, event: EventFixture) {
     let _ = shared.events.send(event);
 }
 
+/// Começa (ou recomeça) o patch simulado (#575): trava a fila e sobe o
+/// progresso até 100% em `seconds`, e então termina.
+fn start_patch(shared: &Arc<Shared>, seconds: f64) {
+    emit_all(shared, patch::begin());
+    let period = Duration::from_secs_f64(seconds / f64::from(patch::STEPS));
+    let weak = Arc::downgrade(shared);
+    let timer = tokio::spawn(async move {
+        for step in 1..=patch::STEPS {
+            tokio::time::sleep(period).await;
+            let Some(shared) = weak.upgrade() else { return };
+            emit(&shared, patch::progress(step));
+        }
+        if let Some(shared) = weak.upgrade() {
+            emit_all(&shared, patch::finish());
+        }
+    });
+    if let Some(old) = lock(&shared.patch_timer).replace(timer) {
+        old.abort();
+    }
+}
+
+/// Termina o patch simulado na hora.
+fn finish_patch(shared: &Shared) {
+    if let Some(timer) = lock(&shared.patch_timer).take() {
+        timer.abort();
+    }
+    emit_all(shared, patch::finish());
+}
+
 /// Começa a somar um segundo na fila a cada segundo. Para sozinho quando a
 /// busca deixa de procurar.
 fn start_queue_timer(shared: &Arc<Shared>) {
@@ -1542,6 +1583,22 @@ async fn handle_request(
                     }
                 }
                 None => Response::error(404, format!("mock-lcu: {path} não existe")),
+            }
+        }
+        // Patch simulado (#575).
+        (&Method::POST, patch::START) => {
+            let body = read_json(request).await;
+            start_patch(&shared, patch::seconds(&body));
+            Response {
+                status: 204,
+                body: Value::Null,
+            }
+        }
+        (&Method::DELETE, patch::START) => {
+            finish_patch(&shared);
+            Response {
+                status: 204,
+                body: Value::Null,
             }
         }
         // Fim de partida (#178).
