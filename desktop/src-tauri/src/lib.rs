@@ -4,6 +4,7 @@ mod champ_select_turn;
 mod logs;
 mod match_found;
 mod startup;
+mod updater;
 
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -222,13 +223,19 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![startup::HIDDEN_ARG]),
         ))
+        // Atualização automática pelo GitHub Releases (#35).
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             startup::open_with_league_enabled,
             startup::set_open_with_league,
             logs::log_ui_error,
-            logs::open_logs_folder
+            logs::open_logs_folder,
+            updater::app_version,
+            updater::check_update,
+            updater::install_update
         ])
         .manage(Channel::default())
+        .manage(updater::PendingUpdate::default())
         .setup(|app| {
             let handle = app.handle().clone();
             logs::init(&handle);

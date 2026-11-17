@@ -1,0 +1,78 @@
+name: Release
+
+# Gera o instalador do Windows e o latest.json do auto-update (#35).
+# Dispare criando uma tag vX.Y.Z igual à versão do app; veja docs/release.md.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Instalador Windows
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # A versão da tag tem que ser a mesma do app: é ela que o updater
+      # compara com a versão instalada.
+      - name: Check version
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          app=$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")
+          cargo=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          echo "tag=$tag tauri.conf.json=$app Cargo.toml=$cargo"
+          if [ "$tag" != "$app" ] || [ "$tag" != "$cargo" ]; then
+            echo "::error::A tag v$tag não bate com a versão do app ($app no tauri.conf.json, $cargo no Cargo.toml)."
+            exit 1
+          fi
+
+      # As notas da versão são a mensagem da tag anotada (git tag -a). Elas
+      # vão para a release e para o latest.json, que o app mostra.
+      - name: Read release notes
+        id: notes
+        shell: bash
+        run: |
+          git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          {
+            echo 'body<<EASYLOBBY_NOTES'
+            git tag -l --format='%(contents)' "$GITHUB_REF_NAME"
+            echo 'EASYLOBBY_NOTES'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish draft release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: desktop
+          tauriScript: pnpm tauri
+          args: --config src-tauri/tauri.release.conf.json
+          tagName: ${{ github.ref_name }}
+          releaseName: easylobby ${{ github.ref_name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          # Fica como rascunho até alguém revisar e publicar: só a release
+          # publicada chega aos jogadores pelo auto-update.
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true

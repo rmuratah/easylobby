@@ -19,6 +19,8 @@ import { TitleBar } from './components/titlebar/TitleBar';
 import { useTheme } from './theme/theme';
 import { useSoundSettings } from './agent/soundSettings';
 import { useAppSounds } from './agent/useAppSounds';
+import { useAppUpdate } from './agent/useAppUpdate';
+import { canInstallNow } from './agent/appUpdate';
 import { useSidebar } from './layout/sidebar';
 import { SideNavigation, type NavigationPage } from './layout/SideNavigation';
 import { SidebarToggle } from './layout/SidebarToggle';
@@ -38,6 +40,7 @@ export default function App() {
   const connection = useAgent();
   const { theme, setPreference } = useTheme();
   const soundSettings = useSoundSettings();
+  const appUpdate = useAppUpdate();
   /** Última conversa aberta: o botão Conversas volta para ela (#251). */
   const [chatWith, setChatWith] = useState<string | null>(null);
   /**
@@ -133,7 +136,8 @@ export default function App() {
         <div hidden={!ready} className="contents">
           <SideNavigation active={activePage === 'friendProfile' ? 'profile' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'} flowButtonRef={flowButtonRef} theme={theme} unread={unread}
             onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference}
-            sound={soundSettings.settings} onSoundChange={soundSettings.update} />
+            sound={soundSettings.settings} onSoundChange={soundSettings.update}
+            update={appUpdate} canInstallUpdate={canInstallNow(connection.state?.lcu.state === 'connected' ? connection.state.gameflowPhase : null)} />
         </div>
         <div data-tauri-drag-region className="app-main-column">
           <main ref={contentRef} className="app-content">

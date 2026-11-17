@@ -5,8 +5,10 @@ Shell Tauri 2. Embute o crate do agente e mostra a UI React numa janela (ícone 
 ```bash
 pnpm install          # na raiz do repo
 pnpm dev:desktop      # desenvolvimento
-pnpm --filter easylobby-desktop build   # instalador
+pnpm --filter easylobby-desktop build   # instalador NSIS, sem o pacote de atualização
 ```
+
+O instalador oficial e o auto-update saem do workflow de release; veja [Como lançar uma versão](../docs/release.md).
 
 O código Rust do shell fica em `src-tauri/` e faz parte do workspace do Cargo, mas fora dos `default-members`: compile com `cargo build -p easylobby-desktop`.
 
@@ -39,6 +41,15 @@ e inicie novamente. Repita o ciclo para conferir que uma única janela é restau
 O navegador (`pnpm dev:ui`) não oferece a bandeja nativa. No Linux, suporte a
 ícones e eventos de clique depende do ambiente desktop; use o menu quando o clique
 esquerdo não estiver disponível.
+
+## Atualizações
+
+O app procura versão nova ao abrir e a cada 6 horas, pelo `tauri-plugin-updater`
+e o `latest.json` do GitHub Releases (#35). Com versão nova, um ponto aparece no
+botão de Configurações, e a seção Atualizações mostra a versão, as notas e o botão
+**Atualizar e reiniciar**, liberado só fora da fila, da seleção e da partida. A
+chave pública que confere a assinatura fica em `plugins.updater.pubkey` do
+`tauri.conf.json`.
 
 ## Log de erros
 
