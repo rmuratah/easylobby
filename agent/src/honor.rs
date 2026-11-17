@@ -10,12 +10,12 @@
 //! `EndOfGame`, inclusive depois de o agente encerrar a tela `honor-vote`
 //! do `PreEndOfGame` (#180), então a votação acontece na tela de resultado.
 //!
-//! O voto é `POST /lol-honor-v2/v1/honor-player` com o `gameId` da cédula, o
-//! aliado (`puuid` e `summonerId`) e o `honorType`. O formato saiu do
-//! `/help` da própria LCU (example `ajuda_lcu`, 16.22): o campo é
-//! `honorType`, e não `honorCategory`. Com `honorCategory`, a LCU respondia
-//! 200 ao app, mas o servidor da Riot recusava o voto (403) nas três partidas
-//! de teste.
+//! O voto é `POST /lol-honor/v1/honor` com `{recipientPuuid, honorType}`
+//! (`LolHonorV2ApiHonorPlayerServerRequestV3` no `/help` da LCU, example
+//! `ajuda_lcu`, 16.22), o mesmo formato de `honoredPlayers` da cédula. O
+//! endpoint antigo, `POST /lol-honor-v2/v1/honor-player`, chama
+//! `honor-edge/v2/honorPlayer` no servidor da Riot, que recusou o voto (403)
+//! nas quatro partidas de teste, com `honorCategory` e com `honorType`.
 //!
 //! A LCU responde 200 antes de saber o que o servidor disse. O voto só vale
 //! quando o aliado aparece em `honoredPlayers` da cédula
@@ -34,8 +34,8 @@ use crate::rest::{LcuClient, LcuError};
 /// Endpoint (e URI dos eventos WAMP) da cédula de honra.
 pub const BALLOT_PATH: &str = "/lol-honor-v2/v1/ballot";
 
-/// Endpoint do voto (e do pulo).
-pub const HONOR_PLAYER_PATH: &str = "/lol-honor-v2/v1/honor-player";
+/// Endpoint do voto.
+pub const HONOR_PATH: &str = "/lol-honor/v1/honor";
 
 /// Tipo do voto (`honorType`). Desde a mudança da honra há um só.
 pub const HONOR_TYPE: &str = "HEART";
@@ -161,12 +161,10 @@ impl HonorBallot {
 }
 
 /// Corpo do voto em `candidate`.
-pub fn vote_body(game_id: u64, candidate: &HonorCandidate) -> Value {
+pub fn vote_body(candidate: &HonorCandidate) -> Value {
     json!({
-        "gameId": game_id,
         "honorType": HONOR_TYPE,
-        "puuid": candidate.puuid,
-        "summonerId": candidate.summoner_id,
+        "recipientPuuid": candidate.puuid,
     })
 }
 
@@ -176,14 +174,10 @@ pub async fn current_ballot(client: &LcuClient) -> Result<Option<HonorBallot>, L
     Ok(HonorBallot::from_json(&value))
 }
 
-/// Honra `candidate` na partida `game_id`.
-pub async fn vote(
-    client: &LcuClient,
-    game_id: u64,
-    candidate: &HonorCandidate,
-) -> Result<(), LcuError> {
+/// Honra `candidate` na cédula aberta.
+pub async fn vote(client: &LcuClient, candidate: &HonorCandidate) -> Result<(), LcuError> {
     client
-        .post::<_, Option<Value>>(HONOR_PLAYER_PATH, &vote_body(game_id, candidate))
+        .post::<_, Option<Value>>(HONOR_PATH, &vote_body(candidate))
         .await
         .map(|_| ())
 }
@@ -266,9 +260,8 @@ mod tests {
     fn corpo_do_voto() {
         let ballot = HonorBallot::from_json(&gravada()).unwrap();
         assert_eq!(
-            vote_body(1124, &ballot.eligible_allies[0]),
-            json!({"gameId": 1124, "honorType": "HEART",
-                   "puuid": "fake-puuid-0092", "summonerId": 1134})
+            vote_body(&ballot.eligible_allies[0]),
+            json!({"honorType": "HEART", "recipientPuuid": "fake-puuid-0092"})
         );
     }
 }

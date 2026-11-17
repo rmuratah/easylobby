@@ -65,7 +65,7 @@ impl Hub {
                 "esse jogador não está na cédula de honra",
             );
         };
-        command_result(honor::vote(&client, ballot.game_id, candidate).await)
+        command_result(honor::vote(&client, candidate).await)
     }
 
     /// Pula a votação de honra (comando `skipHonor`).
