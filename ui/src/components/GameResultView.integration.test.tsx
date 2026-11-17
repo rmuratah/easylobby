@@ -64,17 +64,17 @@ it('mostra o placar dos dois times, com o jogador destacado', () => {
   expect(current[0]).toHaveTextContent('fake-name-0001');
 });
 
-it('volta ao lobby pela tela de resultado', () => {
+it('joga de novo pela tela de resultado', () => {
   render(<App />);
   hello({ gameflowPhase: 'EndOfGame', gameResult: testGameResult });
-  fireEvent.click(panel().getByRole('button', { name: 'Voltar ao lobby' }));
+  fireEvent.click(panel().getByRole('button', { name: 'Jogar de novo' }));
   expect(request().command).toEqual({ type: 'playAgain' });
 });
 
 it('troca a espera pelo resultado quando ele chega', () => {
   render(<App />);
   hello({ gameflowPhase: 'WaitingForStats' });
-  expect(panel().getByText('Calculando o resultado da partida.')).toBeInTheDocument();
+  expect(panel().getByText('Calculando o resultado…')).toBeInTheDocument();
   act(() => socket().receive({ type: 'gameResult', gameResult: testGameResult }));
   expect(panel().getByRole('heading', { name: 'Vitória' })).toBeInTheDocument();
   act(() => socket().receive({ type: 'gameResult', gameResult: null }));
