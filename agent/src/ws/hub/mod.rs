@@ -254,6 +254,7 @@ impl Hub {
     pub async fn launch_ux(&self) -> CommandResult {
         // O jogador quer a UI oficial: o agente para de fechá-la (#188) e
         // mostra de novo a janela, se a escondeu (#286).
+        tracing::info!("o jogador reabriu a UI oficial (launch-ux)");
         self.set_ux_guard(false);
         self.stop_hiding(None, true);
         let Some(client) = self.client() else {
@@ -610,6 +611,9 @@ impl Hub {
             GAMEFLOW_PHASE_PATH => {
                 if let Some(phase) = GameflowPhase::from_json(&event.data) {
                     let before = self.lock().state.gameflow_phase;
+                    if before != Some(phase) {
+                        tracing::info!("fase do LoL: {before:?} -> {phase:?}");
+                    }
                     self.set_gameflow_phase(Some(phase));
                     // O LoL reabre a UI oficial na partida encontrada, na
                     // seleção (#188) e quando o jogo fecha (#448).

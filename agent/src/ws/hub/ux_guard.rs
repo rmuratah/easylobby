@@ -177,6 +177,29 @@ fn game_starting_now(shared: &super::Shared) -> bool {
     )
 }
 
+/// Descreve, para o log, a fase do LoL e a etapa da seleção, com quanto
+/// falta para ela acabar. É o que mostra, depois de uma esquiva, se o
+/// `kill-ux` caiu no fim da seleção (#342).
+fn ux_context(shared: &super::Shared) -> String {
+    let phase = shared.state.gameflow_phase;
+    match shared.state.champ_select.as_ref() {
+        None => format!("fase {phase:?}, sem seleção"),
+        Some(cs) if cs.timer.is_infinite => {
+            format!("fase {phase:?}, seleção em {:?} sem limite", cs.timer.phase)
+        }
+        Some(cs) => {
+            let left = cs
+                .timer
+                .ends_at_ms
+                .saturating_sub(crate::champ_select::now_ms());
+            format!(
+                "fase {phase:?}, seleção em {:?} faltando {left} ms",
+                cs.timer.phase
+            )
+        }
+    }
+}
+
 /// Intervalo em que a sequência confere se ainda precisa esconder a janela
 /// depois do último `kill-ux`.
 pub(super) const HIDE_CHECK_EVERY: Duration = Duration::from_millis(500);
@@ -218,6 +241,7 @@ impl Hub {
                 return;
             };
             shared.ux_guard.generation += 1;
+            tracing::info!("guarda da UI oficial armada ({})", ux_context(&shared));
             (client, shared.session, shared.ux_guard.generation)
         };
         let hub = self.clone();
@@ -227,6 +251,7 @@ impl Hub {
             // jogador não a vê nesse meio-tempo.
             let hider = hub.start_hiding();
             let mut stopped = false;
+            let mut hid = false;
             for delay in RECLOSE_AFTER {
                 tokio::time::sleep_until(start + delay).await;
                 match hub.guard_step(session, generation) {
@@ -235,10 +260,21 @@ impl Hub {
                         break;
                     }
                     // Fim da seleção ou reconexão: só esconde.
-                    GuardStep::Hide => {}
+                    GuardStep::Hide => {
+                        if !hid {
+                            hid = true;
+                            tracing::info!(
+                                "UI oficial só escondida, sem kill-ux ({})",
+                                hub.ux_context_now()
+                            );
+                        }
+                    }
                     // Uma falha não importa: a próxima tentativa cobre.
                     GuardStep::Kill => {
-                        let _ = ux::kill_ux(&client).await;
+                        tracing::info!("kill-ux da guarda ({})", hub.ux_context_now());
+                        if let Err(error) = ux::kill_ux(&client).await {
+                            tracing::warn!("kill-ux da guarda falhou: {error}");
+                        }
                     }
                 }
             }
@@ -285,7 +321,10 @@ impl Hub {
                     ScheduledKill::Kill => {
                         // Se falhar, a guarda (agora ligada) fecha na próxima
                         // vez que o LoL pedir a janela.
-                        let _ = ux::kill_ux(&client).await;
+                        tracing::info!("primeiro kill-ux ({})", hub.ux_context_now());
+                        if let Err(error) = ux::kill_ux(&client).await {
+                            tracing::warn!("primeiro kill-ux falhou: {error}");
+                        }
                         break;
                     }
                 }
@@ -339,6 +378,11 @@ impl Hub {
         shared.ux_guard.active = true;
         shared.ux_guard.generation += 1;
         ScheduledKill::Kill
+    }
+
+    /// [`ux_context`] do estado atual.
+    fn ux_context_now(&self) -> String {
+        ux_context(&self.lock())
     }
 
     /// Se a sequência `generation` da conexão `session` ainda vale.
