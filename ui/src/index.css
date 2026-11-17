@@ -105,3 +105,18 @@ button[aria-current="page"] { background: var(--el-accent-soft); border-color: v
   .champ-select-board { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .champ-select-center { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* Selos de elo da aba Em jogo (#563): cada elo com a sua cor, texto com contraste AA sobre o fundo do selo nos dois temas. */
+.tier-chip { --tier: var(--el-accent-ink); color: var(--tier); border-color: color-mix(in oklab, var(--tier) 45%, transparent); background: color-mix(in srgb, var(--tier) 12%, var(--el-surface)); }
+[data-theme="claro"] .tier-chip {
+  &[data-tier="IRON"] { --tier: #5E5550; } &[data-tier="BRONZE"] { --tier: #8A4F2C; } &[data-tier="SILVER"] { --tier: #56636F; }
+  &[data-tier="GOLD"] { --tier: #7D5C0C; } &[data-tier="PLATINUM"] { --tier: #1B7568; } &[data-tier="EMERALD"] { --tier: #14783F; }
+  &[data-tier="DIAMOND"] { --tier: #3F52C2; } &[data-tier="MASTER"] { --tier: #8237A8; } &[data-tier="GRANDMASTER"] { --tier: #B42D2A; }
+  &[data-tier="CHALLENGER"] { --tier: #1A6CA6; }
+}
+[data-theme="escuro"] .tier-chip {
+  &[data-tier="IRON"] { --tier: #ABA29C; } &[data-tier="BRONZE"] { --tier: #D99268; } &[data-tier="SILVER"] { --tier: #B8C4CE; }
+  &[data-tier="GOLD"] { --tier: #E8C35A; } &[data-tier="PLATINUM"] { --tier: #4FC9B8; } &[data-tier="EMERALD"] { --tier: #45D387; }
+  &[data-tier="DIAMOND"] { --tier: #96A4F7; } &[data-tier="MASTER"] { --tier: #CB93EE; } &[data-tier="GRANDMASTER"] { --tier: #F5847C; }
+  &[data-tier="CHALLENGER"] { --tier: #73C8F7; }
+}
