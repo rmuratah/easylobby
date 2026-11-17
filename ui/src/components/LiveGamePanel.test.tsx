@@ -32,6 +32,9 @@ describe('LiveGamePanel', () => {
     expect(me).toHaveTextContent('75%4 partidas');
     expect(within(me).getAllByText('Ouro II').length).toBeGreaterThan(0);
     expect(within(me).getByText('Prata I')).toBeInTheDocument();
+    // Cada selo leva o elo dele, para o CSS pintar com a cor do elo.
+    expect(within(me).getByTitle('Prata I')).toHaveAttribute('data-tier', 'SILVER');
+    expect(me.querySelector('.tier-chip[title="Ouro II"]')).toHaveAttribute('data-tier', 'GOLD');
     expect(within(me).getByText('Meio')).toBeInTheDocument();
     const rival = screen.getByRole('row', { name: 'Rival#NA1, Ahri' });
     expect(rival).toHaveTextContent('4 derrotas seguidas');

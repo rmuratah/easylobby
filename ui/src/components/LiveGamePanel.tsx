@@ -214,8 +214,8 @@ function RankedWinRate({ entry }: { entry: RankedEntry }) {
 
 function TierChip({ tier }: { tier: TierDivision }) {
   return (
-    <span title={tierLabel(tier)}
-      className="inline-flex min-w-9 justify-center rounded-control-sm border border-accent/40 bg-surface px-1.5 py-0.5 text-caption font-bold text-accent-ink">
+    <span title={tierLabel(tier)} data-tier={tier.tier.toUpperCase()}
+      className="tier-chip inline-flex min-w-9 justify-center rounded-control-sm border px-1.5 py-0.5 text-caption font-bold">
       <span aria-hidden="true">{tierShort(tier.tier, tier.division)}</span>
       <span className="sr-only">{tierLabel(tier)}</span>
     </span>
