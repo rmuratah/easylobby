@@ -3,6 +3,7 @@
 //! Os comandos estão nos mesmos blocos por assunto do [`Command`]: um
 //! comando novo entra no bloco do assunto dele, não no fim.
 
+use crate::health::Feature;
 use crate::launcher::{self, LaunchOptions};
 use crate::lobby::{MemberAction, SubteamSlot};
 use crate::swaps::SwapIntent;
@@ -13,6 +14,12 @@ use super::Hub;
 /// Executa `command` e devolve a resposta para a UI. O `getState` mexe na
 /// assinatura da sessão e é tratado por ela.
 pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> CommandResult {
+    if feature(&command).is_some_and(|f| hub.feature_unavailable(f).is_some()) {
+        return CommandResult::error(
+            ErrorCode::FeatureUnavailable,
+            "esta função está desligada porque o LoL mudou numa atualização; use o client oficial",
+        );
+    }
     if leaves_party(&command) && hub.party_locked() {
         return CommandResult::error(
             ErrorCode::InvalidCommand,
@@ -30,6 +37,7 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::CreateLobbyById { queue_id } => hub.create_lobby_by_id(queue_id).await,
         Command::LeaveLobby => hub.leave_lobby().await,
         Command::PlayAgain => hub.play_again().await,
+        Command::LeavePostGame => hub.leave_post_game().await,
         Command::SetPositions { first, second } => hub.set_positions(first, second).await,
         Command::SetPositionOrder { positions } => hub.set_position_order(&positions).await,
         Command::StartQueue => hub.start_queue().await,
@@ -189,6 +197,81 @@ fn leaves_party(command: &Command) -> bool {
             | Command::JoinCustomGame { .. }
             | Command::AcceptInvitation { .. }
     )
+}
+
+/// A função do modo de compatibilidade (#36) de que o comando depende, ou
+/// `None` para os que não usam os endpoints checados. Sem `_`: um comando
+/// novo precisa dizer a função dele.
+fn feature(command: &Command) -> Option<Feature> {
+    use Command::*;
+    match command {
+        Ping
+        | GetState
+        | LaunchLeague
+        | LaunchUx
+        | OpenCollection
+        | OpenChampionSkins { .. }
+        | OpenPatchNotes => None,
+        CreateLobby { .. }
+        | CreateLobbyById { .. }
+        | LeaveLobby
+        | PlayAgain
+        | SetPositions { .. }
+        | SetPositionOrder { .. }
+        | StartQueue
+        | StopQueue
+        | StartTutorial { .. }
+        | StartPracticeTool
+        | CreateCustomGame { .. }
+        | SetPlayerSlots { .. }
+        | SetLobbyOpen { .. }
+        | KickLobbyMember { .. }
+        | PromoteLobbyMember { .. }
+        | SetLobbyMemberInvite { .. }
+        | CreateLobbyLink
+        | SetSubteamSlot { .. }
+        | AddBot { .. }
+        | UpdateBot { .. }
+        | RemoveBot { .. }
+        | SwitchTeam { .. }
+        | Spectate
+        | StartCustomGame
+        | RefreshCustomGames
+        | JoinCustomGame { .. }
+        | SendLobbyMessage { .. }
+        | AcceptInvitation { .. }
+        | DeclineInvitation { .. }
+        | InviteToLobby { .. }
+        | InviteByRiotId { .. } => Some(Feature::Lobby),
+        AcceptReadyCheck | DeclineReadyCheck => Some(Feature::ReadyCheck),
+        HoverChampion { .. }
+        | ConfirmAction { .. }
+        | SetSummonerSpells { .. }
+        | SelectSkin { .. }
+        | RequestSwap { .. }
+        | AcceptSwap { .. }
+        | DeclineSwap { .. }
+        | CancelSwap { .. }
+        | RerollChampion
+        | SwapBenchChampion { .. }
+        | AckAutofill
+        | QuitCustomChampSelect
+        | SendChampSelectMessage { .. } => Some(Feature::ChampSelect),
+        SelectRunePage { .. }
+        | CreateRunePage { .. }
+        | UpdateRunePage { .. }
+        | DeleteRunePage { .. } => Some(Feature::Runes),
+        LoadRecentPlayers
+        | LoadSuggestedPlayers
+        | DismissSuggestedPlayer { .. }
+        | SendChatMessage { .. }
+        | SetActiveConversation { .. } => Some(Feature::Social),
+        LoadMoreMatches
+        | OpenMatchDetails { .. }
+        | OpenPlayerProfile { .. }
+        | LoadMorePlayerMatches => Some(Feature::Profile),
+        HonorPlayer { .. } | SkipHonor | LeavePostGame => Some(Feature::PostGame),
+    }
 }
 
 /// Abre o LoL e traduz o resultado para a UI. Não espera o LoL subir: isso

@@ -11,6 +11,9 @@
 //! - cada arquivo para de crescer em [`MAX_FILE_BYTES`], com uma linha
 //!   avisando que o limite chegou.
 //!
+//! Com o envio de erros ligado (#550), os erros também vão para a base dos
+//! devs; veja [`crate::error_report`].
+//!
 //! O que entra: avisos e erros de todo o app e as mensagens `info` do
 //! easylobby (conexão com o LoL, por exemplo). Nunca entram a senha do
 //! lockfile, o cabeçalho `Authorization`, a chave da API da Riot nem o texto
@@ -28,6 +31,8 @@ use tracing_subscriber::filter::Targets;
 use tracing_subscriber::fmt::{self, format::Writer, time::FormatTime};
 use tracing_subscriber::prelude::*;
 
+use crate::error_report::ReportLayer;
+
 /// Quantos arquivos (dias) ficam na pasta.
 pub const RETENTION_DAYS: usize = 7;
 
@@ -41,9 +46,11 @@ const SUFFIX: &str = ".log";
 /// Liga o log em arquivo na pasta `dir` (e no console, para o `tauri dev`).
 ///
 /// Também registra os pânicos, que de outro jeito só iriam para o console.
+/// Com `report`, os erros também vão para a base remota (#550).
+///
 /// Chame uma vez, no começo do app. Se já houver um subscriber global, não
 /// faz nada.
-pub fn init(dir: &Path) -> io::Result<()> {
+pub fn init(dir: &Path, report: Option<ReportLayer>) -> io::Result<()> {
     fs::create_dir_all(dir)?;
     let file = Mutex::new(DailyFile::new(dir.to_path_buf()));
     let filter = Targets::new()
@@ -64,7 +71,8 @@ pub fn init(dir: &Path) -> io::Result<()> {
                 .with_writer(io::stderr)
                 .with_timer(LocalTime)
                 .with_filter(filter),
-        );
+        )
+        .with(report);
     if tracing::subscriber::set_global_default(subscriber).is_ok() {
         log_panics();
     }

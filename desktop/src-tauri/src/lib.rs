@@ -232,7 +232,9 @@ pub fn run() {
             logs::open_logs_folder,
             updater::app_version,
             updater::check_update,
-            updater::install_update
+            updater::install_update,
+            logs::error_reports_enabled,
+            logs::set_error_reports_enabled
         ])
         .manage(Channel::default())
         .manage(updater::PendingUpdate::default())

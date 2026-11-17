@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { sound } from '../agent/sound';
 import type { SoundSettings } from '../agent/soundSettings';
 import { OpenWithLeagueSetting } from './OpenWithLeagueSetting';
+import { ErrorReportsSetting } from './ErrorReportsSetting';
 import { LogsSetting } from './LogsSetting';
 import { AboutSection } from './AboutSection';
 import { UpdateSetting } from './UpdateSetting';
@@ -93,6 +94,7 @@ export function SoundMenu({ settings, onChange, icon, update, canInstallUpdate =
           </label>
           <OpenWithLeagueSetting />
           <LogsSetting />
+          <ErrorReportsSetting />
           {update && <UpdateSetting update={update} canInstall={canInstallUpdate} />}
           <AboutSection />
         </section>

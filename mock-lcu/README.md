@@ -35,11 +35,22 @@ Quando a partida acaba, saem os eventos gravados do fim de partida, na ordem da 
 
 - `POST /lol-honor/v1/honor` com `{"honorType": "HEART", "recipientPuuid": "..."}` põe o jogador em `honoredPlayers` da cédula (`/lol-honor-v2/v1/ballot`) e manda a cédula pelo WAMP; dá para honrar vários, aliados e adversários, até acabar o `votePool.votes`. Os votos continuam na cédula depois da troca para `EndOfGame`. Sem cédula aberta, 404; jogador fora da cédula, já honrado ou sem honra sobrando, 400. O `votePool` não muda com o voto; os erros são suposições do mock.
 - `POST /lol-lobby/v2/play-again` no pós-jogo (de `WaitingForStats` a `EndOfGame`) reproduz a volta ao lobby gravada: a cédula e as estatísticas somem e a fase vai para `Lobby`, com o lobby da mesma fila. Fora do pós-jogo, 400.
+- `POST /lol-end-of-game/v1/state/dismiss-stats` no pós-jogo (o comando `leavePostGame`, #180) apaga a cédula e as estatísticas e leva a fase para `None` (suposição do mock). `POST /lol-lobby/v2/play-again-decline` só responde 204.
 - `DELETE /lol-lobby/v2/lobby` no pós-jogo apaga a cédula e as estatísticas e leva a fase para `None` (suposição do mock).
 
 No terminal do mock, digite e dê Enter: `f` acaba a partida (voltando para ela antes, se já acabou), `a` conclui a tela do pós-jogo que está esperando, `j` faz o "jogar de novo" e `r` volta para a partida (que acaba de novo depois de `--fim-em`). As mesmas ações existem como rotas só do mock: `POST /mock-lcu/end-of-game`, `.../end-of-game/advance` e `.../end-of-game/restart`. `POST /mock-lcu/end-of-game` funciona também sem `--pos-jogo`, com `--fixtures 16.22-pos-jogo --parado`. Nos testes: `Config::post_game`, `MockLcu::end_game`, `advance_post_game`, `play_again`, `restart_game` e `post_game_waiting`.
 
 Ao subir, ele mostra a porta, o lockfile e o certificado da CA. Pare com Ctrl+C; o lockfile e o certificado são apagados.
+
+## Endpoints quebrados (#36)
+
+Para testar o modo de compatibilidade sem esperar o LoL mudar. `--quebrar <caminho>` faz o caminho (e os de baixo dele) responder, em qualquer método, como a LCU responde a um caminho que não existe: 404 com `errorCode` `RESOURCE_NOT_FOUND` e "Invalid URI format". `--formato-errado <caminho>` faz o `GET` do caminho responder 200 com um texto no lugar do JSON. Os dois podem repetir.
+
+```bash
+cargo run -p mock-lcu -- --quebrar /lol-lobby/v2/lobby --formato-errado /lol-chat/v1/friends
+```
+
+Logo depois do login, o agente checa os endpoints de `agent/src/health.rs`, desliga o Lobby e os Amigos, e a UI mostra o aviso com o botão "Abrir client oficial". Nos testes, use `Config::broken`.
 
 ## O que imita da LCU
 

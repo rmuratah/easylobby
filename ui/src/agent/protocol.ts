@@ -71,6 +71,9 @@ import type { RecentPlayer } from '../bindings/RecentPlayer';
 import type { SuggestedPlayer } from '../bindings/SuggestedPlayer';
 import type { SuggestedPlayerReason } from '../bindings/SuggestedPlayerReason';
 import type { CustomGameListing } from '../bindings/CustomGameListing';
+import type { Feature } from '../bindings/Feature';
+import type { EndpointProblem } from '../bindings/EndpointProblem';
+import type { UnavailableFeature } from '../bindings/UnavailableFeature';
 
 // Exige atualizar a validação quando o contrato gerado ganhar ou remover códigos.
 const errorCodes = {
@@ -79,6 +82,7 @@ const errorCodes = {
   launchFailed: true,
   invalidCommand: true,
   notFound: true,
+  featureUnavailable: true,
 } satisfies Record<ErrorCode, true>;
 
 function errorCode(v: unknown): v is ErrorCode {
@@ -396,12 +400,22 @@ function status(v: unknown): v is LcuStatus {
     default: return false;
   }
 }
+// Modo de compatibilidade (#36).
+const features = {
+  lobby: true, readyCheck: true, champSelect: true, runes: true, social: true, profile: true, postGame: true,
+} satisfies Record<Feature, true>;
+const endpointProblems = { missing: true, unexpectedFormat: true } satisfies Record<EndpointProblem, true>;
+function unavailableFeature(v: unknown): v is UnavailableFeature {
+  return object(v) && typeof v.feature === 'string' && Object.hasOwn(features, v.feature) &&
+    typeof v.problem === 'string' && Object.hasOwn(endpointProblems, v.problem) &&
+    typeof v.path === 'string' && typeof v.detail === 'string';
+}
 function lobbyLink(v: unknown): v is LobbyLink | null {
   return v === null || (object(v) && typeof v.url === 'string' && typeof v.joinCode === 'string' &&
     (v.expiresAt === null || uint(v.expiresAt)));
 }
 function state(v: unknown): v is AgentState {
-  return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) && lobbyLink(v.lobbyLink) &&
+  return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && list(v.unavailableFeatures, unavailableFeature) && lobby(v.lobby) && lobbyLink(v.lobbyLink) &&
     readyCheck(v.readyCheck) && honorBallot(v.honorBallot) && gameResult(v.gameResult) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && nullableIds(v.availableBots) && lobbyChat(v.lobbyChat) && customGames(v.customGames) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
@@ -425,6 +439,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'summoner': valid = summoner(v.summoner); break;
     case 'lobby': valid = lobby(v.lobby); break;
     case 'gameflowPhase': valid = nullableString(v.phase); break;
+    case 'unavailableFeatures': valid = list(v.unavailableFeatures, unavailableFeature); break;
     case 'readyCheck': valid = readyCheck(v.readyCheck); break;
     case 'honorBallot': valid = honorBallot(v.honorBallot); break;
     case 'gameResult': valid = gameResult(v.gameResult); break;

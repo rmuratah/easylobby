@@ -2,6 +2,7 @@
 
 use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
 use crate::custom_game::{self, CustomGameOptions};
+use crate::end_of_game;
 use crate::gameflow::GameflowPhase;
 use crate::lobby::{
     self, Lobby, Position, Queue, SetPositionOrderError, SetPositionsError, SubteamSlot,
@@ -260,6 +261,18 @@ impl Hub {
                 self.refresh_lobby().await;
                 CommandResult::Ok
             }
+            Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
+        }
+    }
+
+    /// Sai do pós-jogo para o início, sem voltar ao lobby (comando
+    /// `leavePostGame`, #180). A fase nova chega pelo WAMP.
+    pub async fn leave_post_game(&self) -> CommandResult {
+        let Some(client) = self.client() else {
+            return not_connected();
+        };
+        match end_of_game::leave(&client).await {
+            Ok(()) => CommandResult::Ok,
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
         }
     }
@@ -770,6 +783,7 @@ mod tests {
             hub.create_lobby(Queue::RankedSolo).await,
             hub.leave_lobby().await,
             hub.play_again().await,
+            hub.leave_post_game().await,
             hub.set_positions(Position::Top, Position::Jungle).await,
             hub.set_position_order(&[Position::Fill]).await,
             hub.start_tutorial(None).await,

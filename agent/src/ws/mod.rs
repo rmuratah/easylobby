@@ -98,6 +98,11 @@ pub struct WsConfig {
     pub launch: LaunchOptions,
     /// De onde baixar e onde guardar as imagens de `/assets` (#29).
     pub assets: AssetConfig,
+    /// Se o agente checa os endpoints do modo de compatibilidade (#36) ao
+    /// conectar. Ligado por padrão. Os testes que seguram uma resposta do
+    /// mock-lcu (`hold`) desligam: a checagem faz `GET` nos mesmos caminhos
+    /// ao mesmo tempo e pode ser o pedido que o teste segura.
+    pub compatibility_check: bool,
 }
 
 impl Default for WsConfig {
@@ -106,6 +111,7 @@ impl Default for WsConfig {
             allowed_origins: DEFAULT_ALLOWED_ORIGINS.map(String::from).to_vec(),
             launch: LaunchOptions::default(),
             assets: AssetConfig::default(),
+            compatibility_check: true,
         }
     }
 }
@@ -144,6 +150,7 @@ pub fn router(hub: Hub, config: WsConfig) -> Router {
 
 /// Serve o canal em `listener` até dar erro.
 pub async fn serve(listener: TcpListener, hub: Hub, config: WsConfig) -> io::Result<()> {
+    hub.set_compatibility_check(config.compatibility_check);
     axum::serve(listener, router(hub, config)).await
 }
 
@@ -174,6 +181,8 @@ pub async fn run_with_hub(
     // quando o futuro de `run` é cancelado (derrubado) no meio do `serve`:
     // sem ela, a tarefa do `tokio::spawn` seguiria viva, conectada ou
     // tentando reconectar, e reiniciar o serviço acumularia drivers (#58).
+    // Antes da conexão: o login, que dispara a checagem, pode vir logo.
+    hub.set_compatibility_check(config.compatibility_check);
     let _driver = AbortOnDrop(tokio::spawn(drive(connection, hub.clone())));
     serve(listener, hub, config).await
 }

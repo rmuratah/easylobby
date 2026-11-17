@@ -11,6 +11,7 @@ mod champ_select;
 mod champ_select_chat;
 mod chat;
 mod collection;
+mod compatibility;
 mod custom_games;
 mod custom_lobby;
 mod exit;
@@ -138,6 +139,9 @@ struct Shared {
     lp_history_dir: Option<std::path::PathBuf>,
     /// `puuid` do histórico de PDL em `state.lp_history`.
     lp_history_puuid: Option<String>,
+    /// Se o login checa os endpoints do modo de compatibilidade (#36).
+    /// Veja [`crate::ws::WsConfig::compatibility_check`].
+    compatibility_check: bool,
 }
 
 /// Recurso do estado que um comando relê ou muda pelo REST.
@@ -221,6 +225,7 @@ impl Hub {
                     game_result: game_result::GameResultSync::default(),
                     lp_history_dir: None,
                     lp_history_puuid: None,
+                    compatibility_check: true,
                 }),
                 tx,
             }),
@@ -437,6 +442,11 @@ impl Hub {
                 }
                 // Os cards do Tutorial (#228).
                 self.spawn_refresh_tutorial();
+                // O modo de compatibilidade (#36). Antes do login a LCU ainda
+                // está subindo; o login checa.
+                if self.lock().state.summoner.is_some() {
+                    self.spawn_check_health();
+                }
                 // As notas da atualização do Início (#301), da internet.
                 self.spawn_refresh_patch_notes();
                 // O saldo do cabeçalho (#370). Antes do login não responde, e
@@ -546,6 +556,7 @@ impl Hub {
                 self.set_champion_skins(None);
                 self.set_custom_games(None);
                 self.set_wallet(None);
+                self.set_unavailable_features(Vec::new());
                 self.stop_live_game();
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
@@ -587,6 +598,8 @@ impl Hub {
                         self.spawn_refresh_tutorial();
                         // O saldo também só responde depois do login (#370).
                         self.spawn_refresh_wallet();
+                        // O modo de compatibilidade (#36).
+                        self.spawn_check_health();
                     }
                 }
             }

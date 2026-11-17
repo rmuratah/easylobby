@@ -31,6 +31,8 @@
 //!   "jogar de novo", com a votação de honra (#178).
 //! - [`swaps`]: trocas de campeão, de vez e de cargo na seleção (#25).
 //! - [`autofill`]: autofill na seleção e o aviso já mostrado (#360).
+//! - [`broken`]: endpoints quebrados de propósito, para o modo de
+//!   compatibilidade do agente (#36).
 //! - [`suggested`]: jogadores sugeridos para convidar (#377).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
@@ -40,6 +42,7 @@
 pub mod ags;
 pub mod autofill;
 pub mod bench;
+pub mod broken;
 pub mod champ_select;
 pub mod champions;
 pub mod chat;
@@ -133,6 +136,9 @@ pub struct Config {
     /// [`ReplayStart::Never`] e uma gravação com pós-jogo, como
     /// `16.22-pos-jogo`.
     pub post_game: Option<post_game::Options>,
+    /// Endpoints quebrados de propósito, para testar o modo de
+    /// compatibilidade do agente (#36).
+    pub broken: broken::Broken,
 }
 
 impl Config {
@@ -153,6 +159,7 @@ impl Config {
             champ_select: None,
             timings: scenario::Timings::default(),
             post_game: None,
+            broken: broken::Broken::default(),
         }
     }
 }
@@ -224,6 +231,8 @@ struct Shared {
     post_game: Mutex<Option<post_game::PostGame>>,
     /// Roteiro do fim de partida tirado da gravação, se ela tiver um.
     post_game_script: Option<post_game::Script>,
+    /// Endpoints quebrados de propósito (#36).
+    broken: broken::Broken,
 }
 
 /// Pedido de [`MockLcu::hold`] que ainda não pegou nenhuma requisição.
@@ -358,6 +367,7 @@ impl MockLcu {
             clock: Instant::now(),
             post_game: Mutex::new(None),
             post_game_script,
+            broken: config.broken,
         });
         if let Some(options) = config.champ_select {
             start_scenario(&shared, options);
@@ -928,6 +938,24 @@ fn play_again(shared: &Shared) -> Response {
     }
 }
 
+/// "Dispensar estatísticas" no fim de partida simulado (#180).
+fn dismiss_stats(shared: &Shared) -> Response {
+    let result = lock(&shared.post_game)
+        .as_mut()
+        .map(|pg| pg.dismiss(&shared.state()));
+    match result {
+        Some(Ok(step)) => {
+            emit_post_game(shared, step);
+            Response {
+                status: 204,
+                body: Value::Null,
+            }
+        }
+        Some(Err(error)) => error,
+        None => Response::error(400, "mock-lcu: fora do pós-jogo"),
+    }
+}
+
 fn advance_post_game(shared: &Shared) -> Response {
     let step = lock(&shared.post_game)
         .as_mut()
@@ -1039,6 +1067,14 @@ async fn handle_request(
         if let Some(svg) = collection::skin_image_svg(request.uri().path()) {
             return ([(header::CONTENT_TYPE, "image/svg+xml")], svg).into_response();
         }
+    }
+
+    // Endpoints quebrados de propósito (#36).
+    if let Some(response) = shared.broken.respond(&method, request.uri().path()) {
+        if shared.verbose {
+            println!("{method} {path} -> {} (quebrado)", response.status);
+        }
+        return json_response(&response);
     }
 
     let response = match (&method, path.as_str()) {
@@ -1526,6 +1562,11 @@ async fn handle_request(
             }
         }
         (&Method::POST, post_game::PLAY_AGAIN) => play_again(&shared),
+        (&Method::POST, post_game::DISMISS_STATS) => dismiss_stats(&shared),
+        (&Method::POST, post_game::PLAY_AGAIN_DECLINE) => Response {
+            status: 204,
+            body: Value::Null,
+        },
         (&Method::POST, post_game::HONOR) => {
             let body = read_json(request).await;
             let (response, events) = {

@@ -11,6 +11,8 @@ Este documento registra as decisões acordadas do easylobby. Elas orientam a imp
 - O **mock-lcu** permite desenvolver sem abrir o LoL, usando fixtures de sessões reais em `agent/tests/fixtures/<patch>/`.
 - **API oficial da Riot (proposta no #436):** a única chamada fora da LCU é o `spectator-v5`, para a aba "Em jogo" do perfil de outro jogador, que a LCU não tem. Só o agente chama. A chave não entra no app: por enquanto fica na máquina de quem testa (`EASYLOBBY_RIOT_API_KEY` ou arquivo local) e, antes do alfa fechado, num servidor do easylobby com a chave de produto (#37).
 
+- **Erros enviados aos devs (#550):** durante o alfa fechado, o app instalado também manda os erros do log para o projeto `easylobby` do Supabase (plano grátis). Vale só para eventos de nível erro, com as mesmas regras de privacidade do log local (#537), um id aleatório da instalação e opção para desligar nas Configurações. A chave embutida é a publicável e, pela RLS, só insere. Pode sair depois se custar. Veja [docs/supabase](supabase/README.md).
+
 ## Interface oficial e recuperação
 
 O agente usa `POST /riotclient/kill-ux` para fechar a interface oficial e reduzir o consumo de memória, mantendo o client em execução. Esse comportamento terá opção para desligar. Um botão de emergência usa `POST /riotclient/launch-ux` para reabrir a interface oficial.
@@ -63,6 +65,7 @@ Depois da partida, o app mostra o resultado e as estatísticas e volta ao lobby,
 
 - **Dados:** vêm de `/lol-end-of-game/v1/eog-stats-block`, lidos pelo agente e enviados à UI pelo `/ws` com tipos gerados, como nas outras telas ([issue #179](https://github.com/rmuratah/easylobby/issues/179)).
 - **Jogar de novo:** o botão chama `POST /lol-lobby/v2/play-again` e volta ao lobby com o mesmo grupo e a mesma fila ([issue #180](https://github.com/rmuratah/easylobby/issues/180)).
+- **Sair:** o botão recusa o "Jogar de novo" do grupo (`POST /lol-lobby/v2/play-again-decline`) e dispensa as estatísticas (`POST /lol-end-of-game/v1/state/dismiss-stats`), voltando ao início sem lobby ([issue #180](https://github.com/rmuratah/easylobby/issues/180)).
 - **Honra:** opcional. O jogador pode honrar um aliado ou pular, e nenhuma das duas escolhas trava a volta ao lobby ([issue #182](https://github.com/rmuratah/easylobby/issues/182)).
 - **UI oficial:** o LoL a reabre quando o jogo fecha; o agente a fecha de novo no pós-jogo, como nas outras telas que o app cobre ([issue #448](https://github.com/rmuratah/easylobby/issues/448)). Na reconexão a UI oficial não é fechada, porque é por ela que o jogador reconecta, mas fica escondida; o botão de emergência a mostra.
 - **Limites:** nada de loja, de missões pagas ou de ofertas na tela de pós-jogo, seguindo o escopo do produto.

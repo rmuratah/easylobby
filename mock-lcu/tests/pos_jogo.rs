@@ -188,6 +188,42 @@ async fn da_partida_ao_lobby_com_honra() {
     assert_eq!(mock.phase(), "Lobby");
 }
 
+/// "Sair" no pós-jogo (#180): o agente dispensa as estatísticas e a fase
+/// vai para `None`, sem lobby; a cédula some.
+#[tokio::test]
+async fn sai_do_pos_jogo_para_o_inicio() {
+    let dir = temp_dir("sair");
+    let url = start_agent(&dir).await;
+    let mut ui = tokio_tungstenite::connect_async(&url).await.unwrap().0;
+
+    let mut config = Config::new(fixtures());
+    config.replay_start = ReplayStart::Never;
+    config.lockfile = Some(dir.join("lockfile"));
+    config.ca_file = Some(dir.join("mock-lcu-ca.pem"));
+    config.speed = 10.0;
+    config.post_game = Some(Options { end_after_ms: None });
+    let mock = MockLcu::start(config).await.unwrap();
+
+    let mut seen = Seen::default();
+    seen.until(&mut ui, |s| s.phase() == Some(GameflowPhase::InProgress))
+        .await;
+    // Ainda na partida: a LCU recusa.
+    let result = seen.send(&mut ui, 1, Command::LeavePostGame).await;
+    assert!(matches!(result, CommandResult::Error { .. }), "{result:?}");
+
+    assert!(mock.end_game());
+    seen.until(&mut ui, |s| s.phase() == Some(GameflowPhase::EndOfGame))
+        .await;
+    seen.until(&mut ui, |s| s.ballot.is_some()).await;
+
+    let result = seen.send(&mut ui, 2, Command::LeavePostGame).await;
+    assert!(matches!(result, CommandResult::Ok), "{result:?}");
+    seen.until(&mut ui, |s| s.phase() == Some(GameflowPhase::Idle))
+        .await;
+    seen.until(&mut ui, |s| s.ballot.is_none()).await;
+    assert_eq!(mock.phase(), "None");
+}
+
 /// Sem ninguém concluir as telas (a UI oficial "aberta"), o pós-jogo para
 /// na `honor-vote`, como no LoL real; o avanço do mock conclui cada uma.
 #[tokio::test]

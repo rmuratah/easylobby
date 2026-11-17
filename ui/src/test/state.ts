@@ -8,6 +8,7 @@ const emptyState: AgentState = {
   lcu: { state: 'connected', session: 1 },
   summoner: null,
   gameflowPhase: null,
+  unavailableFeatures: [],
   lobby: null,
   lobbyLink: null,
   matchmaking: null,
