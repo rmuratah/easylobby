@@ -7,6 +7,7 @@ import type { HonorBallot } from '../bindings/HonorBallot';
 import type { RankedChange } from '../bindings/RankedChange';
 import type { HonorCandidate } from '../bindings/HonorCandidate';
 import type { PatchChange } from '../bindings/PatchChange';
+import type { LolUpdate } from '../bindings/LolUpdate';
 import type { PatchLine } from '../bindings/PatchLine';
 import type { PatchLineKind } from '../bindings/PatchLineKind';
 import type { PatchSection } from '../bindings/PatchSection';
@@ -338,6 +339,12 @@ function patchNotes(v: unknown): v is PatchNotes | null {
   return v === null || (object(v) && typeof v.version === 'string' && typeof v.url === 'string' &&
     nullableString(v.title) && nullableString(v.summary) && list(v.sections, patchSection));
 }
+// Atualização do LoL em andamento (#575).
+const lolUpdateStages = new Set(['checking', 'downloading', 'repairing', 'pending']);
+function lolUpdate(v: unknown): v is LolUpdate | null {
+  return v === null || (object(v) && typeof v.stage === 'string' && lolUpdateStages.has(v.stage) &&
+    (v.percent === null || (uint(v.percent) && v.percent <= 100)) && typeof v.blocksQueue === 'boolean');
+}
 // Coleção de campeões e skins (#369).
 const stringList = (v: unknown): v is string[] => list(v, (x): x is string => typeof x === 'string');
 function collectionChampion(v: unknown): v is CollectionChampion {
@@ -428,7 +435,7 @@ function state(v: unknown): v is AgentState {
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
     champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) && list(v.suggestedPlayers, suggestedPlayer) &&
     ranked(v.ranked) && list(v.championMasteries, championMastery) && lpHistory(v.lpHistory) && matchHistory(v.matchHistory) &&
-    matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && playerLiveGame(v.playerLiveGame) && patchNotes(v.patchNotes) &&
+    matchDetails(v.matchDetails) && playerProfile(v.playerProfile) && liveGame(v.liveGame) && playerLiveGame(v.playerLiveGame) && patchNotes(v.patchNotes) && lolUpdate(v.lolUpdate) &&
     collection(v.collection) && championSkins(v.championSkins) &&
     wallet(v.wallet) && vanguard(v.vanguard);
 }
@@ -480,6 +487,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'liveGame': valid = liveGame(v.liveGame); break;
     case 'playerLiveGame': valid = playerLiveGame(v.playerLiveGame); break;
     case 'patchNotes': valid = patchNotes(v.patchNotes); break;
+    case 'lolUpdate': valid = lolUpdate(v.lolUpdate); break;
     case 'collection': valid = collection(v.collection); break;
     case 'championSkins': valid = championSkins(v.championSkins); break;
     case 'wallet': valid = wallet(v.wallet); break;

@@ -19,6 +19,7 @@ import type { LiveGame } from "./LiveGame";
 import type { Lobby } from "./Lobby";
 import type { LobbyChat } from "./LobbyChat";
 import type { LobbyLink } from "./LobbyLink";
+import type { LolUpdate } from "./LolUpdate";
 import type { LpHistory } from "./LpHistory";
 import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
@@ -201,6 +202,10 @@ export type AgentState = {
    * Notas da atualização atual do LoL (#301), ou `null`.
    */
   patchNotes: PatchNotes | null,
+  /**
+   * Atualização do LoL em andamento (#575), ou `null`.
+   */
+  lolUpdate: LolUpdate | null,
   /**
    * Essência Azul, Essência Laranja e RP da conta (#370), ou `null`.
    */

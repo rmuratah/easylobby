@@ -21,6 +21,7 @@ import type { LiveGame } from "./LiveGame";
 import type { Lobby } from "./Lobby";
 import type { LobbyChat } from "./LobbyChat";
 import type { LobbyLink } from "./LobbyLink";
+import type { LolUpdate } from "./LolUpdate";
 import type { LpHistory } from "./LpHistory";
 import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
@@ -96,6 +97,7 @@ export type ServerMessage =
   | { "type": "collection", collection: Collection | null, }
   | { "type": "championSkins", championSkins: ChampionSkins | null, }
   | { "type": "patchNotes", patchNotes: PatchNotes | null, }
+  | { "type": "lolUpdate", lolUpdate: LolUpdate | null, }
   | { "type": "wallet", wallet: Wallet | null, }
   | { "type": "vanguard", vanguard: Vanguard | null, }
   | { "type": "response", id: number, result: CommandResult, }

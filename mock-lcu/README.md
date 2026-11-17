@@ -8,6 +8,7 @@ cargo run -p mock-lcu -- --fixtures exemplo --velocidade 10 --repetir
 cargo run -p mock-lcu -- --http --porta 2999 --verbose
 cargo run -p mock-lcu -- --selecao draft --celula 0       # seleção simulada (#440)
 cargo run -p mock-lcu -- --pos-jogo                       # fim de partida simulado (#178)
+cargo run -p mock-lcu -- --parado --patch 60              # atualização do LoL simulada (#575)
 ```
 
 ## Seleção de campeões simulada (#440)
@@ -41,6 +42,10 @@ Quando a partida acaba, saem os eventos gravados do fim de partida, na ordem da 
 No terminal do mock, digite e dê Enter: `f` acaba a partida (voltando para ela antes, se já acabou), `a` conclui a tela do pós-jogo que está esperando, `j` faz o "jogar de novo" e `r` volta para a partida (que acaba de novo depois de `--fim-em`). As mesmas ações existem como rotas só do mock: `POST /mock-lcu/end-of-game`, `.../end-of-game/advance` e `.../end-of-game/restart`. `POST /mock-lcu/end-of-game` funciona também sem `--pos-jogo`, com `--fixtures 16.22-pos-jogo --parado`. Nos testes: `Config::post_game`, `MockLcu::end_game`, `advance_post_game`, `play_again`, `restart_game` e `post_game_waiting`.
 
 Ao subir, ele mostra a porta, o lockfile e o certificado da CA. Pare com Ctrl+C; o lockfile e o certificado são apagados.
+
+## Atualização do LoL simulada (#575)
+
+Para ver o aviso de patch do app sem esperar o dia de patch. `--patch <segundos>` trava a fila (`/lol-gameflow/v1/availability` em `Patching`) e faz o patcher (`/lol-patch/v1/products/league_of_legends/state`) baixar de 0 a 100% nesse tempo; no fim, o patcher para em dia e a fila destrava. Use com `--parado`, senão a gravação manda a `availability` dela no meio e destrava a fila antes da hora. `POST /mock-lcu/patch` com `{"segundos": 30}` começa (ou recomeça) um patch com o mock já rodando, e `DELETE /mock-lcu/patch` termina na hora. O formato do patcher segue o `/help` da LCU; o de um patch de verdade ainda não foi gravado.
 
 ## Endpoints quebrados (#36)
 

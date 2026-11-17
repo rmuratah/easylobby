@@ -45,6 +45,7 @@ const emptyState: AgentState = {
   collection: null,
   championSkins: null,
   patchNotes: null,
+  lolUpdate: null,
   wallet: null,
   vanguard: null,
 };

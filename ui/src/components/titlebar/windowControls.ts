@@ -5,7 +5,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 export type WindowControls = {
   minimize(): Promise<void>;
   toggleMaximize(): Promise<void>;
-  /** Pede para fechar; o shell esconde a janela na bandeja em vez de sair. */
+  /** Pede para fechar; o shell esconde a janela na bandeja em vez de sair e encerra o LoL (#571). */
   close(): Promise<void>;
   isMaximized(): Promise<boolean>;
   /** Avisa quando o tamanho muda (maximizar, restaurar, Snap). Devolve a função que para de ouvir. */

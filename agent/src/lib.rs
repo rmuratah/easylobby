@@ -57,6 +57,8 @@
 //!   oficial da Riot, para a aba "Em jogo" do perfil (#436)
 //! - [`health`]: checagem dos endpoints da LCU ao conectar, que desliga só
 //!   a função afetada quando o LoL muda um deles (#36)
+//! - [`lol_update`]: atualização do LoL (patch) em andamento, com o
+//!   progresso e a fila travada (#575)
 
 // O `json!` do estado inteiro nos testes do protocolo passa do limite
 // padrão de 128.
@@ -90,6 +92,7 @@ pub mod lobby_link;
 pub mod lobby_restrictions;
 pub mod lockfile;
 pub mod logging;
+pub mod lol_update;
 pub mod lp_history;
 pub mod mastery;
 pub mod match_history;

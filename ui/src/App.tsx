@@ -34,6 +34,7 @@ import { EmptyState } from './components/base';
 import { totalUnread } from './agent/chat';
 import { CompatibilityBanner, FeatureGate } from './components/CompatibilityNotice';
 import { VanguardBanner } from './components/VanguardNotice';
+import { LolUpdateBanner } from './components/LolUpdateBanner';
 import { unavailableFeature } from './agent/compatibility';
 
 /** Runas não é destino da navegação lateral: o editor só abre pela seleção de campeões (#165). */
@@ -152,6 +153,8 @@ export default function App() {
             {/* Vanguard desconectado (#579): a partida não abriria e viraria esquiva. */}
             {ready && <VanguardBanner connection={connection} send={connection.send} />}
             {ready && <CompatibilityBanner connection={connection} send={connection.send} />}
+            {/* Patch do LoL em andamento (#575): progresso e fila travada. */}
+            {ready && <LolUpdateBanner update={connection.state?.lolUpdate ?? null} />}
             <section hidden={activePage !== 'home'} aria-label="Início"
               className={homeLayout ? 'home-secondary' : 'flex max-w-[22rem] flex-col gap-4'}>
               {summoner && <SummonerHeader summoner={summoner} ranked={connection.state?.ranked ?? null} />}

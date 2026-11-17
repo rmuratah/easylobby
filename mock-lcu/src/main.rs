@@ -52,6 +52,9 @@ uso: mock-lcu [opções]
   --fim-em <segundos>       com --pos-jogo, quanto a partida demora para acabar
                             depois que o agente conecta (padrão: 3; 0 espera
                             a tecla f)
+  --patch <segundos>        simula uma atualização do LoL: trava a fila e baixa
+                            de 0 a 100% nesse tempo (use com --parado, para a
+                            gravação não destravar a fila no meio)
 ";
 
 const KEYS: &str = "\
@@ -81,6 +84,7 @@ struct Args {
     post_game: bool,
     end_after: Option<f64>,
     broken: Broken,
+    patch: Option<f64>,
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -100,6 +104,7 @@ fn parse_args() -> Result<Args, String> {
         post_game: false,
         end_after: None,
         broken: Broken::default(),
+        patch: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -128,6 +133,13 @@ fn parse_args() -> Result<Args, String> {
                 args.bot_seconds = Some(seconds.ok_or("--bots inválido")?);
             }
             "--pos-jogo" => args.post_game = true,
+            "--patch" => {
+                let seconds = value()?
+                    .parse()
+                    .ok()
+                    .filter(|s: &f64| s.is_finite() && *s > 0.0);
+                args.patch = Some(seconds.ok_or("--patch inválido")?);
+            }
             "--quebrar" => args.broken.missing.push(value()?),
             "--formato-errado" => args.broken.bad_format.push(value()?),
             "--fim-em" => {
@@ -256,6 +268,10 @@ async fn run() -> Result<(), String> {
         println!("quebrado (formato errado): {path}");
     }
     config.broken = args.broken;
+    if let Some(seconds) = args.patch {
+        println!("patch simulado: {seconds} s (POST /mock-lcu/patch recomeça)");
+    }
+    config.patch_seconds = args.patch;
 
     let manifest = config.fixtures.manifest.clone();
     let (rest, events) = (config.fixtures.rest.len(), config.fixtures.events.len());
