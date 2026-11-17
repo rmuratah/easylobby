@@ -37,6 +37,7 @@ import type { Summoner } from "./Summoner";
 import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
 import type { TutorialPart } from "./TutorialPart";
 import type { UnavailableFeature } from "./UnavailableFeature";
+import type { Vanguard } from "./Vanguard";
 import type { Wallet } from "./Wallet";
 
 /**
@@ -204,4 +205,8 @@ export type AgentState = {
    * Essência Azul, Essência Laranja e RP da conta (#370), ou `null`.
    */
   wallet: Wallet | null,
+  /**
+   * Estado do Vanguard (#579), ou `null`.
+   */
+  vanguard: Vanguard | null,
 };

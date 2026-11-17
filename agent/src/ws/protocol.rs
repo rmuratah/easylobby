@@ -81,6 +81,7 @@ use crate::summoner::Summoner;
 use crate::summoner_spells::SummonerSpellCatalog;
 use crate::swaps::SwapKind;
 use crate::training::TutorialPart;
+use crate::vanguard::Vanguard;
 use crate::wallet::Wallet;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
@@ -332,6 +333,13 @@ pub enum ServerMessage {
     /// no client oficial). `null` com o LoL fechado ou antes do login.
     Wallet { wallet: Option<Wallet> },
 
+    // Vanguard
+    /// O estado do Vanguard (#579) mudou: chega logo depois de conectar, no
+    /// login e quando a LCU avisa. Com `connected: false` a partida não abre
+    /// e vira esquiva no fim da seleção. `null` com o LoL fechado ou se a
+    /// LCU não tiver o endpoint.
+    Vanguard { vanguard: Option<Vanguard> },
+
     // Respostas aos comandos
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
@@ -452,6 +460,10 @@ pub struct AgentState {
     // Saldo
     /// Essência Azul, Essência Laranja e RP da conta (#370), ou `null`.
     pub wallet: Option<Wallet>,
+
+    // Vanguard
+    /// Estado do Vanguard (#579), ou `null`.
+    pub vanguard: Option<Vanguard>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -1153,6 +1165,7 @@ mod tests {
                     "championSkins": null,
                     "patchNotes": null,
                     "wallet": null,
+                    "vanguard": null,
                 },
             })
         );

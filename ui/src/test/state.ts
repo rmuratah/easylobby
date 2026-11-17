@@ -46,6 +46,7 @@ const emptyState: AgentState = {
   championSkins: null,
   patchNotes: null,
   wallet: null,
+  vanguard: null,
 };
 
 /**
