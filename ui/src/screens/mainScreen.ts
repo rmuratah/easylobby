@@ -6,8 +6,9 @@ export function mainScreen(connection: ConnectionSnapshot) {
   if (connection.status !== 'connected' || state?.lcu.state !== 'connected' || !state.summoner) return 'home';
   const phase = state.gameflowPhase;
   if (phase === 'ChampSelect') return 'champSelect';
-  // Pós-jogo (#180): tela própria, com a volta ao lobby.
-  if (phase === 'WaitingForStats' || phase === 'PreEndOfGame' || phase === 'EndOfGame') return 'postGame';
+  // Pós-jogo (#180): tela própria, com a volta ao lobby. A partida que
+  // termina com erro também cai nela, com a saída para o início (#184).
+  if (phase === 'WaitingForStats' || phase === 'PreEndOfGame' || phase === 'EndOfGame' || phase === 'TerminatedInError') return 'postGame';
   // Fases posteriores têm prioridade sobre snapshots atrasados de fila/lobby.
   if (phase && !['None', 'Lobby', 'Matchmaking', 'ReadyCheck'].includes(phase)) return 'other';
   if (phase === 'ReadyCheck' || state.readyCheck || state.matchmaking?.searchState === 'Found') return 'found';
