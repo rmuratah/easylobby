@@ -30,6 +30,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
     case 'summoner': return { ...state, summoner: message.summoner };
     case 'gameflowPhase': return { ...state, gameflowPhase: message.phase,
       champSelectChat: message.phase === 'ChampSelect' ? state.champSelectChat : null };
+    case 'unavailableFeatures': return { ...state, unavailableFeatures: message.unavailableFeatures };
     case 'readyCheck': return { ...state, readyCheck: message.readyCheck };
     case 'honorBallot': return { ...state, honorBallot: message.honorBallot };
     case 'gameResult': return { ...state, gameResult: message.gameResult };

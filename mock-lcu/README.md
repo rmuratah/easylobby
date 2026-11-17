@@ -41,6 +41,16 @@ No terminal do mock, digite e dê Enter: `f` acaba a partida (voltando para ela 
 
 Ao subir, ele mostra a porta, o lockfile e o certificado da CA. Pare com Ctrl+C; o lockfile e o certificado são apagados.
 
+## Endpoints quebrados (#36)
+
+Para testar o modo de compatibilidade sem esperar o LoL mudar. `--quebrar <caminho>` faz o caminho (e os de baixo dele) responder, em qualquer método, como a LCU responde a um caminho que não existe: 404 com `errorCode` `RESOURCE_NOT_FOUND` e "Invalid URI format". `--formato-errado <caminho>` faz o `GET` do caminho responder 200 com um texto no lugar do JSON. Os dois podem repetir.
+
+```bash
+cargo run -p mock-lcu -- --quebrar /lol-lobby/v2/lobby --formato-errado /lol-chat/v1/friends
+```
+
+Logo depois do login, o agente checa os endpoints de `agent/src/health.rs`, desliga o Lobby e os Amigos, e a UI mostra o aviso com o botão "Abrir client oficial". Nos testes, use `Config::broken`.
+
 ## O que imita da LCU
 
 - Escuta em `127.0.0.1`, numa porta livre (ou `--porta`), com REST e WebSocket na mesma porta.

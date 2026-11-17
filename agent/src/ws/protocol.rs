@@ -58,6 +58,7 @@ use crate::custom_lobby::{BotDifficulty, CustomTeam};
 use crate::end_of_game::GameResult;
 use crate::friends::{Friend, FriendGroup};
 use crate::gameflow::GameflowPhase;
+use crate::health::UnavailableFeature;
 use crate::honor::HonorBallot;
 use crate::invitations::{Invitee, ReceivedInvitation};
 use crate::live_game::{LiveGame, PlayerLiveGame};
@@ -113,6 +114,14 @@ pub enum ServerMessage {
     /// `ReadyCheck`, `ChampSelect`, `InProgress`...; veja [`GameflowPhase`]).
     /// `null` com o LoL fechado ou quando a LCU ainda não respondeu a fase.
     GameflowPhase { phase: Option<GameflowPhase> },
+    /// Mudaram as funções desligadas pelo modo de compatibilidade (#36):
+    /// chega depois da checagem dos endpoints, logo depois do login, quando
+    /// algum endpoint que o app usa sumiu ou mudou de formato. Sempre a
+    /// lista inteira, uma entrada por função. Vazia com tudo funcionando e
+    /// com o LoL fechado.
+    UnavailableFeatures {
+        unavailable_features: Vec<UnavailableFeature>,
+    },
 
     // Lobby, fila e partida encontrada
     /// O lobby mudou (criado, fila trocada, alguém entrou ou saiu). `null`
@@ -339,6 +348,9 @@ pub struct AgentState {
     pub lcu: LcuStatus,
     pub summoner: Option<Summoner>,
     pub gameflow_phase: Option<GameflowPhase>,
+    /// Funções desligadas porque um endpoint delas falhou na checagem (#36).
+    /// Os comandos delas respondem `featureUnavailable`.
+    pub unavailable_features: Vec<UnavailableFeature>,
 
     // Lobby, fila e partida encontrada
     pub lobby: Option<Lobby>,
@@ -1058,6 +1070,10 @@ pub enum ErrorCode {
     InvalidCommand,
     /// O que o comando procura não existe (jogador com esse Riot ID, #206).
     NotFound,
+    /// A função do comando está desligada pelo modo de compatibilidade
+    /// (#36): um endpoint dela sumiu ou mudou depois de uma atualização do
+    /// LoL. Nada foi mandado para a LCU; veja `unavailableFeatures`.
+    FeatureUnavailable,
 }
 
 impl CommandResult {
@@ -1092,6 +1108,7 @@ mod tests {
                     "lcu": {"state": "starting"},
                     "summoner": null,
                     "gameflowPhase": null,
+                    "unavailableFeatures": [],
                     "readyCheck": null,
                     "honorBallot": null,
                     "gameResult": null,

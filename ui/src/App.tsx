@@ -32,6 +32,8 @@ import { FriendProfilePage, ProfilePage } from './components/profile/ProfilePage
 import { CollectionPage } from './components/collection/CollectionPage';
 import { EmptyState } from './components/base';
 import { totalUnread } from './agent/chat';
+import { CompatibilityBanner, FeatureGate } from './components/CompatibilityNotice';
+import { unavailableFeature } from './agent/compatibility';
 
 /** Runas não é destino da navegação lateral: o editor só abre pela seleção de campeões (#165). */
 type Page = NavigationPage | 'friendProfile';
@@ -145,6 +147,8 @@ export default function App() {
           {/* Escondido, e não desmontado, enquanto reconecta: comandos em andamento sobrevivem à queda. */}
           <div hidden={!ready} className={homeLayout ? 'home-grid' : activePage === 'conversations' ? 'flex h-full min-h-0 flex-col gap-5' : 'flex min-h-full flex-col gap-5'}>
             {ready && connection.error && <p role="alert" className="col-span-full text-warn">{connection.error}</p>}
+            {/* Modo de compatibilidade (#36): o que o LoL quebrou numa atualização. */}
+            {ready && <CompatibilityBanner connection={connection} send={connection.send} />}
             <section hidden={activePage !== 'home'} aria-label="Início"
               className={homeLayout ? 'home-secondary' : 'flex max-w-[22rem] flex-col gap-4'}>
               {summoner && <SummonerHeader summoner={summoner} ranked={connection.state?.ranked ?? null} />}
@@ -157,23 +161,31 @@ export default function App() {
               </div>}
               {screen !== 'home' && !playable && <button type="button" className="nav-button self-start" onClick={() => setNavigation({ screen, page: 'flow' })}>Voltar para {title}</button>}
             </section>
-            {activePage === 'profile' && <section aria-label="Perfil"><ProfilePage connection={connection} send={connection.send} onOpenProfile={openPlayerProfile} /></section>}
+            {activePage === 'profile' && <section aria-label="Perfil"><FeatureGate connection={connection} send={connection.send} feature="profile">
+              <ProfilePage connection={connection} send={connection.send} onOpenProfile={openPlayerProfile} />
+            </FeatureGate></section>}
             {activePage === 'collection' && <section aria-label="Coleção"><CollectionPage connection={connection} send={connection.send} /></section>}
             {activePage === 'friendProfile' && profileOf && <section aria-label="Perfil do jogador">
-              <FriendProfilePage key={profileOf.puuid} connection={connection} send={connection.send} puuid={profileOf.puuid}
-                onBack={closePlayerProfile} onChat={openConversation} onOpenProfile={openPlayerProfile} />
+              <FeatureGate connection={connection} send={connection.send} feature="profile">
+                <FriendProfilePage key={profileOf.puuid} connection={connection} send={connection.send} puuid={profileOf.puuid}
+                  onBack={closePlayerProfile} onChat={openConversation} onOpenProfile={openPlayerProfile} />
+              </FeatureGate>
             </section>}
             {/* Sempre montada: o rascunho e a conversa escolhida sobrevivem à navegação. */}
             <section aria-label="Conversas" hidden={activePage !== 'conversations'} className="min-h-0 flex-1">
-              <ConversationsPage connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith}
-                visible={ready && activePage === 'conversations'} />
+              <FeatureGate connection={connection} send={connection.send} feature="social">
+                <ConversationsPage connection={connection} send={connection.send} activeId={chatWith} onActiveChange={setChatWith}
+                  visible={ready && activePage === 'conversations'} />
+              </FeatureGate>
             </section>
             {activePage === 'flow' && screen === 'champSelect' && <h2 className="text-title font-semibold tracking-[-0.015em]">{title}</h2>}
             {activePage === 'flow' && screen === 'other' && (liveGame && connection.state
               ? <LiveGamePanel state={connection.state} game={liveGame} onOpenProfile={openPlayerProfile} />
               : <EmptyState title={phaseLabel(connection.state?.gameflowPhase)}
                 description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />)}
-            {activePage === 'flow' && screen === 'postGame' && <PostGamePanel connection={connection} send={connection.send} />}
+            {activePage === 'flow' && screen === 'postGame' && <FeatureGate connection={connection} send={connection.send} feature="postGame">
+              <PostGamePanel connection={connection} send={connection.send} />
+            </FeatureGate>}
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
             {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}
             <div hidden={!playable || (activePage !== 'flow' && activePage !== 'home')} className={homeLayout ? 'home-primary'
@@ -186,14 +198,19 @@ export default function App() {
                 <p className="max-w-md text-section text-muted">Este espaço vai ganhar uma nova função numa futura atualização. Para jogar, use “Jogar” na barra lateral.</p>
               </article>}
               <div hidden={homeReserved} className="contents">
-                <LobbyPanel connection={connection} send={connection.send} onOpenProfile={openPlayerProfile} onModeSelectChange={setChangingMode} />
+                <FeatureGate connection={connection} send={connection.send} feature="lobby">
+                  <LobbyPanel connection={connection} send={connection.send} onOpenProfile={openPlayerProfile} onModeSelectChange={setChangingMode} />
+                </FeatureGate>
               </div>
               {/* Coluna da direita com largura, só da altura do conteúdo (sem sobra); embaixo, presa à borda, quando a janela é estreita. */}
               <div hidden={activePage !== 'flow' || screen === 'home' || found || changingMode} className="sticky bottom-0 z-10 flex h-fit flex-col gap-4 self-start @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
-                <QueuePanel connection={connection} send={connection.send} />
-                {/* Embaixo da busca, quem foi convidado e o status, e o chat do grupo (#206). */}
-                <LobbyGroupCard connection={connection} />
-                <LobbyChatPanel connection={connection} send={connection.send} />
+                {/* Com o lobby desligado (#36), o aviso fica no lugar do lobby; aqui não aparece nada. */}
+                <FeatureGate connection={connection} send={connection.send} feature="lobby" quiet>
+                  <QueuePanel connection={connection} send={connection.send} />
+                  {/* Embaixo da busca, quem foi convidado e o status, e o chat do grupo (#206). */}
+                  <LobbyGroupCard connection={connection} />
+                  <LobbyChatPanel connection={connection} send={connection.send} />
+                </FeatureGate>
               </div>
             </div>
             {/* A partida encontrada fica no lugar da faixa de busca, logo abaixo do lobby, e continua visível nas outras páginas. */}
@@ -202,14 +219,18 @@ export default function App() {
               <h2 className="text-title font-semibold tracking-[-0.015em] text-accent-ink">Partida encontrada</h2>
               <p className="text-body">Aguardando os dados de confirmação do agente. Use “Abrir client oficial”, no alto da janela, se precisar.</p>
             </section>}
-            {found && <ReadyCheckPanel connection={connection} send={connection.send} />}
+            {found && <FeatureGate connection={connection} send={connection.send} feature="readyCheck">
+              <ReadyCheckPanel connection={connection} send={connection.send} />
+            </FeatureGate>}
             {/* Montada fora da tela também, para a busca e as ações em andamento sobreviverem à navegação. */}
             <div hidden={activePage !== 'flow' || screen !== 'champSelect'}>
-              <ChampSelectPanel connection={connection} send={connection.send}
-                onOpenRunes={() => setRunesOpen(true)} />
+              <FeatureGate connection={connection} send={connection.send} feature="champSelect">
+                <ChampSelectPanel connection={connection} send={connection.send}
+                  onOpenRunes={() => setRunesOpen(true)} />
+              </FeatureGate>
             </div>
             {/* O editor de runas abre num pop-up por cima da seleção (#429), e só existe nela. */}
-            {screen === 'champSelect' && runesOpen
+            {screen === 'champSelect' && runesOpen && !unavailableFeature(connection, 'runes')
               && <RunesDialog connection={connection} send={connection.send} onClose={() => setRunesOpen(false)} />}
           </div>
           </main>
@@ -220,12 +241,16 @@ export default function App() {
           <aside id="coluna-amigos" aria-label="Amigos e convites" hidden={!sidebar.open} className="app-sidebar">
             {sidebar.open && <SidebarToggle open onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
             {/* Convites recebidos ficam aqui, sem seção própria; convidar é pelo lobby (#206). */}
-            <InvitationsPanel connection={connection} send={connection.send} />
-            <FriendsList connection={connection} onOpenProfile={friend => openPlayerProfile(friend.puuid)} renderActions={friend => (
-              // A área inteira à direita da linha abre a conversa, não só o ícone (#255).
-              <ChatButton friend={friend} unread={unreadFrom(friend.id)} onOpen={openConversation}
-                className="h-auto! w-14 rounded-control! hover:bg-line/40!" />
-            )} />
+            <FeatureGate connection={connection} send={connection.send} feature="lobby" quiet>
+              <InvitationsPanel connection={connection} send={connection.send} />
+            </FeatureGate>
+            <FeatureGate connection={connection} send={connection.send} feature="social">
+              <FriendsList connection={connection} onOpenProfile={friend => openPlayerProfile(friend.puuid)} renderActions={friend => (
+                // A área inteira à direita da linha abre a conversa, não só o ícone (#255).
+                <ChatButton friend={friend} unread={unreadFrom(friend.id)} onOpen={openConversation}
+                  className="h-auto! w-14 rounded-control! hover:bg-line/40!" />
+              )} />
+            </FeatureGate>
           </aside>
         </div>
       </div>

@@ -38,6 +38,7 @@ import type { SuggestedPlayer } from "./SuggestedPlayer";
 import type { Summoner } from "./Summoner";
 import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
 import type { TutorialPart } from "./TutorialPart";
+import type { UnavailableFeature } from "./UnavailableFeature";
 import type { Wallet } from "./Wallet";
 
 /**
@@ -56,6 +57,7 @@ export type ServerMessage =
   | { "type": "lcu", status: LcuStatus, }
   | { "type": "summoner", summoner: Summoner | null, }
   | { "type": "gameflowPhase", phase: GameflowPhase | null, }
+  | { "type": "unavailableFeatures", unavailableFeatures: Array<UnavailableFeature>, }
   | { "type": "lobby", lobby: Lobby | null, }
   | { "type": "lobbyLink", lobbyLink: LobbyLink | null, }
   | { "type": "matchmaking", matchmaking: Matchmaking | null, }
