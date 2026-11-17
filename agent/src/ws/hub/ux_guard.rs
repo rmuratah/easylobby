@@ -77,30 +77,35 @@ pub(super) const KILL_UX_RETRY: Duration = Duration::from_secs(5);
 /// Folga sobre os 10 s em que o LoL pede a janela antes do fim da etapa.
 pub(super) const SPARE_BEFORE_GAME: Duration = Duration::from_secs(15);
 
-/// Folga entre o Vanguard conectar e o primeiro `kill-ux` (#579). Num PC em
-/// que o Vanguard levou 27 s para conectar, fechar a UI 23 s depois fez o
-/// Vanguard cair com o código 7003 dois minutos mais tarde, e a partida
-/// seguinte virou esquiva. Num PC em que a folga foi de 29 s, nunca caiu.
-pub(super) const VANGUARD_SPARE: Duration = Duration::from_secs(60);
+/// Folga entre o Vanguard conectar e o primeiro `kill-ux` (#579), em
+/// múltiplos de `kill_ux_delay` (60 s com o padrão de 30 s). Num PC em que o
+/// Vanguard levou 27 s para conectar, fechar a UI 23 s depois fez o Vanguard
+/// cair com o código 7003 dois minutos mais tarde, e a partida seguinte virou
+/// esquiva. Num PC em que a folga foi de 29 s, nunca caiu.
+const VANGUARD_SPARE_FACTOR: u32 = 2;
 
 /// Quanto o primeiro `kill-ux` espera, desde a conexão, por uma resposta do
-/// Vanguard. Sem o endpoint (versão antiga do LoL, mock), fecha depois disso.
-pub(super) const VANGUARD_UNKNOWN_WAIT: Duration = Duration::from_secs(120);
+/// Vanguard, em múltiplos de `kill_ux_delay` (120 s com o padrão). Sem o
+/// endpoint (versão antiga do LoL, mock), fecha depois disso.
+const VANGUARD_UNKNOWN_FACTOR: u32 = 4;
 
 /// Se o Vanguard já deixa o primeiro `kill-ux` sair (#579): conectado há
-/// pelo menos [`VANGUARD_SPARE`]; sem resposta da LCU, depois de
-/// [`VANGUARD_UNKNOWN_WAIT`] desde a conexão. Desconectado, espera: fechar a
-/// UI não ajuda, e o aviso da UI pede para reabrir o LoL.
+/// pelo menos `2 × delay`; sem resposta da LCU, depois de `4 × delay` desde a
+/// conexão. Desconectado, espera: fechar a UI não ajuda, e o aviso da UI pede
+/// para reabrir o LoL.
 pub(super) fn vanguard_allows_kill(
     vanguard: Option<&crate::vanguard::Vanguard>,
     ready_at: Option<Instant>,
     connected_at: Instant,
     now: Instant,
+    delay: Duration,
 ) -> bool {
     match vanguard {
-        Some(v) if v.connected => ready_at.is_none_or(|at| now >= at + VANGUARD_SPARE),
+        Some(v) if v.connected => {
+            ready_at.is_none_or(|at| now >= at + delay * VANGUARD_SPARE_FACTOR)
+        }
         Some(_) => false,
-        None => now >= connected_at + VANGUARD_UNKNOWN_WAIT,
+        None => now >= connected_at + delay * VANGUARD_UNKNOWN_FACTOR,
     }
 }
 
@@ -310,7 +315,7 @@ impl Hub {
             }
             tokio::time::sleep(delay).await;
             loop {
-                match hub.take_scheduled_kill(session, generation, connected_at) {
+                match hub.take_scheduled_kill(session, generation, connected_at, delay) {
                     ScheduledKill::Cancelled => break,
                     ScheduledKill::Wait => tokio::time::sleep(KILL_UX_RETRY).await,
                     ScheduledKill::Kill => {
@@ -364,6 +369,7 @@ impl Hub {
         session: u64,
         generation: u64,
         connected_at: Instant,
+        delay: Duration,
     ) -> ScheduledKill {
         let mut shared = self.lock();
         if shared.session != session || shared.ux_guard.generation != generation {
@@ -378,6 +384,7 @@ impl Hub {
             shared.ux_guard.vanguard_ready_at,
             connected_at,
             Instant::now(),
+            delay,
         ) {
             return ScheduledKill::Wait;
         }
@@ -453,39 +460,45 @@ mod tests {
             state: "NOT_CONNECTED".into(),
             status: None,
         };
+        let delay = crate::connection::DEFAULT_KILL_UX_DELAY;
         let ready = t0 + Duration::from_secs(27);
         // Conectado há pouco: espera a folga.
         assert!(!vanguard_allows_kill(
             Some(&ok),
             Some(ready),
             t0,
-            ready + Duration::from_secs(23)
+            ready + Duration::from_secs(23),
+            delay
         ));
         assert!(vanguard_allows_kill(
             Some(&ok),
             Some(ready),
             t0,
-            ready + VANGUARD_SPARE
+            ready + Duration::from_secs(60),
+            delay
         ));
         // Desconectado: não fecha nunca.
         assert!(!vanguard_allows_kill(
             Some(&off),
             None,
             t0,
-            t0 + Duration::from_secs(600)
+            t0 + Duration::from_secs(600),
+            delay
         ));
         // Sem resposta da LCU: fecha depois da espera máxima.
         assert!(!vanguard_allows_kill(
             None,
             None,
             t0,
-            t0 + Duration::from_secs(30)
+            t0 + Duration::from_secs(30),
+            delay
         ));
         assert!(vanguard_allows_kill(
             None,
             None,
             t0,
-            t0 + VANGUARD_UNKNOWN_WAIT
+            t0 + Duration::from_secs(120),
+            delay
         ));
     }
 
