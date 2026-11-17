@@ -938,6 +938,24 @@ fn play_again(shared: &Shared) -> Response {
     }
 }
 
+/// "Dispensar estatísticas" no fim de partida simulado (#180).
+fn dismiss_stats(shared: &Shared) -> Response {
+    let result = lock(&shared.post_game)
+        .as_mut()
+        .map(|pg| pg.dismiss(&shared.state()));
+    match result {
+        Some(Ok(step)) => {
+            emit_post_game(shared, step);
+            Response {
+                status: 204,
+                body: Value::Null,
+            }
+        }
+        Some(Err(error)) => error,
+        None => Response::error(400, "mock-lcu: fora do pós-jogo"),
+    }
+}
+
 fn advance_post_game(shared: &Shared) -> Response {
     let step = lock(&shared.post_game)
         .as_mut()
@@ -1544,6 +1562,11 @@ async fn handle_request(
             }
         }
         (&Method::POST, post_game::PLAY_AGAIN) => play_again(&shared),
+        (&Method::POST, post_game::DISMISS_STATS) => dismiss_stats(&shared),
+        (&Method::POST, post_game::PLAY_AGAIN_DECLINE) => Response {
+            status: 204,
+            body: Value::Null,
+        },
         (&Method::POST, post_game::HONOR) => {
             let body = read_json(request).await;
             let (response, events) = {

@@ -29,6 +29,10 @@ use crate::rest::{LcuClient, LcuError};
 /// Endpoint (e URI dos eventos WAMP) do bloco de estatísticas.
 pub const EOG_STATS_PATH: &str = "/lol-end-of-game/v1/eog-stats-block";
 
+/// Dispensa as estatísticas e sai do pós-jogo (#180): o "fechar" da tela de
+/// fim de partida do client oficial. A fase vai para `None`.
+pub const DISMISS_STATS_PATH: &str = "/lol-end-of-game/v1/state/dismiss-stats";
+
 /// Sessão do gameflow, de onde sai a fila da partida.
 pub const GAMEFLOW_SESSION_PATH: &str = crate::live_game::GAMEFLOW_SESSION_PATH;
 
@@ -339,6 +343,28 @@ pub async fn current(client: &LcuClient) -> Result<Option<GameResult>, LcuError>
         Err(LcuError::Status { status: 404, .. }) => Ok(None),
         Err(e) => Err(e),
     }
+}
+
+/// Sai do pós-jogo para o início, sem voltar ao lobby (#180). Primeiro
+/// recusa o "Jogar de novo" do grupo (`POST /lol-lobby/v2/play-again-decline`),
+/// para os outros jogadores do grupo saberem; a LCU pode recusar esse passo
+/// (sem grupo, por exemplo) e o erro dele é ignorado. Depois dispensa as
+/// estatísticas (`POST /lol-end-of-game/v1/state/dismiss-stats`), e a fase vai
+/// para `None` pelo WAMP. No pós-jogo não há lobby: a LCU apaga o
+/// `/lol-lobby/v2/lobby` quando a partida começa (gravação `16.22-pos-jogo`),
+/// então sair do lobby não serve aqui.
+pub async fn leave(client: &LcuClient) -> Result<(), LcuError> {
+    let _ = client
+        .send::<Option<Value>>(
+            reqwest::Method::POST,
+            crate::lobby::PLAY_AGAIN_DECLINE_PATH,
+            None,
+        )
+        .await;
+    client
+        .send::<Option<Value>>(reqwest::Method::POST, DISMISS_STATS_PATH, None)
+        .await
+        .map(|_| ())
 }
 
 /// A fila da partida, pela sessão do gameflow.

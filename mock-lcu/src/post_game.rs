@@ -11,8 +11,8 @@
 //! (`honor-vote`, `challenge-level-up-celebration`...) fica esperando o
 //! `POST /lol-pre-end-of-game/v1/complete/{nome}` dela, e a fase só vai para
 //! `EndOfGame` depois da última. `POST /lol-lobby/v2/play-again` reproduz a
-//! volta ao lobby gravada e `DELETE /lol-lobby/v2/lobby` sai do pós-jogo para
-//! fora do lobby. `POST /lol-honor/v1/honor` honra um jogador da cédula.
+//! volta ao lobby gravada, e `POST /lol-end-of-game/v1/state/dismiss-stats`
+//! (ou `DELETE /lol-lobby/v2/lobby`) sai do pós-jogo para o início. `POST /lol-honor/v1/honor` honra um jogador da cédula.
 //!
 //! O roteiro sai da própria gravação ([`Script::from_fixtures`]): nada de
 //! nomes de tela ou índices fixos, então uma gravação nova de pós-jogo serve
@@ -20,9 +20,10 @@
 
 use std::collections::VecDeque;
 
+use easylobby_agent::end_of_game::DISMISS_STATS_PATH;
 use easylobby_agent::fixtures::{EventFixture, FixtureSet};
 use easylobby_agent::honor::{BALLOT_PATH, HONOR_PATH, HONOR_TYPE};
-use easylobby_agent::lobby::PLAY_AGAIN_PATH;
+use easylobby_agent::lobby::{PLAY_AGAIN_DECLINE_PATH, PLAY_AGAIN_PATH};
 use easylobby_agent::pre_end_of_game::{COMPLETE_PREFIX, CURRENT_SEQUENCE_EVENT_PATH};
 use serde_json::{json, Value};
 
@@ -40,6 +41,12 @@ pub const RESTART: &str = "/mock-lcu/end-of-game/restart";
 
 /// O "jogar de novo" da LCU.
 pub const PLAY_AGAIN: &str = PLAY_AGAIN_PATH;
+
+/// O "dispensar estatísticas" da LCU: sai do pós-jogo para o início (#180).
+pub const DISMISS_STATS: &str = DISMISS_STATS_PATH;
+
+/// A recusa do "jogar de novo" do grupo (#180). O mock só responde 204.
+pub const PLAY_AGAIN_DECLINE: &str = PLAY_AGAIN_DECLINE_PATH;
 
 /// O voto de honra da LCU.
 pub const HONOR: &str = HONOR_PATH;
@@ -385,6 +392,22 @@ impl PostGame {
             events,
             log: vec!["pós-jogo: saiu do lobby".into()],
         }
+    }
+
+    /// `POST /lol-end-of-game/v1/state/dismiss-stats` (#180): sai do
+    /// pós-jogo para o início, sem lobby. A cédula e as estatísticas somem e
+    /// a fase vai para `None`. A ordem dos eventos é suposição do mock.
+    pub fn dismiss(&mut self, state: &LcuState) -> Result<Step, Response> {
+        if !matches!(self.stage, Stage::PostGame { .. }) {
+            return Err(Response::error(400, "mock-lcu: fora do pós-jogo"));
+        }
+        let mut step = self.leave(state);
+        if state.phase() != "None" {
+            step.events
+                .push(event(GAMEFLOW_PHASE, "Update", json!("None")));
+        }
+        step.log = vec!["pós-jogo: dispensou as estatísticas, voltando ao início".into()];
+        Ok(step)
     }
 
     /// Anda o relógio: acaba a partida na hora marcada e solta os eventos
@@ -748,6 +771,24 @@ mod tests {
         // Nada mais do roteiro sai.
         run(&mut state, &mut pg, 20_000, 80_000);
         assert_eq!(state.phase(), "None");
+    }
+
+    #[test]
+    fn dispensar_as_estatisticas() {
+        let (mut state, mut pg) = start();
+        assert!(pg.dismiss(&state).is_err(), "ainda na partida");
+        pg.end_game(0);
+        run(&mut state, &mut pg, 0, 20_000);
+        let step = pg.dismiss(&state).unwrap();
+        apply(&mut state, &step);
+        assert_eq!(state.phase(), "None");
+        assert_eq!(state.get(EOG_STATS).status, 404);
+        assert_eq!(state.get(BALLOT).status, 404);
+        assert_eq!(state.get(SEQUENCE).body["name"], "");
+        // Nada mais do roteiro sai, e não dá para dispensar de novo.
+        run(&mut state, &mut pg, 20_000, 80_000);
+        assert_eq!(state.phase(), "None");
+        assert!(pg.dismiss(&state).is_err());
     }
 
     #[test]
