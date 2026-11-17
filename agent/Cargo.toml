@@ -44,6 +44,15 @@ windows-sys = { version = "0.61", features = [
     "Win32_UI_Accessibility",
     "Win32_UI_WindowsAndMessaging",
 ] }
+# Deixar a UI oficial no mudo enquanto ela fica escondida (`ux_window`, #566):
+# o mixer de volume do Windows (Core Audio) é COM, que o windows-sys não tem.
+windows = { version = "0.62", features = [
+    "Win32_Media_Audio",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+] }
+windows-core = "0.62"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }

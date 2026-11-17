@@ -20,6 +20,17 @@
 //! que esconder e [`UxHider::start`] devolve [`HideError::Unsupported`]; quem
 //! chama usa o `ux-minimize` da LCU como plano B.
 //!
+//! Escondida, a UI ainda toca os sons dela: no fim da seleção ela fica de pé
+//! uns 10 s (veja `ws::hub::ux_guard`, #342) e toca os sons da seleção. Por
+//! isso, enquanto o esconderijo durar, as sessões de áudio dos mesmos
+//! processos ficam no mudo pelo mixer de volume do Windows (Core Audio,
+//! `ISimpleAudioVolume`, #566), como o jogador faria no "Mixer de volume".
+//! Um aviso do Windows (`IAudioSessionNotification`) pega cada sessão nova
+//! assim que ela nasce, e a varredura pega as que já existiam. O mudo dura
+//! enquanto houver um esconderijo; quando o último para, as sessões que o
+//! agente silenciou voltam a ter som. Uma sessão que já estava no mudo fica
+//! como estava.
+//!
 //! [`UxHider::stop`] encerra o esconderijo. Com `restore`, mostra de novo as
 //! janelas escondidas, para o botão de emergência (`launch-ux`) achar a UI
 //! visível. Soltar o [`UxHider`] encerra sem mostrar nada.
@@ -114,8 +125,8 @@ impl Drop for UxHider {
 /// mensagens que os dois precisam.
 ///
 /// Junto com `lockfile::windows`, é o único `unsafe` do agente: as chamadas
-/// da API do Windows. Só se mexe em janelas (esconder e mostrar); nenhum
-/// processo é aberto.
+/// da API do Windows. Só se mexe em janelas (esconder e mostrar) e no mudo
+/// das sessões de áudio da UI (#566); nenhum processo é aberto.
 #[cfg(windows)]
 #[allow(unsafe_code)]
 mod windows {
@@ -147,6 +158,8 @@ mod windows {
         others: HashSet<u32>,
         /// Janelas escondidas, para mostrar de novo no `restore`.
         hidden: Vec<isize>,
+        /// O mudo das sessões de áudio da UI (#566), se o Core Audio respondeu.
+        muter: Option<mute::Muter>,
     }
 
     thread_local! {
@@ -196,6 +209,11 @@ mod windows {
                 u32::try_from(SWEEP_EVERY.as_millis()).unwrap_or(250),
                 None,
             );
+            // O mudo começa antes de o esconderijo valer: um esconderijo
+            // novo que substitui um velho já conta antes de o velho parar.
+            let com = mute::init_com();
+            let muter = if com { mute::Muter::start() } else { None };
+            STATE.with(|s| s.borrow_mut().muter = muter);
             let _ = ready.send(Ok(GetCurrentThreadId()));
             sweep();
 
@@ -213,6 +231,12 @@ mod windows {
                 KillTimer(std::ptr::null_mut(), timer);
             }
             UnhookWinEvent(hook);
+            if let Some(muter) = STATE.with(|s| s.borrow_mut().muter.take()) {
+                muter.finish();
+            }
+            if com {
+                mute::uninit_com();
+            }
             if restore.load(Ordering::SeqCst) {
                 let hidden = STATE.with(|s| std::mem::take(&mut s.borrow_mut().hidden));
                 for hwnd in hidden {
@@ -228,6 +252,12 @@ mod windows {
     /// Relê os pids da UI e esconde as janelas dela que estão visíveis.
     fn sweep() {
         refresh_pids();
+        STATE.with(|s| {
+            let s = s.borrow();
+            if let Some(muter) = &s.muter {
+                muter.mute_ux(|pid| s.ux_pids.contains(&pid));
+            }
+        });
         // SAFETY: `enum_window` não guarda o `HWND` além da chamada.
         unsafe { EnumWindows(Some(enum_window), 0) };
     }
@@ -322,6 +352,209 @@ mod windows {
                 })
             }
             None => false,
+        }
+    }
+
+    /// O mudo das sessões de áudio da UI oficial pelo Core Audio (#566).
+    ///
+    /// Só usa o mixer de volume do Windows: as sessões vêm do serviço de
+    /// áudio, e o pid de cada uma, de `IAudioSessionControl2::GetProcessId`.
+    /// Nenhum processo do LoL é aberto.
+    mod mute {
+        use std::sync::{Mutex, MutexGuard, PoisonError};
+
+        use windows::core::{implement, Interface, Ref, Result};
+        use windows::Win32::Media::Audio::{
+            eRender, IAudioSessionControl, IAudioSessionControl2, IAudioSessionManager2,
+            IAudioSessionNotification, IAudioSessionNotification_Impl, IMMDeviceEnumerator,
+            ISimpleAudioVolume, MMDeviceEnumerator, DEVICE_STATE_ACTIVE,
+        };
+        use windows::Win32::System::Com::{
+            CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
+        };
+
+        use super::super::is_ux_process;
+
+        /// Quantos esconderijos estão silenciando e os pids que o agente pôs
+        /// no mudo, para devolver o som quando o último parar.
+        struct Shared {
+            active: usize,
+            muted: Vec<u32>,
+        }
+
+        static SHARED: Mutex<Shared> = Mutex::new(Shared {
+            active: 0,
+            muted: Vec::new(),
+        });
+
+        fn shared() -> MutexGuard<'static, Shared> {
+            SHARED.lock().unwrap_or_else(PoisonError::into_inner)
+        }
+
+        /// Entra no COM (MTA) nesta thread. `false` se não deu.
+        pub(super) fn init_com() -> bool {
+            // SAFETY: sem ponteiros; desfeito por `uninit_com` na mesma thread.
+            unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).is_ok() }
+        }
+
+        /// Sai do COM nesta thread, depois de soltar todas as interfaces.
+        pub(super) fn uninit_com() {
+            // SAFETY: par do `init_com` que deu certo nesta thread.
+            unsafe { CoUninitialize() };
+        }
+
+        /// As sessões de áudio de cada saída de som ativa, com o aviso de
+        /// sessão nova inscrito em cada uma.
+        pub(super) struct Muter {
+            managers: Vec<IAudioSessionManager2>,
+            notification: IAudioSessionNotification,
+        }
+
+        impl Muter {
+            /// Começa a silenciar. `None` se o Core Audio não respondeu; aí
+            /// o esconderijo segue só com as janelas.
+            pub(super) fn start() -> Option<Self> {
+                let managers = managers().ok()?;
+                let notification: IAudioSessionNotification = OnSessionCreated.into();
+                for manager in &managers {
+                    // SAFETY: `notification` vive no `Muter` até o `finish`,
+                    // que desinscreve antes de soltar.
+                    let _ = unsafe { manager.RegisterSessionNotification(&notification) };
+                }
+                shared().active += 1;
+                Some(Self {
+                    managers,
+                    notification,
+                })
+            }
+
+            /// Põe no mudo as sessões que já existem dos processos `is_ux`.
+            /// Pedir a lista também liga o aviso de sessão nova, que o
+            /// Windows só manda depois do primeiro pedido.
+            pub(super) fn mute_ux(&self, is_ux: impl Fn(u32) -> bool) {
+                for_each_session(&self.managers, |session| {
+                    if let Some(pid) = session_pid(session).filter(|&pid| is_ux(pid)) {
+                        mute(session, pid);
+                    }
+                });
+            }
+
+            /// Para de silenciar. Se era o último esconderijo, devolve o som
+            /// às sessões que o agente silenciou.
+            pub(super) fn finish(self) {
+                for manager in &self.managers {
+                    // SAFETY: a mesma inscrição do `start`.
+                    let _ = unsafe { manager.UnregisterSessionNotification(&self.notification) };
+                }
+                let pids = {
+                    let mut shared = shared();
+                    shared.active = shared.active.saturating_sub(1);
+                    if shared.active > 0 {
+                        return;
+                    }
+                    std::mem::take(&mut shared.muted)
+                };
+                if pids.is_empty() {
+                    return;
+                }
+                for_each_session(&self.managers, |session| {
+                    if session_pid(session).is_some_and(|pid| pids.contains(&pid)) {
+                        if let Ok(volume) = session.cast::<ISimpleAudioVolume>() {
+                            // SAFETY: sem contexto de evento (ponteiro nulo aceito).
+                            let _ = unsafe { volume.SetMute(false, std::ptr::null()) };
+                        }
+                    }
+                });
+            }
+        }
+
+        /// O gerenciador de sessões de cada saída de som ativa.
+        fn managers() -> Result<Vec<IAudioSessionManager2>> {
+            // SAFETY: chamadas COM com a thread já no MTA; as interfaces
+            // devolvidas são contadas pelo `windows`.
+            unsafe {
+                let enumerator: IMMDeviceEnumerator =
+                    CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+                let devices = enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)?;
+                let mut managers = Vec::new();
+                for i in 0..devices.GetCount()? {
+                    if let Ok(manager) = devices.Item(i).and_then(|device| {
+                        device.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None)
+                    }) {
+                        managers.push(manager);
+                    }
+                }
+                Ok(managers)
+            }
+        }
+
+        fn for_each_session(
+            managers: &[IAudioSessionManager2],
+            mut f: impl FnMut(&IAudioSessionControl),
+        ) {
+            for manager in managers {
+                // SAFETY: chamadas COM sem ponteiros crus.
+                unsafe {
+                    let Ok(sessions) = manager.GetSessionEnumerator() else {
+                        continue;
+                    };
+                    for i in 0..sessions.GetCount().unwrap_or(0) {
+                        if let Ok(session) = sessions.GetSession(i) {
+                            f(&session);
+                        }
+                    }
+                }
+            }
+        }
+
+        /// Pid da sessão; `None` nas sessões de vários processos (a do
+        /// sistema, por exemplo).
+        fn session_pid(session: &IAudioSessionControl) -> Option<u32> {
+            let session = session.cast::<IAudioSessionControl2>().ok()?;
+            // SAFETY: chamada COM sem ponteiros crus.
+            let pid = unsafe { session.GetProcessId() }.ok()?;
+            (pid != 0).then_some(pid)
+        }
+
+        /// Põe a sessão no mudo e anota o pid. Uma sessão que já estava no
+        /// mudo (pelo jogador) não é anotada, para não ganhar som depois.
+        fn mute(session: &IAudioSessionControl, pid: u32) {
+            let Ok(volume) = session.cast::<ISimpleAudioVolume>() else {
+                return;
+            };
+            // SAFETY: sem contexto de evento (ponteiro nulo aceito).
+            unsafe {
+                if volume.GetMute().is_ok_and(|muted| muted.as_bool()) {
+                    return;
+                }
+                if volume.SetMute(true, std::ptr::null()).is_err() {
+                    return;
+                }
+            }
+            let mut shared = shared();
+            if !shared.muted.contains(&pid) {
+                shared.muted.push(pid);
+            }
+        }
+
+        /// Aviso do Windows de sessão nova, numa thread do próprio COM.
+        #[implement(IAudioSessionNotification)]
+        struct OnSessionCreated;
+
+        impl IAudioSessionNotification_Impl for OnSessionCreated_Impl {
+            fn OnSessionCreated(&self, session: Ref<'_, IAudioSessionControl>) -> Result<()> {
+                let session = session.ok()?;
+                let Some(pid) = session_pid(session) else {
+                    return Ok(());
+                };
+                let is_ux = crate::lockfile::process_names()
+                    .into_iter()
+                    .any(|(p, name)| p == pid && is_ux_process(&name));
+                if is_ux {
+                    mute(session, pid);
+                }
+                Ok(())
+            }
         }
     }
 }
