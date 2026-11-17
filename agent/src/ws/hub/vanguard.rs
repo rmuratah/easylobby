@@ -3,9 +3,32 @@
 //! O agente lê o estado ao conectar e no login, e aplica os eventos do WAMP
 //! no mesmo URI. Com o LoL fechado, o estado volta a `null`.
 
+use std::time::Duration;
+
 use super::Hub;
+use crate::gameflow::GameflowPhase;
+use crate::launcher::{self, LaunchOptions};
 use crate::vanguard::{self, Vanguard};
-use crate::ws::protocol::ServerMessage;
+use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
+
+/// Quanto [`Hub::restart_league`] espera o LoL fechar antes de abrir de novo.
+const QUIT_WAIT: Duration = Duration::from_secs(30);
+/// Intervalo entre as olhadas na lista de processos enquanto o LoL fecha.
+const QUIT_POLL: Duration = Duration::from_millis(500);
+
+/// Fases em que fechar o LoL faz mal: na seleção é esquiva e na partida o
+/// jogador perde a reconexão.
+fn restart_hurts(phase: Option<GameflowPhase>) -> bool {
+    matches!(
+        phase,
+        Some(
+            GameflowPhase::ChampSelect
+                | GameflowPhase::GameStart
+                | GameflowPhase::InProgress
+                | GameflowPhase::Reconnect
+        )
+    )
+}
 
 impl Hub {
     pub fn set_vanguard(&self, vanguard: Option<Vanguard>) {
@@ -20,9 +43,53 @@ impl Hub {
                     v.status
                 );
             }
+            // A folga do primeiro kill-ux conta de quando ele conectou.
+            let connected = vanguard.as_ref().is_some_and(|v| v.connected);
+            let was_connected = shared.state.vanguard.as_ref().is_some_and(|v| v.connected);
+            if !connected {
+                shared.ux_guard.vanguard_ready_at = None;
+            } else if !was_connected {
+                shared.ux_guard.vanguard_ready_at = Some(tokio::time::Instant::now());
+            }
             shared.state.vanguard = vanguard.clone();
             Some(ServerMessage::Vanguard { vanguard })
         });
+    }
+
+    /// Fecha o LoL e abre de novo (#579). Com o Vanguard caído no meio da
+    /// sessão (código 7003), só reabrir o LoL resolveu.
+    pub async fn restart_league(&self, launch: &LaunchOptions) -> CommandResult {
+        let (client, phase) = {
+            let shared = self.lock();
+            (shared.client.clone(), shared.state.gameflow_phase)
+        };
+        let Some(client) = client else {
+            return CommandResult::error(ErrorCode::NotConnected, "o LoL não está aberto");
+        };
+        if restart_hurts(phase) {
+            return CommandResult::error(
+                ErrorCode::InvalidCommand,
+                "não dá para reabrir o LoL na seleção de campeões nem durante a partida",
+            );
+        }
+        tracing::info!("reabrindo o LoL a pedido do jogador");
+        if let Err(error) = crate::ux::quit_client(&client).await {
+            return CommandResult::error(ErrorCode::Lcu, error.to_string());
+        }
+        let deadline = tokio::time::Instant::now() + QUIT_WAIT;
+        while still_running().await {
+            if tokio::time::Instant::now() >= deadline {
+                return CommandResult::error(
+                    ErrorCode::LaunchFailed,
+                    "o LoL não fechou a tempo; abra de novo pelo Riot Client",
+                );
+            }
+            tokio::time::sleep(QUIT_POLL).await;
+        }
+        match launcher::launch_league(launch).await {
+            Ok(_) => CommandResult::Ok,
+            Err(e) => CommandResult::error(ErrorCode::LaunchFailed, e.to_string()),
+        }
     }
 
     /// Relê o estado do Vanguard numa tarefa separada. Uma falha (LoL
@@ -48,12 +115,43 @@ impl Hub {
     }
 }
 
+/// Se ainda há um `LeagueClient` ou `LeagueClientUx` rodando.
+async fn still_running() -> bool {
+    tokio::task::spawn_blocking(|| {
+        crate::lockfile::list_processes()
+            .iter()
+            .any(|p| p.is_client())
+    })
+    .await
+    .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::tests::*;
     use super::*;
     use crate::wamp::EventType;
     use serde_json::json;
+
+    #[test]
+    fn nao_reabre_na_selecao_nem_na_partida() {
+        assert!(restart_hurts(Some(GameflowPhase::ChampSelect)));
+        assert!(restart_hurts(Some(GameflowPhase::InProgress)));
+        assert!(!restart_hurts(Some(GameflowPhase::Lobby)));
+        assert!(!restart_hurts(None));
+    }
+
+    #[tokio::test]
+    async fn reabrir_sem_lol_responde_not_connected() {
+        let hub = Hub::new();
+        assert!(matches!(
+            hub.restart_league(&LaunchOptions::default()).await,
+            CommandResult::Error {
+                code: ErrorCode::NotConnected,
+                ..
+            }
+        ));
+    }
 
     #[tokio::test]
     async fn evento_do_vanguard_atualiza_o_estado() {

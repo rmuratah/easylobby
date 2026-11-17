@@ -77,6 +77,33 @@ pub(super) const KILL_UX_RETRY: Duration = Duration::from_secs(5);
 /// Folga sobre os 10 s em que o LoL pede a janela antes do fim da etapa.
 pub(super) const SPARE_BEFORE_GAME: Duration = Duration::from_secs(15);
 
+/// Folga entre o Vanguard conectar e o primeiro `kill-ux` (#579). Num PC em
+/// que o Vanguard levou 27 s para conectar, fechar a UI 23 s depois fez o
+/// Vanguard cair com o código 7003 dois minutos mais tarde, e a partida
+/// seguinte virou esquiva. Num PC em que a folga foi de 29 s, nunca caiu.
+pub(super) const VANGUARD_SPARE: Duration = Duration::from_secs(60);
+
+/// Quanto o primeiro `kill-ux` espera, desde a conexão, por uma resposta do
+/// Vanguard. Sem o endpoint (versão antiga do LoL, mock), fecha depois disso.
+pub(super) const VANGUARD_UNKNOWN_WAIT: Duration = Duration::from_secs(120);
+
+/// Se o Vanguard já deixa o primeiro `kill-ux` sair (#579): conectado há
+/// pelo menos [`VANGUARD_SPARE`]; sem resposta da LCU, depois de
+/// [`VANGUARD_UNKNOWN_WAIT`] desde a conexão. Desconectado, espera: fechar a
+/// UI não ajuda, e o aviso da UI pede para reabrir o LoL.
+pub(super) fn vanguard_allows_kill(
+    vanguard: Option<&crate::vanguard::Vanguard>,
+    ready_at: Option<Instant>,
+    connected_at: Instant,
+    now: Instant,
+) -> bool {
+    match vanguard {
+        Some(v) if v.connected => ready_at.is_none_or(|at| now >= at + VANGUARD_SPARE),
+        Some(_) => false,
+        None => now >= connected_at + VANGUARD_UNKNOWN_WAIT,
+    }
+}
+
 /// Estado da guarda dentro do [`Hub`].
 #[derive(Debug, Default)]
 pub(super) struct UxGuard {
@@ -90,6 +117,9 @@ pub(super) struct UxGuard {
     hider: Option<(u64, UxHider)>,
     /// Número do último esconderijo.
     hider_id: u64,
+    /// Quando o Vanguard passou a `CONNECTED` nesta conexão (#579), ou
+    /// `None` com ele desconectado ou sem resposta.
+    pub(super) vanguard_ready_at: Option<Instant>,
 }
 
 /// Fases em que o LoL costuma reabrir a UI oficial ao entrar.
@@ -271,6 +301,7 @@ impl Hub {
             (client, shared.session, shared.ux_guard.generation)
         };
         let hub = self.clone();
+        let connected_at = Instant::now();
         runtime.spawn(async move {
             // A UI precisa existir para o Vanguard, mas não precisa aparecer.
             let hider = hub.start_hiding();
@@ -279,7 +310,7 @@ impl Hub {
             }
             tokio::time::sleep(delay).await;
             loop {
-                match hub.take_scheduled_kill(session, generation) {
+                match hub.take_scheduled_kill(session, generation, connected_at) {
                     ScheduledKill::Cancelled => break,
                     ScheduledKill::Wait => tokio::time::sleep(KILL_UX_RETRY).await,
                     ScheduledKill::Kill => {
@@ -328,12 +359,26 @@ impl Hub {
 
     /// Decide o fechamento adiado. Em [`ScheduledKill::Kill`], já liga a
     /// guarda.
-    fn take_scheduled_kill(&self, session: u64, generation: u64) -> ScheduledKill {
+    fn take_scheduled_kill(
+        &self,
+        session: u64,
+        generation: u64,
+        connected_at: Instant,
+    ) -> ScheduledKill {
         let mut shared = self.lock();
         if shared.session != session || shared.ux_guard.generation != generation {
             return ScheduledKill::Cancelled;
         }
         if !may_kill(&shared) {
+            return ScheduledKill::Wait;
+        }
+        // O Vanguard derruba a sessão (7003) se a UI some cedo demais (#579).
+        if !vanguard_allows_kill(
+            shared.state.vanguard.as_ref(),
+            shared.ux_guard.vanguard_ready_at,
+            connected_at,
+            Instant::now(),
+        ) {
             return ScheduledKill::Wait;
         }
         shared.ux_guard.active = true;
@@ -393,6 +438,56 @@ mod tests {
     use crate::connection::{ConnectionEvent, DisconnectReason};
     use crate::wamp::EventType;
     use serde_json::json;
+
+    #[test]
+    fn primeiro_kill_ux_espera_o_vanguard() {
+        use crate::vanguard::Vanguard;
+        let t0 = Instant::now();
+        let ok = Vanguard {
+            connected: true,
+            state: "CONNECTED".into(),
+            status: Some(0),
+        };
+        let off = Vanguard {
+            connected: false,
+            state: "NOT_CONNECTED".into(),
+            status: None,
+        };
+        let ready = t0 + Duration::from_secs(27);
+        // Conectado há pouco: espera a folga.
+        assert!(!vanguard_allows_kill(
+            Some(&ok),
+            Some(ready),
+            t0,
+            ready + Duration::from_secs(23)
+        ));
+        assert!(vanguard_allows_kill(
+            Some(&ok),
+            Some(ready),
+            t0,
+            ready + VANGUARD_SPARE
+        ));
+        // Desconectado: não fecha nunca.
+        assert!(!vanguard_allows_kill(
+            Some(&off),
+            None,
+            t0,
+            t0 + Duration::from_secs(600)
+        ));
+        // Sem resposta da LCU: fecha depois da espera máxima.
+        assert!(!vanguard_allows_kill(
+            None,
+            None,
+            t0,
+            t0 + Duration::from_secs(30)
+        ));
+        assert!(vanguard_allows_kill(
+            None,
+            None,
+            t0,
+            t0 + VANGUARD_UNKNOWN_WAIT
+        ));
+    }
 
     #[test]
     fn fases_que_reabrem_e_fases_cobertas() {

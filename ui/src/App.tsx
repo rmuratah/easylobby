@@ -150,7 +150,7 @@ export default function App() {
             {ready && connection.error && <p role="alert" className="col-span-full text-warn">{connection.error}</p>}
             {/* Modo de compatibilidade (#36): o que o LoL quebrou numa atualização. */}
             {/* Vanguard desconectado (#579): a partida não abriria e viraria esquiva. */}
-            {ready && <VanguardBanner connection={connection} />}
+            {ready && <VanguardBanner connection={connection} send={connection.send} />}
             {ready && <CompatibilityBanner connection={connection} send={connection.send} />}
             <section hidden={activePage !== 'home'} aria-label="Início"
               className={homeLayout ? 'home-secondary' : 'flex max-w-[22rem] flex-col gap-4'}>

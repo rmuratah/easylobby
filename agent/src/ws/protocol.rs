@@ -533,6 +533,13 @@ pub enum Command {
     /// a LCU recusar. O agente não fecha a UI de novo sozinho até a próxima
     /// conexão com o LoL.
     LaunchUx,
+    /// Fecha o LoL e abre de novo pelo Riot Client (#579): é o que resolve
+    /// o Vanguard desconectado no meio da sessão. Responde `ok` depois de
+    /// pedir a abertura; a subida chega pelas mensagens `lcu`. Recusa com
+    /// `invalidCommand` na seleção e na partida (fechar ali é esquiva ou
+    /// abandono), `notConnected` com o LoL fechado, `lcu` se a LCU recusar
+    /// fechar e `launchFailed` se não der para abrir de novo.
+    RestartLeague,
 
     // Lobby, fila e partida encontrada
     /// Cria um lobby na fila pedida, ou troca a fila do lobby atual (só o

@@ -17,6 +17,7 @@ export type Command =
   | { "type": "getState" }
   | { "type": "launchLeague" }
   | { "type": "launchUx" }
+  | { "type": "restartLeague" }
   | { "type": "createLobby", queue: Queue, }
   | { "type": "leaveLobby" }
   | { "type": "playAgain" }
