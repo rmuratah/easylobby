@@ -11,6 +11,7 @@ import type { CustomGameListing } from "./CustomGameListing";
 import type { Friend } from "./Friend";
 import type { FriendGroup } from "./FriendGroup";
 import type { GameQueue } from "./GameQueue";
+import type { GameResult } from "./GameResult";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { HonorBallot } from "./HonorBallot";
 import type { LcuStatus } from "./LcuStatus";
@@ -59,6 +60,10 @@ export type AgentState = {
    * Cédula de honra do fim de partida (#182), ou `null`.
    */
   honorBallot: HonorBallot | null,
+  /**
+   * Resultado da partida que acabou de terminar (#179), ou `null`.
+   */
+  gameResult: GameResult | null,
   /**
    * Filas em que dá para criar lobby agora (#146), lidas da LCU, mais as
    * fixas da tela de escolha de modo que estão fechadas, com `available:

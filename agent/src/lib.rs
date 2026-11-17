@@ -15,6 +15,8 @@
 //!   (#11)
 //! - [`ux`]: fecha a UI oficial ao conectar (`kill-ux`) e reabre
 //!   (`launch-ux`) (#12)
+//! - [`end_of_game`]: resultado e placar da partida que acabou de terminar
+//!   (#179)
 //! - [`honor`]: cédula de honra do fim de partida, votar e pular (#182)
 //! - [`pre_end_of_game`]: avança as telas do `PreEndOfGame` com a UI oficial
 //!   fechada (#180)
@@ -69,6 +71,7 @@ pub mod connection;
 pub mod custom_game;
 pub mod custom_game_list;
 pub mod custom_lobby;
+pub mod end_of_game;
 pub mod fixtures;
 pub mod friends;
 pub mod gameflow;

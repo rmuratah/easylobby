@@ -13,6 +13,7 @@ const emptyState: AgentState = {
   matchmaking: null,
   readyCheck: null,
   honorBallot: null,
+  gameResult: null,
   queues: [],
   playableChampions: null,
   tutorial: null,

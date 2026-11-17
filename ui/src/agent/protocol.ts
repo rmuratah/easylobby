@@ -1,7 +1,10 @@
 import type { ReadyCheckState } from '../bindings/ReadyCheckState';
 import type { ReadyCheckResponse } from '../bindings/ReadyCheckResponse';
 import type { ServerMessage } from '../bindings/ServerMessage';
+import type { GameResult } from '../bindings/GameResult';
+import type { GameResultTeam } from '../bindings/GameResultTeam';
 import type { HonorBallot } from '../bindings/HonorBallot';
+import type { RankedChange } from '../bindings/RankedChange';
 import type { HonorCandidate } from '../bindings/HonorCandidate';
 import type { PatchChange } from '../bindings/PatchChange';
 import type { PatchLine } from '../bindings/PatchLine';
@@ -296,6 +299,20 @@ function matchHistory(v: unknown): v is MatchHistory | null {
 function matchDetails(v: unknown): v is MatchDetails | null {
   return v === null || (object(v) && matchInfo(v) && typeof v.remake === 'boolean' && list(v.players, matchPlayer));
 }
+// Resultado da partida que acabou de terminar (#179).
+function rankedChange(v: unknown): v is RankedChange | null {
+  return v === null || (object(v) && (v.queue === 'soloDuo' || v.queue === 'flex') && rankedEntry(v.before) &&
+    rankedEntry(v.after) && (v.leaguePointsDelta === null || num(v.leaguePointsDelta)));
+}
+function gameResultTeam(v: unknown): v is GameResultTeam {
+  return object(v) && uint(v.teamId) && booleans(v, ['playerTeam', 'win']) && list(v.players, matchPlayer);
+}
+function gameResult(v: unknown): v is GameResult | null {
+  return v === null || (object(v) && uints(v, ['gameId', 'queueId', 'durationSecs']) &&
+    strings(v, ['queueName', 'gameMode', 'localPuuid']) && typeof v.ranked === 'boolean' &&
+    typeof v.result === 'string' && Object.hasOwn(matchResults, v.result) && list(v.teams, gameResultTeam) &&
+    rankedChange(v.rankedChange));
+}
 // Perfil de outro jogador (#255).
 function playerProfile(v: unknown): v is PlayerProfile | null {
   return v === null || (object(v) && v.summoner !== null && summoner(v.summoner) && typeof v.privateProfile === 'boolean' &&
@@ -385,7 +402,7 @@ function lobbyLink(v: unknown): v is LobbyLink | null {
 }
 function state(v: unknown): v is AgentState {
   return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && lobby(v.lobby) && lobbyLink(v.lobbyLink) &&
-    readyCheck(v.readyCheck) && honorBallot(v.honorBallot) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && nullableIds(v.availableBots) && lobbyChat(v.lobbyChat) && customGames(v.customGames) && champSelect(v.champSelect) &&
+    readyCheck(v.readyCheck) && honorBallot(v.honorBallot) && gameResult(v.gameResult) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && nullableIds(v.availableBots) && lobbyChat(v.lobbyChat) && customGames(v.customGames) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
@@ -410,6 +427,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'gameflowPhase': valid = nullableString(v.phase); break;
     case 'readyCheck': valid = readyCheck(v.readyCheck); break;
     case 'honorBallot': valid = honorBallot(v.honorBallot); break;
+    case 'gameResult': valid = gameResult(v.gameResult); break;
     case 'matchmaking': valid = matchmaking(v.matchmaking); break;
     case 'queues': valid = list(v.queues, gameQueue); break;
     case 'playableChampions': valid = nullableIds(v.playableChampions); break;

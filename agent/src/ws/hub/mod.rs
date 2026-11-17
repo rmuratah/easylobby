@@ -15,6 +15,7 @@ mod custom_games;
 mod custom_lobby;
 mod exit;
 mod friends;
+mod game_result;
 mod honor;
 mod invitations;
 mod live_game;
@@ -130,6 +131,8 @@ struct Shared {
     /// Id da seleção em que o jogador marcou o aviso de autofill como visto
     /// (#360). Enquanto for a mesma seleção, o aviso fica escondido.
     autofill_ack: Option<String>,
+    /// O resultado da partida que acabou de terminar (#179).
+    game_result: game_result::GameResultSync,
     /// Pasta onde o histórico de PDL é gravado (#457). `None` não grava
     /// (testes e exemplos); o app liga com [`Hub::set_lp_history_dir`].
     lp_history_dir: Option<std::path::PathBuf>,
@@ -215,6 +218,7 @@ impl Hub {
                     live_game: live_game::LiveGameSync::default(),
                     riot_api: None,
                     autofill_ack: None,
+                    game_result: game_result::GameResultSync::default(),
                     lp_history_dir: None,
                     lp_history_puuid: None,
                 }),
@@ -395,6 +399,9 @@ impl Hub {
                 if honor::post_game(phase) {
                     self.spawn_refresh_honor_ballot();
                 }
+                // O resultado da partida (#179): os ranks de antes, se está
+                // em partida, ou o bloco, se está no pós-jogo.
+                self.follow_game_result(None, phase);
                 // Conectou no meio de uma partida (#268).
                 self.follow_live_game(phase);
                 // Antes do lobby, para a UI já achar a fila dele na lista.
@@ -507,6 +514,7 @@ impl Hub {
                 self.set_gameflow_phase(None);
                 self.set_ready_check(None);
                 self.set_honor_ballot(None);
+                self.reset_game_result();
                 self.set_lobby(None);
                 self.set_queues(Vec::new());
                 self.set_matchmaking(None);
@@ -617,6 +625,8 @@ impl Hub {
                     if before != Some(phase) {
                         self.follow_live_game(Some(phase));
                     }
+                    // Os ranks de antes da partida e o resultado dela (#179).
+                    self.follow_game_result(before, Some(phase));
                     // A partida terminou: histórico, ranks e maestria mudaram.
                     if profile::ends_a_game(before, Some(phase)) {
                         self.spawn_refresh_profile();
@@ -654,6 +664,11 @@ impl Hub {
             crate::honor::BALLOT_PATH if deleted => self.set_honor_ballot(None),
             crate::honor::BALLOT_PATH => {
                 self.set_honor_ballot(crate::honor::HonorBallot::from_json(&event.data));
+            }
+            // O resultado da partida chegou, mudou ou foi apagado (#179).
+            crate::end_of_game::EOG_STATS_PATH if deleted => self.set_game_result_block(None),
+            crate::end_of_game::EOG_STATS_PATH => {
+                self.set_game_result_block(crate::end_of_game::GameResult::from_json(&event.data));
             }
             // Uma tela do fim de partida começou (#180).
             crate::pre_end_of_game::CURRENT_SEQUENCE_EVENT_PATH if deleted => {}
