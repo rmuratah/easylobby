@@ -1,6 +1,6 @@
 //! Perfil do jogador logado: ranks (#171), histórico de partidas (#172),
-//! placar de uma partida (#174) e maestria (#175). E o perfil de outro
-//! jogador, pedido pela UI (#255).
+//! placar de uma partida (#174), maestria (#175) e histórico de PDL (#457).
+//! E o perfil de outro jogador, pedido pela UI (#255).
 //!
 //! Tudo é lido ao conectar e relido depois de cada partida (veja
 //! [`ends_a_game`]); os ranks também chegam pelo WAMP. Os resultados REST só
@@ -10,6 +10,7 @@
 
 use super::{not_connected, Hub, Shared};
 use crate::gameflow::GameflowPhase;
+use crate::lp_history::{self, LpHistory};
 use crate::mastery::{self, ChampionMastery};
 use crate::match_history::{self, MatchDetails, MatchHistory, MatchSummary};
 use crate::player_profile::{self, PlayerProfile};
@@ -32,8 +33,63 @@ pub(super) fn ends_a_game(from: Option<GameflowPhase>, to: Option<GameflowPhase>
 
 impl Hub {
     pub fn set_ranked(&self, ranked: Option<RankedStats>) {
+        let known = ranked.is_some();
         self.update(|shared| write_ranked(shared, ranked));
         self.refill_lobby_ranks();
+        if known {
+            self.record_lp();
+        }
+    }
+
+    pub fn set_lp_history(&self, history: Option<LpHistory>) {
+        self.update(|shared| write_lp_history(shared, history));
+    }
+
+    /// Liga a gravação do histórico de PDL (#457) na pasta `dir` (a pasta de
+    /// configuração do app). Sem chamar, o histórico não é gravado nem lido.
+    pub fn set_lp_history_dir(&self, dir: Option<std::path::PathBuf>) {
+        self.lock().lp_history_dir = dir;
+    }
+
+    /// Acrescenta os ranks atuais ao histórico de PDL do jogador logado,
+    /// grava o arquivo e publica o histórico. O primeiro ponto de cada
+    /// conexão também carrega o arquivo, então o histórico chega à UI logo
+    /// depois de conectar.
+    fn record_lp(&self) {
+        let (dir, puuid, ranked, current) = {
+            let shared = self.lock();
+            let (Some(dir), Some(summoner), Some(ranked)) = (
+                shared.lp_history_dir.clone(),
+                shared.state.summoner.as_ref(),
+                shared.state.ranked.clone(),
+            ) else {
+                return;
+            };
+            let puuid = summoner.puuid.clone();
+            if puuid.is_empty() {
+                return;
+            }
+            let current = shared
+                .state
+                .lp_history
+                .clone()
+                .filter(|_| shared.lp_history_puuid.as_deref() == Some(puuid.as_str()));
+            (dir, puuid, ranked, current)
+        };
+        let mut history = current.unwrap_or_else(|| lp_history::load(&dir, &puuid));
+        if history.record(&ranked, lp_history::now_ms()) {
+            if let Err(error) = lp_history::save(&dir, &puuid, &history) {
+                tracing::warn!("não deu para gravar o histórico de PDL: {error}");
+            }
+        }
+        self.update(|shared| {
+            // A conta pode ter trocado durante a leitura do arquivo.
+            if shared.state.summoner.as_ref().map(|s| s.puuid.as_str()) != Some(puuid.as_str()) {
+                return None;
+            }
+            shared.lp_history_puuid = Some(puuid);
+            write_lp_history(shared, Some(history))
+        });
     }
 
     pub fn set_champion_masteries(&self, masteries: Vec<ChampionMastery>) {
@@ -98,6 +154,7 @@ impl Hub {
         if let Ok(Some(ranked)) = ranked {
             if self.update_in_session(session, |shared| write_ranked(shared, Some(ranked))) {
                 self.refill_lobby_ranks();
+                self.record_lp();
             }
         }
         if let Ok(Some(masteries)) = masteries {
@@ -264,6 +321,19 @@ fn write_ranked(shared: &mut Shared, ranked: Option<RankedStats>) -> Option<Serv
     Some(ServerMessage::Ranked { ranked })
 }
 
+fn write_lp_history(shared: &mut Shared, history: Option<LpHistory>) -> Option<ServerMessage> {
+    if history.is_none() {
+        shared.lp_history_puuid = None;
+    }
+    if shared.state.lp_history == history {
+        return None;
+    }
+    shared.state.lp_history = history.clone();
+    Some(ServerMessage::LpHistory {
+        lp_history: history,
+    })
+}
+
 fn write_masteries(shared: &mut Shared, masteries: Vec<ChampionMastery>) -> Option<ServerMessage> {
     if shared.state.champion_masteries == masteries {
         return None;
@@ -427,5 +497,61 @@ mod tests {
         assert_eq!(state.match_details, None);
         assert!(state.champion_masteries.is_empty());
         assert_eq!(state.player_profile, None);
+    }
+    #[tokio::test]
+    async fn grava_o_historico_de_pdl() {
+        use crate::ranked::RankedEntry;
+        let dir = std::env::temp_dir().join(format!("easylobby-hub-lp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let summoner: crate::summoner::Summoner = serde_json::from_value(json!({
+            "summonerLevel": 1, "puuid": "fake-puuid-0001", "summonerId": 1
+        }))
+        .unwrap();
+        let gold = |lp: u32, wins: u32| RankedStats {
+            solo_duo: RankedEntry {
+                tier: Some("GOLD".into()),
+                division: Some("II".into()),
+                league_points: lp,
+                wins,
+                losses: 3,
+                provisional: false,
+            },
+            flex: RankedEntry::default(),
+        };
+
+        // Sem pasta, nada é gravado.
+        let hub = Hub::new();
+        hub.set_summoner(Some(summoner.clone()));
+        hub.set_ranked(Some(gold(10, 5)));
+        assert_eq!(hub.state().lp_history, None);
+
+        let hub = Hub::new();
+        hub.set_lp_history_dir(Some(dir.clone()));
+        // Ranks antes do invocador: espera o invocador.
+        hub.set_ranked(Some(gold(10, 5)));
+        assert_eq!(hub.state().lp_history, None);
+        hub.set_summoner(Some(summoner.clone()));
+        hub.set_ranked(Some(gold(10, 5)));
+        hub.set_ranked(Some(gold(31, 6)));
+        let history = hub.state().lp_history.expect("histórico publicado");
+        let lps: Vec<u32> = history.solo_duo.iter().map(|p| p.league_points).collect();
+        assert_eq!(lps, [10, 31]);
+        assert!(history.flex.is_empty());
+
+        // Outra conexão lê o arquivo e continua dele.
+        let hub = Hub::new();
+        hub.set_lp_history_dir(Some(dir.clone()));
+        hub.set_summoner(Some(summoner));
+        hub.set_ranked(Some(gold(31, 6)));
+        assert_eq!(hub.state().lp_history.unwrap().solo_duo.len(), 2);
+        hub.set_ranked(Some(gold(50, 7)));
+        assert_eq!(hub.state().lp_history.unwrap().solo_duo.len(), 3);
+
+        hub.apply(crate::connection::ConnectionEvent::Disconnected(
+            crate::connection::DisconnectReason::Closed,
+        ))
+        .await;
+        assert_eq!(hub.state().lp_history, None);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -262,6 +262,8 @@ describe('eventos de estado do agente', () => {
       { ranked: { soloDuo: { ...unranked, tier: 'GOLD', division: 'II' }, flex: unranked } }],
     [{ type: 'championMasteries', championMasteries: [{ championId: 103, level: 23, points: 287450 }] },
       { championMasteries: [{ championId: 103, level: 23, points: 287450 }] }],
+    [{ type: 'lpHistory', lpHistory: { soloDuo: [{ at: 1, tier: 'GOLD', division: 'II', leaguePoints: 47, wins: 3, losses: 1 }], flex: [] } },
+      { lpHistory: { soloDuo: [{ at: 1, tier: 'GOLD', division: 'II', leaguePoints: 47, wins: 3, losses: 1 }], flex: [] } }],
     [{ type: 'matchHistory', matchHistory: { matches: [testMatch], hasMore: true } },
       { matchHistory: { matches: [testMatch], hasMore: true } }],
     [{ type: 'matchDetails', matchDetails: { ...testMatch, remake: false, players: [testMatch.player] } },
