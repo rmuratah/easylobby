@@ -101,6 +101,8 @@ fn bind_channel() -> std::io::Result<TcpListener> {
 /// passar despercebido, e devolve o motivo de ele ter parado.
 async fn run_channel(app: &AppHandle, listener: TcpListener, source: CredentialSource) -> String {
     let hub = Hub::new();
+    // Histórico de PDL do gráfico de elo (#457), na pasta de configuração.
+    hub.set_lp_history_dir(easylobby_agent::riot_api::config_dir());
     app.state::<Channel>().set_hub(Some(hub.clone()));
     let watcher = {
         let (app, hub) = (app.clone(), hub.clone());

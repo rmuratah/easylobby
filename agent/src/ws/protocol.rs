@@ -63,6 +63,7 @@ use crate::live_game::{LiveGame, PlayerLiveGame};
 use crate::lobby::{Lobby, Position, Queue};
 use crate::lobby_chat::LobbyChat;
 use crate::lobby_link::LobbyLink;
+use crate::lp_history::LpHistory;
 use crate::mastery::ChampionMastery;
 use crate::match_history::{MatchDetails, MatchHistory};
 use crate::matchmaking::Matchmaking;
@@ -258,6 +259,10 @@ pub enum ServerMessage {
     ChampionMasteries {
         champion_masteries: Vec<ChampionMastery>,
     },
+    /// O histórico de PDL do jogador logado (#457), gravado pelo agente:
+    /// chega logo depois de conectar e muda no fim de cada ranqueada.
+    /// `null` com o LoL fechado ou antes de o agente ler os ranks.
+    LpHistory { lp_history: Option<LpHistory> },
     /// O histórico de partidas do jogador logado (#172) mudou: a primeira
     /// página logo depois de conectar, uma partida nova no fim de cada
     /// partida, ou mais uma página (`loadMoreMatches`). Sempre a lista
@@ -397,6 +402,8 @@ pub struct AgentState {
     pub ranked: Option<RankedStats>,
     /// Até 3 campeões com mais maestria (#175).
     pub champion_masteries: Vec<ChampionMastery>,
+    /// Histórico de PDL do jogador logado (#457), ou `null`.
+    pub lp_history: Option<LpHistory>,
     /// Histórico de partidas já carregado (#172), ou `null`.
     pub match_history: Option<MatchHistory>,
     /// Último placar pedido com `openMatchDetails` (#174), ou `null`.
@@ -1100,6 +1107,7 @@ mod tests {
                     "friendGroups": [],
                     "ranked": null,
                     "championMasteries": [],
+                    "lpHistory": null,
                     "matchHistory": null,
                     "matchDetails": null,
                     "playerProfile": null,
