@@ -139,6 +139,9 @@ struct Shared {
     lp_history_dir: Option<std::path::PathBuf>,
     /// `puuid` do histórico de PDL em `state.lp_history`.
     lp_history_puuid: Option<String>,
+    /// Se o login checa os endpoints do modo de compatibilidade (#36).
+    /// Veja [`crate::ws::WsConfig::compatibility_check`].
+    compatibility_check: bool,
 }
 
 /// Recurso do estado que um comando relê ou muda pelo REST.
@@ -222,6 +225,7 @@ impl Hub {
                     game_result: game_result::GameResultSync::default(),
                     lp_history_dir: None,
                     lp_history_puuid: None,
+                    compatibility_check: true,
                 }),
                 tx,
             }),

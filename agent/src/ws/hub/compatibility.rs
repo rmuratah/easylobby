@@ -16,6 +16,12 @@ use crate::ws::protocol::ServerMessage;
 const RECHECK_DELAY: Duration = Duration::from_secs(3);
 
 impl Hub {
+    /// Liga ou desliga a checagem dos endpoints ao conectar. Ligada por
+    /// padrão; veja [`crate::ws::WsConfig::compatibility_check`].
+    pub fn set_compatibility_check(&self, enabled: bool) {
+        self.lock().compatibility_check = enabled;
+    }
+
     pub fn set_unavailable_features(&self, unavailable: Vec<UnavailableFeature>) {
         self.update(|shared| {
             if shared.state.unavailable_features == unavailable {
@@ -45,10 +51,16 @@ impl Hub {
         let Ok(runtime) = tokio::runtime::Handle::try_current() else {
             return;
         };
-        let Some(client) = self.client() else {
-            return;
+        let (client, session) = {
+            let shared = self.lock();
+            let Some(client) = shared.client.clone() else {
+                return;
+            };
+            if !shared.compatibility_check {
+                return;
+            }
+            (client, shared.session)
         };
-        let session = self.lock().session;
         let hub = self.clone();
         runtime.spawn(async move {
             let mut unavailable = health::check(&client, PROBES).await;
