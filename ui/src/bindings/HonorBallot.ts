@@ -10,15 +10,21 @@ export type HonorBallot = {
    */
   gameId: number,
   /**
-   * Aliados que podem receber o voto, na ordem da LCU (por rota).
+   * Aliados que podem receber honra, na ordem da LCU (por rota).
    */
   eligibleAllies: Array<HonorCandidate>,
+  /**
+   * Adversários que podem receber honra, na ordem da LCU (por rota).
+   */
+  eligibleOpponents: Array<HonorCandidate>,
   /**
    * `puuid` de quem o jogador já honrou nesta partida.
    */
   honoredPuuids: Array<string>,
   /**
-   * Votos que o jogador tem para dar (`votePool.votes`).
+   * Honras da partida, contando as já dadas (`votePool.votes` da
+   * primeira cédula da partida). As que sobram são `votes` menos
+   * `honoredPuuids`.
    */
   votes: number,
 };

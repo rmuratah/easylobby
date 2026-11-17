@@ -174,7 +174,7 @@ function honorCandidate(v: unknown): v is HonorCandidate {
     uints(v, ['summonerId', 'championId']) && typeof v.bot === 'boolean';
 }
 function honorBallot(v: unknown): v is HonorBallot | null {
-  return v === null || (object(v) && uints(v, ['gameId', 'votes']) && list(v.eligibleAllies, honorCandidate) &&
+  return v === null || (object(v) && uints(v, ['gameId', 'votes']) && list(v.eligibleAllies, honorCandidate) && list(v.eligibleOpponents, honorCandidate) &&
     list(v.honoredPuuids, (x: unknown): x is string => typeof x === 'string'));
 }
 const searchStates = {

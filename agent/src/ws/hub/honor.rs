@@ -1,4 +1,4 @@
-//! Cédula de honra no `/ws`: votar num aliado ou pular (#182).
+//! Cédula de honra no `/ws`: honrar jogadores ou pular (#182).
 //!
 //! Veja [`crate::honor`]. A cédula vem pelo WAMP e, para não perder uma que
 //! abriu antes da conexão ou um evento perdido, é relida pelo REST ao
@@ -51,7 +51,7 @@ impl Hub {
         });
     }
 
-    /// Honra o aliado `puuid` (comando `honorPlayer`).
+    /// Honra o jogador `puuid`, aliado ou adversário (comando `honorPlayer`).
     pub async fn honor_player(&self, puuid: &str) -> CommandResult {
         let Some(client) = self.client() else {
             return not_connected();
@@ -65,6 +65,18 @@ impl Hub {
                 "esse jogador não está na cédula de honra",
             );
         };
+        if ballot.honored_puuids.iter().any(|p| p == puuid) {
+            return CommandResult::error(
+                ErrorCode::InvalidCommand,
+                "você já honrou esse jogador nesta partida",
+            );
+        }
+        if ballot.votes_left() == 0 {
+            return CommandResult::error(
+                ErrorCode::InvalidCommand,
+                "você não tem mais honras nesta partida",
+            );
+        }
         command_result(honor::vote(&client, candidate).await)
     }
 
@@ -85,6 +97,7 @@ fn no_ballot() -> CommandResult {
 }
 
 fn write_ballot(shared: &mut Shared, ballot: Option<HonorBallot>) -> Option<ServerMessage> {
+    let ballot = ballot.map(|b| b.keep_total_votes(shared.state.honor_ballot.as_ref()));
     if shared.state.honor_ballot == ballot {
         return None;
     }
@@ -132,6 +145,23 @@ mod tests {
         ))
         .await;
         assert_eq!(hub.state().honor_ballot, None);
+    }
+
+    #[tokio::test]
+    async fn guarda_o_total_de_honras_depois_de_um_voto() {
+        let hub = Hub::new();
+        let mut value = cedula();
+        value["votePool"]["votes"] = json!(4);
+        hub.apply(event(BALLOT_PATH, EventType::Create, value.clone()))
+            .await;
+        value["votePool"]["votes"] = json!(3);
+        value["honoredPlayers"] =
+            json!([{"recipientPuuid": "fake-puuid-0092", "honorType": "HEART"}]);
+        hub.apply(event(BALLOT_PATH, EventType::Update, value))
+            .await;
+        let ballot = hub.state().honor_ballot.unwrap();
+        assert_eq!(ballot.votes, 4);
+        assert_eq!(ballot.votes_left(), 3);
     }
 
     #[tokio::test]
