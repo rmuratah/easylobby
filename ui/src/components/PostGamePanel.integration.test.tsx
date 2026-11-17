@@ -68,7 +68,7 @@ it('sai do fim de partida e volta ao início', async () => {
   render(<App />);
   hello({ gameflowPhase: 'EndOfGame', gameResult: testGameResult });
   fireEvent.click(panel().getByRole('button', { name: 'Sair' }));
-  expect(request().command).toEqual({ type: 'leaveLobby' });
+  expect(request().command).toEqual({ type: 'leavePostGame' });
   expect(panel().getByRole('button', { name: 'Saindo…' })).toBeDisabled();
   expect(panel().getByRole('button', { name: 'Jogar de novo' })).toBeDisabled();
   await respond();
@@ -108,7 +108,7 @@ it('avisa quando as estatísticas não chegam e deixa sair', () => {
   expect(panel().getByRole('heading', { name: 'O resultado não chegou' })).toBeInTheDocument();
   expect(panel().getByRole('button', { name: 'Jogar de novo' })).toBeEnabled();
   fireEvent.click(panel().getByRole('button', { name: 'Voltar ao início' }));
-  expect(request().command).toEqual({ type: 'leaveLobby' });
+  expect(request().command).toEqual({ type: 'leavePostGame' });
 });
 
 it('avisa que o resultado não chegou no fim de partida sem estatísticas', () => {
@@ -128,7 +128,7 @@ it('mostra a partida que terminou com erro, com a volta ao início e sem atalho'
   fireEvent.keyDown(document.body, { key: 'Enter' });
   expect(socket().send).not.toHaveBeenCalled();
   fireEvent.click(panel().getByRole('button', { name: 'Voltar ao início' }));
-  expect(request().command).toEqual({ type: 'leaveLobby' });
+  expect(request().command).toEqual({ type: 'leavePostGame' });
   await respond({ status: 'error', code: 'lcu', message: 'sem lobby' });
   expect(panel().getByText('Não foi possível sair do fim de partida: sem lobby')).toBeInTheDocument();
   expect(panel().getByRole('button', { name: 'Voltar ao início' })).toBeEnabled();

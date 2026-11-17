@@ -15,8 +15,8 @@ type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
  */
 export const STATS_TIMEOUT_MS = 60_000;
 
-/** Comando do "Sair": volta ao início, fora do grupo. */
-const LEAVE: Command = { type: 'leaveLobby' };
+/** Comando do "Sair": recusa o Jogar de novo do grupo e volta ao início (#180). */
+const LEAVE: Command = { type: 'leavePostGame' };
 
 /**
  * Pós-jogo. Primeiro a votação de honra (#182), enquanto a cédula estiver

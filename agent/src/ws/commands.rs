@@ -270,7 +270,7 @@ fn feature(command: &Command) -> Option<Feature> {
         | OpenMatchDetails { .. }
         | OpenPlayerProfile { .. }
         | LoadMorePlayerMatches => Some(Feature::Profile),
-        HonorPlayer { .. } | SkipHonor => Some(Feature::PostGame),
+        HonorPlayer { .. } | SkipHonor | LeavePostGame => Some(Feature::PostGame),
     }
 }
 
