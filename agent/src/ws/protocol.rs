@@ -555,8 +555,8 @@ pub enum Command {
     /// /lol-matchmaking/v1/ready-check/decline`, #20). Mesmos erros do
     /// `acceptReadyCheck`.
     DeclineReadyCheck,
-    /// Honra o aliado `puuid` da cédula aberta (`POST
-    /// /lol-honor-v2/v1/honor-player`, #182). Responde `invalidCommand` sem
+    /// Honra o aliado `puuid` da cédula aberta (`POST /lol-honor/v1/honor`,
+    /// #182). Responde `invalidCommand` sem
     /// falar com a LCU se não há cédula ou se o jogador não está nela,
     /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (voto
     /// repetido, por exemplo). A LCU responde antes do servidor da Riot: o
