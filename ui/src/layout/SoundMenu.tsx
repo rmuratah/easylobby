@@ -4,6 +4,8 @@ import type { SoundSettings } from '../agent/soundSettings';
 import { OpenWithLeagueSetting } from './OpenWithLeagueSetting';
 import { LogsSetting } from './LogsSetting';
 import { AboutSection } from './AboutSection';
+import { UpdateSetting } from './UpdateSetting';
+import type { AppUpdateState } from '../agent/useAppUpdate';
 
 /** Espera depois de mexer no volume antes de tocar o som de teste. */
 const PREVIEW_DELAY_MS = 250;
@@ -12,15 +14,20 @@ type Props = {
   settings: SoundSettings;
   onChange: (settings: SoundSettings) => void;
   icon: ReactNode;
+  /** Atualização do app (#35); sem ela, a seção Atualizações some. */
+  update?: AppUpdateState;
+  /** Se dá para o app reiniciar agora (fora da fila, da seleção e da partida). */
+  canInstallUpdate?: boolean;
 };
 
 /**
  * Botão de Configurações da barra lateral (#501): a parte de som, com
  * liga/desliga e volume, e a de abrir o app junto com o LoL (#511). Ao mexer
  * no volume, toca o som de partida encontrada para o jogador ouvir a altura.
+ * Depois, a seção Atualizações (#35); um ponto no botão avisa de versão nova.
  * No fim, a seção Sobre com o aviso legal da Riot (#217).
  */
-export function SoundMenu({ settings, onChange, icon }: Props) {
+export function SoundMenu({ settings, onChange, icon, update, canInstallUpdate = true }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const preview = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -58,13 +65,16 @@ export function SoundMenu({ settings, onChange, icon }: Props) {
   }
 
   const muted = !settings.enabled || settings.volume === 0;
+  const updateVersion = update?.available?.version;
+  const label = updateVersion ? `Configurações, versão ${updateVersion} disponível` : 'Configurações';
   return (
     <div ref={rootRef} className="flex flex-col items-center">
-      <button type="button" aria-label="Configurações" title="Configurações" aria-expanded={open} aria-controls={panelId}
+      <button type="button" aria-label={label} title={label} aria-expanded={open} aria-controls={panelId}
         onClick={() => setOpen(current => !current)}
         className="relative flex size-11 items-center justify-center rounded-full border border-control text-muted transition-colors hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
         {icon}
         {muted && <span aria-hidden="true" data-muted className="absolute -right-0.5 -top-0.5 rounded-full border border-line bg-surface p-0.5 text-muted"><MutedIcon /></span>}
+        {updateVersion && <span aria-hidden="true" data-update className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border border-surface bg-accent" />}
       </button>
       {open && (
         <section id={panelId} role="dialog" aria-label="Configurações"
@@ -83,6 +93,7 @@ export function SoundMenu({ settings, onChange, icon }: Props) {
           </label>
           <OpenWithLeagueSetting />
           <LogsSetting />
+          {update && <UpdateSetting update={update} canInstall={canInstallUpdate} />}
           <AboutSection />
         </section>
       )}

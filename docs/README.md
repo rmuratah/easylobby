@@ -4,3 +4,4 @@
 - [Guia de contribuição](../CONTRIBUTING.md): issues, branches, commits, revisão e merge.
 - [Instruções para assistentes](../AGENTS.md): contexto do projeto, responsabilidades e fases.
 - [README principal](../README.md): estrutura e comandos de desenvolvimento.
+- [Como lançar uma versão](release.md): instalador, chave das atualizações e release no GitHub.

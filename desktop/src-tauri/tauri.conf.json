@@ -30,13 +30,36 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "easylobby",
+    "shortDescription": "Client leve para o League of Legends",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "PortugueseBR"
+        ]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEzQTc5Njk0QkM4RjA4MTQKUldRVUNJKzhsSmFuRS9SVkl3OEJsZTZmdW1NNEpCOEhveDdVdks3ZTcrQ25xaW90ancwbkRwbUUK",
+      "endpoints": [
+        "https://github.com/rmuratah/easylobby/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

@@ -4,6 +4,7 @@ import { Segmented } from '../components/base';
 import { cx } from '../components/base/cx';
 import type { SoundSettings } from '../agent/soundSettings';
 import { SoundMenu } from './SoundMenu';
+import type { AppUpdateState } from '../agent/useAppUpdate';
 
 export type NavigationPage = 'flow' | 'home' | 'profile' | 'collection' | 'conversations';
 
@@ -19,6 +20,9 @@ type Props = {
   /** Som do app (#501), no botão de Configurações. */
   sound: SoundSettings;
   onSoundChange: (settings: SoundSettings) => void;
+  /** Atualização do app (#35), também no botão de Configurações. */
+  update?: AppUpdateState;
+  canInstallUpdate?: boolean;
 };
 
 const themeOptions: { value: Theme; label: ReactNode; ariaLabel: string }[] = [
@@ -31,7 +35,7 @@ const themeOptions: { value: Theme; label: ReactNode; ariaLabel: string }[] = [
  * Fica estreita, só com os ícones das telas, e se expande sobre o conteúdo
  * ao passar o mouse ou ao navegar pelo teclado.
  */
-export function SideNavigation({ active, flowLabel, flowButtonRef, theme, unread = 0, onNavigate, onThemeChange, sound, onSoundChange }: Props) {
+export function SideNavigation({ active, flowLabel, flowButtonRef, theme, unread = 0, onNavigate, onThemeChange, sound, onSoundChange, update, canInstallUpdate }: Props) {
   const conversationsLabel = unread > 0 ? `Conversas, ${unread} não ${unread === 1 ? 'lida' : 'lidas'}` : 'Conversas';
   return (
     <div className="app-navigation-slot">
@@ -58,7 +62,8 @@ export function SideNavigation({ active, flowLabel, flowButtonRef, theme, unread
         <div className="mt-auto flex flex-col items-center gap-3">
           <Segmented label="Tema" value={theme} onChange={onThemeChange} options={themeOptions}
             appearance="embedded" className="theme-switch max-w-full flex-col rounded-full p-1" />
-          <SoundMenu settings={sound} onChange={onSoundChange} icon={<SettingsIcon />} />
+          <SoundMenu settings={sound} onChange={onSoundChange} icon={<SettingsIcon />}
+            update={update} canInstallUpdate={canInstallUpdate} />
         </div>
       </aside>
     </div>
