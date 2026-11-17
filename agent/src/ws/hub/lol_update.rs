@@ -74,9 +74,21 @@ impl Hub {
         self.edit_lol_update(|sync| sync.blocks_queue = blocks_queue);
     }
 
+    /// [`Hub::refresh_lol_update`] numa tarefa separada.
+    pub(super) fn spawn_refresh_lol_update(&self, session: u64) {
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let Some(client) = self.client() else {
+            return;
+        };
+        let hub = self.clone();
+        runtime.spawn(async move { hub.refresh_lol_update(&client, session).await });
+    }
+
     /// Relê as duas metades ao conectar. Um endpoint que não responder fica
     /// como parado: o próximo evento corrige.
-    pub(super) async fn refresh_lol_update(&self, client: &LcuClient, session: u64) {
+    async fn refresh_lol_update(&self, client: &LcuClient, session: u64) {
         let (patcher, blocked) = tokio::join!(
             lol_update::patcher_state(client),
             lol_update::queue_blocked(client),

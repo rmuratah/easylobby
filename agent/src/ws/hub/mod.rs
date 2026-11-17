@@ -420,8 +420,10 @@ impl Hub {
                 self.set_lobby_if(stamps.lobby, lobby.ok().flatten());
                 self.set_matchmaking_if(stamps.search, search.ok().flatten());
                 self.set_received_invitations_if(stamps.invitations, received.unwrap_or_default());
-                // Patch em andamento (#575), antes do `kill-ux` adiado vencer.
-                self.refresh_lol_update(&client, chat_session).await;
+                // Patch em andamento (#575), numa tarefa separada para não
+                // atrasar o resto da releitura; volta bem antes do `kill-ux`
+                // adiado vencer.
+                self.spawn_refresh_lol_update(chat_session);
                 self.restore_conversations(chat_session, conversations);
                 // O chat do grupo depois do lobby, que diz qual é a sala (#206).
                 let lobby_chat_id = self.lock().state.lobby.as_ref().map(|l| l.chat_id.clone());
