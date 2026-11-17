@@ -7,15 +7,23 @@
 //! completa o elo e as partidas recentes pela LCU, como na partida ao vivo
 //! do próprio jogador.
 //!
+//! O puuid da API não é o da LCU (#540): o perfil vira puuid da API pelo
+//! Riot ID, e os jogadores da partida voltam para o puuid da LCU, também
+//! pelo Riot ID, para o elo e o perfil de cada um.
+//!
 //! Sem configuração da API, fora de partida ou com a API recusando, a
 //! partida fica `null` e a UI não mostra a aba. Um resultado de um perfil
 //! que já não é o aberto é descartado.
+
+use std::collections::HashMap;
 
 use serde_json::Value;
 
 use super::{Hub, Shared};
 use crate::live_game::{self, LivePlayerStats, PlayerLiveGame, RankedQueue};
 use crate::player_profile;
+use crate::players;
+use crate::rest::LcuClient;
 use crate::riot_api::{self, RiotApi, RiotApiConfig};
 use crate::ws::protocol::ServerMessage;
 
@@ -36,6 +44,87 @@ fn write_player_live_game(
 /// Se `puuid` ainda é o perfil aberto.
 fn profile_open(shared: &Shared, puuid: &str) -> bool {
     shared.player_profile_request.as_deref() == Some(puuid)
+}
+
+/// A partida de `puuid` (o da LCU) como a API manda, já com os puuids da
+/// LCU nos jogadores (#540). `None` fora de partida ou sem Riot ID.
+async fn fetch_game(
+    api: &RiotApi,
+    lcu: &LcuClient,
+    platform: &str,
+    puuid: &str,
+) -> Result<Option<Value>, riot_api::RiotApiError> {
+    // O puuid da API é outro: o caminho passa pelo Riot ID.
+    let riot_id = live_game::riot_id(lcu, puuid).await.ok().flatten();
+    let Some((name, tag)) = riot_id.filter(|(_, tag)| !tag.is_empty()) else {
+        return Ok(None);
+    };
+    let regional = riot_api::regional_from_platform(platform);
+    let Some(api_puuid) = api.account_puuid(regional, &name, &tag).await? else {
+        return Ok(None);
+    };
+    let Some(mut body) = api.active_game(platform, &api_puuid).await? else {
+        return Ok(None);
+    };
+    let riot_ids = participant_riot_ids(&body);
+    let found = futures_util::future::join_all(riot_ids.iter().map(|(name, tag)| async move {
+        players::lookup(lcu, name, tag)
+            .await
+            .ok()
+            .flatten()
+            .map(|p| p.puuid)
+            .filter(|p| !p.is_empty())
+    }))
+    .await;
+    let lcu_puuids: HashMap<(String, String), String> = riot_ids
+        .into_iter()
+        .zip(found)
+        .filter_map(|(id, puuid)| Some((id, puuid?)))
+        .collect();
+    use_lcu_puuids(&mut body, &lcu_puuids);
+    Ok(Some(body))
+}
+
+/// Riot IDs (`nome`, `tag`) dos jogadores visíveis da partida, sem repetir.
+fn participant_riot_ids(body: &Value) -> Vec<(String, String)> {
+    let mut ids: Vec<(String, String)> = participants(body)
+        .filter(|p| p.get("puuid").and_then(Value::as_str).is_some())
+        .filter_map(|p| split_riot_id(p.get("riotId")?.as_str()?))
+        .collect();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+fn participants(body: &Value) -> impl Iterator<Item = &Value> {
+    body.get("participants")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+}
+
+/// `nome#tag`; `None` sem tag (jogador oculto aparece com o nome do campeão).
+fn split_riot_id(riot_id: &str) -> Option<(String, String)> {
+    let (name, tag) = riot_id.split_once('#')?;
+    (!name.is_empty() && !tag.is_empty()).then(|| (name.to_owned(), tag.to_owned()))
+}
+
+/// Troca o puuid da API de cada jogador pelo da LCU, achado pelo Riot ID.
+/// Quem a LCU não acha fica sem puuid, como um jogador oculto.
+fn use_lcu_puuids(body: &mut Value, lcu_puuids: &HashMap<(String, String), String>) {
+    let Some(list) = body.get_mut("participants").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for p in list {
+        let lcu = p
+            .get("riotId")
+            .and_then(Value::as_str)
+            .and_then(split_riot_id)
+            .and_then(|id| lcu_puuids.get(&id).cloned());
+        if p.get("puuid").is_some_and(|v| !v.is_null()) {
+            p["puuid"] = lcu.map_or(Value::Null, Value::String);
+        }
+    }
 }
 
 impl Hub {
@@ -100,7 +189,7 @@ impl Hub {
             tracing::warn!("região do client desconhecida; aba Em jogo desligada");
             return;
         };
-        let game = match api.active_game(platform, &puuid).await {
+        let game = match fetch_game(&api, &client, platform, &puuid).await {
             Ok(Some(body)) => live_game::from_spectator(&body, me.as_deref()),
             Ok(None) => None,
             Err(error) => {
@@ -237,6 +326,33 @@ mod tests {
         ))
         .await;
         assert_eq!(hub.state().player_live_game, None);
+    }
+
+    #[test]
+    fn troca_o_puuid_da_api_pelo_da_lcu() {
+        let mut body = serde_json::json!({"participants": [
+            {"puuid": null, "riotId": "Akshan", "teamId": 100},
+            {"puuid": "NzWOT-9f_x", "riotId": "Rafinha Lover#mrt", "teamId": 100},
+            {"puuid": "DA_OD62", "riotId": "Kyouki#Duran", "teamId": 200},
+        ]});
+        assert_eq!(
+            participant_riot_ids(&body),
+            vec![
+                ("Kyouki".to_owned(), "Duran".to_owned()),
+                ("Rafinha Lover".to_owned(), "mrt".to_owned()),
+            ]
+        );
+        let lcu = HashMap::from([(
+            ("Rafinha Lover".to_owned(), "mrt".to_owned()),
+            "fake-puuid-0002".to_owned(),
+        )]);
+        use_lcu_puuids(&mut body, &lcu);
+        let puuids: Vec<&Value> = participants(&body).map(|p| &p["puuid"]).collect();
+        assert_eq!(
+            puuids,
+            [&Value::Null, &Value::from("fake-puuid-0002"), &Value::Null],
+            "oculto continua oculto; quem a LCU não acha fica sem puuid"
+        );
     }
 
     #[tokio::test]

@@ -1,10 +1,14 @@
 //! API oficial da Riot (#436): a partida em andamento de **outro** jogador,
 //! que a LCU não tem.
 //!
-//! O agente só usa o `spectator-v5`
+//! O agente usa o `spectator-v5`
 //! (`GET /lol/spectator/v5/active-games/by-summoner/{puuid}`), que devolve a
 //! partida com as duas equipes, os campeões, os feitiços e as runas, ou 404
-//! quando o jogador não está em partida. Elo, Riot ID e partidas recentes
+//! quando o jogador não está em partida.
+//!
+//! O puuid da API é criptografado por chave e não é o mesmo da LCU (#540).
+//! Por isso o agente primeiro troca o Riot ID do jogador pelo puuid da API no
+//! `account-v1` (`GET /riot/account/v1/accounts/by-riot-id/{nome}/{tag}`). Elo, Riot ID e partidas recentes
 //! continuam vindo da LCU, como na partida ao vivo do próprio jogador.
 //!
 //! A Riot não deixa embutir a chave no app distribuído. Por enquanto a
@@ -22,6 +26,8 @@ use std::time::Duration;
 use reqwest::StatusCode;
 use serde_json::Value;
 
+use crate::chat::encode;
+
 /// Variável com a chave da API da Riot.
 pub const API_KEY_ENV: &str = "EASYLOBBY_RIOT_API_KEY";
 /// Variável com o endereço da API, com `{platform}` no lugar da plataforma
@@ -33,6 +39,8 @@ pub const DEFAULT_API_URL: &str = "https://{platform}.api.riotgames.com";
 pub const KEY_FILE: &str = "riot-api-key.txt";
 /// Partida em andamento de um jogador, pelo `puuid`.
 pub const ACTIVE_GAME_PREFIX: &str = "/lol/spectator/v5/active-games/by-summoner";
+/// Conta pelo Riot ID, com o puuid da API.
+pub const ACCOUNT_BY_RIOT_ID_PREFIX: &str = "/riot/account/v1/accounts/by-riot-id";
 /// Região do client logado (`{"region": "BR", ...}`).
 pub const REGION_LOCALE_PATH: &str = "/riotclient/region-locale";
 
@@ -154,6 +162,16 @@ pub fn platform_from_region(region: &str) -> Option<&'static str> {
     })
 }
 
+/// Roteamento regional do `account-v1` para a `platform` (`br1`): a conta
+/// pode ser buscada de qualquer região, então vale a mais próxima.
+pub fn regional_from_platform(platform: &str) -> &'static str {
+    match platform {
+        "br1" | "na1" | "la1" | "la2" => "americas",
+        "euw1" | "eun1" | "tr1" | "ru" | "me1" => "europe",
+        _ => "asia",
+    }
+}
+
 /// Cliente da API da Riot.
 #[derive(Debug, Clone)]
 pub struct RiotApi {
@@ -170,17 +188,48 @@ impl RiotApi {
         Ok(Self { http, config })
     }
 
-    /// A partida em andamento de `puuid` na `platform`, como a API manda.
-    /// `None` quando ele não está em partida (404).
+    /// O puuid da API de `nome#tag`, pelo roteamento `regional`
+    /// (`americas`). `None` quando a conta não existe (404).
+    pub async fn account_puuid(
+        &self,
+        regional: &str,
+        game_name: &str,
+        tag_line: &str,
+    ) -> Result<Option<String>, RiotApiError> {
+        let url = format!(
+            "{}{ACCOUNT_BY_RIOT_ID_PREFIX}/{}/{}",
+            self.config.base_url(regional),
+            encode(game_name),
+            encode(tag_line)
+        );
+        let Some(body) = self.get_json(url).await? else {
+            return Ok(None);
+        };
+        body.get("puuid")
+            .and_then(Value::as_str)
+            .filter(|puuid| !puuid.is_empty())
+            .map(|puuid| Some(puuid.to_owned()))
+            .ok_or(RiotApiError::InvalidBody)
+    }
+
+    /// A partida em andamento de `puuid` (o da API, de
+    /// [`RiotApi::account_puuid`]) na `platform`, como a API manda. `None`
+    /// quando ele não está em partida (404).
     pub async fn active_game(
         &self,
         platform: &str,
         puuid: &str,
     ) -> Result<Option<Value>, RiotApiError> {
         let url = format!(
-            "{}{ACTIVE_GAME_PREFIX}/{puuid}",
-            self.config.base_url(platform)
+            "{}{ACTIVE_GAME_PREFIX}/{}",
+            self.config.base_url(platform),
+            encode(puuid)
         );
+        self.get_json(url).await
+    }
+
+    /// GET com a chave; `None` no 404.
+    async fn get_json(&self, url: String) -> Result<Option<Value>, RiotApiError> {
         let mut request = self.http.get(url);
         if !self.config.key.is_empty() {
             request = request.header("X-Riot-Token", &self.config.key);
@@ -263,6 +312,46 @@ mod tests {
         assert!(request
             .starts_with("get /br1/lol/spectator/v5/active-games/by-summoner/fake-puuid-0002 "));
         assert!(request.contains("x-riot-token: rgapi-teste"));
+    }
+
+    #[test]
+    fn roteamento_regional() {
+        assert_eq!(regional_from_platform("br1"), "americas");
+        assert_eq!(regional_from_platform("euw1"), "europe");
+        assert_eq!(regional_from_platform("kr"), "asia");
+    }
+
+    #[tokio::test]
+    async fn conta_pelo_riot_id() {
+        let (url, request) = one_shot(
+            "200 OK",
+            r#"{"puuid": "NzWOT-9f_x", "gameName": "Rafinha Lover", "tagLine": "mrt"}"#,
+        );
+        let api = RiotApi::new(RiotApiConfig {
+            url_template: url,
+            key: "RGAPI-teste".into(),
+        })
+        .unwrap();
+        let puuid = api
+            .account_puuid("americas", "Rafinha Lover", "mrt")
+            .await
+            .unwrap();
+        assert_eq!(puuid.as_deref(), Some("NzWOT-9f_x"));
+        let request = request.join().unwrap().to_ascii_lowercase();
+        assert!(request
+            .starts_with("get /americas/riot/account/v1/accounts/by-riot-id/rafinha%20lover/mrt "));
+        assert!(request.contains("x-riot-token: rgapi-teste"));
+    }
+
+    #[tokio::test]
+    async fn conta_que_nao_existe() {
+        let (url, _) = one_shot("404 Not Found", r#"{"status": {}}"#);
+        let api = RiotApi::new(RiotApiConfig {
+            url_template: url,
+            key: String::new(),
+        })
+        .unwrap();
+        assert_eq!(api.account_puuid("americas", "a", "b").await.unwrap(), None);
     }
 
     #[tokio::test]

@@ -57,6 +57,7 @@ The list below is in English so it can be pasted into the product page as is.
 
 | Endpoint | Why |
 | --- | --- |
+| `GET https://{regional}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{gameName}/{tagLine}` | Turn the Riot ID of the profile the player opened into the API puuid used by spectator-v5. Same server and key as below |
 | `GET https://{platform}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{puuid}` | "In game" tab of another player's profile: whether a friend is in a match and the two teams. Only with a Production API Key kept on our own server; off when there is no key |
 
 ### Other public sources
