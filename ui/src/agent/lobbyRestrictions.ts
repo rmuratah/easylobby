@@ -102,8 +102,3 @@ export function awayMembers(lobby: Lobby | null, phase: GameflowPhase | null): L
   if (!lobby || lobby.custom || phase !== 'Lobby') return [];
   return lobby.members.filter(member => !member.ready);
 }
-
-/** O aviso para cada membro de {@link awayMembers}. */
-export function awayReasons(away: LobbyMember[], me: string | undefined, nameOf: (member: LobbyMember) => string): string[] {
-  return away.map(member => member.puuid === me ? 'Você ainda não voltou ao lobby.' : `${nameOf(member)} ainda não voltou ao lobby.`);
-}

@@ -6,7 +6,7 @@ import type { AgentState } from '../bindings/AgentState';
 import type { LobbyMember } from '../bindings/LobbyMember';
 import type { Command } from '../bindings/Command';
 import { duration, lowPriorityText, matchmakingErrorText, queuePenalty } from '../agent/matchmaking';
-import { awayMembers, awayReasons, pendingChoices, restrictionReasons } from '../agent/lobbyRestrictions';
+import { awayMembers, pendingChoices, restrictionReasons } from '../agent/lobbyRestrictions';
 import { memberName } from '../agent/friends';
 import { cx } from './base/cx';
 import { useDismiss } from '../agent/useDismiss';
@@ -79,13 +79,14 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
   const nameOf = (member: LobbyMember) => memberName(member, state.friends);
   const missing = pendingChoices(lobby, summoner?.puuid, nameOf);
   // Quem ainda está na tela de fim de jogo (#346): a busca espera todos voltarem.
-  const away = awayReasons(awayMembers(lobby, phase), summoner?.puuid, nameOf);
+  // O card do jogador no lobby já marca quem não voltou: aqui fica só o aviso geral.
+  const away = awayMembers(lobby, phase);
   const canStart = !state.readyCheck && !!summoner && !!lobby && !custom && lobby.isLeader && lobby.canStartActivity && phase === 'Lobby' && !matchmaking
     && missing.length === 0 && away.length === 0;
   // A busca parada por punição também sai, mesmo se a fase não for `Matchmaking`.
   const canStop = !state.readyCheck && !!matchmaking && (phase === 'Matchmaking' || queuePenalty(matchmaking));
   // Motivos da LCU para a fila bloqueada (#227), no lugar do aviso genérico.
-  const reasons = away.length ? away : [...restrictionReasons(lobby, summoner?.puuid, nameOf), ...missing];
+  const reasons = away.length ? [] : [...restrictionReasons(lobby, summoner?.puuid, nameOf), ...missing];
   // Com a busca em andamento, o card já mostra o estado e o tempo na fila: sem aviso extra.
   const restriction = !summoner ? 'Aguarde o login no League of Legends.'
     : matchmaking ? ''
@@ -93,7 +94,7 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
     : custom ? 'Na personalizada, a partida começa pelo botão Iniciar partida, no lobby.'
     : !lobby.isLeader ? 'Somente o líder do lobby pode iniciar a busca.'
     : phase !== 'Lobby' ? 'A busca só pode ser iniciada na fase de lobby.'
-    : away.length ? 'Os jogadores não estão prontos:'
+    : away.length ? 'Aguarde todos voltarem ao lobby.'
     : !lobby.canStartActivity ? (reasons.length ? 'A busca não pode começar:' : 'O lobby ainda não está pronto para iniciar a busca.')
     : missing.length ? 'Faltam escolhas antes de buscar:'
     : 'O lobby está pronto para buscar uma partida.';
