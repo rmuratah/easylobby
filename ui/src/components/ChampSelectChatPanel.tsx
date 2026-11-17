@@ -20,7 +20,7 @@ export function ChampSelectChatPanel(props: Props) {
     <section aria-label="Chat do time" className="flex min-w-0 flex-col gap-2 rounded-card border border-edge bg-surface card p-3 text-ink">
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Chat do time</h3>
       <p className="text-muted">Aguardando a sala do chat abrir…</p>
-      <div className="flex gap-2">
+      <div className="mt-auto flex gap-2">
         <input aria-label="Mensagem para o time" disabled placeholder="Mensagem para o time"
           className="h-9 min-w-0 flex-1 rounded-control border border-control bg-surface px-3 text-body text-ink disabled:opacity-50" />
         <button disabled className="h-9 rounded-control px-3 text-body font-semibold disabled:cursor-not-allowed disabled:bg-raised disabled:text-muted">Enviar</button>
@@ -93,7 +93,7 @@ function OpenChat({ champSelect, chat, send }: Props & { chat: ChampSelectChat }
               ))}
             </ol>
           )}
-      <form onSubmit={submit} className="flex gap-2">
+      <form onSubmit={submit} className="mt-auto flex gap-2">
         <label htmlFor={inputId} className="sr-only">Mensagem para o time</label>
         <input id={inputId} type="text" value={draft} autoComplete="off" placeholder="Mensagem para o time"
           onChange={event => setDraft(event.target.value)}
