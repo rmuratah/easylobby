@@ -23,6 +23,7 @@ mod live_game;
 mod lobby;
 mod lobby_chat;
 mod lobby_ranks;
+mod lol_update;
 mod patch_notes;
 mod player_live_game;
 mod pre_end_of_game;
@@ -142,6 +143,8 @@ struct Shared {
     /// Se o login checa os endpoints do modo de compatibilidade (#36).
     /// Veja [`crate::ws::WsConfig::compatibility_check`].
     compatibility_check: bool,
+    /// O patcher e a trava da fila, para o aviso de atualização (#575).
+    lol_update: lol_update::LolUpdateSync,
 }
 
 /// Recurso do estado que um comando relê ou muda pelo REST.
@@ -226,6 +229,7 @@ impl Hub {
                     lp_history_dir: None,
                     lp_history_puuid: None,
                     compatibility_check: true,
+                    lol_update: lol_update::LolUpdateSync::default(),
                 }),
                 tx,
             }),
@@ -416,6 +420,8 @@ impl Hub {
                 self.set_lobby_if(stamps.lobby, lobby.ok().flatten());
                 self.set_matchmaking_if(stamps.search, search.ok().flatten());
                 self.set_received_invitations_if(stamps.invitations, received.unwrap_or_default());
+                // Patch em andamento (#575), antes do `kill-ux` adiado vencer.
+                self.refresh_lol_update(&client, chat_session).await;
                 self.restore_conversations(chat_session, conversations);
                 // O chat do grupo depois do lobby, que diz qual é a sala (#206).
                 let lobby_chat_id = self.lock().state.lobby.as_ref().map(|l| l.chat_id.clone());
@@ -557,6 +563,7 @@ impl Hub {
                 self.set_custom_games(None);
                 self.set_wallet(None);
                 self.set_unavailable_features(Vec::new());
+                self.clear_lol_update();
                 self.stop_live_game();
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),
@@ -666,6 +673,11 @@ impl Hub {
                     }
                 }
             }
+            // O patch do LoL e a trava da fila por causa dele (#575).
+            crate::lol_update::PATCH_STATE_PATH if deleted => {}
+            crate::lol_update::PATCH_STATE_PATH => self.apply_patcher_event(&event.data),
+            crate::lol_update::AVAILABILITY_PATH if deleted => {}
+            crate::lol_update::AVAILABILITY_PATH => self.apply_availability_event(&event.data),
             // Os ranks mudam no fim de uma ranqueada (#171).
             RANKED_STATS_PATH if deleted => {}
             RANKED_STATS_PATH => {

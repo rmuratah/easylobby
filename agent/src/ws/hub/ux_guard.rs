@@ -46,6 +46,10 @@
 //! a partida começa (`InProgress`) e quando o jogador volta ao lobby. Como o
 //! LoL sobe a UI nesse fim sem aviso garantido, a sequência armada na
 //! seleção segue escondendo a janela até a seleção acabar (#448).
+//!
+//! Enquanto o LoL baixa ou repara os arquivos do jogo (#575), a guarda não
+//! fecha a UI: o primeiro `kill-ux` espera o patch acabar e as sequências
+//! param. O fim do patch arma uma sequência nova.
 
 use std::time::Duration;
 
@@ -163,10 +167,10 @@ pub(super) fn game_starting(champ_select: Option<&ChampSelect>, now_ms: u64) -> 
     }
 }
 
-/// Se a guarda pode fechar a UI agora: numa fase que o app cobre e fora do
-/// fim da seleção.
+/// Se a guarda pode fechar a UI agora: numa fase que o app cobre, fora do
+/// fim da seleção e sem o LoL atualizando os arquivos do jogo (#575).
 fn may_kill(shared: &super::Shared) -> bool {
-    covered(shared.state.gameflow_phase) && !game_starting_now(shared)
+    covered(shared.state.gameflow_phase) && !game_starting_now(shared) && !Hub::patching(shared)
 }
 
 /// [`game_starting`] com a seleção atual, agora.
@@ -357,7 +361,9 @@ impl Hub {
             GuardStep::Stop
         } else if phase == Some(GameflowPhase::Reconnect) {
             GuardStep::Hide
-        } else if !covered(phase) {
+        } else if !covered(phase) || Self::patching(&shared) {
+            // Fora do app, ou o LoL atualizando (#575): a UI fica. O fim do
+            // patch arma a guarda de novo.
             GuardStep::Stop
         } else if game_starting_now(&shared) {
             GuardStep::Hide
