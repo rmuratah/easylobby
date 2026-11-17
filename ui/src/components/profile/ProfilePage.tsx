@@ -216,7 +216,7 @@ function Overview({ state, data }: { state: AgentState; data: ProfileData }) {
       </section>
       <div className="grid gap-4 @min-[44rem]:col-span-2 @min-[22rem]:grid-cols-2 @min-[52rem]:grid-cols-3">
         <section aria-labelledby="perfil-maestria" className="rounded-panel surface card p-5 shadow-soft @min-[22rem]:col-span-2 @min-[52rem]:col-span-1">
-          <h3 id="perfil-maestria" className="text-section font-semibold text-ink">Maestria</h3>
+          <h3 id="perfil-maestria" className="text-center text-section font-semibold text-ink">Maestria</h3>
           {data.championMasteries.length === 0
             ? <p className="mt-3 text-body text-muted">Nenhuma maestria para mostrar.</p>
             : <ol className="mt-3 flex flex-col gap-3">
