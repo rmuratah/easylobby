@@ -48,6 +48,7 @@ const emptyState: AgentState = {
   patchNotes: null,
   lolUpdate: null,
   wallet: null,
+  vanguard: null,
 };
 
 /**

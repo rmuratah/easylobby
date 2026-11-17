@@ -82,6 +82,7 @@ use crate::summoner::Summoner;
 use crate::summoner_spells::SummonerSpellCatalog;
 use crate::swaps::SwapKind;
 use crate::training::TutorialPart;
+use crate::vanguard::Vanguard;
 use crate::wallet::Wallet;
 
 /// Versão do formato das mensagens, mandada no [`ServerMessage::Hello`].
@@ -341,6 +342,13 @@ pub enum ServerMessage {
     /// no client oficial). `null` com o LoL fechado ou antes do login.
     Wallet { wallet: Option<Wallet> },
 
+    // Vanguard
+    /// O estado do Vanguard (#579) mudou: chega logo depois de conectar, no
+    /// login e quando a LCU avisa. Com `connected: false` a partida não abre
+    /// e vira esquiva no fim da seleção. `null` com o LoL fechado ou se a
+    /// LCU não tiver o endpoint.
+    Vanguard { vanguard: Option<Vanguard> },
+
     // Respostas aos comandos
     /// Resposta a um [`ClientMessage`], com o mesmo `id`.
     Response { id: u32, result: CommandResult },
@@ -467,6 +475,10 @@ pub struct AgentState {
     // Saldo
     /// Essência Azul, Essência Laranja e RP da conta (#370), ou `null`.
     pub wallet: Option<Wallet>,
+
+    // Vanguard
+    /// Estado do Vanguard (#579), ou `null`.
+    pub vanguard: Option<Vanguard>,
 }
 
 /// Estado da conexão do agente com o LoL.
@@ -536,6 +548,13 @@ pub enum Command {
     /// a LCU recusar. O agente não fecha a UI de novo sozinho até a próxima
     /// conexão com o LoL.
     LaunchUx,
+    /// Fecha o LoL e abre de novo pelo Riot Client (#579): é o que resolve
+    /// o Vanguard desconectado no meio da sessão. Responde `ok` depois de
+    /// pedir a abertura; a subida chega pelas mensagens `lcu`. Recusa com
+    /// `invalidCommand` na seleção e na partida (fechar ali é esquiva ou
+    /// abandono), `notConnected` com o LoL fechado, `lcu` se a LCU recusar
+    /// fechar e `launchFailed` se não der para abrir de novo.
+    RestartLeague,
 
     // Lobby, fila e partida encontrada
     /// Cria um lobby na fila pedida, ou troca a fila do lobby atual (só o
@@ -1170,6 +1189,7 @@ mod tests {
                     "patchNotes": null,
                     "lolUpdate": null,
                     "wallet": null,
+                    "vanguard": null,
                 },
             })
         );

@@ -31,6 +31,7 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::Ping | Command::GetState => CommandResult::Ok,
         Command::LaunchLeague => launch_league(launch).await,
         Command::LaunchUx => hub.launch_ux().await,
+        Command::RestartLeague => hub.restart_league(launch).await,
 
         // Lobby, fila e partida encontrada
         Command::CreateLobby { queue } => hub.create_lobby(queue).await,
@@ -209,6 +210,7 @@ fn feature(command: &Command) -> Option<Feature> {
         | GetState
         | LaunchLeague
         | LaunchUx
+        | RestartLeague
         | OpenCollection
         | OpenChampionSkins { .. }
         | OpenPatchNotes => None,
