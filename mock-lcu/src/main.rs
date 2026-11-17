@@ -13,6 +13,7 @@
 use std::path::{Path, PathBuf};
 
 use easylobby_agent::fixtures::FixtureSet;
+use mock_lcu::broken::Broken;
 use mock_lcu::post_game;
 use mock_lcu::scenario::{Mode, Options};
 use mock_lcu::{Config, MockLcu, ReplayStart};
@@ -38,6 +39,12 @@ uso: mock-lcu [opções]
   --celula <0-4>            sua vez na ordem de picks da seleção simulada
                             (padrão: a da gravação)
   --bots <segundos>         quanto os bots demoram para escolher (padrão: 3)
+  --quebrar <caminho>       responde a este caminho (e aos de baixo dele) como
+                            um endpoint que não existe mais, para testar o
+                            modo de compatibilidade; pode repetir
+  --formato-errado <caminho>
+                            o GET deste caminho responde um texto no lugar do
+                            JSON de sempre; pode repetir
   --pos-jogo                começa no meio da partida gravada e simula o fim
                             dela: estatísticas, honra, telas do pós-jogo e
                             jogar de novo (padrão de --fixtures: a gravação
@@ -73,6 +80,7 @@ struct Args {
     bot_seconds: Option<f64>,
     post_game: bool,
     end_after: Option<f64>,
+    broken: Broken,
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -91,6 +99,7 @@ fn parse_args() -> Result<Args, String> {
         bot_seconds: None,
         post_game: false,
         end_after: None,
+        broken: Broken::default(),
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -119,6 +128,8 @@ fn parse_args() -> Result<Args, String> {
                 args.bot_seconds = Some(seconds.ok_or("--bots inválido")?);
             }
             "--pos-jogo" => args.post_game = true,
+            "--quebrar" => args.broken.missing.push(value()?),
+            "--formato-errado" => args.broken.bad_format.push(value()?),
             "--fim-em" => {
                 let seconds = value()?
                     .parse()
@@ -238,6 +249,13 @@ async fn run() -> Result<(), String> {
     if let Some(seconds) = args.bot_seconds {
         config.timings.bot = (seconds * 1000.0) as u64;
     }
+    for path in &args.broken.missing {
+        println!("quebrado (não existe): {path}");
+    }
+    for path in &args.broken.bad_format {
+        println!("quebrado (formato errado): {path}");
+    }
+    config.broken = args.broken;
 
     let manifest = config.fixtures.manifest.clone();
     let (rest, events) = (config.fixtures.rest.len(), config.fixtures.events.len());

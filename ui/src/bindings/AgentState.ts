@@ -36,6 +36,7 @@ import type { SuggestedPlayer } from "./SuggestedPlayer";
 import type { Summoner } from "./Summoner";
 import type { SummonerSpellCatalog } from "./SummonerSpellCatalog";
 import type { TutorialPart } from "./TutorialPart";
+import type { UnavailableFeature } from "./UnavailableFeature";
 import type { Wallet } from "./Wallet";
 
 /**
@@ -45,6 +46,11 @@ export type AgentState = {
   lcu: LcuStatus,
   summoner: Summoner | null,
   gameflowPhase: GameflowPhase | null,
+  /**
+   * Funções desligadas porque um endpoint delas falhou na checagem (#36).
+   * Os comandos delas respondem `featureUnavailable`.
+   */
+  unavailableFeatures: Array<UnavailableFeature>,
   lobby: Lobby | null,
   /**
    * Link para entrar no lobby (#226), depois de um `createLobbyLink`, ou

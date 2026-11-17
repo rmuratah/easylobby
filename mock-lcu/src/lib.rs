@@ -31,6 +31,8 @@
 //!   "jogar de novo", com a votação de honra (#178).
 //! - [`swaps`]: trocas de campeão, de vez e de cargo na seleção (#25).
 //! - [`autofill`]: autofill na seleção e o aviso já mostrado (#360).
+//! - [`broken`]: endpoints quebrados de propósito, para o modo de
+//!   compatibilidade do agente (#36).
 //! - [`suggested`]: jogadores sugeridos para convidar (#377).
 //! - [`wamp`]: mensagens do WebSocket WAMP.
 //! - [`tls`]: CA e certificado gerados a cada execução.
@@ -40,6 +42,7 @@
 pub mod ags;
 pub mod autofill;
 pub mod bench;
+pub mod broken;
 pub mod champ_select;
 pub mod champions;
 pub mod chat;
@@ -133,6 +136,9 @@ pub struct Config {
     /// [`ReplayStart::Never`] e uma gravação com pós-jogo, como
     /// `16.22-pos-jogo`.
     pub post_game: Option<post_game::Options>,
+    /// Endpoints quebrados de propósito, para testar o modo de
+    /// compatibilidade do agente (#36).
+    pub broken: broken::Broken,
 }
 
 impl Config {
@@ -153,6 +159,7 @@ impl Config {
             champ_select: None,
             timings: scenario::Timings::default(),
             post_game: None,
+            broken: broken::Broken::default(),
         }
     }
 }
@@ -224,6 +231,8 @@ struct Shared {
     post_game: Mutex<Option<post_game::PostGame>>,
     /// Roteiro do fim de partida tirado da gravação, se ela tiver um.
     post_game_script: Option<post_game::Script>,
+    /// Endpoints quebrados de propósito (#36).
+    broken: broken::Broken,
 }
 
 /// Pedido de [`MockLcu::hold`] que ainda não pegou nenhuma requisição.
@@ -358,6 +367,7 @@ impl MockLcu {
             clock: Instant::now(),
             post_game: Mutex::new(None),
             post_game_script,
+            broken: config.broken,
         });
         if let Some(options) = config.champ_select {
             start_scenario(&shared, options);
@@ -1039,6 +1049,14 @@ async fn handle_request(
         if let Some(svg) = collection::skin_image_svg(request.uri().path()) {
             return ([(header::CONTENT_TYPE, "image/svg+xml")], svg).into_response();
         }
+    }
+
+    // Endpoints quebrados de propósito (#36).
+    if let Some(response) = shared.broken.respond(&method, request.uri().path()) {
+        if shared.verbose {
+            println!("{method} {path} -> {} (quebrado)", response.status);
+        }
+        return json_response(&response);
     }
 
     let response = match (&method, path.as_str()) {

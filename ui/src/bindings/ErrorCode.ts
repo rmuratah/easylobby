@@ -8,4 +8,5 @@ export type ErrorCode =
   | "lcu"
   | "launchFailed"
   | "invalidCommand"
-  | "notFound";
+  | "notFound"
+  | "featureUnavailable";

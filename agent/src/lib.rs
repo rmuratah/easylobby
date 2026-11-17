@@ -55,6 +55,8 @@
 //! - [`wallet`]: saldo de Essência Azul, Essência Laranja e RP (#370)
 //! - [`riot_api`]: a partida em andamento de outro jogador, pela API
 //!   oficial da Riot, para a aba "Em jogo" do perfil (#436)
+//! - [`health`]: checagem dos endpoints da LCU ao conectar, que desliga só
+//!   a função afetada quando o LoL muda um deles (#36)
 
 // O `json!` do estado inteiro nos testes do protocolo passa do limite
 // padrão de 128.
@@ -75,6 +77,7 @@ pub mod end_of_game;
 pub mod fixtures;
 pub mod friends;
 pub mod gameflow;
+pub mod health;
 pub mod honor;
 pub mod invitations;
 pub mod launcher;
