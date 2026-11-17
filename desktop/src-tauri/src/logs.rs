@@ -4,10 +4,26 @@
 //! (`%LOCALAPPDATA%\io.github.rmuratah.easylobby\logs` no Windows), um por
 //! dia; quem grava é [`easylobby_agent::logging`]. Daqui saem os comandos da
 //! UI: gravar um erro da interface e abrir a pasta no Explorer.
+//!
+//! Em build de release, os erros também vão para a base do Supabase
+//! ([`easylobby_agent::error_report`], #550), a não ser que o jogador desligue
+//! "Enviar erros para os devs" nas Configurações.
 
 use std::path::PathBuf;
 
+use easylobby_agent::error_report::{self, ReportConfig, ReportSwitch};
 use tauri::{AppHandle, Manager};
+
+/// Arquivo que marca que o jogador desligou o envio de erros.
+const REPORTS_OFF_FILE: &str = "enviar-erros-desligado";
+/// Arquivo com o id aleatório desta instalação.
+const INSTALL_ID_FILE: &str = "id-instalacao";
+
+/// Estado do envio de erros, para os comandos da UI.
+pub struct ErrorReports {
+    /// `None` quando o envio não existe nesta build (desenvolvimento).
+    switch: Option<ReportSwitch>,
+}
 
 /// Tamanho máximo de cada campo que a UI manda.
 const MAX_UI_FIELD_CHARS: usize = 4_000;
@@ -17,13 +33,48 @@ pub fn dir(app: &AppHandle) -> Option<PathBuf> {
     app.path().app_log_dir().ok()
 }
 
-/// Liga o log em arquivo. Sem a pasta, o app segue sem log.
+fn config_dir(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_config_dir().ok()
+}
+
+/// Id da instalação: lido do arquivo ou criado na primeira vez.
+fn install_id(dir: &std::path::Path) -> String {
+    let path = dir.join(INSTALL_ID_FILE);
+    if let Ok(id) = std::fs::read_to_string(&path) {
+        let id = id.trim();
+        if id.len() == 36 {
+            return id.to_owned();
+        }
+    }
+    let id = error_report::new_install_id();
+    let _ = std::fs::create_dir_all(dir).and_then(|()| std::fs::write(&path, &id));
+    id
+}
+
+/// Monta o envio de erros. Só em release: o `tauri dev` não manda nada.
+fn error_reporter(app: &AppHandle) -> Option<(ReportConfig, ReportSwitch)> {
+    if cfg!(debug_assertions) {
+        return None;
+    }
+    let dir = config_dir(app)?;
+    let config = ReportConfig::load(install_id(&dir))?;
+    let enabled = !dir.join(REPORTS_OFF_FILE).exists();
+    Some((config, ReportSwitch::new(enabled)))
+}
+
+/// Liga o log em arquivo e o envio de erros. Sem a pasta, o app segue sem
+/// log.
 pub fn init(app: &AppHandle) {
+    let reporter = error_reporter(app);
+    app.manage(ErrorReports {
+        switch: reporter.as_ref().map(|(_, switch)| switch.clone()),
+    });
     let Some(dir) = dir(app) else {
         eprintln!("easylobby: pasta de logs indisponível");
         return;
     };
-    if let Err(error) = easylobby_agent::logging::init(&dir) {
+    let layer = reporter.map(|(config, switch)| error_report::layer(config, switch));
+    if let Err(error) = easylobby_agent::logging::init(&dir, layer) {
         eprintln!("easylobby: não deu para abrir a pasta de logs: {error}");
         return;
     }
@@ -70,4 +121,35 @@ pub fn open_logs_folder(app: AppHandle) -> Result<(), String> {
         .spawn()
         .map(|_| ())
         .map_err(|error| error.to_string())
+}
+
+/// Se "Enviar erros para os devs" está ligada. `None` quando esta build não
+/// envia erros (desenvolvimento), e a opção some da tela.
+#[tauri::command]
+pub fn error_reports_enabled(state: tauri::State<'_, ErrorReports>) -> Option<bool> {
+    state.switch.as_ref().map(ReportSwitch::is_enabled)
+}
+
+/// Liga ou desliga o envio de erros e lembra a escolha. Devolve o valor que
+/// ficou.
+#[tauri::command]
+pub fn set_error_reports_enabled(
+    app: AppHandle,
+    state: tauri::State<'_, ErrorReports>,
+    enabled: bool,
+) -> Result<bool, String> {
+    let switch = state.switch.as_ref().ok_or("envio de erros indisponível")?;
+    let dir = config_dir(&app).ok_or("pasta de configuração indisponível")?;
+    let marker = dir.join(REPORTS_OFF_FILE);
+    let saved = if enabled {
+        match std::fs::remove_file(&marker) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
+            _ => Ok(()),
+        }
+    } else {
+        std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&marker, b""))
+    };
+    saved.map_err(|error| error.to_string())?;
+    switch.set(enabled);
+    Ok(switch.is_enabled())
 }

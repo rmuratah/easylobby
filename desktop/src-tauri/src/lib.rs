@@ -226,7 +226,9 @@ pub fn run() {
             startup::open_with_league_enabled,
             startup::set_open_with_league,
             logs::log_ui_error,
-            logs::open_logs_folder
+            logs::open_logs_folder,
+            logs::error_reports_enabled,
+            logs::set_error_reports_enabled
         ])
         .manage(Channel::default())
         .setup(|app| {

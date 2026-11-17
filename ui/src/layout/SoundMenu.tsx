@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { sound } from '../agent/sound';
 import type { SoundSettings } from '../agent/soundSettings';
 import { OpenWithLeagueSetting } from './OpenWithLeagueSetting';
+import { ErrorReportsSetting } from './ErrorReportsSetting';
 import { LogsSetting } from './LogsSetting';
 import { AboutSection } from './AboutSection';
 
@@ -83,6 +84,7 @@ export function SoundMenu({ settings, onChange, icon }: Props) {
           </label>
           <OpenWithLeagueSetting />
           <LogsSetting />
+          <ErrorReportsSetting />
           <AboutSection />
         </section>
       )}
