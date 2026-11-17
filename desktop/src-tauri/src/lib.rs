@@ -21,8 +21,8 @@ use tauri::{
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
-/// Quanto o Sair espera a LCU encerrar o LoL (ou reabrir a UI oficial)
-/// antes de fechar mesmo assim (#89).
+/// Quanto o Sair e o X esperam a LCU encerrar o LoL (ou reabrir a UI
+/// oficial) antes de desistir (#89, #571).
 const EXIT_LCU_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Quantas vezes seguidas o canal do agente é subido de novo antes de
@@ -184,10 +184,25 @@ async fn supervise_channel(app: AppHandle, listener: TcpListener, source: Creden
     }
 }
 
-/// Sair pela bandeja: encerra o LoL junto, senão ele fica rodando sem
-/// nenhuma janela. Na seleção de campeões e na partida, reabre a UI oficial
-/// em vez de encerrar (#89). Se a LCU não responder em [`EXIT_LCU_TIMEOUT`],
-/// fecha mesmo assim.
+/// Encerra o LoL junto com o app, senão ele fica rodando sem nenhuma
+/// janela. Na seleção de campeões e na partida, reabre a UI oficial em vez de
+/// encerrar (#89). Desiste se a LCU não responder em [`EXIT_LCU_TIMEOUT`].
+async fn close_league(app: &AppHandle) {
+    let Some(hub) = app.state::<Channel>().hub() else {
+        return;
+    };
+    match tokio::time::timeout(EXIT_LCU_TIMEOUT, hub.close_league_on_exit()).await {
+        Ok(Ok(ExitAction::QuitClient)) => tracing::info!("LoL encerrado junto com o app"),
+        Ok(Ok(ExitAction::LaunchUx)) => {
+            tracing::info!("LoL em partida ou na seleção: UI oficial reaberta");
+        }
+        Ok(Ok(ExitAction::NotConnected | ExitAction::KeepOpen)) => {}
+        Ok(Err(error)) => tracing::warn!("erro ao encerrar o LoL: {error}"),
+        Err(_) => tracing::warn!("a LCU não respondeu a tempo ao encerrar o LoL"),
+    }
+}
+
+/// Sair pela bandeja: encerra o LoL (veja [`close_league`]) e fecha o app.
 fn quit(app: &AppHandle) {
     static QUITTING: AtomicBool = AtomicBool::new(false);
     if QUITTING.swap(true, Ordering::SeqCst) {
@@ -195,18 +210,20 @@ fn quit(app: &AppHandle) {
     }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        if let Some(hub) = app.state::<Channel>().hub() {
-            match tokio::time::timeout(EXIT_LCU_TIMEOUT, hub.close_league_on_exit()).await {
-                Ok(Ok(ExitAction::QuitClient)) => tracing::info!("LoL encerrado junto com o app"),
-                Ok(Ok(ExitAction::LaunchUx)) => {
-                    tracing::info!("LoL em partida ou na seleção: UI oficial reaberta");
-                }
-                Ok(Ok(ExitAction::NotConnected | ExitAction::KeepOpen)) => {}
-                Ok(Err(error)) => tracing::warn!("erro ao encerrar o LoL: {error}"),
-                Err(_) => tracing::warn!("a LCU não respondeu a tempo ao sair"),
-            }
-        }
+        close_league(&app).await;
         app.exit(0);
+    });
+}
+
+/// O X da janela: esconde o app na bandeja, onde ele continua esperando o
+/// LoL abrir de novo, e encerra o LoL como o Sair (#571).
+fn close_to_tray(window: &tauri::Window) {
+    if let Err(error) = window.hide() {
+        tracing::warn!("erro ao ocultar a janela: {error}");
+    }
+    let app = window.app_handle().clone();
+    tauri::async_runtime::spawn(async move {
+        close_league(&app).await;
     });
 }
 
@@ -304,10 +321,8 @@ pub fn run() {
         .on_window_event(|window, event| {
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    match window.hide() {
-                        Ok(()) => api.prevent_close(),
-                        Err(error) => tracing::warn!("erro ao ocultar a janela: {error}"),
-                    }
+                    api.prevent_close();
+                    close_to_tray(window);
                 }
             }
         })
