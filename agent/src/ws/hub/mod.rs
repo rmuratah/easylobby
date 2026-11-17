@@ -570,6 +570,7 @@ impl Hub {
                 self.set_custom_games(None);
                 self.set_wallet(None);
                 self.set_unavailable_features(Vec::new());
+                self.set_lcu_slow(false);
                 self.stop_live_game();
                 self.set_lcu_status(LcuStatus::Disconnected {
                     reason: reason.to_string(),

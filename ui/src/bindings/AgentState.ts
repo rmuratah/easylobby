@@ -51,6 +51,12 @@ export type AgentState = {
    * Os comandos delas respondem `featureUnavailable`.
    */
   unavailableFeatures: Array<UnavailableFeature>,
+  /**
+   * O LoL está demorando para responder e o agente está lendo de novo o
+   * que ficou sem resposta ao conectar (#580). Veja
+   * [`ServerMessage::LcuSlow`].
+   */
+  lcuSlow: boolean,
   lobby: Lobby | null,
   /**
    * Link para entrar no lobby (#226), depois de um `createLobbyLink`, ou

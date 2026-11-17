@@ -9,6 +9,7 @@ const emptyState: AgentState = {
   summoner: null,
   gameflowPhase: null,
   unavailableFeatures: [],
+  lcuSlow: false,
   lobby: null,
   lobbyLink: null,
   matchmaking: null,

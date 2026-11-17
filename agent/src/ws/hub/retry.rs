@@ -16,6 +16,7 @@ use std::time::Duration;
 use super::{Hub, Resource};
 use crate::gameflow::{self, GameflowPhase};
 use crate::rest::LcuError;
+use crate::ws::protocol::ServerMessage;
 
 /// Espera antes das primeiras leituras. Depois delas, uma a cada
 /// [`STEADY_DELAY`] enquanto a conexão durar: um LoL esperando os servidores
@@ -80,6 +81,7 @@ impl Hub {
     /// na releitura do `Connected` da sessão `session`. Para quando tudo
     /// respondeu ou a conexão mudou (o LoL fechou ou reiniciou).
     pub(super) fn spawn_retry_connect_reads(&self, session: u64, missing: Missing) {
+        self.set_lcu_slow(missing.any());
         if !missing.any() {
             return;
         }
@@ -101,6 +103,7 @@ impl Hub {
                 missing = hub.retry_reads(missing).await;
                 if !missing.any() {
                     tracing::info!("o LoL respondeu a releitura da conexão");
+                    hub.set_lcu_slow_in(session, false);
                     return;
                 }
                 // Uma linha no log quando passa para o ritmo lento, não uma
@@ -210,6 +213,21 @@ impl Hub {
         still
     }
 
+    /// Publica se o LoL está demorando para responder (#580).
+    pub(super) fn set_lcu_slow(&self, slow: bool) {
+        self.update(|shared| write_lcu_slow(shared, slow));
+    }
+
+    /// Como [`Hub::set_lcu_slow`], só se a conexão ainda é `session`.
+    fn set_lcu_slow_in(&self, session: u64, slow: bool) {
+        self.update(|shared| {
+            if shared.session != session {
+                return None;
+            }
+            write_lcu_slow(shared, slow)
+        });
+    }
+
     /// Aplica a fase relida e o que muda junto com ela, como o evento.
     fn restore_phase(&self, stamp: super::Stamp, phase: GameflowPhase) {
         let before = self.lock().state.gameflow_phase;
@@ -217,6 +235,14 @@ impl Hub {
             self.after_phase(before, phase);
         }
     }
+}
+
+fn write_lcu_slow(shared: &mut super::Shared, slow: bool) -> Option<ServerMessage> {
+    if shared.state.lcu_slow == slow {
+        return None;
+    }
+    shared.state.lcu_slow = slow;
+    Some(ServerMessage::LcuSlow { slow })
 }
 
 #[cfg(test)]

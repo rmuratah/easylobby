@@ -63,8 +63,12 @@ async fn le_de_novo_a_fase_e_as_filas_que_ficaram_sem_resposta() {
 
     let mut phase = None;
     let mut queues = false;
+    // O aviso da UI liga enquanto o agente tenta e desliga quando o LoL
+    // responde.
+    let mut slow_seen = false;
+    let mut slow = false;
     tokio::time::timeout(Duration::from_secs(60), async {
-        while phase.is_none() || !queues {
+        while phase.is_none() || !queues || !slow_seen || slow {
             let Some(Ok(Message::Text(text))) = ui.next().await else {
                 continue;
             };
@@ -72,6 +76,12 @@ async fn le_de_novo_a_fase_e_as_filas_que_ficaram_sem_resposta() {
                 ServerMessage::Hello { state, .. } => {
                     phase = phase.or(state.gameflow_phase);
                     queues |= !state.queues.is_empty();
+                    slow = state.lcu_slow;
+                    slow_seen |= slow;
+                }
+                ServerMessage::LcuSlow { slow: now } => {
+                    slow = now;
+                    slow_seen |= now;
                 }
                 ServerMessage::GameflowPhase { phase: Some(read) } => phase = Some(read),
                 ServerMessage::Queues { queues: list } => queues |= !list.is_empty(),

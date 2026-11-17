@@ -58,6 +58,7 @@ export type ServerMessage =
   | { "type": "summoner", summoner: Summoner | null, }
   | { "type": "gameflowPhase", phase: GameflowPhase | null, }
   | { "type": "unavailableFeatures", unavailableFeatures: Array<UnavailableFeature>, }
+  | { "type": "lcuSlow", slow: boolean, }
   | { "type": "lobby", lobby: Lobby | null, }
   | { "type": "lobbyLink", lobbyLink: LobbyLink | null, }
   | { "type": "matchmaking", matchmaking: Matchmaking | null, }

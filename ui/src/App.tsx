@@ -33,6 +33,7 @@ import { CollectionPage } from './components/collection/CollectionPage';
 import { EmptyState } from './components/base';
 import { totalUnread } from './agent/chat';
 import { CompatibilityBanner, FeatureGate } from './components/CompatibilityNotice';
+import { LcuSlowBanner } from './components/LcuSlowBanner';
 import { unavailableFeature } from './agent/compatibility';
 
 /** Runas não é destino da navegação lateral: o editor só abre pela seleção de campeões (#165). */
@@ -149,6 +150,8 @@ export default function App() {
             {ready && connection.error && <p role="alert" className="col-span-full text-warn">{connection.error}</p>}
             {/* Modo de compatibilidade (#36): o que o LoL quebrou numa atualização. */}
             {ready && <CompatibilityBanner connection={connection} send={connection.send} />}
+            {/* O LoL demorando para responder ao conectar (#580). */}
+            {ready && <LcuSlowBanner connection={connection} send={connection.send} />}
             <section hidden={activePage !== 'home'} aria-label="Início"
               className={homeLayout ? 'home-secondary' : 'flex max-w-[22rem] flex-col gap-4'}>
               {summoner && <SummonerHeader summoner={summoner} ranked={connection.state?.ranked ?? null} />}

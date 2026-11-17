@@ -122,6 +122,10 @@ pub enum ServerMessage {
     UnavailableFeatures {
         unavailable_features: Vec<UnavailableFeature>,
     },
+    /// O LoL está demorando para responder (#580): leituras do começo da
+    /// conexão ficaram sem resposta e o agente está tentando de novo. Volta a
+    /// `false` quando tudo responde e com o LoL fechado.
+    LcuSlow { slow: bool },
 
     // Lobby, fila e partida encontrada
     /// O lobby mudou (criado, fila trocada, alguém entrou ou saiu). `null`
@@ -351,6 +355,10 @@ pub struct AgentState {
     /// Funções desligadas porque um endpoint delas falhou na checagem (#36).
     /// Os comandos delas respondem `featureUnavailable`.
     pub unavailable_features: Vec<UnavailableFeature>,
+    /// O LoL está demorando para responder e o agente está lendo de novo o
+    /// que ficou sem resposta ao conectar (#580). Veja
+    /// [`ServerMessage::LcuSlow`].
+    pub lcu_slow: bool,
 
     // Lobby, fila e partida encontrada
     pub lobby: Option<Lobby>,
@@ -1116,6 +1124,7 @@ mod tests {
                     "summoner": null,
                     "gameflowPhase": null,
                     "unavailableFeatures": [],
+                    "lcuSlow": false,
                     "readyCheck": null,
                     "honorBallot": null,
                     "gameResult": null,
