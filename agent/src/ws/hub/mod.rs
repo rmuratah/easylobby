@@ -139,6 +139,9 @@ struct Shared {
     lp_history_dir: Option<std::path::PathBuf>,
     /// `puuid` do histórico de PDL em `state.lp_history`.
     lp_history_puuid: Option<String>,
+    /// Checar os endpoints depois do login (#36). Veja
+    /// [`Hub::set_check_health`].
+    check_health: bool,
 }
 
 /// Recurso do estado que um comando relê ou muda pelo REST.
@@ -221,6 +224,7 @@ impl Hub {
                     autofill_ack: None,
                     game_result: game_result::GameResultSync::default(),
                     lp_history_dir: None,
+                    check_health: true,
                     lp_history_puuid: None,
                 }),
                 tx,

@@ -98,6 +98,11 @@ pub struct WsConfig {
     pub launch: LaunchOptions,
     /// De onde baixar e onde guardar as imagens de `/assets` (#29).
     pub assets: AssetConfig,
+    /// Checar os endpoints da LCU depois do login (modo de compatibilidade,
+    /// #36). Ligado por padrão. Os testes que seguram um `GET` no mock-lcu
+    /// desligam, para a checagem não pegar a resposta segurada no lugar do
+    /// comando.
+    pub check_health: bool,
 }
 
 impl Default for WsConfig {
@@ -106,6 +111,7 @@ impl Default for WsConfig {
             allowed_origins: DEFAULT_ALLOWED_ORIGINS.map(String::from).to_vec(),
             launch: LaunchOptions::default(),
             assets: AssetConfig::default(),
+            check_health: true,
         }
     }
 }
@@ -174,6 +180,7 @@ pub async fn run_with_hub(
     // quando o futuro de `run` é cancelado (derrubado) no meio do `serve`:
     // sem ela, a tarefa do `tokio::spawn` seguiria viva, conectada ou
     // tentando reconectar, e reiniciar o serviço acumularia drivers (#58).
+    hub.set_check_health(config.check_health);
     let _driver = AbortOnDrop(tokio::spawn(drive(connection, hub.clone())));
     serve(listener, hub, config).await
 }

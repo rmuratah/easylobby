@@ -54,7 +54,13 @@ async fn start_agent(dir: &Path) -> (Ui, Ui) {
     });
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("ws://{}{}", listener.local_addr().unwrap(), ws::WS_PATH);
-    tokio::spawn(ws::run(lcu, listener, WsConfig::default()));
+    // A checagem do modo de compatibilidade (#36) também lê a seleção, o
+    // lobby, a busca e as runas, e pegaria a resposta segurada.
+    let config = WsConfig {
+        check_health: false,
+        ..WsConfig::default()
+    };
+    tokio::spawn(ws::run(lcu, listener, config));
     let mut ui = tokio_tungstenite::connect_async(&url).await.unwrap().0;
     // Espera conectar e reler o estado pelo REST.
     until(&mut ui, |m| match m {

@@ -28,6 +28,12 @@ impl Hub {
         });
     }
 
+    /// Liga ou desliga a checagem dos endpoints (ligada por padrão). Com ela
+    /// desligada nenhuma função é desligada.
+    pub fn set_check_health(&self, enabled: bool) {
+        self.lock().check_health = enabled;
+    }
+
     /// Se a checagem desligou `feature`.
     pub fn feature_unavailable(&self, feature: Feature) -> Option<UnavailableFeature> {
         self.lock()
@@ -45,10 +51,13 @@ impl Hub {
         let Ok(runtime) = tokio::runtime::Handle::try_current() else {
             return;
         };
-        let Some(client) = self.client() else {
-            return;
+        let (client, session) = {
+            let shared = self.lock();
+            match (&shared.client, shared.check_health) {
+                (Some(client), true) => (client.clone(), shared.session),
+                _ => return,
+            }
         };
-        let session = self.lock().session;
         let hub = self.clone();
         runtime.spawn(async move {
             let mut unavailable = health::check(&client, PROBES).await;
