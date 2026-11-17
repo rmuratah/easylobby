@@ -316,6 +316,7 @@ impl Hub {
     pub async fn apply(&self, event: ConnectionEvent) {
         match event {
             ConnectionEvent::Connected(session) => {
+                tracing::info!("conectado ao LoL em {}", session.client.base_url());
                 let client = session.client.clone();
                 let (stamps, chat_session) = {
                     let mut shared = self.lock();
@@ -485,6 +486,7 @@ impl Hub {
                 }
             }
             ConnectionEvent::Disconnected(reason) => {
+                tracing::warn!("a conexão com o LoL caiu: {reason}");
                 {
                     let mut shared = self.lock();
                     shared.client = None;
@@ -537,12 +539,20 @@ impl Hub {
                 attempt,
                 delay,
                 error,
-            } => self.set_lcu_status(LcuStatus::Retrying {
-                attempt,
-                retry_in_ms: u32::try_from(delay.as_millis()).unwrap_or(u32::MAX),
-                client_not_running: error.is_client_not_running(),
-                error: error.to_string(),
-            }),
+            } => {
+                // Com o LoL fechado as tentativas não param; só a primeira
+                // de cada sequência e as que não são "LoL fechado" vão
+                // para o log.
+                if attempt == 1 || !error.is_client_not_running() {
+                    tracing::info!("tentativa {attempt} de conectar ao LoL falhou: {error}");
+                }
+                self.set_lcu_status(LcuStatus::Retrying {
+                    attempt,
+                    retry_in_ms: u32::try_from(delay.as_millis()).unwrap_or(u32::MAX),
+                    client_not_running: error.is_client_not_running(),
+                    error: error.to_string(),
+                });
+            }
         }
     }
 

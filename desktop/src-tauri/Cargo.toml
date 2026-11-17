@@ -26,3 +26,5 @@ tauri-plugin-autostart = "2"
 # Abrir o app de novo mostra a janela que já está aberta (#90).
 tauri-plugin-single-instance = "2"
 tokio = { version = "1", features = ["net", "time"] }
+# Log de erros em arquivo (#534); o arquivo é montado pelo agente.
+tracing = "0.1"

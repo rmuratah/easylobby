@@ -82,6 +82,7 @@ pub mod lobby_chat;
 pub mod lobby_link;
 pub mod lobby_restrictions;
 pub mod lockfile;
+pub mod logging;
 pub mod mastery;
 pub mod match_history;
 pub mod matchmaking;

@@ -23,6 +23,10 @@ tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
 # Canal /ws para a UI (#15) e os tipos TypeScript gerados do Rust.
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws"] }
 ts-rs = "12"
+# Log de erros em arquivo na pasta do app (#534).
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "registry", "std"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 # Fora do Windows (o mock-lcu no Linux/macOS), a lista de processos vem do
 # sysinfo. No Windows ele abre todos os processos com PROCESS_VM_READ e lê a

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { sound } from '../agent/sound';
 import type { SoundSettings } from '../agent/soundSettings';
 import { OpenWithLeagueSetting } from './OpenWithLeagueSetting';
+import { LogsSetting } from './LogsSetting';
 import { AboutSection } from './AboutSection';
 
 /** Espera depois de mexer no volume antes de tocar o som de teste. */
@@ -81,6 +82,7 @@ export function SoundMenu({ settings, onChange, icon }: Props) {
               onChange={event => setVolume(Number(event.target.value))} />
           </label>
           <OpenWithLeagueSetting />
+          <LogsSetting />
           <AboutSection />
         </section>
       )}
