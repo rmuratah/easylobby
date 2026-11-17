@@ -118,6 +118,9 @@ pub struct ReconnectConfig {
     /// mock-lcu, sem Vanguard). Diferente de zero, a conexão devolve
     /// [`KillUx::Scheduled`] e quem a dirige fecha a UI; zero fecha na hora.
     pub kill_ux_delay: Duration,
+    /// Tempo máximo de cada requisição REST da sessão. Padrão
+    /// [`crate::rest::DEFAULT_TIMEOUT`]; os testes usam um menor (#580).
+    pub request_timeout: Duration,
 }
 
 impl ReconnectConfig {
@@ -148,6 +151,7 @@ impl Default for ReconnectConfig {
             connect_timeout: DEFAULT_CONNECT_TIMEOUT,
             kill_ux: true,
             kill_ux_delay: DEFAULT_KILL_UX_DELAY,
+            request_timeout: crate::rest::DEFAULT_TIMEOUT,
         }
     }
 }
@@ -325,7 +329,7 @@ impl LcuConnection {
 
     async fn connect(&mut self) -> Result<(LcuEvents, LcuSession), ConnectError> {
         let (credentials, root_pem) = load_credentials(&self.config.source).await?;
-        let client = LcuClient::with_root_certificate(&credentials, &root_pem)?;
+        let client = LcuClient::build(&credentials, &root_pem, self.config.request_timeout)?;
         let events = LcuEvents::build(
             &credentials,
             &root_pem,

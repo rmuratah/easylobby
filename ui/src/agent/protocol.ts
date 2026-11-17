@@ -428,7 +428,7 @@ function lobbyLink(v: unknown): v is LobbyLink | null {
     (v.expiresAt === null || uint(v.expiresAt)));
 }
 function state(v: unknown): v is AgentState {
-  return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && list(v.unavailableFeatures, unavailableFeature) && lobby(v.lobby) && lobbyLink(v.lobbyLink) &&
+  return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && list(v.unavailableFeatures, unavailableFeature) && typeof v.lcuSlow === 'boolean' && lobby(v.lobby) && lobbyLink(v.lobbyLink) &&
     readyCheck(v.readyCheck) && honorBallot(v.honorBallot) && gameResult(v.gameResult) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && nullableIds(v.availableBots) && lobbyChat(v.lobbyChat) && customGames(v.customGames) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
@@ -453,6 +453,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'lobby': valid = lobby(v.lobby); break;
     case 'gameflowPhase': valid = nullableString(v.phase); break;
     case 'unavailableFeatures': valid = list(v.unavailableFeatures, unavailableFeature); break;
+    case 'lcuSlow': valid = typeof v.slow === 'boolean'; break;
     case 'readyCheck': valid = readyCheck(v.readyCheck); break;
     case 'honorBallot': valid = honorBallot(v.honorBallot); break;
     case 'gameResult': valid = gameResult(v.gameResult); break;

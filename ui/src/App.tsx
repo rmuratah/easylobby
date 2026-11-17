@@ -33,6 +33,7 @@ import { CollectionPage } from './components/collection/CollectionPage';
 import { EmptyState } from './components/base';
 import { totalUnread } from './agent/chat';
 import { CompatibilityBanner, FeatureGate } from './components/CompatibilityNotice';
+import { LcuSlowBanner } from './components/LcuSlowBanner';
 import { VanguardBanner } from './components/VanguardNotice';
 import { LolUpdateBanner } from './components/LolUpdateBanner';
 import { unavailableFeature } from './agent/compatibility';
@@ -153,6 +154,8 @@ export default function App() {
             {/* Vanguard desconectado (#579): a partida não abriria e viraria esquiva. */}
             {ready && <VanguardBanner connection={connection} send={connection.send} />}
             {ready && <CompatibilityBanner connection={connection} send={connection.send} />}
+            {/* O LoL demorando para responder ao conectar (#580). */}
+            {ready && <LcuSlowBanner connection={connection} send={connection.send} />}
             {/* Patch do LoL em andamento (#575): progresso e fila travada. */}
             {ready && <LolUpdateBanner update={connection.state?.lolUpdate ?? null} />}
             <section hidden={activePage !== 'home'} aria-label="Início"
