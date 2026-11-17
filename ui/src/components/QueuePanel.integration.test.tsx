@@ -51,6 +51,9 @@ describe('matchmaking pelo /ws', () => {
     expect(panel().getByText('Buscando partida', { selector: 'strong' })).toBeInTheDocument();
     await respond();
     expect(button('Cancelar busca')).toBeEnabled();
+    // Sem textos técnicos sobre o agente durante a busca (#573).
+    expect(panel().queryByText(/agente/)).not.toBeInTheDocument();
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
     expect(lobbyPanel().queryByRole('combobox', { name: 'Fila' })).not.toBeInTheDocument();
     expect(lobbyPanel().getByRole('combobox', { name: 'Posição primária' })).toBeDisabled();
     act(() => socket().receive({ type: 'gameflowPhase', phase: 'Lobby' }));

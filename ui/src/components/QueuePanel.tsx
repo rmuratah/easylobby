@@ -44,7 +44,7 @@ export function QueuePanel({ connection, send }: Props) {
     return (
       <section aria-label="Busca de partida" className="flex w-full flex-col gap-2 rounded-card border border-edge bg-surface card p-5 text-ink">
         <h2 className="text-section font-semibold">Busca de partida</h2>
-        <p className="text-body text-muted">Aguarde a reconexão. O estado da fila será confirmado novamente pelo agente.</p>
+        <p className="text-body text-muted">Aguarde a reconexão com o League of Legends.</p>
       </section>
     );
   }
@@ -86,8 +86,9 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
   const canStop = !state.readyCheck && !!matchmaking && (phase === 'Matchmaking' || queuePenalty(matchmaking));
   // Motivos da LCU para a fila bloqueada (#227), no lugar do aviso genérico.
   const reasons = away.length ? away : [...restrictionReasons(lobby, summoner?.puuid, nameOf), ...missing];
+  // Com a busca em andamento, o card já mostra o estado e o tempo na fila: sem aviso extra.
   const restriction = !summoner ? 'Aguarde o login no League of Legends.'
-    : matchmaking ? (canStop ? 'A busca confirmada pelo agente está em andamento.' : 'Aguarde a próxima fase confirmada pelo agente.')
+    : matchmaking ? ''
     : !lobby ? 'Crie ou entre em um lobby antes de buscar uma partida.'
     : custom ? 'Na personalizada, a partida começa pelo botão Iniciar partida, no lobby.'
     : !lobby.isLeader ? 'Somente o líder do lobby pode iniciar a busca.'
@@ -105,9 +106,8 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
       const result = await send(command);
       if (!mounted.current) return;
       if (result.status === 'ok') {
-        setFeedback({ status: 'success', message: command.type === 'startQueue'
-          ? 'Comando aceito. O estado exibido é o confirmado pelo agente.'
-          : 'Cancelamento confirmado pelo agente.' });
+        // O próprio card mostra o resultado (estado e botão mudam): sem mensagem de sucesso.
+        setFeedback({ status: 'idle', message: '' });
       } else {
         setFeedback({ status: 'error', message: result.code === 'notConnected'
           ? 'O League of Legends desconectou. Aguarde a reconexão e confira a fila antes de tentar novamente.'
@@ -158,14 +158,14 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
           ))}
         </ul>
       )}
-      <div className="rounded-tile bg-emerald-soft px-4 py-2 text-center text-caption font-medium text-warn">
+      {restriction && <div className="rounded-tile bg-emerald-soft px-4 py-2 text-center text-caption font-medium text-warn">
         <p>{restriction}</p>
         {!matchmaking && !custom && reasons.length > 0 && (
           <ul aria-label="Motivos da fila bloqueada" className="mt-1 flex flex-col gap-0.5 font-semibold">
             {reasons.map(reason => <li key={reason}>{reason}</li>)}
           </ul>
         )}
-      </div>
+      </div>}
       {feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}
         className={cx('px-1', feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted')}>{feedback.message}</p>}
       <div className="mt-auto flex items-center gap-2">

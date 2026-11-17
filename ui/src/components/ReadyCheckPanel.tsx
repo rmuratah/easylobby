@@ -102,7 +102,7 @@ function ReadyCheckActions({ check, active, send, clock }: { check: ReadyCheck; 
         setError(true);
         setFeedback(`Não foi possível responder: ${result.message}`);
       } else {
-        setFeedback('Resposta enviada. Aguardando confirmação do agente…');
+        setFeedback('Resposta enviada.');
       }
     } catch {
       if (!mounted.current) return;
