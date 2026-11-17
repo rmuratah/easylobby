@@ -165,6 +165,8 @@ No teste no LoL real com o app (16.22, ranqueada em duo), a UI oficial ficou fec
 
 Com a UI aberta a `honor-vote` também acaba em segundos e a cédula (`/lol-honor-v2/v1/ballot`) continua até o `EndOfGame`, então encerrar a tela não tira a votação de honra (#182).
 
+Para sair do pós-jogo há dois comandos no `/ws`. `playAgain` chama `POST /lol-lobby/v2/play-again` e volta ao lobby com o mesmo grupo e a mesma fila. `leavePostGame` vai para o início sem lobby: recusa o "Jogar de novo" do grupo (`POST /lol-lobby/v2/play-again-decline`, erro ignorado) e dispensa as estatísticas (`POST /lol-end-of-game/v1/state/dismiss-stats`), e a fase vai para `None`. Não dá para usar `leaveLobby` aqui: na gravação `16.22-pos-jogo` a LCU apaga o `/lol-lobby/v2/lobby` já no `InProgress`, então no pós-jogo real não há lobby para sair. O `dismiss-stats` ainda não foi conferido no LoL real.
+
 ### Cédula de honra (`honor`, #182)
 
 A cédula do fim de partida fica em `GET /lol-honor-v2/v1/ballot` e chega pelo WAMP no mesmo URI. Nas gravações do LoL real (16.22) ela abre no pós-jogo e fica até a volta ao lobby, inclusive no `EndOfGame` depois de o agente encerrar a tela `honor-vote`. O `Hub` manda a cédula para a UI em `honorBallot` (`gameId`, os aliados em `eligibleAllies`, quem já foi honrado em `honoredPuuids` e os `votes`), relê pelo REST ao entrar no `PreEndOfGame` e no `EndOfGame` e limpa fora do pós-jogo. A cédula vazia de fora do pós-jogo (`gameId: 0`) vira `null`.

@@ -74,6 +74,9 @@ pub const LOBBY_PATH: &str = "/lol-lobby/v2/lobby";
 /// pós-jogo (#180). É o "Jogar novamente" do client oficial.
 pub const PLAY_AGAIN_PATH: &str = "/lol-lobby/v2/play-again";
 
+/// Recusa o "Jogar de novo" do grupo no pós-jogo (#180).
+pub const PLAY_AGAIN_DECLINE_PATH: &str = "/lol-lobby/v2/play-again-decline";
+
 /// Endpoint dos cargos do jogador logado (#18).
 pub const POSITION_PREFERENCES_PATH: &str =
     "/lol-lobby/v2/lobby/members/localMember/position-preferences";

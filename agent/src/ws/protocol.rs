@@ -525,6 +525,13 @@ pub enum Command {
     /// com o LoL fechado e `lcu` se a LCU recusar (fora do pós-jogo, por
     /// exemplo).
     PlayAgain,
+    /// Sai do pós-jogo para o início sem voltar ao lobby, como o "fechar" da
+    /// tela de fim de partida do client oficial (#180): recusa o "Jogar de
+    /// novo" do grupo e dispensa as estatísticas. A fase vai para `None`
+    /// numa mensagem `gameflowPhase`, em geral depois da resposta. Responde
+    /// `notConnected` com o LoL fechado e `lcu` se a LCU recusar (fora do
+    /// pós-jogo, por exemplo).
+    LeavePostGame,
     /// Escolhe o cargo primário e o secundário do jogador logado (#18). Só
     /// vale num lobby com `showPositionSelector`. O par segue as regras do
     /// client oficial: cargos diferentes, e `second` em `unselected` quando
@@ -1215,6 +1222,7 @@ mod tests {
         for (name, command) in [
             ("acceptReadyCheck", Command::AcceptReadyCheck),
             ("playAgain", Command::PlayAgain),
+            ("leavePostGame", Command::LeavePostGame),
             ("declineReadyCheck", Command::DeclineReadyCheck),
             ("skipHonor", Command::SkipHonor),
             ("startTutorial", Command::StartTutorial { queue_id: None }),
