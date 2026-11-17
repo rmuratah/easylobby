@@ -55,6 +55,7 @@ use crate::collection::{ChampionSkins, Collection};
 use crate::custom_game::CustomGameOptions;
 use crate::custom_game_list::CustomGameListing;
 use crate::custom_lobby::{BotDifficulty, CustomTeam};
+use crate::end_of_game::GameResult;
 use crate::friends::{Friend, FriendGroup};
 use crate::gameflow::GameflowPhase;
 use crate::honor::HonorBallot;
@@ -133,6 +134,12 @@ pub enum ServerMessage {
     /// honrado) ou fechou. Abre no pós-jogo (em geral no `EndOfGame`) e
     /// fecha na volta ao lobby. `null` fora do pós-jogo e com o LoL fechado.
     HonorBallot { honor_ballot: Option<HonorBallot> },
+    /// O resultado da partida que acabou de terminar (#179): vitória ou
+    /// derrota, fila, duração, os times com o placar de cada jogador e, na
+    /// ranqueada, a mudança de PDL. Chega no pós-jogo (já em
+    /// `WaitingForStats`) e de novo quando os ranks novos chegam; `null` fora
+    /// do pós-jogo e com o LoL fechado.
+    GameResult { game_result: Option<GameResult> },
     /// Mudou a lista de filas em que dá para criar lobby agora (#146): chega
     /// logo depois de conectar e quando uma fila entra ou sai de rotação.
     /// Sempre a lista inteira, na ordem do `queueId`. Vazia com o LoL
@@ -338,6 +345,8 @@ pub struct AgentState {
     pub ready_check: Option<ReadyCheck>,
     /// Cédula de honra do fim de partida (#182), ou `null`.
     pub honor_ballot: Option<HonorBallot>,
+    /// Resultado da partida que acabou de terminar (#179), ou `null`.
+    pub game_result: Option<GameResult>,
     /// Filas em que dá para criar lobby agora (#146), lidas da LCU, mais as
     /// fixas da tela de escolha de modo que estão fechadas, com `available:
     /// false` (#209). Vazia com o LoL fechado.
@@ -1076,6 +1085,7 @@ mod tests {
                     "gameflowPhase": null,
                     "readyCheck": null,
                     "honorBallot": null,
+                    "gameResult": null,
                     "lobby": null,
                     "lobbyLink": null,
                     "matchmaking": null,

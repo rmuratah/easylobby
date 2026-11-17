@@ -13,6 +13,7 @@ import type { CustomGameListing } from "./CustomGameListing";
 import type { Friend } from "./Friend";
 import type { FriendGroup } from "./FriendGroup";
 import type { GameQueue } from "./GameQueue";
+import type { GameResult } from "./GameResult";
 import type { GameflowPhase } from "./GameflowPhase";
 import type { HonorBallot } from "./HonorBallot";
 import type { LcuStatus } from "./LcuStatus";
@@ -59,6 +60,7 @@ export type ServerMessage =
   | { "type": "matchmaking", matchmaking: Matchmaking | null, }
   | { "type": "readyCheck", readyCheck: ReadyCheck | null, }
   | { "type": "honorBallot", honorBallot: HonorBallot | null, }
+  | { "type": "gameResult", gameResult: GameResult | null, }
   | { "type": "queues", queues: Array<GameQueue>, }
   | { "type": "playableChampions", playableChampions: Array<number> | null, }
   | { "type": "tutorial", tutorial: Array<TutorialPart> | null, }

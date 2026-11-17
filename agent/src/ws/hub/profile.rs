@@ -34,6 +34,8 @@ impl Hub {
     pub fn set_ranked(&self, ranked: Option<RankedStats>) {
         self.update(|shared| write_ranked(shared, ranked));
         self.refill_lobby_ranks();
+        // PDL ganhos ou perdidos na partida que acabou (#179).
+        self.refresh_ranked_change();
     }
 
     pub fn set_champion_masteries(&self, masteries: Vec<ChampionMastery>) {
@@ -98,6 +100,7 @@ impl Hub {
         if let Ok(Some(ranked)) = ranked {
             if self.update_in_session(session, |shared| write_ranked(shared, Some(ranked))) {
                 self.refill_lobby_ranks();
+                self.refresh_ranked_change();
             }
         }
         if let Ok(Some(masteries)) = masteries {

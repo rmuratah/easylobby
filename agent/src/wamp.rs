@@ -72,7 +72,7 @@ const WAMP_EVENT: u64 = 8;
 /// invocador logado e os ranks dele (#171), e os pedidos do LoL para
 /// mostrar a UI oficial (#188). Os da LCU são os mesmos que o gravador de
 /// fixtures (#5) grava.
-pub const EASYLOBBY_EVENT_PREFIXES: [&str; 15] = [
+pub const EASYLOBBY_EVENT_PREFIXES: [&str; 16] = [
     "/lol-gameflow/v1/",
     "/lol-lobby/v2/",
     "/lol-matchmaking/v1/",
@@ -93,6 +93,8 @@ pub const EASYLOBBY_EVENT_PREFIXES: [&str; 15] = [
     crate::pre_end_of_game::CURRENT_SEQUENCE_EVENT_PATH,
     // Cédula de honra (#182).
     crate::honor::BALLOT_PATH,
+    // Resultado da partida (#179).
+    crate::end_of_game::EOG_STATS_PATH,
 ];
 
 /// URIs dentro dos prefixos que o easylobby não usa e que carregam
@@ -530,6 +532,7 @@ mod tests {
             "/riotclient/ux-state/request",
             "/lol-pre-end-of-game/v1/currentSequenceEvent",
             "/lol-honor-v2/v1/ballot",
+            "/lol-end-of-game/v1/eog-stats-block",
         ] {
             assert!(filter.matches(uri), "{uri}");
         }
