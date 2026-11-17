@@ -28,6 +28,7 @@ mod player_live_game;
 mod pre_end_of_game;
 mod profile;
 mod ready_check;
+mod retry;
 mod runes;
 mod ux_guard;
 mod wallet;
@@ -279,20 +280,20 @@ impl Hub {
         self.update(|shared| write_summoner(shared, summoner));
     }
 
-    fn set_summoner_if(&self, stamp: Stamp, summoner: Option<Summoner>) {
+    fn set_summoner_if(&self, stamp: Stamp, summoner: Option<Summoner>) -> bool {
         self.update_if(Resource::Summoner, stamp, |shared| {
             write_summoner(shared, summoner)
-        });
+        })
     }
 
     pub fn set_gameflow_phase(&self, phase: Option<GameflowPhase>) {
         self.update(|shared| write_phase(shared, phase));
     }
 
-    fn set_gameflow_phase_if(&self, stamp: Stamp, phase: Option<GameflowPhase>) {
+    fn set_gameflow_phase_if(&self, stamp: Stamp, phase: Option<GameflowPhase>) -> bool {
         self.update_if(Resource::GameflowPhase, stamp, |shared| {
             write_phase(shared, phase)
-        });
+        })
     }
 
     /// Cliente da conexão atual e o carimbo de `resource`, lidos juntos.
@@ -387,6 +388,17 @@ impl Hub {
                 // aplicados durante esta releitura, e cada leitura só entra se
                 // nenhum deles chegou durante a espera (#245).
                 //
+                // O que ficou sem resposta (LoL subindo ou esperando os
+                // servidores da Riot) é relido em segundo plano (#580).
+                let missing = retry::Missing {
+                    summoner: retry::no_answer(&summoner),
+                    phase: retry::no_answer(&phase),
+                    lobby: retry::no_answer(&lobby),
+                    search: retry::no_answer(&search),
+                    invitations: retry::no_answer(&received),
+                    rune_pages: retry::no_answer(&rune_pages),
+                    queues: retry::no_answer(&queues),
+                };
                 // 404 antes do login; qualquer outro erro também deixa vazio,
                 // e o próximo evento da LCU corrige.
                 self.set_summoner_if(stamps.summoner, summoner.ok());
@@ -440,6 +452,7 @@ impl Hub {
                 if let Ok(Some(champions)) = playable_champions {
                     self.set_playable_champions(Some(champions));
                 }
+                self.spawn_retry_connect_reads(chat_session, missing);
                 // Os cards do Tutorial (#228).
                 self.spawn_refresh_tutorial();
                 // O modo de compatibilidade (#36). Antes do login a LCU ainda
@@ -583,6 +596,74 @@ impl Hub {
         }
     }
 
+    /// O que só responde depois do login: pelo evento do invocador ou pela
+    /// releitura de [`retry`] (#580).
+    fn after_login(&self) {
+        self.spawn_refresh_queues();
+        self.spawn_refresh_playable_champions();
+        self.spawn_refresh_tutorial();
+        // O saldo também só responde depois do login (#370).
+        self.spawn_refresh_wallet();
+        // O modo de compatibilidade (#36).
+        self.spawn_check_health();
+    }
+
+    /// O que muda junto com a fase, depois de ela ir de `before` para
+    /// `phase`: pelo evento da LCU ou pela releitura de [`retry`] (#580).
+    fn after_phase(&self, before: Option<GameflowPhase>, phase: GameflowPhase) {
+        // O LoL reabre a UI oficial na partida encontrada, na
+        // seleção (#188) e quando o jogo fecha (#448).
+        if before != Some(phase) && ux_guard::reopens_ux(Some(phase)) {
+            self.guard_ux();
+        }
+        // Com a UI oficial fechada, ninguém encerra as telas
+        // do fim de partida (#180). O evento da tela também
+        // chega, mas pode ter chegado antes da fase.
+        if before != Some(phase) && phase == GameflowPhase::PreEndOfGame {
+            self.spawn_advance_pre_end_of_game();
+        }
+        // A cédula de honra abre no pós-jogo e fecha fora dele
+        // (#182), mesmo se o evento dela se perder.
+        if before != Some(phase) {
+            if matches!(
+                phase,
+                GameflowPhase::PreEndOfGame | GameflowPhase::EndOfGame
+            ) {
+                self.spawn_refresh_honor_ballot();
+            } else if !honor::post_game(Some(phase)) {
+                self.set_honor_ballot(None);
+            }
+        }
+        // A partida ao vivo começa ou termina (#268).
+        if before != Some(phase) {
+            self.follow_live_game(Some(phase));
+        }
+        // Os ranks de antes da partida e o resultado dela (#179).
+        self.follow_game_result(before, Some(phase));
+        // A partida terminou: histórico, ranks e maestria mudaram.
+        if profile::ends_a_game(before, Some(phase)) {
+            self.spawn_refresh_profile();
+            self.reload_lobby_ranks();
+            // Essência Azul ganha na partida (#370), caso o
+            // evento da carteira não chegue.
+            self.spawn_refresh_wallet();
+            // A UI oficial ficou aberta para a partida começar
+            // (#342): de volta ao lobby, fecha de novo.
+            if matches!(phase, GameflowPhase::Lobby | GameflowPhase::Idle) {
+                self.guard_ux();
+            }
+        }
+        // De volta à escolha de modo: as filas abertas podem ter
+        // mudado sem evento (#210).
+        if before != Some(phase) && matches!(phase, GameflowPhase::Idle | GameflowPhase::Lobby) {
+            self.spawn_refresh_queues();
+            // Campeão comprado ou rotação nova (#218).
+            self.spawn_refresh_playable_champions();
+            // Uma parte do Tutorial concluída (#228).
+            self.spawn_refresh_tutorial();
+        }
+    }
+
     fn apply_lcu_event(&self, event: &LcuEvent) {
         let deleted = event.event_type == EventType::Delete;
         match event.uri.as_str() {
@@ -593,13 +674,7 @@ impl Hub {
                     self.set_summoner(Some(summoner));
                     // Lida antes do login, a lista de filas vem vazia (#210).
                     if logged_in {
-                        self.spawn_refresh_queues();
-                        self.spawn_refresh_playable_champions();
-                        self.spawn_refresh_tutorial();
-                        // O saldo também só responde depois do login (#370).
-                        self.spawn_refresh_wallet();
-                        // O modo de compatibilidade (#36).
-                        self.spawn_check_health();
+                        self.after_login();
                     }
                 }
             }
@@ -611,59 +686,7 @@ impl Hub {
                 if let Some(phase) = GameflowPhase::from_json(&event.data) {
                     let before = self.lock().state.gameflow_phase;
                     self.set_gameflow_phase(Some(phase));
-                    // O LoL reabre a UI oficial na partida encontrada, na
-                    // seleção (#188) e quando o jogo fecha (#448).
-                    if before != Some(phase) && ux_guard::reopens_ux(Some(phase)) {
-                        self.guard_ux();
-                    }
-                    // Com a UI oficial fechada, ninguém encerra as telas
-                    // do fim de partida (#180). O evento da tela também
-                    // chega, mas pode ter chegado antes da fase.
-                    if before != Some(phase) && phase == GameflowPhase::PreEndOfGame {
-                        self.spawn_advance_pre_end_of_game();
-                    }
-                    // A cédula de honra abre no pós-jogo e fecha fora dele
-                    // (#182), mesmo se o evento dela se perder.
-                    if before != Some(phase) {
-                        if matches!(
-                            phase,
-                            GameflowPhase::PreEndOfGame | GameflowPhase::EndOfGame
-                        ) {
-                            self.spawn_refresh_honor_ballot();
-                        } else if !honor::post_game(Some(phase)) {
-                            self.set_honor_ballot(None);
-                        }
-                    }
-                    // A partida ao vivo começa ou termina (#268).
-                    if before != Some(phase) {
-                        self.follow_live_game(Some(phase));
-                    }
-                    // Os ranks de antes da partida e o resultado dela (#179).
-                    self.follow_game_result(before, Some(phase));
-                    // A partida terminou: histórico, ranks e maestria mudaram.
-                    if profile::ends_a_game(before, Some(phase)) {
-                        self.spawn_refresh_profile();
-                        self.reload_lobby_ranks();
-                        // Essência Azul ganha na partida (#370), caso o
-                        // evento da carteira não chegue.
-                        self.spawn_refresh_wallet();
-                        // A UI oficial ficou aberta para a partida começar
-                        // (#342): de volta ao lobby, fecha de novo.
-                        if matches!(phase, GameflowPhase::Lobby | GameflowPhase::Idle) {
-                            self.guard_ux();
-                        }
-                    }
-                    // De volta à escolha de modo: as filas abertas podem ter
-                    // mudado sem evento (#210).
-                    if before != Some(phase)
-                        && matches!(phase, GameflowPhase::Idle | GameflowPhase::Lobby)
-                    {
-                        self.spawn_refresh_queues();
-                        // Campeão comprado ou rotação nova (#218).
-                        self.spawn_refresh_playable_champions();
-                        // Uma parte do Tutorial concluída (#228).
-                        self.spawn_refresh_tutorial();
-                    }
+                    self.after_phase(before, phase);
                 }
             }
             // Os ranks mudam no fim de uma ranqueada (#171).

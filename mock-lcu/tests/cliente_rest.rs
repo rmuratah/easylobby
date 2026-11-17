@@ -151,6 +151,11 @@ async fn certificado_que_nao_bate_e_recusado() {
         .await
         .unwrap_err();
     assert!(err.is_connect(), "{err}");
+    assert!(err.is_transport(), "{err}");
+    assert!(
+        err.to_string().contains("não foi possível conectar ao LoL"),
+        "{err}"
+    );
 
     // A CA de outra execução do mock também não serve.
     let other = MockLcu::start(config(true)).await.unwrap();
@@ -162,6 +167,42 @@ async fn certificado_que_nao_bate_e_recusado() {
     assert!(err.is_connect(), "{err}");
 
     other.shutdown().await;
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn sem_resposta_vira_tempo_esgotado_legivel() {
+    let (mock, creds, ca_pem, dir) = start_https("timeout").await;
+    let lcu = LcuClient::build(
+        &creds,
+        ca_pem.as_bytes(),
+        std::time::Duration::from_millis(300),
+    )
+    .unwrap();
+
+    // O LoL esperando os servidores da Riot (#580): a resposta não vem.
+    let _hold = mock.hold(Method::GET, "/lol-gameflow/v1/gameflow-phase");
+    let err = lcu
+        .get::<Value>("/lol-gameflow/v1/gameflow-phase")
+        .await
+        .unwrap_err();
+    assert!(err.is_timeout(), "{err}");
+    assert!(err.is_transport(), "{err}");
+    assert!(!err.is_connect(), "{err}");
+    let message = err.to_string();
+    assert!(
+        message
+            .starts_with("GET /lol-gameflow/v1/gameflow-phase falhou: o LoL não respondeu a tempo"),
+        "{message}"
+    );
+    assert!(message.contains(" s)"), "{message}");
+    assert!(!message.contains("error sending request"), "{message}");
+
+    // Um status de erro é resposta, não falta dela.
+    let err = lcu.get::<Value>("/lol-lobby/v2/lobby").await.unwrap_err();
+    assert!(!err.is_transport(), "{err}");
+
     mock.shutdown().await;
     let _ = std::fs::remove_dir_all(&dir);
 }

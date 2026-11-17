@@ -26,7 +26,7 @@
 //! ```
 
 use std::fmt;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use reqwest::header::{HeaderValue, ACCEPT, CONTENT_TYPE};
 use reqwest::Method;
@@ -66,12 +66,14 @@ pub enum LcuError {
     Certificate(#[source] reqwest::Error),
     #[error("não foi possível montar o cliente HTTP: {0}")]
     Build(#[source] reqwest::Error),
-    #[error("{method} {path} falhou: {source}")]
+    #[error("{method} {path} falhou: {}", describe_request_error(source, *elapsed))]
     Request {
         method: Method,
         path: String,
         #[source]
         source: reqwest::Error,
+        /// Quanto a requisição levou até falhar (#580).
+        elapsed: Duration,
     },
     #[error("{method} {path} respondeu {status}{}", message.as_ref().map(|m| format!(": {m}")).unwrap_or_default())]
     Status {
@@ -111,6 +113,19 @@ impl LcuError {
     /// certificado que não bate com o fixado).
     pub fn is_connect(&self) -> bool {
         matches!(self, LcuError::Request { source, .. } if source.is_connect())
+    }
+
+    /// Se a LCU não respondeu dentro do tempo máximo (#580). Acontece com o
+    /// LoL ainda subindo ou esperando os servidores da Riot.
+    pub fn is_timeout(&self) -> bool {
+        matches!(self, LcuError::Request { source, .. } if source.is_timeout())
+    }
+
+    /// Se a requisição nem teve resposta (tempo esgotado, conexão recusada
+    /// ou caída), ao contrário de um status de erro da LCU. Vale tentar de
+    /// novo mais tarde (#580).
+    pub fn is_transport(&self) -> bool {
+        matches!(self, LcuError::Request { .. })
     }
 }
 
@@ -180,10 +195,12 @@ impl LcuClient {
         path: &str,
         body: Option<&Value>,
     ) -> Result<LcuResponse, LcuError> {
+        let started = Instant::now();
         let request_err = |source| LcuError::Request {
             method: method.clone(),
             path: path.to_owned(),
             source,
+            elapsed: started.elapsed(),
         };
 
         let mut request = self
@@ -250,10 +267,12 @@ impl LcuClient {
         path: &str,
         max_bytes: usize,
     ) -> Result<Option<Vec<u8>>, LcuError> {
+        let started = Instant::now();
         let request_err = |source| LcuError::Request {
             method: Method::GET,
             path: path.to_owned(),
             source,
+            elapsed: started.elapsed(),
         };
         let mut response = self
             .http
@@ -328,6 +347,39 @@ impl fmt::Debug for LcuClient {
             .field("base_url", &self.base_url)
             .field("password", &"<oculta>")
             .finish()
+    }
+}
+
+/// Motivo de uma requisição sem resposta, para o log e para a UI (#580).
+///
+/// O `Display` do `reqwest` diz só "error sending request for url (...)",
+/// igual para tempo esgotado, conexão recusada e conexão caída. Aqui entra o
+/// motivo de verdade, a cadeia de causas e quanto tempo levou.
+fn describe_request_error(error: &reqwest::Error, elapsed: Duration) -> String {
+    let seconds = format!("{:.1}", elapsed.as_secs_f64()).replace('.', ",");
+    if error.is_timeout() {
+        return format!("o LoL não respondeu a tempo (tempo esgotado depois de {seconds} s)");
+    }
+    let mut causes = Vec::new();
+    let mut cause = std::error::Error::source(error);
+    while let Some(current) = cause {
+        let text = current.to_string();
+        if !text.is_empty() && !causes.contains(&text) {
+            causes.push(text);
+        }
+        cause = current.source();
+    }
+    let kind = if error.is_connect() {
+        "não foi possível conectar ao LoL"
+    } else if error.is_body() || error.is_decode() {
+        "a resposta do LoL foi interrompida"
+    } else {
+        "a conexão com o LoL falhou"
+    };
+    if causes.is_empty() {
+        format!("{kind} (depois de {seconds} s)")
+    } else {
+        format!("{kind}: {} (depois de {seconds} s)", causes.join(": "))
     }
 }
 
