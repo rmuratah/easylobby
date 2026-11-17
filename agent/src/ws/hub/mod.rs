@@ -343,6 +343,8 @@ impl Hub {
                     // fechou nesta conexão (#188). Com o fechamento adiado,
                     // a guarda liga quando ele acontecer.
                     shared.ux_guard.active = session.kill_ux.is_killed();
+                    shared.ux_guard.kill_pending =
+                        matches!(session.kill_ux, KillUx::Scheduled { .. });
                     shared.ux_guard.generation += 1;
                     (ConnectStamps::take(&mut shared), shared.session)
                 };
@@ -517,6 +519,7 @@ impl Hub {
                     shared.client = None;
                     shared.session += 1;
                     shared.ux_guard.active = false;
+                    shared.ux_guard.kill_pending = false;
                     shared.lobby_chat_sync = lobby_chat::LobbyChatSync::default();
                 }
                 // O LoL fechou ou reiniciou: as janelas escondidas se foram.

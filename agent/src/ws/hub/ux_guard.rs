@@ -82,6 +82,10 @@ pub(super) const SPARE_BEFORE_GAME: Duration = Duration::from_secs(15);
 pub(super) struct UxGuard {
     /// O agente fechou a UI oficial nesta conexão e o jogador não a reabriu.
     pub(super) active: bool,
+    /// O `kill-ux` adiado desta conexão ainda vai sair: a UI oficial está
+    /// aberta, mas escondida ou minimizada pelo agente, e o jogador não a
+    /// pediu (#571).
+    pub(super) kill_pending: bool,
     /// Muda a cada sequência armada; uma sequência mais nova encerra as
     /// anteriores.
     pub(super) generation: u64,
@@ -223,6 +227,7 @@ impl Hub {
     pub(super) fn set_ux_guard(&self, active: bool) {
         let mut shared = self.lock();
         shared.ux_guard.active = active;
+        shared.ux_guard.kill_pending = false;
         shared.ux_guard.generation += 1;
     }
 
@@ -376,6 +381,7 @@ impl Hub {
             return ScheduledKill::Wait;
         }
         shared.ux_guard.active = true;
+        shared.ux_guard.kill_pending = false;
         shared.ux_guard.generation += 1;
         ScheduledKill::Kill
     }
@@ -595,6 +601,38 @@ mod tests {
         hub.apply(ConnectionEvent::Disconnected(DisconnectReason::Closed))
             .await;
         assert!(!hub.lock().ux_guard.active);
+    }
+
+    #[tokio::test]
+    async fn fechamento_adiado_pendente_ate_fechar_ou_desligar() {
+        let hub = Hub::new();
+        // Fechamento adiado armado: a UI ainda não foi fechada.
+        {
+            let mut shared = hub.lock();
+            shared.ux_guard.kill_pending = true;
+            shared.state.gameflow_phase = Some(GameflowPhase::Lobby);
+        }
+        let (session, generation) = {
+            let shared = hub.lock();
+            (shared.session, shared.ux_guard.generation)
+        };
+        assert_eq!(
+            hub.take_scheduled_kill(session, generation),
+            ScheduledKill::Kill
+        );
+        assert!(!hub.lock().ux_guard.kill_pending);
+        assert!(hub.lock().ux_guard.active);
+
+        // O jogador reabriu a UI oficial antes do fechamento.
+        hub.lock().ux_guard.kill_pending = true;
+        let _ = hub.launch_ux().await;
+        assert!(!hub.lock().ux_guard.kill_pending);
+
+        // O LoL caiu antes do fechamento.
+        hub.lock().ux_guard.kill_pending = true;
+        hub.apply(ConnectionEvent::Disconnected(DisconnectReason::Closed))
+            .await;
+        assert!(!hub.lock().ux_guard.kill_pending);
     }
 
     /// Esconderijo de mentira que anota como parou.

@@ -10,7 +10,9 @@
 //! reconectar. Nesses momentos o agente reabre a UI oficial em vez de
 //! encerrar, como antes (#89). E se a UI oficial está à vista (o jogador a
 //! reabriu pelo botão de emergência ou desligou o kill-ux), o jogador está
-//! usando o LoL por ela, e o LoL fica como está.
+//! usando o LoL por ela, e o LoL fica como está. Na espera do `kill-ux`
+//! adiado (os primeiros segundos da conexão), a UI oficial está aberta mas
+//! escondida pelo agente, e conta como fechada (#571).
 
 use super::Hub;
 use crate::gameflow::GameflowPhase;
@@ -76,7 +78,7 @@ impl Hub {
             let shared = self.lock();
             let action = exit_action(
                 shared.client.is_some(),
-                shared.ux_guard.active,
+                shared.ux_guard.active || shared.ux_guard.kill_pending,
                 shared.state.gameflow_phase,
             );
             (shared.client.clone(), action)
