@@ -438,11 +438,6 @@ impl Hub {
                 }
                 // Os cards do Tutorial (#228).
                 self.spawn_refresh_tutorial();
-                // O modo de compatibilidade (#36). Antes do login a LCU ainda
-                // está subindo; o login checa.
-                if self.lock().state.summoner.is_some() {
-                    self.spawn_check_health();
-                }
                 // As notas da atualização do Início (#301), da internet.
                 self.spawn_refresh_patch_notes();
                 // O saldo do cabeçalho (#370). Antes do login não responde, e
@@ -490,6 +485,12 @@ impl Hub {
                 // Por último: o histórico é a leitura mais lenta e só a tela
                 // de Perfil usa (#171, #172, #175).
                 self.refresh_profile().await;
+                // O modo de compatibilidade (#36), depois da releitura, para
+                // não atrasá-la. Antes do login a LCU ainda está subindo; o
+                // login checa.
+                if self.lock().state.summoner.is_some() {
+                    self.spawn_check_health();
+                }
             }
             ConnectionEvent::Event(event) => {
                 self.apply_lcu_event(&event);
