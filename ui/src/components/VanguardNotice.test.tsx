@@ -51,7 +51,7 @@ describe('aviso de Vanguard desconectado (#579)', () => {
     render(<VanguardBanner connection={connection({ connected: false, state: 'NOT_CONNECTED', status: 3 })} send={restart} />);
     fireEvent.click(screen.getByRole('button', { name: 'Reabrir o LoL' }));
     expect(restart).toHaveBeenCalledWith({ type: 'restartLeague' });
-    expect(await screen.findByText('Não dá para reabrir o LoL na seleção de campeões nem na partida.')).toBeInTheDocument();
+    expect(await screen.findByText('Não dá para reabrir o LoL com partida encontrada, na seleção de campeões nem na partida.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Reabrir o LoL' }));
     expect(await screen.findByRole('status')).toHaveTextContent('O LoL está abrindo de novo.');
   });

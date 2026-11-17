@@ -22,7 +22,8 @@ fn restart_hurts(phase: Option<GameflowPhase>) -> bool {
     matches!(
         phase,
         Some(
-            GameflowPhase::ChampSelect
+            GameflowPhase::ReadyCheck
+                | GameflowPhase::ChampSelect
                 | GameflowPhase::GameStart
                 | GameflowPhase::InProgress
                 | GameflowPhase::Reconnect
@@ -31,6 +32,16 @@ fn restart_hurts(phase: Option<GameflowPhase>) -> bool {
 }
 
 impl Hub {
+    /// O Vanguard respondeu que não está conectado (#579). Sem resposta da
+    /// LCU não bloqueia: uma versão sem o endpoint travaria a fila.
+    pub(super) fn vanguard_blocks_queue(&self) -> bool {
+        self.lock()
+            .state
+            .vanguard
+            .as_ref()
+            .is_some_and(|v| !v.connected)
+    }
+
     pub fn set_vanguard(&self, vanguard: Option<Vanguard>) {
         self.update(|shared| {
             if shared.state.vanguard == vanguard {
@@ -69,7 +80,7 @@ impl Hub {
         if restart_hurts(phase) {
             return CommandResult::error(
                 ErrorCode::InvalidCommand,
-                "não dá para reabrir o LoL na seleção de campeões nem durante a partida",
+                "não dá para reabrir o LoL com partida encontrada, na seleção de campeões nem durante a partida",
             );
         }
         tracing::info!("reabrindo o LoL a pedido do jogador");
@@ -135,10 +146,30 @@ mod tests {
 
     #[test]
     fn nao_reabre_na_selecao_nem_na_partida() {
+        // Sem responder a partida encontrada, o LoL conta como recusa.
+        assert!(restart_hurts(Some(GameflowPhase::ReadyCheck)));
         assert!(restart_hurts(Some(GameflowPhase::ChampSelect)));
         assert!(restart_hurts(Some(GameflowPhase::InProgress)));
         assert!(!restart_hurts(Some(GameflowPhase::Lobby)));
         assert!(!restart_hurts(None));
+    }
+
+    #[tokio::test]
+    async fn nao_entra_na_fila_sem_o_vanguard() {
+        let hub = Hub::new();
+        hub.apply(event(
+            vanguard::SESSION_PATH,
+            EventType::Update,
+            json!({"state": "NOT_CONNECTED", "vanguardStatus": 3}),
+        ))
+        .await;
+        match hub.start_queue().await {
+            CommandResult::Error { code, message } => {
+                assert_eq!(code, ErrorCode::InvalidCommand);
+                assert!(message.contains("Vanguard"));
+            }
+            other => panic!("entrou na fila sem o Vanguard: {other:?}"),
+        }
     }
 
     #[tokio::test]

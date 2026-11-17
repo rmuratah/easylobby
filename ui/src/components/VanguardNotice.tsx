@@ -65,7 +65,7 @@ function RestartLeagueButton({ send }: { send: AgentClient['send'] }) {
       if (!mounted.current) return;
       if (result.status === 'ok') setFeedback({ status: 'idle', message: 'O LoL está abrindo de novo.' });
       else setFeedback({ status: 'error', message: result.code === 'invalidCommand'
-        ? 'Não dá para reabrir o LoL na seleção de campeões nem na partida.'
+        ? 'Não dá para reabrir o LoL com partida encontrada, na seleção de campeões nem na partida.'
         : result.code === 'notConnected' ? 'O LoL não está aberto.'
           : 'Não foi possível reabrir o LoL. Feche e abra pelo Riot Client.' });
     } catch {
