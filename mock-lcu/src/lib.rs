@@ -27,6 +27,8 @@
 //! - [`custom_games`]: lista de personalizadas abertas e entrar nelas (#264).
 //! - [`scenario`]: seleção de campeões simulada e controlável, com bots,
 //!   pausa e avanço de etapa (#440).
+//! - [`post_game`]: fim de partida simulado e controlável, da partida ao
+//!   "jogar de novo", com a votação de honra (#178).
 //! - [`swaps`]: trocas de campeão, de vez e de cargo na seleção (#25).
 //! - [`autofill`]: autofill na seleção e o aviso já mostrado (#360).
 //! - [`suggested`]: jogadores sugeridos para convidar (#377).
@@ -49,6 +51,7 @@ pub mod lobby;
 pub mod matchmaking;
 pub mod members;
 pub mod perks;
+pub mod post_game;
 pub mod scenario;
 pub mod state;
 pub mod suggested;
@@ -126,6 +129,10 @@ pub struct Config {
     pub champ_select: Option<scenario::Options>,
     /// Tempos da seleção simulada.
     pub timings: scenario::Timings,
+    /// Começa no meio da partida gravada e simula o fim dela (#178). Use com
+    /// [`ReplayStart::Never`] e uma gravação com pós-jogo, como
+    /// `16.22-pos-jogo`.
+    pub post_game: Option<post_game::Options>,
 }
 
 impl Config {
@@ -145,6 +152,7 @@ impl Config {
             verbose: false,
             champ_select: None,
             timings: scenario::Timings::default(),
+            post_game: None,
         }
     }
 }
@@ -164,6 +172,8 @@ pub enum MockError {
     Tls(String),
     #[error("a gravação não tem seleção de campeões para servir de molde")]
     NoChampSelect,
+    #[error("a gravação não tem uma partida com fim de partida (use 16.22-pos-jogo)")]
+    NoPostGame,
 }
 
 /// Senha aleatória como a do LoL: 16 bytes em base64url, 22 caracteres.
@@ -210,6 +220,10 @@ struct Shared {
     timings: scenario::Timings,
     /// Marco do relógio da seleção simulada.
     clock: Instant,
+    /// Fim de partida simulado (#178).
+    post_game: Mutex<Option<post_game::PostGame>>,
+    /// Roteiro do fim de partida tirado da gravação, se ela tiver um.
+    post_game_script: Option<post_game::Script>,
 }
 
 /// Pedido de [`MockLcu::hold`] que ainda não pegou nenhuma requisição.
@@ -267,6 +281,7 @@ pub struct MockLcu {
     server: Option<JoinHandle<io::Result<()>>>,
     replay: JoinHandle<()>,
     scenario_timer: JoinHandle<()>,
+    post_game_timer: JoinHandle<()>,
     files: Vec<PathBuf>,
 }
 
@@ -281,6 +296,10 @@ impl MockLcu {
         }
         if config.champ_select.is_some() && scenario::template(&config.fixtures).is_none() {
             return Err(MockError::NoChampSelect);
+        }
+        let post_game_script = post_game::Script::from_fixtures(&config.fixtures);
+        if config.post_game.is_some() && post_game_script.is_none() {
+            return Err(MockError::NoPostGame);
         }
 
         let listener =
@@ -337,11 +356,17 @@ impl MockLcu {
             template: scenario::template(&config.fixtures),
             timings: config.timings,
             clock: Instant::now(),
+            post_game: Mutex::new(None),
+            post_game_script,
         });
         if let Some(options) = config.champ_select {
             start_scenario(&shared, options);
         }
+        if let Some(options) = config.post_game {
+            restart_post_game(&shared, Some(options));
+        }
         let scenario_timer = tokio::spawn(scenario_timer(Arc::downgrade(&shared)));
+        let post_game_timer = tokio::spawn(post_game_timer(Arc::downgrade(&shared)));
 
         let app = Router::new()
             .fallback(handle_request)
@@ -385,6 +410,7 @@ impl MockLcu {
             server: Some(server),
             replay,
             scenario_timer,
+            post_game_timer,
             files,
         })
     }
@@ -559,6 +585,38 @@ impl MockLcu {
         control_scenario(&self.shared, ScenarioControl::Dodge).status == 204
     }
 
+    /// Volta para a partida em andamento e acaba ela agora (#178), como a
+    /// rota [`post_game::END_GAME`]. `false` se a gravação não tem pós-jogo.
+    pub fn end_game(&self) -> bool {
+        end_game(&self.shared).status == 204
+    }
+
+    /// Conclui a tela do `PreEndOfGame` que está esperando (#178), como a
+    /// rota [`post_game::ADVANCE`]. `false` sem tela esperando.
+    pub fn advance_post_game(&self) -> bool {
+        advance_post_game(&self.shared).status == 204
+    }
+
+    /// "Jogar de novo" no fim de partida simulado (#178), como o `POST
+    /// /lol-lobby/v2/play-again`. `false` fora do pós-jogo.
+    pub fn play_again(&self) -> bool {
+        play_again(&self.shared).status == 204
+    }
+
+    /// Volta para a partida em andamento (#178), sem acabar ela. `false` se
+    /// a gravação não tem pós-jogo.
+    pub fn restart_game(&self) -> bool {
+        restart_post_game(&self.shared, None).status == 204
+    }
+
+    /// Tela do `PreEndOfGame` esperando o `complete` no fim de partida
+    /// simulado, se houver.
+    pub fn post_game_waiting(&self) -> Option<String> {
+        lock(&self.shared.post_game)
+            .as_ref()
+            .and_then(|p| p.waiting().map(str::to_owned))
+    }
+
     /// Se há uma seleção simulada em andamento.
     pub fn champ_select_running(&self) -> bool {
         lock(&self.shared.scenario).is_some()
@@ -587,6 +645,7 @@ impl Drop for MockLcu {
         self.handle.shutdown();
         self.replay.abort();
         self.scenario_timer.abort();
+        self.post_game_timer.abort();
         stop_queue_timer(&self.shared);
         for path in &self.files {
             let _ = std::fs::remove_file(path);
@@ -764,6 +823,127 @@ async fn scenario_timer(weak: std::sync::Weak<Shared>) {
     }
 }
 
+/// Anda o fim de partida simulado a cada 50 ms (#178).
+async fn post_game_timer(weak: std::sync::Weak<Shared>) {
+    loop {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let Some(shared) = weak.upgrade() else { return };
+        let connected = shared.wamp_clients.load(Ordering::SeqCst) > 0;
+        let step = {
+            let mut slot = lock(&shared.post_game);
+            let Some(post_game) = slot.as_mut() else {
+                continue;
+            };
+            let mut step = post_game.tick(scenario_now(&shared), connected);
+            // Aplica com o fim de partida travado, para um comando no meio
+            // não ver o estado sem os eventos que já saíram da fila.
+            let mut state = shared.state();
+            for event in &mut step.events {
+                post_game::keep_votes(&state, event);
+                state.apply(event);
+            }
+            step
+        };
+        for line in &step.log {
+            println!("{line}");
+        }
+        broadcast_all(&shared, step.events);
+    }
+}
+
+/// Aplica e manda os eventos de um passo do fim de partida.
+fn emit_post_game(shared: &Shared, step: post_game::Step) {
+    for line in &step.log {
+        println!("{line}");
+    }
+    emit_all(shared, step.events);
+}
+
+/// Põe o estado de volta na partida em andamento. Com `options`, troca as
+/// opções do fim de partida; sem, mantém as atuais (ou, sem fim de partida
+/// ainda, espera a rota para acabar).
+fn restart_post_game(shared: &Shared, options: Option<post_game::Options>) -> Response {
+    let Some(script) = &shared.post_game_script else {
+        return Response::error(400, "mock-lcu: a gravação não tem fim de partida");
+    };
+    let step = {
+        let mut slot = lock(&shared.post_game);
+        let post_game = match (slot.take(), options) {
+            (Some(old), None) => old,
+            (_, options) => post_game::PostGame::new(
+                script.clone(),
+                options.unwrap_or(post_game::Options { end_after_ms: None }),
+                shared.speed,
+            ),
+        };
+        let post_game = slot.insert(post_game);
+        post_game.restart(&mut shared.state())
+    };
+    for line in &step.log {
+        println!("{line}");
+    }
+    broadcast_all(shared, step.events);
+    Response {
+        status: 204,
+        body: Value::Null,
+    }
+}
+
+/// Acaba a partida agora, voltando para ela antes se já acabou.
+fn end_game(shared: &Shared) -> Response {
+    let in_game = lock(&shared.post_game)
+        .as_ref()
+        .is_some_and(|p| p.stage() == post_game::Stage::InGame);
+    if !in_game {
+        let response = restart_post_game(shared, None);
+        if response.status != 204 {
+            return response;
+        }
+    }
+    if let Some(post_game) = lock(&shared.post_game).as_mut() {
+        post_game.end_game(scenario_now(shared));
+    }
+    println!("pós-jogo: a partida acabou");
+    Response {
+        status: 204,
+        body: Value::Null,
+    }
+}
+
+/// "Jogar de novo" no fim de partida simulado.
+fn play_again(shared: &Shared) -> Response {
+    let result = lock(&shared.post_game)
+        .as_mut()
+        .map(|pg| pg.play_again(scenario_now(shared)));
+    match result {
+        Some(Ok(step)) => {
+            emit_post_game(shared, step);
+            Response {
+                status: 204,
+                body: Value::Null,
+            }
+        }
+        Some(Err(error)) => error,
+        None => Response::error(400, "mock-lcu: fora do pós-jogo"),
+    }
+}
+
+fn advance_post_game(shared: &Shared) -> Response {
+    let step = lock(&shared.post_game)
+        .as_mut()
+        .and_then(|p| p.advance(scenario_now(shared)));
+    match step {
+        Some(step) => {
+            emit_post_game(shared, step);
+            Response {
+                status: 204,
+                body: Value::Null,
+            }
+        }
+        None => Response::error(404, "mock-lcu: nenhuma tela do pós-jogo esperando"),
+    }
+}
+
 fn emit(shared: &Shared, event: EventFixture) {
     shared.state().apply(&event);
     if shared.verbose {
@@ -892,6 +1072,20 @@ async fn handle_request(
             response
         }
         (&Method::DELETE, lobby::LOBBY) => {
+            // Sair no pós-jogo simulado (#178): a cédula e as estatísticas
+            // somem e o resto do fim de partida não sai mais.
+            let left = {
+                let mut slot = lock(&shared.post_game);
+                match slot.as_mut() {
+                    Some(p) if matches!(p.stage(), post_game::Stage::PostGame { .. }) => {
+                        Some(p.leave(&shared.state()))
+                    }
+                    _ => None,
+                }
+            };
+            if let Some(step) = left {
+                emit_post_game(&shared, step);
+            }
             let (response, events) = lobby::leave(&shared.state());
             for event in events {
                 emit(&shared, event);
@@ -1313,6 +1507,39 @@ async fn handle_request(
                 }
                 None => Response::error(404, format!("mock-lcu: {path} não existe")),
             }
+        }
+        // Fim de partida (#178).
+        (&Method::POST, post_game::END_GAME) => end_game(&shared),
+        (&Method::POST, post_game::ADVANCE) => advance_post_game(&shared),
+        (&Method::POST, post_game::RESTART) => restart_post_game(&shared, None),
+        (&Method::POST, p) if post_game::complete_route(p).is_some() => {
+            let name = post_game::complete_route(p).unwrap_or_default();
+            let step = lock(&shared.post_game)
+                .as_mut()
+                .map(|pg| pg.complete(&name, scenario_now(&shared)));
+            if let Some(step) = step {
+                emit_post_game(&shared, step);
+            }
+            Response {
+                status: 204,
+                body: Value::Null,
+            }
+        }
+        (&Method::POST, post_game::PLAY_AGAIN) => play_again(&shared),
+        (&Method::POST, post_game::HONOR) => {
+            let body = read_json(request).await;
+            let (response, events) = {
+                let mut state = shared.state();
+                let voted = post_game::vote(&state, &body);
+                if voted.0.status == 204 {
+                    // A troca para `EndOfGame` não pode voltar a cédula
+                    // gravada, sem os votos.
+                    state.pin(post_game::BALLOT);
+                }
+                voted
+            };
+            emit_all(&shared, events);
+            response
         }
         // Seleção de campeões simulada (#440).
         (&Method::POST, scenario::START) => {

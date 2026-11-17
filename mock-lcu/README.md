@@ -7,6 +7,7 @@ cargo run -p mock-lcu                                   # gravação real mais n
 cargo run -p mock-lcu -- --fixtures exemplo --velocidade 10 --repetir
 cargo run -p mock-lcu -- --http --porta 2999 --verbose
 cargo run -p mock-lcu -- --selecao draft --celula 0       # seleção simulada (#440)
+cargo run -p mock-lcu -- --pos-jogo                       # fim de partida simulado (#178)
 ```
 
 ## Seleção de campeões simulada (#440)
@@ -25,6 +26,18 @@ Para testar as telas da seleção sem fila no LoL real. `--selecao <modo>` sobe 
 No terminal do mock, digite e dê Enter: `p` pausa (o tempo fica "sem limite" e os bots param), `c` continua, `a` acaba a etapa atual na hora, `d` faz dodge (volta ao lobby), `r` recomeça, e `draft`, `torneio`, `blind` ou `aram` começam outra seleção desse modo. As mesmas ações existem como rotas só do mock: `POST /mock-lcu/champ-select` com `{"mode": "draft", "cell": 0}`, `POST .../pause`, `.../resume`, `.../advance` e `DELETE /mock-lcu/champ-select`.
 
 Tempo esgotado: o seu ban sem campeão fica vazio, o seu pick com hover é confirmado e o pick sem hover é dodge. No avançar (`a`), o pick sem hover ganha um campeão qualquer. Depois da finalização vêm `GAME_STARTING`, `GameStart` e `InProgress`. A escolha às cegas, o torneio e o ARAM simulados são suposições do mock, ainda não conferidas no LoL real.
+
+## Fim de partida simulado (#178)
+
+Para testar o pós-jogo (resultado e placar, votação de honra, "Jogar de novo") sem jogar uma partida inteira. `--pos-jogo` sobe o mock no meio da partida gravada (`InProgress`), sem reproduzir a gravação, e a partida acaba sozinha 3 segundos depois de o agente conectar (`--fim-em <segundos>` muda isso; `--fim-em 0` espera a tecla `f`). Sem `--fixtures`, usa a gravação mais nova que tem uma partida com fim de partida (hoje `16.22-pos-jogo`).
+
+Quando a partida acaba, saem os eventos gravados do fim de partida, na ordem da gravação (com pausas de no máximo 1 s, divididas por `--velocidade`): `WaitingForStats`, o `eog-stats-block`, `PreEndOfGame`, a cédula de honra e as telas da sequência. Como no LoL real com a UI oficial fechada, cada tela (`honor-vote`, `challenge-level-up-celebration`, `missions-celebration`, `ranked-celebration`) fica parada em `/lol-pre-end-of-game/v1/currentSequenceEvent` até o `POST /lol-pre-end-of-game/v1/complete/{nome}` dela; a fase só vai para `EndOfGame` depois da última. O agente faz esse `complete` sozinho quando fechou a UI oficial (#180). Concluir uma tela que não está esperando responde 204 sem mudar nada.
+
+- `POST /lol-honor/v1/honor` com `{"honorType": "HEART", "recipientPuuid": "..."}` põe o jogador em `honoredPlayers` da cédula (`/lol-honor-v2/v1/ballot`) e manda a cédula pelo WAMP; dá para honrar vários, aliados e adversários, até acabar o `votePool.votes`. Os votos continuam na cédula depois da troca para `EndOfGame`. Sem cédula aberta, 404; jogador fora da cédula, já honrado ou sem honra sobrando, 400. O `votePool` não muda com o voto; os erros são suposições do mock.
+- `POST /lol-lobby/v2/play-again` no pós-jogo (de `WaitingForStats` a `EndOfGame`) reproduz a volta ao lobby gravada: a cédula e as estatísticas somem e a fase vai para `Lobby`, com o lobby da mesma fila. Fora do pós-jogo, 400.
+- `DELETE /lol-lobby/v2/lobby` no pós-jogo apaga a cédula e as estatísticas e leva a fase para `None` (suposição do mock).
+
+No terminal do mock, digite e dê Enter: `f` acaba a partida (voltando para ela antes, se já acabou), `a` conclui a tela do pós-jogo que está esperando, `j` faz o "jogar de novo" e `r` volta para a partida (que acaba de novo depois de `--fim-em`). As mesmas ações existem como rotas só do mock: `POST /mock-lcu/end-of-game`, `.../end-of-game/advance` e `.../end-of-game/restart`. `POST /mock-lcu/end-of-game` funciona também sem `--pos-jogo`, com `--fixtures 16.22-pos-jogo --parado`. Nos testes: `Config::post_game`, `MockLcu::end_game`, `advance_post_game`, `play_again`, `restart_game` e `post_game_waiting`.
 
 Ao subir, ele mostra a porta, o lockfile e o certificado da CA. Pare com Ctrl+C; o lockfile e o certificado são apagados.
 

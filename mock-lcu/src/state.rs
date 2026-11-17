@@ -10,7 +10,7 @@
 //! 404. Quando a fase muda, as respostas gravadas na nova fase voltam a valer
 //! para os recursos que elas cobrem.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use easylobby_agent::fixtures::{EventFixture, FixtureSet};
 use serde_json::{json, Value};
@@ -56,6 +56,9 @@ pub struct LcuState {
     phases: Vec<String>,
     /// Mudanças vindas de eventos: `Some` é o novo corpo, `None` é `Delete`.
     overlay: HashMap<String, Option<Value>>,
+    /// Recursos cuja mudança vale mesmo depois de uma troca de fase, como a
+    /// cédula com as honras dadas (#178). Um `Delete` solta.
+    pinned: HashSet<String>,
     /// Se a UI oficial está aberta (`kill-ux` fecha, `launch-ux` abre).
     ux_open: bool,
     /// Se o LoL recebeu o pedido para encerrar (`/process-control/v1/process/quit`).
@@ -90,6 +93,7 @@ impl LcuState {
             phases: vec![initial_phase.clone()],
             initial_phase,
             overlay: HashMap::new(),
+            pinned: HashSet::new(),
             ux_open: true,
             quit_requested: false,
             launches: Vec::new(),
@@ -181,7 +185,10 @@ impl LcuState {
             }
         }
         let change = match event.event_type.as_str() {
-            "Delete" => None,
+            "Delete" => {
+                self.pinned.remove(&event.uri);
+                None
+            }
             _ => Some(event.data.clone()),
         };
         self.overlay.insert(event.uri.clone(), change);
@@ -191,12 +198,21 @@ impl LcuState {
     /// os recursos que cobrem.
     fn enter_phase(&mut self, phase: &str) {
         let recorded = &self.recorded;
+        let pinned = &self.pinned;
         self.overlay.retain(|path, _| {
-            !recorded
-                .get(path)
-                .is_some_and(|rs| rs.iter().any(|(p, _)| p == phase))
+            pinned.contains(path)
+                || !recorded
+                    .get(path)
+                    .is_some_and(|rs| rs.iter().any(|(p, _)| p == phase))
         });
         self.phases.push(phase.to_owned());
+    }
+
+    /// Mantém a mudança atual de `path` nas próximas trocas de fase, em vez
+    /// de voltar para a resposta gravada na fase nova. Vale até um `Delete`
+    /// de `path` ou o [`LcuState::reset`].
+    pub fn pin(&mut self, path: &str) {
+        self.pinned.insert(path.to_owned());
     }
 
     /// Evento que a LCU mandaria se o jogador respondesse o ready check com
@@ -223,6 +239,7 @@ impl LcuState {
     pub fn reset(&mut self) {
         self.phases = vec![self.initial_phase.clone()];
         self.overlay.clear();
+        self.pinned.clear();
     }
 
     /// Fase em que a gravação começa.
@@ -336,6 +353,25 @@ mod tests {
             "Create",
             json!({ "partyId": "evento" }),
         ));
+        s.apply(&event(GAMEFLOW_PHASE, "Update", json!("Lobby")));
+        assert_eq!(s.get("/lol-lobby/v2/lobby").body["partyId"], "gravado");
+    }
+
+    #[test]
+    fn recurso_fixado_sobrevive_a_troca_de_fase() {
+        let mut s = LcuState::new(&set());
+        s.apply(&event(
+            "/lol-lobby/v2/lobby",
+            "Create",
+            json!({ "partyId": "evento" }),
+        ));
+        s.pin("/lol-lobby/v2/lobby");
+        s.apply(&event(GAMEFLOW_PHASE, "Update", json!("Lobby")));
+        assert_eq!(s.get("/lol-lobby/v2/lobby").body["partyId"], "evento");
+
+        // Um `Delete` solta: a troca de fase seguinte volta a gravada.
+        s.apply(&event("/lol-lobby/v2/lobby", "Delete", Value::Null));
+        s.apply(&event(GAMEFLOW_PHASE, "Update", json!("None")));
         s.apply(&event(GAMEFLOW_PHASE, "Update", json!("Lobby")));
         assert_eq!(s.get("/lol-lobby/v2/lobby").body["partyId"], "gravado");
     }

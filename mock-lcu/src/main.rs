@@ -5,6 +5,7 @@
 //! cargo run -p mock-lcu -- --fixtures exemplo --velocidade 10 --repetir
 //! cargo run -p mock-lcu -- --http --porta 2999 --verbose
 //! cargo run -p mock-lcu -- --selecao draft --celula 0
+//! cargo run -p mock-lcu -- --pos-jogo
 //! ```
 //!
 //! Veja `mock-lcu/README.md` para todas as opções.
@@ -12,6 +13,7 @@
 use std::path::{Path, PathBuf};
 
 use easylobby_agent::fixtures::FixtureSet;
+use mock_lcu::post_game;
 use mock_lcu::scenario::{Mode, Options};
 use mock_lcu::{Config, MockLcu, ReplayStart};
 
@@ -36,6 +38,13 @@ uso: mock-lcu [opções]
   --celula <0-4>            sua vez na ordem de picks da seleção simulada
                             (padrão: a da gravação)
   --bots <segundos>         quanto os bots demoram para escolher (padrão: 3)
+  --pos-jogo                começa no meio da partida gravada e simula o fim
+                            dela: estatísticas, honra, telas do pós-jogo e
+                            jogar de novo (padrão de --fixtures: a gravação
+                            mais nova com pós-jogo, como 16.22-pos-jogo)
+  --fim-em <segundos>       com --pos-jogo, quanto a partida demora para acabar
+                            depois que o agente conecta (padrão: 3; 0 espera
+                            a tecla f)
 ";
 
 const KEYS: &str = "\
@@ -43,6 +52,11 @@ teclas da seleção (digite e Enter):
   p pausar   c continuar   a avançar a etapa   d dodge
   r recomeçar   draft | torneio | blind | aram  nova seleção desse modo
   ? ajuda";
+
+const POST_GAME_KEYS: &str = "\
+teclas do pós-jogo (digite e Enter):
+  f acabar a partida   a avançar a tela do pós-jogo   j jogar de novo
+  r voltar para a partida   ? ajuda";
 
 struct Args {
     fixtures: Option<String>,
@@ -57,6 +71,8 @@ struct Args {
     selection: Option<Mode>,
     cell: Option<u64>,
     bot_seconds: Option<f64>,
+    post_game: bool,
+    end_after: Option<f64>,
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -73,6 +89,8 @@ fn parse_args() -> Result<Args, String> {
         selection: None,
         cell: None,
         bot_seconds: None,
+        post_game: false,
+        end_after: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -100,12 +118,26 @@ fn parse_args() -> Result<Args, String> {
                     .filter(|s: &f64| s.is_finite() && *s >= 0.0);
                 args.bot_seconds = Some(seconds.ok_or("--bots inválido")?);
             }
+            "--pos-jogo" => args.post_game = true,
+            "--fim-em" => {
+                let seconds = value()?
+                    .parse()
+                    .ok()
+                    .filter(|s: &f64| s.is_finite() && *s >= 0.0);
+                args.end_after = Some(seconds.ok_or("--fim-em inválido")?);
+            }
             "-h" | "--help" => {
                 print!("{USAGE}");
                 std::process::exit(0);
             }
             _ => return Err(format!("argumento desconhecido: {arg}\n\n{USAGE}")),
         }
+    }
+    if args.post_game && args.selection.is_some() {
+        return Err("use --pos-jogo ou --selecao, não os dois".into());
+    }
+    if args.end_after.is_some() && !args.post_game {
+        return Err("--fim-em só vale com --pos-jogo".into());
     }
     Ok(args)
 }
@@ -117,8 +149,9 @@ fn fixtures_root() -> PathBuf {
 }
 
 /// Um nome sem barra é um conjunto em `agent/tests/fixtures/`; o resto é
-/// caminho. Sem nada, escolhe a gravação real de patch mais novo.
-fn resolve_fixtures(arg: Option<&str>) -> Result<PathBuf, String> {
+/// caminho. Sem nada, escolhe a gravação real de patch mais novo (com
+/// `post_game`, a mais nova que tenha um fim de partida).
+fn resolve_fixtures(arg: Option<&str>, post_game: bool) -> Result<PathBuf, String> {
     if let Some(arg) = arg {
         let path = Path::new(arg);
         if path.is_dir() {
@@ -135,6 +168,9 @@ fn resolve_fixtures(arg: Option<&str>) -> Result<PathBuf, String> {
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter_map(|dir| {
             let set = FixtureSet::load(&dir).ok()?;
+            if post_game && post_game::Script::from_fixtures(&set).is_none() {
+                return None;
+            }
             let version = set
                 .manifest
                 .patch
@@ -160,7 +196,7 @@ async fn main() {
 
 async fn run() -> Result<(), String> {
     let args = parse_args()?;
-    let dir = resolve_fixtures(args.fixtures.as_deref())?;
+    let dir = resolve_fixtures(args.fixtures.as_deref(), args.post_game)?;
     let fixtures = FixtureSet::load(&dir).map_err(|e| e.to_string())?;
 
     let lockfile = args.lockfile.unwrap_or_else(|| {
@@ -190,6 +226,14 @@ async fn run() -> Result<(), String> {
         // A gravação mexeria na seleção simulada.
         config.replay_start = ReplayStart::Never;
         config.champ_select = options;
+    }
+    if args.post_game {
+        // A gravação mexeria no fim de partida simulado.
+        config.replay_start = ReplayStart::Never;
+        let end_after = args.end_after.unwrap_or(3.0);
+        config.post_game = Some(post_game::Options {
+            end_after_ms: (end_after > 0.0).then_some((end_after * 1000.0) as u64),
+        });
     }
     if let Some(seconds) = args.bot_seconds {
         config.timings.bot = (seconds * 1000.0) as u64;
@@ -225,6 +269,10 @@ async fn run() -> Result<(), String> {
             println!("{KEYS}");
             control_from_terminal(&mock, options).await?;
         }
+        None if args.post_game => {
+            println!("{POST_GAME_KEYS}");
+            control_post_game(&mock).await?;
+        }
         None => tokio::signal::ctrl_c().await.map_err(|e| e.to_string())?,
     }
     println!("parando; lockfile apagado");
@@ -232,9 +280,9 @@ async fn run() -> Result<(), String> {
     Ok(())
 }
 
-/// Lê as teclas da seleção simulada no terminal até o Ctrl+C.
-async fn control_from_terminal(mock: &MockLcu, mut options: Options) -> Result<(), String> {
-    let (tx, mut lines) = tokio::sync::mpsc::unbounded_channel::<String>();
+/// Linhas digitadas no terminal, lidas numa thread à parte.
+fn terminal_lines() -> tokio::sync::mpsc::UnboundedReceiver<String> {
+    let (tx, lines) = tokio::sync::mpsc::unbounded_channel::<String>();
     std::thread::spawn(move || {
         for line in std::io::stdin().lines() {
             let Ok(line) = line else { return };
@@ -243,6 +291,48 @@ async fn control_from_terminal(mock: &MockLcu, mut options: Options) -> Result<(
             }
         }
     });
+    lines
+}
+
+/// Lê as teclas do pós-jogo simulado no terminal até o Ctrl+C (#178).
+async fn control_post_game(mock: &MockLcu) -> Result<(), String> {
+    let mut lines = terminal_lines();
+    loop {
+        let line = tokio::select! {
+            result = tokio::signal::ctrl_c() => return result.map_err(|e| e.to_string()),
+            line = lines.recv() => line,
+        };
+        let Some(line) = line else {
+            // Sem terminal (stdin fechado): só espera o Ctrl+C.
+            return tokio::signal::ctrl_c().await.map_err(|e| e.to_string());
+        };
+        match line.trim().to_ascii_lowercase().as_str() {
+            "" => {}
+            "f" => {
+                mock.end_game();
+            }
+            "a" => {
+                if !mock.advance_post_game() {
+                    println!("nenhuma tela do pós-jogo esperando");
+                }
+            }
+            "j" => {
+                if !mock.play_again() {
+                    println!("fora do pós-jogo; f acaba a partida");
+                }
+            }
+            "r" => {
+                mock.restart_game();
+            }
+            "?" | "h" => println!("{POST_GAME_KEYS}"),
+            other => println!("tecla desconhecida: {other}\n{POST_GAME_KEYS}"),
+        }
+    }
+}
+
+/// Lê as teclas da seleção simulada no terminal até o Ctrl+C.
+async fn control_from_terminal(mock: &MockLcu, mut options: Options) -> Result<(), String> {
+    let mut lines = terminal_lines();
     loop {
         let line = tokio::select! {
             result = tokio::signal::ctrl_c() => return result.map_err(|e| e.to_string()),
