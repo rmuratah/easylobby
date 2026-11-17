@@ -23,7 +23,7 @@ export function RunePagesPanel({ connection, send, bare = false }: Props & {
   const lcu = state?.lcu;
   let body;
   if (connection.status !== 'connected' || !state || lcu?.state !== 'connected') {
-    body = <p className="text-body text-muted">Aguarde a reconexão. As páginas serão confirmadas novamente pelo agente.</p>;
+    body = <p className="text-body text-muted">Aguarde a reconexão com o League of Legends.</p>;
   } else if (!state.runePages) {
     body = <p className="text-body text-muted">{state.summoner ? 'Carregando páginas de runas…' : 'Aguarde o login no League of Legends.'}</p>;
   } else if (!state.runeCatalog) {

@@ -194,7 +194,7 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
           ? 'Saída do lobby confirmada.' : command.type === 'startTutorial' ? 'Tutorial iniciado.'
           : command.type === 'startPracticeTool' ? 'Modo de Treino iniciado.'
           : command.type === 'createCustomGame' ? 'Partida personalizada criada.'
-          : command.type === 'joinCustomGame' ? 'Você entrou na partida personalizada.' : 'Lobby atualizado pelo agente.' });
+          : command.type === 'joinCustomGame' ? 'Você entrou na partida personalizada.' : 'Lobby atualizado.' });
         return 'ok';
       }
       setFeedback({ status: 'error', message: result.code === 'notConnected'
@@ -467,7 +467,6 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
           <fieldset className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface card p-4 shadow-soft animate-fade-up" disabled={!canSetPositions}>
             <legend className="sr-only">Suas posições</legend>
             <h3 aria-hidden="true" className="px-1 text-section font-semibold">Suas posições</h3>
-            <p className="px-1 text-caption text-muted">As posições na lista de jogadores são confirmadas pelo agente.</p>
             {!localMember && <p className="px-1 text-body text-muted">Aguarde a identificação do seu membro no lobby.</p>}
             {phase !== 'Lobby' && <p className="px-1 text-body text-muted">A escolha de posições está disponível na fase de lobby.</p>}
             <div className="grid grid-cols-2 gap-2">

@@ -92,7 +92,7 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByText(queueNames[queue], { selector: 'strong' })).toBeInTheDocument();
     expect(panel().getByRole('status')).toHaveTextContent('Criando');
     await ok();
-    expect(panel().getByRole('status')).toHaveTextContent('atualizado pelo agente');
+    expect(panel().getByRole('status')).toHaveTextContent('Lobby atualizado.');
     expect(panel().queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
     expect(panel().queryByRole('combobox', { name: 'Fila' })).not.toBeInTheDocument();
     expect(button('Trocar modo')).toBeEnabled();
