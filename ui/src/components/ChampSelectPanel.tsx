@@ -105,9 +105,6 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
             onCardHeight={setAllyCardHeight}
             renderActions={player => player.isLocalPlayer ? null
               : <SwapOffers champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
-          <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
-            summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} lobby={state.lobby} send={send} />
-          <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />
         </div>
         <div className="champ-select-center">
           <ChampSelectSwaps champSelect={champSelect} busy={swap.pending} run={swap.run} feedback={swap.feedback} />
@@ -122,6 +119,12 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
             footer={<ActionBar mine={mine} chosen={chosen || null} chosenAvailable={chosenAvailable} catalog={catalog}
               busy={confirm.pending} onConfirm={lockIn} feedback={[confirm.feedback, hover.feedback]} />} />
           )}
+          {/* Feitiços e runas num card embaixo das skins (ou da grade), à esquerda (#536). */}
+          <section aria-label="Feitiços e runas" className="champ-select-loadout flex flex-col gap-4 rounded-card border border-edge bg-surface card p-4 text-ink">
+            <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
+              summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} lobby={state.lobby} send={send} />
+            <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />
+          </section>
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           <TeamBans label="Bans do time adversário" ids={champSelect.bans.theirTeam} slots={banSlots(champSelect, false)} catalog={catalog} />
