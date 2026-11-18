@@ -95,7 +95,7 @@ it('funciona com um resultado incompleto, sem fila, sem PDL e sem o jogador loga
     queueId: 0, queueName: '', gameMode: 'ARAM', ranked: false, result: 'loss', localPuuid: '', rankedChange: null,
     teams: [{ teamId: 100, playerTeam: false, win: true, players: [{
       ...testGameResult.teams[1]!.players[0]!, gameName: '', tagLine: '', items: [0, 0, 0, 0, 0, 0, 0],
-    }] }],
+    }], advanced: [] }],
   };
   render(<App />);
   hello({ gameflowPhase: 'EndOfGame', gameResult: partial });

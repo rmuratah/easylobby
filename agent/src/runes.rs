@@ -151,6 +151,10 @@ pub struct Perk {
     /// as quebras de linha da Riot (`<br>`) como `\n`. Vazia quando o
     /// `perks.json` não traz.
     pub long_desc: String,
+    /// Estatísticas da runa no fim da partida (#586), em texto puro, uma por
+    /// linha, com os valores como `@eogvar1@` a `@eogvar3@`
+    /// (`Total de dano: @eogvar1@`).
+    pub end_of_game_stat_descs: Vec<String>,
 }
 
 /// Página que a UI manda para criar ou editar.
@@ -326,6 +330,22 @@ impl RuneCatalog {
                     long_desc: raw
                         .map(|p| multiline_text(&p.long_desc))
                         .unwrap_or_default(),
+                    end_of_game_stat_descs: raw
+                        .map(|p| {
+                            // Uma linha por `<br>` (Ritmo Fatal traz duas numa só).
+                            p.end_of_game_stat_descs
+                                .iter()
+                                .flat_map(|d| {
+                                    multiline_text(d)
+                                        .lines()
+                                        .map(str::trim)
+                                        .filter(|l| !l.is_empty())
+                                        .map(str::to_owned)
+                                        .collect::<Vec<_>>()
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                 }
             })
             .collect();
@@ -375,6 +395,8 @@ struct RawPerk {
     short_desc: String,
     #[serde(default)]
     long_desc: String,
+    #[serde(default)]
+    end_of_game_stat_descs: Vec<String>,
 }
 
 /// Tira as marcações (`<b>`, `<lol-uikit-tooltipped-keyword ...>`) e junta os
@@ -723,7 +745,8 @@ mod tests {
         ]});
         let perks = json!([
             {"id": 101, "name": "Pressione o Ataque", "shortDesc": "Três <b>ataques</b> seguidos<br>causam dano <lol-uikit-tooltipped-keyword key='x'>adaptativo</lol-uikit-tooltipped-keyword>.",
-             "longDesc": "<br>Causa <truedamage>dano</truedamage>   adicional.<br><br><br>Tempo de Recarga: <scaleLevel>6s</scaleLevel><hr><rules>Só em Campeões.</rules><br>"},
+             "longDesc": "<br>Causa <truedamage>dano</truedamage>   adicional.<br><br><br>Tempo de Recarga: <scaleLevel>6s</scaleLevel><hr><rules>Só em Campeões.</rules><br>",
+             "endOfGameStatDescs": ["Dano <b>total</b>: @eogvar1@<br>Cura: @eogvar2@"]},
             {"id": 9999, "name": "Runa antiga", "shortDesc": ""},
         ]);
         RuneCatalog::from_json(&styles, &perks).unwrap()
@@ -809,6 +832,10 @@ mod tests {
         assert_eq!(
             pta.long_desc,
             "Causa dano adicional.\n\nTempo de Recarga: 6s\nSó em Campeões."
+        );
+        assert_eq!(
+            pta.end_of_game_stat_descs,
+            ["Dano total: @eogvar1@", "Cura: @eogvar2@"]
         );
         // Sem `longDesc` no perks.json: fica vazia.
         assert_eq!(

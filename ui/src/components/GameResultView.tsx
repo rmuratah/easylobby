@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { AgentState } from '../bindings/AgentState';
 import type { GameResult } from '../bindings/GameResult';
 import type { GameResultTeam } from '../bindings/GameResultTeam';
@@ -6,7 +6,9 @@ import type { MatchPlayer } from '../bindings/MatchPlayer';
 import { assetUrl } from '../agent/assets';
 import { compactNumber, localPlayer, perMinute, rankedChangeText, resultQueue, resultTitle } from '../agent/gameResult';
 import { formatDuration, kda, rankLabel } from '../agent/profile';
-import { Avatar } from './base';
+import { advancedColumns, hasRunes } from '../agent/advancedStats';
+import { AdvancedCharts, AdvancedRunes, AdvancedStatsTable } from './AdvancedDetails';
+import { Avatar, Segmented, type SegmentedOption } from './base';
 import { cx } from './base/cx';
 import { GameIcon, ItemRow } from './GameIcons';
 
@@ -24,18 +26,35 @@ type Props = {
  * fila, duração e PDL na ranqueada; o resumo do jogador logado; e o placar
  * dos times, com o time do jogador primeiro.
  */
+type View = 'scoreboard' | 'stats' | 'charts' | 'runes';
+
 export function GameResultView({ result, state, actions, onOpenProfile }: Props) {
   const me = localPlayer(result);
+  const [view, setView] = useState<View>('scoreboard');
+  const columns = advancedColumns(result);
+  // Detalhes avançados (#586): só com as estatísticas; Runas só nos modos com runas.
+  const views: SegmentedOption<View>[] = columns.length === 0 ? [] : [
+    { value: 'scoreboard', label: 'Placar' },
+    { value: 'stats', label: 'Estatísticas' },
+    { value: 'charts', label: 'Gráficos' },
+    ...(hasRunes(result) ? [{ value: 'runes' as const, label: 'Runas' }] : []),
+  ];
+  const shown = views.some(v => v.value === view) ? view : 'scoreboard';
+  const details = { columns, state, localPuuid: result.localPuuid, onOpenProfile };
   return (
     <div className="@container flex w-full flex-col gap-4">
       <Header result={result} state={state} actions={actions} />
       {me && <Summary player={me} state={state} durationSecs={result.durationSecs} />}
-      <div className="flex flex-col gap-3">
+      {views.length > 0 && <Segmented label="Detalhes da partida" options={views} value={shown} onChange={setView} className="self-start" />}
+      {shown === 'scoreboard' && <div className="flex flex-col gap-3">
         {result.teams.map(team => (
           <TeamTable key={team.teamId} team={team} state={state} remake={result.result === 'remake'}
             localPuuid={result.localPuuid} durationSecs={result.durationSecs} onOpenProfile={onOpenProfile} />
         ))}
-      </div>
+      </div>}
+      {shown === 'stats' && <AdvancedStatsTable {...details} />}
+      {shown === 'charts' && <AdvancedCharts {...details} />}
+      {shown === 'runes' && <AdvancedRunes {...details} />}
     </div>
   );
 }
