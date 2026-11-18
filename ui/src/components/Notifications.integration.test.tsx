@@ -8,7 +8,6 @@ import { testConversation, testInvitation, testReadyCheck } from '../test/events
 import { testState } from '../test/lobby';
 import { draftChampSelect } from '../test/champSelect';
 import { MESSAGE_NOTICE_MS } from './Notifications';
-import { SIDEBAR_STORAGE_KEY } from '../layout/sidebar';
 import { sound } from '../agent/sound';
 
 vi.mock('../agent/sound', () => ({ DEFAULT_VOLUME: 0.7, sound: { unlock: vi.fn(), setVolume: vi.fn(), play: vi.fn(), playMatchFound: vi.fn() } }));
@@ -69,13 +68,13 @@ it('tira o aviso de mensagem quando a conversa é lida', () => {
 it('com a coluna aberta, o convite fica só nela', () => {
   render(<App />);
   hello({ receivedInvitations: [testInvitation] });
+  fireEvent.click(screen.getByRole('button', { name: /^Mostrar amigos/ }));
   expect(region()).not.toBeInTheDocument();
   expect(within(screen.getByRole('region', { name: 'Convites recebidos' })).getByText(/chamou você/)).toBeInTheDocument();
 });
 
 it('avisa convite enquanto ele está pendente e deixa fechar', () => {
-  // Com a coluna recolhida, o aviso flutuante é o que mostra o convite.
-  localStorage.setItem(SIDEBAR_STORAGE_KEY, 'recolhida');
+  // Com a aba de amigos fechada (o padrão, #594), o aviso flutuante é o que mostra o convite.
   render(<App />);
   hello();
   receive({ type: 'receivedInvitations', invitations: [testInvitation, { ...testInvitation, invitationId: 'convite-2', fromSummonerName: 'Victor', queue: 'aram' }] });

@@ -1,12 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { useAgent } from "../agent/useAgent";
-import { draftChampSelect } from "../test/champSelect";
 import { testConversation, testInvitation } from "../test/events";
 import { testState } from "../test/lobby";
 import { makeState } from "../test/state";
-import { SIDEBAR_STORAGE_KEY } from "./sidebar";
+import { CLOSE_DELAY_MS } from "./sidebar";
 
 vi.mock("../agent/useAgent");
 
@@ -16,87 +15,104 @@ function snapshot(overrides: Parameters<typeof makeState>[0] = {}) {
   });
 }
 
-function windowWidth(narrow: boolean) {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: narrow, media: query, addEventListener: () => {}, removeEventListener: () => {},
-  }));
-}
-
-const champSelect = { gameflowPhase: "ChampSelect" as const, champSelect: draftChampSelect };
 const column = () => document.getElementById("coluna-amigos")!;
+const region = () => column().parentElement!;
 
-beforeEach(() => {
-  localStorage.clear();
-  windowWidth(false);
-});
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.useRealTimers(); localStorage.clear(); });
 
-describe("coluna de amigos", () => {
-  it("começa aberta, recolhe pelo botão e lembra a escolha", () => {
+describe("aba de amigos (#594)", () => {
+  it("começa fechada, numa faixa fina com o botão", () => {
+    localStorage.setItem("easylobby.amigos", "aberta");
     snapshot();
-    const { unmount } = render(<App />);
-    expect(screen.getByRole("complementary", { name: "Amigos e convites" })).toBe(column());
-    const toggle = screen.getByRole("button", { name: "Recolher amigos" });
-    expect(toggle.closest('.app-social-region')).not.toBeNull();
-    expect(toggle.parentElement).toBe(column());
-    expect(toggle.closest('header')).toBeNull();
-    expect(toggle).not.toHaveClass('rounded-full', 'shadow-soft');
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(toggle).toHaveAttribute("aria-controls", column().id);
-    fireEvent.click(toggle);
-    expect(column()).not.toBeVisible();
-    const collapsedToggle = screen.getByRole("button", { name: "Mostrar amigos" });
-    expect(collapsedToggle).toHaveAttribute("aria-expanded", "false");
-    expect(collapsedToggle.parentElement).not.toBe(column());
-    expect(localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBe("recolhida");
-    unmount();
     render(<App />);
+    expect(column()).not.toBeVisible();
+    const toggle = screen.getByRole("button", { name: "Mostrar amigos" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", column().id);
+    expect(toggle.closest(".app-social-rail")).not.toBeNull();
+    expect(toggle.closest("header")).toBeNull();
+  });
+
+  it("abre por cima do conteúdo com o mouse em cima e fecha quando o mouse sai", () => {
+    vi.useFakeTimers();
+    snapshot();
+    render(<App />);
+    const body = document.querySelector(".app-body")!;
+    fireEvent.mouseEnter(region());
+    expect(column()).toBeVisible();
+    expect(screen.getByRole("complementary", { name: "Amigos e convites" })).toBe(column());
+    expect(region()).toHaveClass("is-open");
+    // Sobrepõe: a área principal não ganha nem perde classe de layout.
+    expect(body.className).toBe("app-body");
+    fireEvent.mouseLeave(region());
+    expect(column()).toBeVisible();
+    act(() => vi.advanceTimersByTime(CLOSE_DELAY_MS));
     expect(column()).not.toBeVisible();
   });
 
-  it("avisa convites pendentes com a coluna recolhida", () => {
-    localStorage.setItem(SIDEBAR_STORAGE_KEY, "recolhida");
+  it("não fecha se o mouse volta logo", () => {
+    vi.useFakeTimers();
+    snapshot();
+    render(<App />);
+    fireEvent.mouseEnter(region());
+    fireEvent.mouseLeave(region());
+    act(() => vi.advanceTimersByTime(CLOSE_DELAY_MS / 2));
+    fireEvent.mouseEnter(region());
+    act(() => vi.advanceTimersByTime(CLOSE_DELAY_MS * 2));
+    expect(column()).toBeVisible();
+  });
+
+  it("abre pelo botão e fecha com Esc ou clique fora", () => {
+    snapshot();
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar amigos" }));
+    expect(column()).toBeVisible();
+    fireEvent.keyDown(column(), { key: "Escape" });
+    expect(column()).not.toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar amigos" }));
+    expect(column()).toBeVisible();
+    fireEvent.pointerDown(document.querySelector(".app-content")!);
+    expect(column()).not.toBeVisible();
+  });
+
+  it("o botão dentro da aba aberta recolhe", () => {
+    snapshot();
+    render(<App />);
+    fireEvent.mouseEnter(region());
+    const close = screen.getByRole("button", { name: "Recolher amigos" });
+    expect(close.parentElement).toBe(column());
+    expect(close).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(close);
+    expect(column()).not.toBeVisible();
+  });
+
+  it("avisa convites pendentes com a aba fechada", () => {
     snapshot({ receivedInvitations: [testInvitation] });
     render(<App />);
     expect(screen.getByRole("button", { name: "Mostrar amigos (1 convite)" })).toBeInTheDocument();
   });
 
-  it("soma as mensagens não lidas ao aviso da coluna recolhida", () => {
-    localStorage.setItem(SIDEBAR_STORAGE_KEY, "recolhida");
+  it("soma as mensagens não lidas ao aviso da aba fechada", () => {
     snapshot({ receivedInvitations: [testInvitation], conversations: [{ ...testConversation, unreadCount: 2 }] });
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Mostrar amigos (1 convite, 2 mensagens)" }));
     expect(screen.getByRole("button", { name: "Recolher amigos" })).toBeInTheDocument();
   });
 
-  it("na seleção de campeões com a janela estreita, recolhe sem mudar a escolha salva", () => {
-    windowWidth(true);
-    snapshot(champSelect);
-    const { rerender } = render(<App />);
-    expect(column()).not.toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Mostrar amigos" }));
-    expect(column()).toBeVisible();
-    expect(localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBeNull();
-    snapshot();
-    rerender(<App />);
-    expect(column()).toBeVisible();
-    snapshot(champSelect);
-    rerender(<App />);
-    expect(column()).not.toBeVisible();
-  });
-
-  it("na seleção de campeões com espaço, mantém a coluna aberta", () => {
-    snapshot(champSelect);
-    render(<App />);
-    expect(column()).toBeVisible();
-  });
-
-  it("mantém a conversa aberta ao recolher e reabrir", () => {
+  it("ao arrastar um amigo, sai da frente sem desmontar e fecha no fim do arraste", () => {
+    vi.useFakeTimers();
     snapshot();
     render(<App />);
-    const before = screen.getByRole("region", { name: "Amigos", hidden: true });
-    fireEvent.click(screen.getByRole("button", { name: "Recolher amigos" }));
-    fireEvent.click(screen.getByRole("button", { name: "Mostrar amigos" }));
-    expect(screen.getByRole("region", { name: "Amigos" })).toBe(before);
+    fireEvent.mouseEnter(region());
+    const friends = screen.getByRole("region", { name: "Amigos" });
+    fireEvent.dragStart(column());
+    act(() => vi.advanceTimersByTime(0));
+    expect(region()).toHaveClass("is-dragging");
+    expect(column()).not.toHaveAttribute("hidden");
+    fireEvent.dragEnd(column());
+    expect(region()).not.toHaveClass("is-dragging");
+    expect(column()).not.toBeVisible();
+    fireEvent.mouseEnter(region());
+    expect(screen.getByRole("region", { name: "Amigos" })).toBe(friends);
   });
 });

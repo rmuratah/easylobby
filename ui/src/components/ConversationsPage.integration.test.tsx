@@ -28,6 +28,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 it('abre o chat pela lista de amigos, manda a mensagem e mostra a conversa do agente', async () => {
   render(<App />);
   act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: makeState({ ...testState, friends: [testFriend] }) }));
+  fireEvent.click(screen.getByRole('button', { name: /^Mostrar amigos/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Conversar com Amigo' }));
   const view = within(screen.getByRole('region', { name: 'Conversa com Amigo' }));
   fireEvent.change(view.getByRole('textbox'), { target: { value: 'bora?' } });
@@ -44,6 +45,7 @@ it('abre o chat pela lista de amigos, manda a mensagem e mostra a conversa do ag
 it('o balão do amigo leva à tela de Conversas, e o botão da barra volta à última conversa', () => {
   render(<App />);
   act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: makeState({ ...testState, friends: [testFriend], conversations: [testConversation] }) }));
+  fireEvent.click(screen.getByRole('button', { name: /^Mostrar amigos/ }));
   const sidebar = screen.getByRole('complementary', { name: 'Amigos e convites' });
   fireEvent.click(within(sidebar).getByRole('button', { name: /Conversar com Amigo/ }));
   expect(within(sidebar).queryByRole('region', { name: 'Conversa com Amigo' })).toBeNull();

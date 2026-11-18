@@ -60,6 +60,7 @@ describe('invocador logado', () => {
     loggedIn();
     render(<App />);
     expect(screen.getByRole('navigation', { name: 'Funcionalidades' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /^Mostrar amigos/ }));
     expect(screen.getByRole('complementary', { name: 'Amigos e convites' })).toBeVisible();
   });
   it('mostra Riot ID e nível e remove os dados ao perder a conexão', () => {
@@ -203,6 +204,7 @@ describe('perfil do amigo (#255)', () => {
     const send = vi.fn(() => Promise.resolve({ status: 'ok' as const }));
     vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: makeState({ summoner, friends: [testFriend] }), send });
     render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /^Mostrar amigos/ }));
     fireEvent.click(screen.getByRole('button', { name: /^Ver perfil de Amigo/ }));
     expect(send).toHaveBeenCalledWith({ type: 'openPlayerProfile', puuid: testFriend.puuid });
     expect(screen.getByRole('region', { name: 'Perfil do jogador' })).toBeInTheDocument();
@@ -226,6 +228,7 @@ describe('perfil do amigo (#255)', () => {
     vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, send,
       state: makeState({ summoner, friends: [testFriend], playerProfile, matchDetails: { ...match(1), remake: false, players } }) });
     render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /^Mostrar amigos/ }));
     fireEvent.click(screen.getByRole('button', { name: /^Ver perfil de Amigo/ }));
     const profile = () => within(screen.getByRole('region', { name: 'Perfil do jogador' }));
     fireEvent.click(profile().getByRole('tab', { name: 'Histórico' }));
