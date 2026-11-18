@@ -7,7 +7,18 @@ import { honoredPlayers, playerName, votesLeft } from '../agent/honor';
 import { HonorVote } from './HonorVote';
 import { GameResultView } from './GameResultView';
 
-type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
+type Props = {
+  connection: ConnectionSnapshot;
+  send: AgentClient['send'];
+  /** Abre o perfil de um jogador do placar (#585). */
+  onOpenProfile?: (puuid: string) => void;
+  /**
+   * `false` enquanto outra página (o perfil aberto pelo placar) cobre o
+   * pós-jogo: o painel fica montado, sem perder a honra já votada, mas o Enter
+   * não joga de novo.
+   */
+  visible?: boolean;
+};
 
 /**
  * Quanto esperar as estatísticas em `WaitingForStats` antes de avisar que
@@ -28,7 +39,7 @@ const LEAVE: Command = { type: 'leavePostGame' };
  * partida termina com erro (`TerminatedInError`) ou as estatísticas não
  * chegam, sempre com uma saída.
  */
-export function PostGamePanel({ connection, send }: Props) {
+export function PostGamePanel({ connection, send, onOpenProfile, visible = true }: Props) {
   const { feedback, pending, run } = useCommand(send);
   const [doneGameId, setDoneGameId] = useState<number | null>(null);
   const [running, setRunning] = useState<'playAgain' | 'leave' | null>(null);
@@ -51,7 +62,7 @@ export function PostGamePanel({ connection, send }: Props) {
 
   // Enter joga de novo, como o Enter que aceita a partida (#129), a não ser
   // que o foco esteja num campo ou botão, que já tratam o Enter.
-  const shortcut = !voting && !crashed && available && !pending;
+  const shortcut = visible && !voting && !crashed && available && !pending;
   const playAgainRef = useRef(act);
   useEffect(() => { playAgainRef.current = act; });
   useEffect(() => {
@@ -101,7 +112,7 @@ export function PostGamePanel({ connection, send }: Props) {
   if (connection.state && result) {
     return (
       <section aria-label="Fim de partida" className="flex flex-1 flex-col gap-4 overflow-y-auto rounded-panel surface card p-5 shadow-soft animate-fade-up">
-        <GameResultView result={result} state={connection.state} actions={usual} />
+        <GameResultView result={result} state={connection.state} actions={usual} onOpenProfile={onOpenProfile} />
         {honorStatus && <div className="flex justify-center">{honorStatus}</div>}
       </section>
     );

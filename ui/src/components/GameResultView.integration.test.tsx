@@ -104,3 +104,21 @@ it('funciona com um resultado incompleto, sem fila, sem PDL e sem o jogador loga
   expect(panel().queryByRole('region', { name: 'Seu desempenho' })).not.toBeInTheDocument();
   expect(panel().getAllByRole('row')).toHaveLength(2);
 });
+
+it('o nick no placar abre o perfil do jogador e o Voltar devolve ao pós-jogo (#585)', () => {
+  render(<App />);
+  hello({ gameflowPhase: 'EndOfGame', gameResult: testGameResult });
+  // O próprio jogador não é clicável.
+  expect(panel().queryByRole('button', { name: 'Ver perfil de fake-name-0001#fake-tag-0001' })).not.toBeInTheDocument();
+  fireEvent.click(panel().getByRole('button', { name: 'Ver perfil de fake-name-0004#fake-tag-0004' }));
+  expect(request()).toMatchObject({ command: { type: 'openPlayerProfile', puuid: 'fake-puuid-0091' } });
+  const profile = screen.getByRole('region', { name: 'Perfil do jogador' });
+  expect(profile).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Fim de partida', hidden: true })).not.toBeVisible();
+  // Com o perfil aberto, o Enter não joga de novo.
+  const sent = socket().send.mock.calls.length;
+  fireEvent.keyDown(document.body, { key: 'Enter' });
+  expect(socket().send.mock.calls.length).toBe(sent);
+  fireEvent.click(within(profile).getByRole('button', { name: 'Voltar' }));
+  expect(panel().getByRole('heading', { name: 'Vitória' })).toBeVisible();
+});
