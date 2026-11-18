@@ -1,7 +1,9 @@
 import type { ReadyCheckState } from '../bindings/ReadyCheckState';
 import type { ReadyCheckResponse } from '../bindings/ReadyCheckResponse';
 import type { ServerMessage } from '../bindings/ServerMessage';
+import type { AdvancedStats } from '../bindings/AdvancedStats';
 import type { GameResult } from '../bindings/GameResult';
+import type { PerkStats } from '../bindings/PerkStats';
 import type { GameResultTeam } from '../bindings/GameResultTeam';
 import type { HonorBallot } from '../bindings/HonorBallot';
 import type { RankedChange } from '../bindings/RankedChange';
@@ -35,6 +37,7 @@ import type { TutorialPart } from '../bindings/TutorialPart';
 import type { LobbyInvitation } from '../bindings/LobbyInvitation';
 import type { InvitationState } from '../bindings/InvitationState';
 import type { Position } from '../bindings/Position';
+import { advancedStatsKeys } from './advancedStats';
 import { isQueue } from './queues';
 import type { ErrorCode } from '../bindings/ErrorCode';
 import type { ReadyCheck } from '../bindings/ReadyCheck';
@@ -310,8 +313,16 @@ function rankedChange(v: unknown): v is RankedChange | null {
   return v === null || (object(v) && (v.queue === 'soloDuo' || v.queue === 'flex') && rankedEntry(v.before) &&
     rankedEntry(v.after) && (v.leaguePointsDelta === null || num(v.leaguePointsDelta)));
 }
+// Detalhes avançados (#586): um por jogador, na ordem de `players`.
+function perkStats(v: unknown): v is PerkStats {
+  return object(v) && uint(v.id) && Array.isArray(v.vars) && v.vars.length === 3 && v.vars.every(uint);
+}
+function advancedStats(v: unknown): v is AdvancedStats {
+  return object(v) && uints(v, advancedStatsKeys) && list(v.perks, perkStats);
+}
 function gameResultTeam(v: unknown): v is GameResultTeam {
-  return object(v) && uint(v.teamId) && booleans(v, ['playerTeam', 'win']) && list(v.players, matchPlayer);
+  return object(v) && uint(v.teamId) && booleans(v, ['playerTeam', 'win']) && list(v.players, matchPlayer) &&
+    list(v.advanced, advancedStats);
 }
 function gameResult(v: unknown): v is GameResult | null {
   return v === null || (object(v) && uints(v, ['gameId', 'queueId', 'durationSecs']) &&

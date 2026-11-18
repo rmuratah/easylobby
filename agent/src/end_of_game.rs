@@ -86,6 +86,98 @@ pub struct GameResultTeam {
     pub player_team: bool,
     pub win: bool,
     pub players: Vec<MatchPlayer>,
+    /// Estatísticas avançadas (#586), na mesma ordem de `players`.
+    pub advanced: Vec<AdvancedStats>,
+}
+
+/// Estatísticas avançadas de um jogador (#586), o "Exibir detalhes
+/// avançados" do placar do client oficial. Saem do `stats` do bloco; `0`
+/// quando a LCU não mandou (algumas não existem em todos os modos).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AdvancedStats {
+    /// Maior sequência de abates.
+    pub largest_killing_spree: u32,
+    pub largest_multi_kill: u32,
+    pub double_kills: u32,
+    pub triple_kills: u32,
+    pub quadra_kills: u32,
+    pub penta_kills: u32,
+    pub largest_critical_strike: u32,
+    /// Dano a campeões por tipo; o total é o `damageToChampions` do jogador.
+    pub physical_damage_to_champions: u32,
+    pub magic_damage_to_champions: u32,
+    pub true_damage_to_champions: u32,
+    /// Dano causado a tudo (campeões, tropas, monstros, estruturas).
+    pub damage_dealt: u32,
+    pub physical_damage_dealt: u32,
+    pub magic_damage_dealt: u32,
+    pub true_damage_dealt: u32,
+    pub damage_taken: u32,
+    pub physical_damage_taken: u32,
+    pub magic_damage_taken: u32,
+    pub true_damage_taken: u32,
+    pub damage_self_mitigated: u32,
+    pub heal: u32,
+    pub heal_on_teammates: u32,
+    pub shield_on_teammates: u32,
+    /// Segundos controlando inimigos (atordoar, enraizar...).
+    pub time_ccing_others: u32,
+    pub wards_placed: u32,
+    pub wards_killed: u32,
+    pub control_wards_bought: u32,
+    pub gold_spent: u32,
+    /// Tropas; com os monstros, dá o `cs` do jogador.
+    pub minions_killed: u32,
+    pub neutral_minions_killed: u32,
+    pub ally_jungle_minions_killed: u32,
+    pub enemy_jungle_minions_killed: u32,
+    pub turret_kills: u32,
+    pub turret_takedowns: u32,
+    pub inhibitor_kills: u32,
+    pub damage_to_turrets: u32,
+    pub damage_to_objectives: u32,
+    pub damage_to_epic_monsters: u32,
+    pub dragon_kills: u32,
+    pub baron_kills: u32,
+    pub objectives_stolen: u32,
+    pub longest_time_living_secs: u32,
+    pub time_dead_secs: u32,
+    /// Habilidades usadas (Q, W, E, R) e feitiços de invocador.
+    pub spell1_casts: u32,
+    pub spell2_casts: u32,
+    pub spell3_casts: u32,
+    pub spell4_casts: u32,
+    pub summoner1_casts: u32,
+    pub summoner2_casts: u32,
+    /// Pings.
+    pub all_in_pings: u32,
+    pub assist_me_pings: u32,
+    pub basic_pings: u32,
+    pub command_pings: u32,
+    pub danger_pings: u32,
+    pub enemy_missing_pings: u32,
+    pub enemy_vision_pings: u32,
+    pub get_back_pings: u32,
+    pub hold_pings: u32,
+    pub need_vision_pings: u32,
+    pub on_my_way_pings: u32,
+    pub push_pings: u32,
+    pub retreat_pings: u32,
+    pub vision_cleared_pings: u32,
+    /// As seis runas escolhidas (`PERK0` a `PERK5`: a principal, as três da
+    /// árvore primária e as duas da secundária) com os valores do fim da
+    /// partida. Vazia nos modos sem runas (ARAM: Desordem, Arena).
+    pub perks: Vec<PerkStats>,
+}
+
+/// Uma runa e os valores dela no fim da partida (#586), que entram no lugar
+/// de `@eogvar1@` a `@eogvar3@` nas descrições do catálogo de runas.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct PerkStats {
+    pub id: u32,
+    pub vars: [u32; 3],
 }
 
 /// Rank antes e depois da partida.
@@ -191,6 +283,110 @@ impl RawPlayer {
     }
 }
 
+impl RawPlayer {
+    fn to_advanced(&self) -> AdvancedStats {
+        AdvancedStats {
+            largest_killing_spree: self.stat(&["LARGEST_KILLING_SPREE", "largestKillingSpree"]),
+            largest_multi_kill: self.stat(&["LARGEST_MULTI_KILL", "largestMultiKill"]),
+            double_kills: self.stat(&["doubleKills"]),
+            triple_kills: self.stat(&["tripleKills"]),
+            quadra_kills: self.stat(&["quadraKills"]),
+            penta_kills: self.stat(&["pentaKills"]),
+            largest_critical_strike: self
+                .stat(&["LARGEST_CRITICAL_STRIKE", "largestCriticalStrike"]),
+            physical_damage_to_champions: self.stat(&[
+                "PHYSICAL_DAMAGE_DEALT_TO_CHAMPIONS",
+                "physicalDamageDealtToChampions",
+            ]),
+            magic_damage_to_champions: self.stat(&[
+                "MAGIC_DAMAGE_DEALT_TO_CHAMPIONS",
+                "magicDamageDealtToChampions",
+            ]),
+            true_damage_to_champions: self.stat(&[
+                "TRUE_DAMAGE_DEALT_TO_CHAMPIONS",
+                "trueDamageDealtToChampions",
+            ]),
+            damage_dealt: self.stat(&["TOTAL_DAMAGE_DEALT", "totalDamageDealt"]),
+            physical_damage_dealt: self
+                .stat(&["PHYSICAL_DAMAGE_DEALT_PLAYER", "physicalDamageDealt"]),
+            magic_damage_dealt: self.stat(&["MAGIC_DAMAGE_DEALT_PLAYER", "magicDamageDealt"]),
+            true_damage_dealt: self.stat(&["TRUE_DAMAGE_DEALT_PLAYER", "trueDamageDealt"]),
+            damage_taken: self.stat(&["TOTAL_DAMAGE_TAKEN", "totalDamageTaken"]),
+            physical_damage_taken: self.stat(&["PHYSICAL_DAMAGE_TAKEN", "physicalDamageTaken"]),
+            magic_damage_taken: self.stat(&["MAGIC_DAMAGE_TAKEN", "magicDamageTaken"]),
+            true_damage_taken: self.stat(&["TRUE_DAMAGE_TAKEN", "trueDamageTaken"]),
+            damage_self_mitigated: self
+                .stat(&["TOTAL_DAMAGE_SELF_MITIGATED", "damageSelfMitigated"]),
+            heal: self.stat(&["TOTAL_HEAL", "totalHeal"]),
+            heal_on_teammates: self.stat(&["TOTAL_HEAL_ON_TEAMMATES", "totalHealsOnTeammates"]),
+            shield_on_teammates: self.stat(&[
+                "TOTAL_DAMAGE_SHIELDED_ON_TEAMMATES",
+                "totalDamageShieldedOnTeammates",
+            ]),
+            time_ccing_others: self.stat(&["TIME_CCING_OTHERS", "timeCCingOthers"]),
+            wards_placed: self.stat(&["WARD_PLACED", "wardsPlaced"]),
+            wards_killed: self.stat(&["WARD_KILLED", "wardsKilled"]),
+            control_wards_bought: self
+                .stat(&["VISION_WARDS_BOUGHT_IN_GAME", "visionWardsBoughtInGame"]),
+            gold_spent: self.stat(&["goldSpent"]),
+            minions_killed: self.stat(&["MINIONS_KILLED", "totalMinionsKilled"]),
+            neutral_minions_killed: self.stat(&["NEUTRAL_MINIONS_KILLED", "neutralMinionsKilled"]),
+            ally_jungle_minions_killed: self.stat(&[
+                "NEUTRAL_MINIONS_KILLED_YOUR_JUNGLE",
+                "totalAllyJungleMinionsKilled",
+            ]),
+            enemy_jungle_minions_killed: self.stat(&[
+                "NEUTRAL_MINIONS_KILLED_ENEMY_JUNGLE",
+                "totalEnemyJungleMinionsKilled",
+            ]),
+            turret_kills: self.stat(&["TURRETS_KILLED", "turretKills"]),
+            turret_takedowns: self.stat(&["turretTakedowns"]),
+            inhibitor_kills: self.stat(&["BARRACKS_KILLED", "inhibitorKills"]),
+            damage_to_turrets: self
+                .stat(&["TOTAL_DAMAGE_DEALT_TO_TURRETS", "damageDealtToTurrets"]),
+            damage_to_objectives: self.stat(&[
+                "TOTAL_DAMAGE_DEALT_TO_OBJECTIVES",
+                "damageDealtToObjectives",
+            ]),
+            damage_to_epic_monsters: self.stat(&["damageDealtToEpicMonsters"]),
+            dragon_kills: self.stat(&["dragonKills"]),
+            baron_kills: self.stat(&["baronKills"]),
+            objectives_stolen: self.stat(&["objectivesStolen"]),
+            longest_time_living_secs: self.stat(&["longestTimeSpentLiving"]),
+            time_dead_secs: self.stat(&["totalTimeSpentDead"]),
+            spell1_casts: self.stat(&["spell1Casts"]),
+            spell2_casts: self.stat(&["spell2Casts"]),
+            spell3_casts: self.stat(&["spell3Casts"]),
+            spell4_casts: self.stat(&["spell4Casts"]),
+            summoner1_casts: self.stat(&["summoner1Casts"]),
+            summoner2_casts: self.stat(&["summoner2Casts"]),
+            all_in_pings: self.stat(&["allInPings"]),
+            assist_me_pings: self.stat(&["assistMePings"]),
+            basic_pings: self.stat(&["basicPings"]),
+            command_pings: self.stat(&["commandPings"]),
+            danger_pings: self.stat(&["dangerPings"]),
+            enemy_missing_pings: self.stat(&["enemyMissingPings"]),
+            enemy_vision_pings: self.stat(&["enemyVisionPings"]),
+            get_back_pings: self.stat(&["getBackPings"]),
+            hold_pings: self.stat(&["holdPings"]),
+            need_vision_pings: self.stat(&["needVisionPings"]),
+            on_my_way_pings: self.stat(&["onMyWayPings"]),
+            push_pings: self.stat(&["pushPings"]),
+            retreat_pings: self.stat(&["retreatPings"]),
+            vision_cleared_pings: self.stat(&["visionClearedPings"]),
+            perks: (0..6)
+                .map(|i| PerkStats {
+                    id: self.stat(&[&format!("PERK{i}"), &format!("perk{i}")]),
+                    vars: [1, 2, 3].map(|v| {
+                        self.stat(&[&format!("PERK{i}_VAR{v}"), &format!("perk{i}Var{v}")])
+                    }),
+                })
+                .filter(|p| p.id != 0)
+                .collect(),
+        }
+    }
+}
+
 impl GameResult {
     /// Lê o bloco de estatísticas (o `data` de um evento ou a resposta do
     /// REST). `None` sem partida (`gameId` 0) ou sem nenhum jogador, como
@@ -236,6 +432,7 @@ impl GameResult {
                     .iter()
                     .map(|p| p.to_player(t.team_id, t.is_winning_team))
                     .collect(),
+                advanced: t.players.iter().map(RawPlayer::to_advanced).collect(),
             })
             .collect();
         // Estável: o time do jogador primeiro, os outros na ordem da LCU.
@@ -430,6 +627,34 @@ mod tests {
         assert_eq!(ksante.perk_id, 8437);
         assert_eq!(ksante.perk_style_id, 8400);
         assert_eq!(ksante.perk_sub_style_id, 8000);
+
+        // Detalhes avançados (#586), na ordem dos jogadores.
+        assert_eq!(mine.advanced.len(), 5);
+        let advanced = &mine.advanced[0];
+        assert_eq!(advanced.physical_damage_to_champions, 12604);
+        assert_eq!(advanced.magic_damage_to_champions, 1116);
+        assert_eq!(advanced.true_damage_to_champions, 547);
+        assert_eq!(advanced.damage_taken, 25107);
+        assert_eq!(advanced.damage_self_mitigated, 32692);
+        assert_eq!(advanced.shield_on_teammates, 771);
+        assert_eq!(advanced.wards_placed, 5);
+        assert_eq!(advanced.gold_spent, 8200);
+        assert_eq!(advanced.minions_killed, 121);
+        assert_eq!(advanced.turret_kills, 4);
+        assert_eq!(advanced.longest_time_living_secs, 529);
+        assert_eq!(advanced.time_dead_secs, 140);
+        assert_eq!(advanced.spell1_casts, 158);
+        assert_eq!(advanced.on_my_way_pings, 5);
+        assert_eq!(mine.advanced[1].dragon_kills, 4);
+        assert_eq!(advanced.perks.len(), 6);
+        assert_eq!(
+            advanced.perks[0],
+            PerkStats {
+                id: 8437,
+                vars: [1116, 635, 0]
+            }
+        );
+        assert_eq!(advanced.perks[5].id, 8299);
 
         let me = mine
             .players

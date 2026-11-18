@@ -16,4 +16,10 @@ export type Perk = {
    * `perks.json` não traz.
    */
   longDesc: string,
+  /**
+   * Estatísticas da runa no fim da partida (#586), em texto puro, uma por
+   * linha, com os valores como `@eogvar1@` a `@eogvar3@`
+   * (`Total de dano: @eogvar1@`).
+   */
+  endOfGameStatDescs: Array<string>,
 };

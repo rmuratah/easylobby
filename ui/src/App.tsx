@@ -192,9 +192,12 @@ export default function App() {
               ? <LiveGamePanel state={connection.state} game={liveGame} onOpenProfile={openPlayerProfile} />
               : <EmptyState title={phaseLabel(connection.state?.gameflowPhase)}
                 description="Esta fase ainda não tem tela no easylobby. Use “Abrir client oficial”, no alto da janela, para continuar." />)}
-            {activePage === 'flow' && screen === 'postGame' && <FeatureGate connection={connection} send={connection.send} feature="postGame">
-              <PostGamePanel connection={connection} send={connection.send} />
-            </FeatureGate>}
+            {/* Montado durante todo o pós-jogo: o perfil aberto pelo placar (#585) não desfaz a honra votada. */}
+            {screen === 'postGame' && <div hidden={activePage !== 'flow'} className="contents">
+              <FeatureGate connection={connection} send={connection.send} feature="postGame">
+                <PostGamePanel connection={connection} send={connection.send} onOpenProfile={openPlayerProfile} visible={activePage === 'flow'} />
+              </FeatureGate>
+            </div>}
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
             {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}
             <div hidden={!playable || (activePage !== 'flow' && activePage !== 'home')} className={homeLayout ? 'home-primary'

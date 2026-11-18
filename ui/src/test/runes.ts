@@ -41,7 +41,7 @@ export const testFullRuneCatalog: RuneCatalog = {
     style(8100, 'Dominação', 200, [8000, 8200]),
     style(8200, 'Feitiçaria', 300, [8000]),
   ],
-  perks: Object.entries(names).map(([id, name]) => ({ id: Number(id), name, shortDesc: `Descrição de ${name}`, longDesc: `Descrição completa de ${name}.\n\nTempo de Recarga: 10s` })),
+  perks: Object.entries(names).map(([id, name]) => ({ id: Number(id), name, shortDesc: `Descrição de ${name}`, longDesc: `Descrição completa de ${name}.\n\nTempo de Recarga: 10s`, endOfGameStatDescs: [] })),
 };
 
 /** Página válida: Precisão com Dominação. */

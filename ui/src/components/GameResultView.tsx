@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { AgentState } from '../bindings/AgentState';
 import type { GameResult } from '../bindings/GameResult';
 import type { GameResultTeam } from '../bindings/GameResultTeam';
@@ -6,7 +6,9 @@ import type { MatchPlayer } from '../bindings/MatchPlayer';
 import { assetUrl } from '../agent/assets';
 import { compactNumber, localPlayer, perMinute, rankedChangeText, resultQueue, resultTitle } from '../agent/gameResult';
 import { formatDuration, kda, rankLabel } from '../agent/profile';
-import { Avatar } from './base';
+import { advancedColumns, hasRunes } from '../agent/advancedStats';
+import { AdvancedCharts, AdvancedRunes, AdvancedStatsTable } from './AdvancedDetails';
+import { Avatar, Segmented, type SegmentedOption } from './base';
 import { cx } from './base/cx';
 import { GameIcon, ItemRow } from './GameIcons';
 
@@ -15,6 +17,8 @@ type Props = {
   state: AgentState;
   /** Botões do pós-jogo (voltar ao lobby), no canto do cabeçalho. */
   actions?: ReactNode;
+  /** Abre o perfil de um jogador pelo nick (#585). */
+  onOpenProfile?: (puuid: string) => void;
 };
 
 /**
@@ -22,18 +26,35 @@ type Props = {
  * fila, duração e PDL na ranqueada; o resumo do jogador logado; e o placar
  * dos times, com o time do jogador primeiro.
  */
-export function GameResultView({ result, state, actions }: Props) {
+type View = 'scoreboard' | 'stats' | 'charts' | 'runes';
+
+export function GameResultView({ result, state, actions, onOpenProfile }: Props) {
   const me = localPlayer(result);
+  const [view, setView] = useState<View>('scoreboard');
+  const columns = advancedColumns(result);
+  // Detalhes avançados (#586): só com as estatísticas; Runas só nos modos com runas.
+  const views: SegmentedOption<View>[] = columns.length === 0 ? [] : [
+    { value: 'scoreboard', label: 'Placar' },
+    { value: 'stats', label: 'Estatísticas' },
+    { value: 'charts', label: 'Gráficos' },
+    ...(hasRunes(result) ? [{ value: 'runes' as const, label: 'Runas' }] : []),
+  ];
+  const shown = views.some(v => v.value === view) ? view : 'scoreboard';
+  const details = { columns, state, localPuuid: result.localPuuid, onOpenProfile };
   return (
     <div className="@container flex w-full flex-col gap-4">
       <Header result={result} state={state} actions={actions} />
       {me && <Summary player={me} state={state} durationSecs={result.durationSecs} />}
-      <div className="flex flex-col gap-3">
+      {views.length > 0 && <Segmented label="Detalhes da partida" options={views} value={shown} onChange={setView} className="self-start" />}
+      {shown === 'scoreboard' && <div className="flex flex-col gap-3">
         {result.teams.map(team => (
           <TeamTable key={team.teamId} team={team} state={state} remake={result.result === 'remake'}
-            localPuuid={result.localPuuid} durationSecs={result.durationSecs} />
+            localPuuid={result.localPuuid} durationSecs={result.durationSecs} onOpenProfile={onOpenProfile} />
         ))}
-      </div>
+      </div>}
+      {shown === 'stats' && <AdvancedStatsTable {...details} />}
+      {shown === 'charts' && <AdvancedCharts {...details} />}
+      {shown === 'runes' && <AdvancedRunes {...details} />}
     </div>
   );
 }
@@ -109,8 +130,9 @@ function Summary({ player: p, state, durationSecs }: { player: MatchPlayer; stat
   );
 }
 
-function TeamTable({ team, state, remake, localPuuid, durationSecs }: {
+function TeamTable({ team, state, remake, localPuuid, durationSecs, onOpenProfile }: {
   team: GameResultTeam; state: AgentState; remake: boolean; localPuuid: string; durationSecs: number;
+  onOpenProfile?: (puuid: string) => void;
 }) {
   const name = team.playerTeam ? 'Seu time' : 'Time inimigo';
   const outcome = remake ? '' : team.win ? ' · Vitória' : ' · Derrota';
@@ -147,17 +169,23 @@ function TeamTable({ team, state, remake, localPuuid, durationSecs }: {
         </tr>
       </thead>
       <tbody>
-        {team.players.map(p => (
-          <PlayerRow key={`${p.puuid}-${p.championId}`} player={p} state={state}
-            me={localPuuid !== '' && p.puuid === localPuuid} durationSecs={durationSecs} />
-        ))}
+        {team.players.map(p => {
+          const me = localPuuid !== '' && p.puuid === localPuuid;
+          return <PlayerRow key={`${p.puuid}-${p.championId}`} player={p} state={state} me={me} durationSecs={durationSecs}
+            onOpen={onOpenProfile && p.puuid !== '' && !me ? () => onOpenProfile(p.puuid) : undefined} />;
+        })}
       </tbody>
     </table>
   );
 }
 
-function PlayerRow({ player: p, state, me, durationSecs }: {
-  player: MatchPlayer; state: AgentState; me: boolean; durationSecs: number;
+/**
+ * Linha do placar. Com `onOpen`, o nick abre o perfil do jogador (#585), como
+ * no placar do histórico (#308); o próprio jogador e quem veio sem `puuid`
+ * (perfil privado) não são clicáveis.
+ */
+function PlayerRow({ player: p, state, me, durationSecs, onOpen }: {
+  player: MatchPlayer; state: AgentState; me: boolean; durationSecs: number; onOpen?: () => void;
 }) {
   const champion = championName(state, p.championId);
   const riotId = p.tagLine ? `${p.gameName}#${p.tagLine}` : p.gameName;
@@ -176,9 +204,14 @@ function PlayerRow({ player: p, state, me, durationSecs }: {
             <GameIcon kind="summonerSpell" id={p.spell2Id} size={14} />
           </span>
           <span className="min-w-0">
-            <span className={cx('block truncate', me ? 'font-semibold text-ink' : 'text-ink')} title={riotId}>
-              {p.gameName || champion}
-            </span>
+            {onOpen
+              ? <button type="button" onClick={onOpen} title={riotId} aria-label={`Ver perfil de ${riotId || champion}`}
+                className="-mx-1 block max-w-full truncate rounded-control-sm px-1 text-left text-ink hover:bg-surface hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
+                {p.gameName || champion}
+              </button>
+              : <span className={cx('block truncate', me ? 'font-semibold text-ink' : 'text-ink')} title={riotId}>
+                {p.gameName || champion}
+              </span>}
             <span className="block truncate text-muted">{champion}</span>
           </span>
         </div>
