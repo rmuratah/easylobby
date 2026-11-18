@@ -43,7 +43,8 @@ describe('estados de conexão', () => {
       expect(screen.getByRole('heading', { level: 2, name: title })).toBeInTheDocument();
     } else {
       expect(screen.getByRole('navigation', { name: 'Funcionalidades' })).toBeInTheDocument();
-      expect(screen.getByRole('complementary', { name: 'Amigos e convites' })).toBeInTheDocument();
+      // A aba de amigos começa fechada (#594): à vista fica só o botão dela.
+      expect(screen.getByRole('button', { name: /^Mostrar amigos/ })).toBeInTheDocument();
     }
   });
 

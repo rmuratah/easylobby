@@ -67,11 +67,16 @@ body { margin: 0; }
 [data-theme="escuro"] { --el-play-top: #2fbfcc; --el-play-mid: #13909d; --el-play-bottom: #0b6670; --el-play-edge: color-mix(in oklab, #21abb8 60%, #ffffff); }
 .app-content { container-type: inline-size; flex: 1; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: .75rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
 .app-content > * { flex-shrink: 0; }
-.app-social-region { position: relative; width: 20rem; flex-shrink: 0; min-height: 0; transition: width 180ms ease; }
-.app-social-region.is-collapsed { width: 0; }
-.app-social-region.is-collapsed > .sidebar-toggle { position: absolute; right: 0; top: .75rem; z-index: 20; }
-.sidebar-collapsed .app-content { padding-right: 3.25rem; }
-.app-sidebar { position: relative; width: 100%; height: 100%; overflow: auto; scrollbar-gutter: stable; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); }
+/* Aba de amigos (#594): fechada, só a faixa fina ocupa espaço; aberta, a coluna fica por cima do conteúdo,
+   presa à borda direita, e o resto da janela não muda de largura. */
+.app-social-region { position: relative; z-index: 25; width: 2.75rem; flex-shrink: 0; min-height: 0; }
+.app-social-rail { height: 100%; display: flex; flex-direction: column; align-items: center; padding-top: .75rem; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); }
+.app-sidebar { position: absolute; top: 0; right: 0; bottom: 0; width: 20rem; max-width: calc(100vw - 1.5rem); overflow: auto; scrollbar-gutter: stable; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); box-shadow: var(--el-shadow-lift); }
+.app-social-region.is-open > .app-sidebar { animation: social-slide-in 160ms ease-out; }
+/* Arrastando um amigo para o lobby: a coluna sai da vista sem desmontar quem está sendo arrastado. */
+.app-social-region.is-dragging > .app-sidebar { visibility: hidden; pointer-events: none; }
+@keyframes social-slide-in { from { opacity: 0; transform: translateX(.75rem); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .app-social-region.is-open > .app-sidebar { animation: none; } }
 /* Barras do app (topo e amigos) ficam lisas: sem a luz esmeralda dos cards dentro delas. */
 .app-sidebar .card { background-image: none; --tw-inset-shadow: 0 0 #0000; border-color: var(--el-line); }
 .app-sidebar > .sidebar-toggle { position: absolute; right: .875rem; top: .75rem; z-index: 20; }

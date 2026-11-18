@@ -1,68 +1,80 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
 
-export const SIDEBAR_STORAGE_KEY = "easylobby.amigos";
-/** Abaixo dessa largura, a seleção de campeões precisa da janela inteira. */
-const NARROW_QUERY = "(max-width: 1279px)";
-
-type Stored = "aberta" | "recolhida";
-
-function readStored(): Stored | null {
-  try {
-    const value = localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    return value === "aberta" || value === "recolhida" ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function store(value: Stored) {
-  try {
-    localStorage.setItem(SIDEBAR_STORAGE_KEY, value);
-  } catch {
-    // Sem armazenamento a escolha vale só até fechar o app.
-  }
-}
-
-function useNarrow(): boolean {
-  const [narrow, setNarrow] = useState(() => typeof matchMedia === "function" && matchMedia(NARROW_QUERY).matches);
-  useEffect(() => {
-    if (typeof matchMedia !== "function") return;
-    const query = matchMedia(NARROW_QUERY);
-    const update = () => setNarrow(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-  return narrow;
-}
+/** Tempo para o mouse sair da aba e voltar sem ela fechar no meio do caminho. */
+export const CLOSE_DELAY_MS = 250;
 
 /**
- * Coluna de amigos (#127): aberta ou recolhida conforme a última escolha do
- * jogador, que fica salva. Na seleção de campeões com a janela estreita ela
- * começa recolhida para dar espaço; abrir ali vale só até a seleção acabar.
+ * Aba de amigos (#594): começa fechada, numa faixa fina à direita, e abre
+ * por cima do conteúdo quando o mouse passa em cima, quando recebe o foco do
+ * teclado ou pelo botão. Fecha quando o mouse sai, com Esc ou com um clique
+ * fora. Ao arrastar um amigo para o lobby, ela sai da frente até o arraste
+ * acabar, sem desmontar quem está sendo arrastado.
  */
-export function useSidebar(champSelect: boolean) {
-  const [stored, setStored] = useState<Stored>(() => readStored() ?? "aberta");
-  const [openedInChampSelect, setOpenedInChampSelect] = useState(false);
-  const [wasChampSelect, setWasChampSelect] = useState(champSelect);
-  const narrow = useNarrow();
-  if (wasChampSelect !== champSelect) {
-    setWasChampSelect(champSelect);
-    setOpenedInChampSelect(false);
+export function useSidebar() {
+  const [open, setOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const regionRef = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function cancelClose() {
+    if (closeTimer.current !== null) clearTimeout(closeTimer.current);
+    closeTimer.current = null;
   }
-  const autoCollapse = champSelect && narrow;
-  const open = autoCollapse ? stored === "aberta" && openedInChampSelect : stored === "aberta";
+
+  useEffect(() => cancelClose, []);
+
+  // Clique ou toque fora da aba fecha (no toque não existe "mouse saiu").
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!regionRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  const regionProps = {
+    ref: regionRef,
+    onMouseEnter: () => {
+      cancelClose();
+      if (!dragging) setOpen(true);
+    },
+    onMouseLeave: () => {
+      cancelClose();
+      closeTimer.current = setTimeout(() => {
+        closeTimer.current = null;
+        setOpen(false);
+      }, CLOSE_DELAY_MS);
+    },
+    onFocus: () => {
+      cancelClose();
+      setOpen(true);
+    },
+    onBlur: (event: FocusEvent<HTMLDivElement>) => {
+      const next = event.relatedTarget as Node | null;
+      if (next && !event.currentTarget.contains(next)) setOpen(false);
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Escape" && open) {
+        event.stopPropagation();
+        setOpen(false);
+      }
+    },
+    // Esconder a origem no próprio dragstart cancela o arraste no Chromium; espera um ciclo.
+    onDragStart: () => {
+      setTimeout(() => setDragging(true), 0);
+    },
+    onDragEnd: () => {
+      cancelClose();
+      setDragging(false);
+      setOpen(false);
+    },
+  };
 
   function toggle() {
-    if (autoCollapse && stored === "aberta") {
-      setOpenedInChampSelect(!openedInChampSelect);
-      return;
-    }
-    const next: Stored = open ? "recolhida" : "aberta";
-    setStored(next);
-    store(next);
-    if (autoCollapse) setOpenedInChampSelect(true);
+    cancelClose();
+    setOpen(!open);
   }
 
-  return { open, toggle };
+  return { open, dragging, toggle, regionProps };
 }

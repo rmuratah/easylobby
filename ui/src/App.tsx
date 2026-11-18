@@ -56,7 +56,7 @@ export default function App() {
   const screen = mainScreen(connection);
   const view = connectionView(connection);
   const ready = view.screen === null;
-  const sidebar = useSidebar(screen === 'champSelect');
+  const sidebar = useSidebar();
   const invitations = connection.status === 'connected' && connection.state?.lcu.state === 'connected'
     ? connection.state.receivedInvitations.length : 0;
   const unread = connection.status === 'connected' && connection.state?.lcu.state === 'connected'
@@ -144,7 +144,7 @@ export default function App() {
         tools={<ToolbarSettings theme={theme} onThemeChange={setPreference}
           sound={soundSettings.settings} onSoundChange={soundSettings.update}
           update={appUpdate} canInstallUpdate={canInstallNow(connection.state?.lcu.state === 'connected' ? connection.state.gameflowPhase : null)} />} />
-      <div data-tauri-drag-region className={sidebar.open || !ready ? 'app-body' : 'app-body sidebar-collapsed'}>
+      <div data-tauri-drag-region className="app-body">
         <div data-tauri-drag-region className="app-main-column">
           <main ref={contentRef} className="app-content">
           {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error} />}
@@ -248,10 +248,15 @@ export default function App() {
           </div>
           </main>
         </div>
-        <div hidden={!ready} className={sidebar.open ? 'app-social-region' : 'app-social-region is-collapsed'}>
-          {!sidebar.open && <SidebarToggle open={false} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
-          {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento. */}
-          <aside id="coluna-amigos" aria-label="Amigos e convites" hidden={!sidebar.open} className="app-sidebar">
+        {/* Aba de amigos (#594): fechada numa faixa fina; o mouse em cima abre por cima do conteúdo, sem empurrá-lo. */}
+        <div hidden={!ready} {...sidebar.regionProps}
+          className={['app-social-region', sidebar.open && 'is-open', sidebar.dragging && 'is-dragging'].filter(Boolean).join(' ')}>
+          <div className="app-social-rail">
+            <SidebarToggle open={false} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />
+          </div>
+          {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento.
+              Durante o arraste de um amigo ela só sai da vista (CSS), para não cancelar o arraste. */}
+          <aside id="coluna-amigos" aria-label="Amigos e convites" hidden={!sidebar.open && !sidebar.dragging} className="app-sidebar">
             {sidebar.open && <SidebarToggle open onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
             {/* Convites recebidos ficam aqui, sem seção própria; convidar é pelo lobby (#206). */}
             <FeatureGate connection={connection} send={connection.send} feature="lobby" quiet>
