@@ -67,6 +67,8 @@ export type Command =
   | { "type": "createRunePage", page: RunePageInput, }
   | { "type": "updateRunePage", pageId: number, page: RunePageInput, }
   | { "type": "deleteRunePage", pageId: number, }
+  | { "type": "openRecommendedRunes", championId: number, position: Position, }
+  | { "type": "applyRecommendedRunes", index: number, }
   | { "type": "acceptInvitation", invitationId: string, }
   | { "type": "declineInvitation", invitationId: string, }
   | { "type": "inviteToLobby", invitees: Array<Invitee>, }

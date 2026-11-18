@@ -31,6 +31,7 @@ import type { RankedStats } from "./RankedStats";
 import type { ReadyCheck } from "./ReadyCheck";
 import type { ReceivedInvitation } from "./ReceivedInvitation";
 import type { RecentPlayer } from "./RecentPlayer";
+import type { RecommendedRunes } from "./RecommendedRunes";
 import type { RuneCatalog } from "./RuneCatalog";
 import type { RunePages } from "./RunePages";
 import type { SuggestedPlayer } from "./SuggestedPlayer";
@@ -136,6 +137,11 @@ export type AgentState = {
    * Árvores de runas para o editor (#26), ou `null`.
    */
   runeCatalog: RuneCatalog | null,
+  /**
+   * Últimas sugestões pedidas com `openRecommendedRunes` (#596), ou
+   * `null`.
+   */
+  recommendedRunes: RecommendedRunes | null,
   /**
    * Amigos com a presença de cada um (#30), na ordem da tela.
    */

@@ -274,6 +274,8 @@ describe('eventos de estado do agente', () => {
       { patchNotes: { version: '26.22', title: 'Notas', summary: null, url: 'https://www.leagueoflegends.com/', sections: [] } }],
     [{ type: 'collection', collection: testCollection }, { collection: testCollection }],
     [{ type: 'championSkins', championSkins: testChampionSkins }, { championSkins: testChampionSkins }],
+    [{ type: 'recommendedRunes', recommendedRunes: { championId: 63, position: 'middle', pages: [{ title: 'Dano de Habilidade e Mana', primaryStyleId: 8200, subStyleId: 8300, selectedPerkIds: [8229, 8226, 8210, 8237, 8304, 8347, 5008, 5008, 5011], summonerSpellIds: [4, 14], recommendationId: '' }] } },
+      { recommendedRunes: { championId: 63, position: 'middle', pages: [{ title: 'Dano de Habilidade e Mana', primaryStyleId: 8200, subStyleId: 8300, selectedPerkIds: [8229, 8226, 8210, 8237, 8304, 8347, 5008, 5008, 5011], summonerSpellIds: [4, 14], recommendationId: '' }] } }],
     [{ type: 'wallet', wallet: { blueEssence: 48210, orangeEssence: 3120, rp: null } },
       { wallet: { blueEssence: 48210, orangeEssence: 3120, rp: null } }],
   ] satisfies [ServerMessage, Partial<AgentState>][])('aplica %j sem perder os outros campos', (message, change) => {
@@ -288,6 +290,7 @@ describe('eventos de estado do agente', () => {
     [{ type: 'receivedInvitations', invitations: [] }, { receivedInvitations: [] }],
     [{ type: 'runePages', runePages: null }, { runePages: null }],
     [{ type: 'runeCatalog', runeCatalog: null }, { runeCatalog: null }],
+    [{ type: 'recommendedRunes', recommendedRunes: null }, { recommendedRunes: null }],
     [{ type: 'summonerSpellCatalog', summonerSpellCatalog: null }, { summonerSpellCatalog: null }],
     [{ type: 'championCatalog', championCatalog: null }, { championCatalog: null }],
     [{ type: 'champSelectChampions', champSelectChampions: { pickable: null, bannable: null, subset: null } },

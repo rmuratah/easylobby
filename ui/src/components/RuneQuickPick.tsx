@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, type ReactNode } from 'react';
 import type { AgentClient } from '../agent/client';
 import { useCommand } from '../agent/useCommand';
 import type { RuneCatalog } from '../bindings/RuneCatalog';
@@ -13,10 +13,12 @@ type Props = {
   send: AgentClient['send'];
   /** Abre a página de runas completa, sem sair da seleção (#131). */
   onEdit?: () => void;
+  /** Botão do recomendador de runas (#596), ao lado do lápis. */
+  recommender?: ReactNode;
 };
 
 /** Troca rápida da página de runas dentro da seleção de campeões (#131). */
-export function RuneQuickPick({ runePages, catalog, send, onEdit }: Props) {
+export function RuneQuickPick({ runePages, catalog, send, onEdit, recommender }: Props) {
   const command = useCommand(send);
   const selectId = useId();
   const current = runePages?.pages.find(page => page.id === runePages.currentPageId);
@@ -45,6 +47,7 @@ export function RuneQuickPick({ runePages, catalog, send, onEdit }: Props) {
                     disabled={command.pending || runePages.pages.length === 0} placeholder="Escolha uma página"
                     options={runePages.pages.map(page => ({ value: page.id, label: page.name }))}
                     onChange={choose} />
+                  {recommender}
                   {/* O lápis ao lado da página abre o editor completo (#496). */}
                   {onEdit && (
                     <button type="button" aria-label="Editar runas" title="Editar runas" onClick={onEdit}

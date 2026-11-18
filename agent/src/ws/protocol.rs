@@ -77,6 +77,7 @@ use crate::queues::GameQueue;
 use crate::quick_play::PlayerSlotInput;
 use crate::ranked::RankedStats;
 use crate::ready_check::ReadyCheck;
+use crate::rune_recommender::RecommendedRunes;
 use crate::runes::{RuneCatalog, RunePageInput, RunePages};
 use crate::summoner::Summoner;
 use crate::summoner_spells::SummonerSpellCatalog;
@@ -233,6 +234,12 @@ pub enum ServerMessage {
     /// com o LoL, logo depois de conectar. `null` com o LoL fechado ou se a
     /// LCU não mandou as árvores.
     RuneCatalog { rune_catalog: Option<RuneCatalog> },
+    /// As páginas de runas sugeridas para um campeão numa rota (#596),
+    /// pedidas com `openRecommendedRunes`. Fica no estado até outra rota ou
+    /// outro campeão ser pedido. `null` com o LoL fechado.
+    RecommendedRunes {
+        recommended_runes: Option<RecommendedRunes>,
+    },
 
     // Social: amigos, convites e conversas
     /// A lista de amigos (#30) mudou: alguém ficou online ou offline, entrou
@@ -421,6 +428,9 @@ pub struct AgentState {
     pub rune_pages: Option<RunePages>,
     /// Árvores de runas para o editor (#26), ou `null`.
     pub rune_catalog: Option<RuneCatalog>,
+    /// Últimas sugestões pedidas com `openRecommendedRunes` (#596), ou
+    /// `null`.
+    pub recommended_runes: Option<RecommendedRunes>,
 
     // Social: amigos, convites e conversas
     /// Amigos com a presença de cada um (#30), na ordem da tela.
@@ -964,6 +974,26 @@ pub enum Command {
         #[ts(type = "number")]
         page_id: u64,
     },
+    /// Lê as páginas de runas que o client sugere para `championId` na rota
+    /// `position` (#596), as do botão "Recomendador" da seleção. As
+    /// sugestões chegam numa mensagem `recommendedRunes` antes da resposta.
+    /// Se outro campeão ou outra rota for pedido antes destas chegarem,
+    /// estas são descartadas. Responde `invalidCommand` para `championId`
+    /// `0` ou rota `fill`/`unselected`, `notConnected` com o LoL fechado e
+    /// `lcu` se a LCU recusar.
+    OpenRecommendedRunes {
+        champion_id: u32,
+        position: Position,
+    },
+    /// Aplica a sugestão `index` de `recommendedRunes` (#596) como página
+    /// temporária, como o client oficial: não ocupa espaço de página
+    /// comprada e troca a temporária que já existir. As páginas novas chegam
+    /// numa mensagem `runePages` antes da resposta. Não troca os feitiços.
+    /// Responde `notFound` sem sugestões no estado ou com `index` fora da
+    /// lista, `invalidCommand` se a página não vale nas árvores do
+    /// `runeCatalog`, `notConnected` com o LoL fechado e `lcu` se a LCU
+    /// recusar.
+    ApplyRecommendedRunes { index: u32 },
 
     // Social: amigos, convites e conversas
     /// Aceita um convite de lobby recebido (#32) e entra no lobby de quem
@@ -1171,6 +1201,7 @@ mod tests {
                     "champSelectChat": null,
                     "runePages": null,
                     "runeCatalog": null,
+                    "recommendedRunes": null,
                     "summonerSpellCatalog": null,
                     "championCatalog": null,
                     "champSelectChampions": {"pickable": null, "bannable": null, "subset": null},
@@ -1741,6 +1772,24 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(msg.command, Command::OpenChampionSkins { champion_id: 266 });
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 20,
+            "command": {"type": "openRecommendedRunes", "championId": 63, "position": "middle"},
+        }))
+        .unwrap();
+        assert_eq!(
+            msg.command,
+            Command::OpenRecommendedRunes {
+                champion_id: 63,
+                position: Position::Middle
+            }
+        );
+        let msg: ClientMessage = serde_json::from_value(json!({
+            "id": 21,
+            "command": {"type": "applyRecommendedRunes", "index": 2},
+        }))
+        .unwrap();
+        assert_eq!(msg.command, Command::ApplyRecommendedRunes { index: 2 });
         let msg: ClientMessage = serde_json::from_value(json!({
             "id": 14,
             "command": {"type": "inviteToLobby", "invitees": [{"summonerId": 1003, "puuid": "p"}]},

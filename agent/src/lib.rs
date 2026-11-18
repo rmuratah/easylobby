@@ -107,6 +107,7 @@ pub mod ranked;
 pub mod ready_check;
 pub mod rest;
 pub mod riot_api;
+pub mod rune_recommender;
 pub mod runes;
 pub mod skin_select;
 pub mod summoner;

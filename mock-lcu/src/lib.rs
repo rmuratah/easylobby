@@ -1388,6 +1388,11 @@ async fn handle_request(
         (&Method::GET, p) if perks::page_id(p).is_some() => {
             perks::get_page(&shared.state(), perks::page_id(p).unwrap_or_default())
         }
+        // Páginas sugeridas pelo recomendador da seleção (#596).
+        (&Method::GET, p) if p.starts_with(perks::RECOMMENDED_PAGES) => {
+            let state = shared.state();
+            perks::recommended_pages(&state, p).unwrap_or_else(|| state.get(p))
+        }
         (&Method::GET, perks::PERK_STYLES | perks::PERKS) => {
             let state = shared.state();
             perks::game_data(&state, &path).unwrap_or_else(|| state.get(&path))

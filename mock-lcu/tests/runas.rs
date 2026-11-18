@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use easylobby_agent::connection::{CredentialSource, LcuConnection, ReconnectConfig};
 use easylobby_agent::fixtures::FixtureSet;
+use easylobby_agent::lobby::Position;
 use easylobby_agent::runes::{RuneCatalog, RunePageInput, RunePages, RuneSlotKind};
 use easylobby_agent::ws::protocol::{
     ClientMessage, Command, CommandResult, ErrorCode, ServerMessage,
@@ -229,6 +230,71 @@ async fn sem_espaco_a_lcu_recusa_criar() {
     )
     .await;
     assert!(is_error(&result, ErrorCode::Lcu), "{result:?}");
+
+    mock.shutdown().await;
+}
+
+#[tokio::test]
+async fn recomendador_aplica_pagina_temporaria_sem_espaco() {
+    let dir = temp_dir("recomendador");
+    let mock = start_mock(&dir).await;
+    let url = start_agent(&dir).await;
+    let mut ui = tokio_tungstenite::connect_async(&url).await.unwrap().0;
+    wait_runes(&mut ui).await;
+
+    // Sem espaço para página comprada: a recomendada não precisa (#596).
+    for (id, name) in [(1, "Quarta"), (2, "Quinta")] {
+        let (_, result) = run(&mut ui, id, Command::CreateRunePage { page: page(name) }).await;
+        assert_eq!(result, CommandResult::Ok);
+    }
+
+    send(
+        &mut ui,
+        3,
+        Command::OpenRecommendedRunes {
+            champion_id: 63,
+            position: Position::Middle,
+        },
+    )
+    .await;
+    let mut recommended = None;
+    loop {
+        match recv(&mut ui).await {
+            ServerMessage::RecommendedRunes { recommended_runes } => {
+                recommended = recommended_runes
+            }
+            ServerMessage::Response { id: 3, result } => {
+                assert_eq!(result, CommandResult::Ok);
+                break;
+            }
+            _ => {}
+        }
+    }
+    let recommended = recommended.expect("as sugestões chegam antes da resposta");
+    assert_eq!(recommended.champion_id, 63);
+    assert_eq!(recommended.pages.len(), 3);
+    assert_eq!(recommended.pages[1].title, "Dano de Habilidade e Mana");
+
+    let (pages, result) = run(&mut ui, 4, Command::ApplyRecommendedRunes { index: 1 }).await;
+    assert_eq!(result, CommandResult::Ok);
+    let pages = pages.unwrap();
+    let temporary: Vec<_> = pages.pages.iter().filter(|p| p.is_temporary).collect();
+    assert_eq!(temporary.len(), 1);
+    assert_eq!(temporary[0].name, "Brand – Cometa Arcano");
+    assert_eq!(temporary[0].selected_perk_ids[0], 8229);
+    assert_eq!(pages.current_page_id, Some(temporary[0].id));
+
+    // Outra sugestão troca a temporária em vez de criar mais uma.
+    let (pages, result) = run(&mut ui, 5, Command::ApplyRecommendedRunes { index: 0 }).await;
+    assert_eq!(result, CommandResult::Ok);
+    let pages = pages.unwrap();
+    let temporary: Vec<_> = pages.pages.iter().filter(|p| p.is_temporary).collect();
+    assert_eq!(temporary.len(), 1);
+    assert_eq!(temporary[0].name, "Brand – Colheita Sombria");
+    assert_eq!(pages.current_page_id, Some(temporary[0].id));
+
+    let (_, result) = run(&mut ui, 6, Command::ApplyRecommendedRunes { index: 9 }).await;
+    assert!(is_error(&result, ErrorCode::NotFound), "{result:?}");
 
     mock.shutdown().await;
 }

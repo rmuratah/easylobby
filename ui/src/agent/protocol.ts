@@ -17,6 +17,8 @@ import type { PatchNotes } from '../bindings/PatchNotes';
 import type { Collection } from '../bindings/Collection';
 import type { CollectionChampion } from '../bindings/CollectionChampion';
 import type { ChampionSkins } from '../bindings/ChampionSkins';
+import type { RecommendedRunes } from '../bindings/RecommendedRunes';
+import type { RecommendedRunePage } from '../bindings/RecommendedRunePage';
 import type { CollectionSkin } from '../bindings/CollectionSkin';
 import type { SkinChroma } from '../bindings/SkinChroma';
 import type { LiveGame } from '../bindings/LiveGame';
@@ -238,6 +240,14 @@ function runePages(v: unknown): v is RunePages | null {
 function runeCatalog(v: unknown): v is RuneCatalog | null {
   return v === null || (object(v) && list(v.styles, object) && list(v.perks, object));
 }
+// Recomendador de runas da seleção (#596).
+function recommendedRunePage(v: unknown): v is RecommendedRunePage {
+  return object(v) && strings(v, ['title', 'recommendationId']) && uints(v, ['primaryStyleId', 'subStyleId']) &&
+    list(v.selectedPerkIds, uint) && list(v.summonerSpellIds, uint);
+}
+function recommendedRunes(v: unknown): v is RecommendedRunes | null {
+  return v === null || (object(v) && uint(v.championId) && position(v.position) && list(v.pages, recommendedRunePage));
+}
 function summonerSpellCatalog(v: unknown): v is SummonerSpellCatalog | null {
   return v === null || (object(v) && list(v.spells, object));
 }
@@ -442,7 +452,7 @@ function state(v: unknown): v is AgentState {
   return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && list(v.unavailableFeatures, unavailableFeature) && typeof v.lcuSlow === 'boolean' && lobby(v.lobby) && lobbyLink(v.lobbyLink) &&
     readyCheck(v.readyCheck) && honorBallot(v.honorBallot) && gameResult(v.gameResult) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && nullableIds(v.availableBots) && lobbyChat(v.lobbyChat) && customGames(v.customGames) && champSelect(v.champSelect) &&
     list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
-    champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) &&
+    champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) && recommendedRunes(v.recommendedRunes) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
     champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) && list(v.suggestedPlayers, suggestedPlayer) &&
     ranked(v.ranked) && list(v.championMasteries, championMastery) && lpHistory(v.lpHistory) && matchHistory(v.matchHistory) &&
@@ -483,6 +493,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'conversationClosed': valid = typeof v.id === 'string'; break;
     case 'runePages': valid = runePages(v.runePages); break;
     case 'runeCatalog': valid = runeCatalog(v.runeCatalog); break;
+    case 'recommendedRunes': valid = recommendedRunes(v.recommendedRunes); break;
     case 'summonerSpellCatalog': valid = summonerSpellCatalog(v.summonerSpellCatalog); break;
     case 'championCatalog': valid = championCatalog(v.championCatalog); break;
     case 'champSelectChampions': valid = champSelectChampions(v.champSelectChampions); break;

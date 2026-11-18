@@ -142,6 +142,11 @@ pub(super) async fn run(hub: &Hub, launch: &LaunchOptions, command: Command) -> 
         Command::CreateRunePage { page } => hub.create_rune_page(page).await,
         Command::UpdateRunePage { page_id, page } => hub.update_rune_page(page_id, page).await,
         Command::DeleteRunePage { page_id } => hub.delete_rune_page(page_id).await,
+        Command::OpenRecommendedRunes {
+            champion_id,
+            position,
+        } => hub.open_recommended_runes(champion_id, position).await,
+        Command::ApplyRecommendedRunes { index } => hub.apply_recommended_runes(index).await,
 
         // Social: amigos, convites e conversas
         Command::AcceptInvitation { invitation_id } => hub.accept_invitation(&invitation_id).await,
@@ -262,7 +267,9 @@ fn feature(command: &Command) -> Option<Feature> {
         SelectRunePage { .. }
         | CreateRunePage { .. }
         | UpdateRunePage { .. }
-        | DeleteRunePage { .. } => Some(Feature::Runes),
+        | DeleteRunePage { .. }
+        | OpenRecommendedRunes { .. }
+        | ApplyRecommendedRunes { .. } => Some(Feature::Runes),
         LoadRecentPlayers
         | LoadSuggestedPlayers
         | DismissSuggestedPlayer { .. }
