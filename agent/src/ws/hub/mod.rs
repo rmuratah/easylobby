@@ -135,6 +135,9 @@ struct Shared {
     /// Id da seleção em que o jogador marcou o aviso de autofill como visto
     /// (#360). Enquanto for a mesma seleção, o aviso fica escondido.
     autofill_ack: Option<String>,
+    /// O que já foi visto do banco do ARAM nesta seleção, para calcular a
+    /// espera de cada campeão (#588).
+    bench_cooldown: Option<crate::bench::BenchCooldown>,
     /// O resultado da partida que acabou de terminar (#179).
     game_result: game_result::GameResultSync,
     /// Pasta onde o histórico de PDL é gravado (#457). `None` não grava
@@ -227,6 +230,7 @@ impl Hub {
                     live_game: live_game::LiveGameSync::default(),
                     riot_api: None,
                     autofill_ack: None,
+                    bench_cooldown: None,
                     game_result: game_result::GameResultSync::default(),
                     lp_history_dir: None,
                     lp_history_puuid: None,

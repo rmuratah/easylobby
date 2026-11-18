@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { championName } from '../agent/champSelect';
 import { useCommand, type CommandFeedback } from '../agent/useCommand';
 import type { ChampSelect } from '../bindings/ChampSelect';
@@ -54,6 +55,9 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
   const pickable = state.champSelectChampions.pickable;
   function takeFromBench(championId: number) {
     if (busy || (pickable && !pickable.includes(championId))) return;
+    // Ainda na espera do banco (#588): o client oficial não deixa trocar.
+    const benched = champSelect.benchChampions.find(c => c.championId === championId);
+    if (benched && benchWaitMs(benched.availableAtMs, Date.now()) > 0) return;
     void bench.run({ type: 'swapBenchChampion', championId },
       { pending: `Pegando ${championName(catalog, championId)} do banco…`, failure: 'pegar o campeão do banco' });
   }
@@ -190,12 +194,40 @@ type BenchProps = {
 };
 
 /**
+ * Duração da espera do banco no client oficial (#588), só para desenhar o
+ * relógio: a hora em que cada campeão libera vem do agente
+ * (`BenchChampion.availableAtMs`).
+ */
+const BENCH_COOLDOWN_MS = 2600;
+
+/** Quanto falta para um campeão do banco liberar, em ms (0 se já liberou). */
+function benchWaitMs(availableAtMs: number | null, now: number): number {
+  return availableAtMs === null ? 0 : Math.max(0, availableAtMs - now);
+}
+
+/** A hora atual, atualizada enquanto algum campeão do banco estiver na espera. */
+function useBenchClock(champSelect: ChampSelect): number {
+  const [now, setNow] = useState(() => Date.now());
+  const until = Math.max(0, ...champSelect.benchChampions.map(c => c.availableAtMs ?? 0));
+  const waiting = until > now;
+  useEffect(() => {
+    if (!waiting) return;
+    const interval = setInterval(() => setNow(Date.now()), 100);
+    return () => clearInterval(interval);
+  }, [waiting, until]);
+  return now;
+}
+
+/**
  * O banco do time. Campeão que o jogador não tem (fora de `pickable`) fica em
- * cinza e não dá para clicar (#446), como no client oficial.
+ * cinza e não dá para clicar (#446), como no client oficial. Campeão na
+ * espera do banco (#588) fica escurecido com um relógio que vai clareando e
+ * também não dá para clicar.
  */
 function Bench({ champSelect, catalog, pickable, busy, onTake }: BenchProps) {
   const champions = champSelect.benchChampions;
   const owned = pickable ? new Set(pickable) : null;
+  const now = useBenchClock(champSelect);
   return (
     <section aria-label="Banco" className="flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
       <div className="flex flex-wrap items-baseline gap-x-3">
@@ -206,20 +238,33 @@ function Bench({ champSelect, catalog, pickable, busy, onTake }: BenchProps) {
         <p className="text-body text-muted">Nenhum campeão no banco ainda. As cartas que o time não escolher aparecem aqui.</p>
       ) : (
         <ul className="champion-grid" aria-label="Campeões no banco">
-          {champions.map(({ championId, isPriority }) => {
+          {champions.map(({ championId, isPriority, availableAtMs }) => {
             const name = championName(catalog, championId);
             const notOwned = owned !== null && !owned.has(championId);
+            const wait = benchWaitMs(availableAtMs, now);
+            const seconds = Math.ceil(wait / 1000);
+            // Fração da espera que ainda falta: o relógio começa fechado e vai abrindo.
+            const left = Math.min(1, wait / BENCH_COOLDOWN_MS);
             return (
               <li key={championId}>
-                <button type="button" disabled={busy || notOwned}
-                  title={notOwned ? `Você não tem ${name}` : `Pegar ${name}`}
-                  aria-label={notOwned ? `${name}: você não tem esse campeão` : `Pegar ${name} do banco`}
+                <button type="button" disabled={busy || notOwned || wait > 0}
+                  title={notOwned ? `Você não tem ${name}` : wait > 0 ? `${name} libera em ${seconds} s` : `Pegar ${name}`}
+                  aria-label={notOwned ? `${name}: você não tem esse campeão`
+                    : wait > 0 ? `${name}: libera em ${seconds} s` : `Pegar ${name} do banco`}
                   onClick={() => onTake(championId)}
-                  className={`flex w-full flex-col items-center gap-1 rounded-control border-2 border-transparent p-1 text-caption text-ink hover:border-accent hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent disabled:hover:bg-transparent${notOwned ? ' grayscale' : ''}`}>
-                  <ChampionIcon id={championId} size={56} />
+                  className={`flex w-full flex-col items-center gap-1 rounded-control border-2 border-transparent p-1 text-caption text-ink hover:border-accent hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:hover:border-transparent disabled:hover:bg-transparent${notOwned ? ' grayscale' : ''}${!notOwned && wait > 0 ? '' : ' disabled:opacity-40'}`}>
+                  <span className="relative inline-flex overflow-hidden rounded-control-sm">
+                    <ChampionIcon id={championId} size={56} />
+                    {wait > 0 && (
+                      <span aria-hidden="true" data-testid="bench-cooldown"
+                        className="pointer-events-none absolute inset-0"
+                        style={{ background: `conic-gradient(rgb(0 0 0 / 0.65) ${left * 360}deg, transparent 0deg)` }} />
+                    )}
+                  </span>
                   <span className="w-full truncate text-center">{name}</span>
                   {isPriority && <span className="text-caption font-semibold text-accent-ink">prioridade</span>}
                   {notOwned && <span className="text-caption text-muted">não possui</span>}
+                  {!notOwned && wait > 0 && <span className="text-caption tabular-nums text-muted">{seconds} s</span>}
                 </button>
               </li>
             );

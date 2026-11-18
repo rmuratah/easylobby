@@ -9,4 +9,13 @@ export type BenchChampion = {
    * Campeão com prioridade no banco (a LCU marca alguns assim no ARAM).
    */
   isPriority: boolean,
+  /**
+   * Quando o campeão libera para troca, em milissegundos desde 1970 pelo
+   * relógio do computador (#588). O client oficial trava o banco por
+   * [`BENCH_COOLDOWN_MS`] e a LCU não manda esse tempo, então o agente
+   * calcula (veja [`apply_bench_cooldown`]). `null` quando não há espera
+   * conhecida. A espera que falta é
+   * `Math.max(0, availableAtMs - Date.now())`.
+   */
+  availableAtMs: number | null,
 };

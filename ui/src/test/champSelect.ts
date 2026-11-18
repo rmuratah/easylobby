@@ -72,7 +72,7 @@ export const aramChampSelect: ChampSelect = {
   pendingAction: null,
   trades: [{ id: 30, cellId: 1, state: 'AVAILABLE' }],
   benchEnabled: true,
-  benchChampions: [{ championId: 103, isPriority: false }, { championId: 145, isPriority: true }],
+  benchChampions: [{ championId: 103, isPriority: false, availableAtMs: null }, { championId: 145, isPriority: true, availableAtMs: null }],
   allowRerolling: true,
   rerollsRemaining: 1,
 };
