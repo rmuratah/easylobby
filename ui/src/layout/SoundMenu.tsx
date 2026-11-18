@@ -7,6 +7,8 @@ import { LogsSetting } from './LogsSetting';
 import { AboutSection } from './AboutSection';
 import { UpdateSetting } from './UpdateSetting';
 import type { AppUpdateState } from '../agent/useAppUpdate';
+import type { Theme } from '../theme/theme';
+import { Segmented } from '../components/base';
 
 /** Espera depois de mexer no volume antes de tocar o som de teste. */
 const PREVIEW_DELAY_MS = 250;
@@ -19,16 +21,20 @@ type Props = {
   update?: AppUpdateState;
   /** Se dá para o app reiniciar agora (fora da fila, da seleção e da partida). */
   canInstallUpdate?: boolean;
+  /** Tema do app, no alto do menu; sem ele, a seção Aparência some. */
+  theme?: Theme;
+  onThemeChange?: (theme: Theme) => void;
 };
 
 /**
- * Botão de Configurações da barra lateral (#501): a parte de som, com
+ * Botão de Configurações da barra do alto (#501): o tema claro ou escuro,
+ * que saiu da barra para sobrar espaço em volta do Jogar; a parte de som, com
  * liga/desliga e volume, e a de abrir o app junto com o LoL (#511). Ao mexer
  * no volume, toca o som de partida encontrada para o jogador ouvir a altura.
  * Depois, a seção Atualizações (#35); um ponto no botão avisa de versão nova.
  * No fim, a seção Sobre com o aviso legal da Riot (#217).
  */
-export function SoundMenu({ settings, onChange, icon, update, canInstallUpdate = true }: Props) {
+export function SoundMenu({ settings, onChange, icon, update, canInstallUpdate = true, theme, onThemeChange }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const preview = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -72,14 +78,21 @@ export function SoundMenu({ settings, onChange, icon, update, canInstallUpdate =
     <div ref={rootRef} className="flex flex-col items-center">
       <button type="button" aria-label={label} title={label} aria-expanded={open} aria-controls={panelId}
         onClick={() => setOpen(current => !current)}
-        className="relative flex size-11 items-center justify-center rounded-full border border-control text-muted transition-colors hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+        className="relative flex size-9 items-center justify-center rounded-full border border-control text-muted transition-colors hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
         {icon}
         {muted && <span aria-hidden="true" data-muted className="absolute -right-0.5 -top-0.5 rounded-full border border-line bg-surface p-0.5 text-muted"><MutedIcon /></span>}
         {updateVersion && <span aria-hidden="true" data-update className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border border-surface bg-accent" />}
       </button>
       {open && (
         <section id={panelId} role="dialog" aria-label="Configurações"
-          className="fixed bottom-4 left-[7.25rem] z-50 flex max-h-[calc(100vh-2rem)] w-64 flex-col gap-3 overflow-y-auto rounded-card border border-line bg-surface p-4 text-ink shadow-[0_8px_24px_-12px_var(--el-overlay)]">
+          className="fixed right-3 top-[4.75rem] z-50 flex max-h-[calc(100vh-5.5rem)] w-64 flex-col gap-3 overflow-y-auto rounded-card border border-line bg-surface p-4 text-ink shadow-[0_8px_24px_-12px_var(--el-overlay)]">
+          {theme && onThemeChange && <>
+            <h2 className="text-section font-semibold">Aparência</h2>
+            <Segmented label="Tema" value={theme} onChange={onThemeChange} className="w-full [&>button]:flex-1" options={[
+              { value: 'claro', label: <><SunIcon />Claro</>, ariaLabel: 'Tema claro' },
+              { value: 'escuro', label: <><MoonIcon />Escuro</>, ariaLabel: 'Tema escuro' },
+            ]} />
+          </>}
           <h2 className="text-section font-semibold">Som</h2>
           <label className="flex items-center justify-between gap-3 text-body">
             Sons do app
@@ -101,6 +114,14 @@ export function SoundMenu({ settings, onChange, icon, update, canInstallUpdate =
       )}
     </div>
   );
+}
+
+function SunIcon() {
+  return <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>;
+}
+
+function MoonIcon() {
+  return <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z" /></svg>;
 }
 
 function MutedIcon() {

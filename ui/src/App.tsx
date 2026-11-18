@@ -22,7 +22,7 @@ import { useAppSounds } from './agent/useAppSounds';
 import { useAppUpdate } from './agent/useAppUpdate';
 import { canInstallNow } from './agent/appUpdate';
 import { useSidebar } from './layout/sidebar';
-import { SideNavigation, type NavigationPage } from './layout/SideNavigation';
+import { TopNavigation, ToolbarSettings, type NavigationPage } from './layout/TopNavigation';
 import { SidebarToggle } from './layout/SidebarToggle';
 import { connectionView } from './screens/connection';
 import { ConnectionScreen } from './components/connection/ConnectionScreen';
@@ -38,7 +38,7 @@ import { VanguardBanner } from './components/VanguardNotice';
 import { LolUpdateBanner } from './components/LolUpdateBanner';
 import { unavailableFeature } from './agent/compatibility';
 
-/** Runas não é destino da navegação lateral: o editor só abre pela seleção de campeões (#165). */
+/** Runas não é destino da navegação: o editor só abre pela seleção de campeões (#165). */
 type Page = NavigationPage | 'friendProfile';
 
 export default function App() {
@@ -136,14 +136,15 @@ export default function App() {
     // Margens e espaços vazios também arrastam a janela (#299). Sem valor, o
     // atributo só vale para cliques no próprio elemento, não nos filhos.
     <div data-tauri-drag-region className="app-shell">
-      <TitleBar connection={connection} send={connection.send} />
+      <TitleBar connection={connection} send={connection.send}
+        navigation={<div hidden={!ready} className="contents">
+          <TopNavigation active={activePage === 'friendProfile' ? 'profile' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'}
+            flowButtonRef={flowButtonRef} unread={unread} onNavigate={next => setNavigation({ screen, page: next })} />
+        </div>}
+        tools={<ToolbarSettings theme={theme} onThemeChange={setPreference}
+          sound={soundSettings.settings} onSoundChange={soundSettings.update}
+          update={appUpdate} canInstallUpdate={canInstallNow(connection.state?.lcu.state === 'connected' ? connection.state.gameflowPhase : null)} />} />
       <div data-tauri-drag-region className={sidebar.open || !ready ? 'app-body' : 'app-body sidebar-collapsed'}>
-        <div hidden={!ready} className="contents">
-          <SideNavigation active={activePage === 'friendProfile' ? 'profile' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'} flowButtonRef={flowButtonRef} theme={theme} unread={unread}
-            onNavigate={next => setNavigation({ screen, page: next })} onThemeChange={setPreference}
-            sound={soundSettings.settings} onSoundChange={soundSettings.update}
-            update={appUpdate} canInstallUpdate={canInstallNow(connection.state?.lcu.state === 'connected' ? connection.state.gameflowPhase : null)} />
-        </div>
         <div data-tauri-drag-region className="app-main-column">
           <main ref={contentRef} className="app-content">
           {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error} />}
@@ -207,7 +208,7 @@ export default function App() {
                 className="flex h-full min-h-[24rem] flex-col items-start justify-end gap-3 rounded-panel surface card p-8 shadow-soft animate-fade-up @min-[44rem]:p-10">
                 <span className="rounded-full bg-raised px-3 py-1 text-caption font-semibold uppercase tracking-wider text-muted">Em breve</span>
                 <h2 className="text-display font-semibold text-ink">Área reservada</h2>
-                <p className="max-w-md text-section text-muted">Este espaço vai ganhar uma nova função numa futura atualização. Para jogar, use “Jogar” na barra lateral.</p>
+                <p className="max-w-md text-section text-muted">Este espaço vai ganhar uma nova função numa futura atualização. Para jogar, use o botão “Jogar” no alto da janela.</p>
               </article>}
               <div hidden={homeReserved} className="contents">
                 <FeatureGate connection={connection} send={connection.send} feature="lobby">

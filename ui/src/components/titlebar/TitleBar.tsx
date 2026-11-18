@@ -11,15 +11,21 @@ type Props = {
   send: AgentClient["send"];
   /** Injetável nos testes; por padrão, a janela do Tauri (ou nada, no navegador). */
   controls?: WindowControls | null;
+  /** Navegação do app: as telas à esquerda e o Jogar no centro da barra. */
+  navigation?: ReactNode;
+  /** Tema e Configurações, antes do botão do client oficial. */
+  tools?: ReactNode;
 };
 
 const defaultControls = tauriWindowControls();
 
 /**
- * Controles compactos da moldura (#126, #160). O espaço vazio com
- * `data-tauri-drag-region` arrasta a janela; nenhum botão faz parte da região.
+ * Barra do alto da janela (#126, #160): a navegação do app, com o Jogar no
+ * centro, e à direita o estado da conexão, o saldo e os controles da moldura.
+ * O espaço vazio com `data-tauri-drag-region` arrasta a janela; nenhum botão
+ * faz parte da região.
  */
-export function TitleBar({ connection, send, controls = defaultControls }: Props) {
+export function TitleBar({ connection, send, controls = defaultControls, navigation, tools }: Props) {
   // O saldo (#370) só aparece com o LoL conectado e a LCU já respondendo.
   const wallet = connection.status === "connected" && connection.state?.lcu.state === "connected"
     ? connection.state.wallet : null;
@@ -28,11 +34,14 @@ export function TitleBar({ connection, send, controls = defaultControls }: Props
       data-tauri-drag-region
       className="app-toolbar select-none text-ink"
     >
-      <ConnectionIndicator view={connectionView(connection)} />
-      <div data-tauri-drag-region className="h-full min-w-4 flex-1" />
-      {wallet && <WalletBalance wallet={wallet} />}
-      <LaunchUxButton connection={connection} send={send} compact />
-      {controls ? <WindowButtons controls={controls} /> : <div className="w-1" />}
+      {navigation}
+      <div data-tauri-drag-region className="app-toolbar-end">
+        <ConnectionIndicator view={connectionView(connection)} />
+        {wallet && <WalletBalance wallet={wallet} />}
+        {tools}
+        <LaunchUxButton connection={connection} send={send} compact />
+        {controls ? <WindowButtons controls={controls} /> : <div className="w-1" />}
+      </div>
     </header>
   );
 }
@@ -50,7 +59,7 @@ function WindowButtons({ controls }: { controls: WindowControls }) {
     };
   }, [controls]);
   return (
-    <div className="flex h-full items-stretch">
+    <div className="app-window-buttons">
       <WindowButton label="Minimizar" onClick={controls.minimize}>
         <path d="M2 6h8" />
       </WindowButton>
@@ -74,7 +83,7 @@ function WindowButton({ label, onClick, danger = false, children }: WindowButton
       title={label}
       onClick={() => { onClick().catch((error: unknown) => console.error(`erro na janela (${label}):`, error)); }}
       className={
-        "flex w-12 items-center justify-center text-muted hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent " +
+        "flex w-11 items-center justify-center text-muted hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent " +
         (danger ? "hover:bg-[#c42b1c] hover:text-white" : "hover:bg-raised")
       }
     >

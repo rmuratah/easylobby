@@ -17,7 +17,7 @@ const CURRENCIES: Currency[] = [
  */
 export function WalletBalance({ wallet }: { wallet: Wallet }) {
   return (
-    <ul data-tauri-drag-region aria-label="Saldo da conta" className="flex shrink-0 items-center gap-3 text-caption tabular-nums text-ink">
+    <ul data-tauri-drag-region aria-label="Saldo da conta" className="flex shrink-0 items-center gap-2.5 text-caption tabular-nums text-ink">
       {CURRENCIES.map(({ key, label, color, shape }) => {
         const value = wallet[key];
         const text = value === null ? "—" : number.format(value);
