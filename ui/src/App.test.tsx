@@ -56,10 +56,10 @@ describe('invocador logado', () => {
   function loggedIn() {
     vi.mocked(useAgent).mockReturnValue({ status: 'connected', error: null, state: makeState({ summoner }), send: vi.fn() });
   }
-  it('mostra as barras laterais somente depois do login', () => {
+  it('mostra as barras do app somente depois do login', () => {
     loggedIn();
     render(<App />);
-    expect(screen.getByRole('complementary', { name: 'Navegação do aplicativo' })).toBeVisible();
+    expect(screen.getByRole('navigation', { name: 'Funcionalidades' })).toBeVisible();
     expect(screen.getByRole('complementary', { name: 'Amigos e convites' })).toBeVisible();
   });
   it('mostra Riot ID e nível e remove os dados ao perder a conexão', () => {

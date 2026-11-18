@@ -20,21 +20,51 @@ body { margin: 0; }
 *::-webkit-scrollbar-thumb:hover { background: color-mix(in oklab, var(--el-accent) 78%, var(--el-control)); }
 .app-shell { height: 100dvh; display: flex; flex-direction: column; gap: .75rem; padding: .75rem; }
 .app-body { display: flex; flex: 1; min-height: 0; gap: .75rem; }
-.app-navigation-slot { position: relative; width: 3.75rem; flex-shrink: 0; align-self: stretch; z-index: 30; }
-/* Estreita (só ícones) por padrão; ao passar o mouse ou navegar pelo teclado, expande sobre o conteúdo. */
-.app-navigation { position: absolute; inset: 0 auto 0 0; width: 3.75rem; overflow: hidden; padding: .5rem; display: flex; flex-direction: column; gap: 1rem; border-radius: var(--radius-panel); transition: width 160ms ease, box-shadow 160ms ease; }
-.app-navigation:hover, .app-navigation:has(:focus-visible) { width: 6.5rem; box-shadow: var(--el-shadow-soft), 0 12px 32px rgb(0 0 0 / .28); }
-.app-navigation-button { min-height: 2.75rem; }
-.app-navigation-label, .app-logo-full { display: none; }
-.app-navigation:hover .app-navigation-label, .app-navigation:has(:focus-visible) .app-navigation-label { display: inline; }
-.app-navigation:hover .app-logo-short, .app-navigation:has(:focus-visible) .app-logo-short { display: none; }
-.app-navigation:hover .app-logo-full, .app-navigation:has(:focus-visible) .app-logo-full { display: inline; }
-.app-logo { min-height: 3.5rem; display: flex; align-items: center; justify-content: center; font-size: .875rem; font-weight: 700; letter-spacing: -.02em; cursor: default; }
+.app-main-column { container-type: inline-size; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .75rem; }
+/* Barra do alto (#160): as telas à esquerda, o Jogar no centro da janela e, à direita, a conexão, o saldo e os
+   controles. As duas laterais têm a mesma largura para o Jogar ficar no meio; se uma não couber, ela cresce. */
+.app-toolbar { position: relative; z-index: 30; width: 100%; min-height: 3.5rem; flex-shrink: 0; margin-bottom: .5rem; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .75rem; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); }
+.app-toolbar-start { min-width: 0; padding-left: .625rem; display: flex; align-items: center; gap: .75rem; }
+/* Sem min-width 0: se a direita não couber na metade da barra, a coluna cresce e o Jogar sai um pouco do centro,
+   em vez de cortar o saldo. Os controles da moldura vão até a borda; o recorte arredonda o vermelho do Fechar. */
+.app-toolbar-end { grid-column: 3; align-self: stretch; display: flex; align-items: center; justify-content: flex-end; gap: .625rem; }
+.app-window-buttons { align-self: stretch; display: flex; margin-left: -.25rem; overflow: hidden; border-radius: 0 var(--radius-panel) var(--radius-panel) 0; }
+/* A frase da conexão não pesa na largura da coluna: ocupa só o que sobra, cortada com reticências. */
+.app-toolbar-end > .app-connection { flex: 1 1 auto; justify-content: flex-end; contain: inline-size; }
+.app-logo { display: flex; align-items: center; padding: 0 .25rem; font-size: .9375rem; font-weight: 700; letter-spacing: -.02em; white-space: nowrap; cursor: default; }
 .app-logo span span { color: var(--el-accent-ink); }
 .app-logo-short { color: var(--el-ink); }
-[data-theme="escuro"] .app-logo-short { color: #fff; }
-.app-main-column { container-type: inline-size; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .75rem; }
-.app-toolbar { width: 100%; min-height: 3rem; flex-shrink: 0; display: flex; align-items: center; gap: .625rem; padding-left: .875rem; overflow: hidden; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); }
+[data-theme="escuro"] .app-logo-short, [data-theme="escuro"] .app-logo-full { color: #fff; }
+.app-logo-full, .app-navigation-label, .app-connection-label { display: none; }
+/* Janela larga: os destinos ganham o nome ao lado do ícone, o logo aparece inteiro e a conexão, com a frase. */
+@media (min-width: 1360px) {
+  .app-navigation-label, .app-logo-full, .app-connection-label { display: inline; }
+  .app-logo-short { display: none; }
+}
+
+/* Jogar: no centro da barra, em destaque, descendo um pouco para fora dela, num trapézio. */
+.app-play-slot { --play-shape: polygon(0 0, 100% 0, calc(100% - 1.25rem) 100%, 1.25rem 100%); position: relative; align-self: stretch; width: 10.5rem; filter: drop-shadow(0 6px 14px color-mix(in oklab, var(--el-play-mid) 45%, transparent)); }
+.app-toolbar .app-play-button { position: absolute; left: 0; right: 0; top: -1px; height: calc(100% + 1px + .875rem); padding: 0 0 2px; border: 0; border-radius: 0; clip-path: var(--play-shape); background: var(--el-play-edge); color: #fff; transition: filter 140ms ease, transform 140ms ease; }
+.app-play-button-face { position: absolute; inset: 0 2px 2px; display: flex; align-items: center; justify-content: center; gap: .5rem; overflow: hidden; clip-path: polygon(0 0, 100% 0, calc(100% - 1.15rem) 100%, 1.15rem 100%); background: linear-gradient(180deg, var(--el-play-top), var(--el-play-mid) 55%, var(--el-play-bottom)); font-size: 1.0625rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; text-shadow: 0 1px 2px rgb(0 0 0 / .35); }
+.app-play-button-face::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / .35) 50%, transparent 65%); transform: translateX(-120%); animation: play-sheen 4.5s ease-in-out 1.5s infinite; pointer-events: none; }
+.app-play-button-face > * { position: relative; z-index: 1; }
+.app-toolbar .app-play-button:hover { filter: brightness(1.1) saturate(1.1); }
+.app-toolbar .app-play-button:active { transform: translateY(1px); }
+.app-toolbar .app-play-button:focus-visible { outline: none; filter: brightness(1.15); }
+.app-toolbar .app-play-button:focus-visible .app-play-button-face { box-shadow: inset 0 0 0 2px #fff; }
+/* Na tela do fluxo, uma faixa clara embaixo marca que é a página aberta. */
+.app-toolbar .app-play-button[aria-current="page"] { background: var(--el-play-edge); }
+.app-play-button[aria-current="page"] .app-play-button-face { box-shadow: inset 0 -3px 0 rgb(255 255 255 / .75); }
+/* Janela estreita: o Jogar e os espaços encolhem um pouco para o saldo caber e o Jogar seguir no centro. */
+@media (max-width: 1099px) {
+  .app-toolbar, .app-toolbar-end { gap: .5rem; }
+  .app-play-slot { width: 9.25rem; }
+  .app-play-button-face { font-size: 1rem; letter-spacing: .12em; }
+}
+@keyframes play-sheen { 0%, 70% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+@media (prefers-reduced-motion: reduce) { .app-play-button-face::after { animation: none; display: none; } }
+:root, [data-theme="claro"] { --el-play-top: #10a6b9; --el-play-mid: #03788b; --el-play-bottom: #025d6b; --el-play-edge: color-mix(in oklab, #03788b 55%, #ffffff); }
+[data-theme="escuro"] { --el-play-top: #2fbfcc; --el-play-mid: #13909d; --el-play-bottom: #0b6670; --el-play-edge: color-mix(in oklab, #21abb8 60%, #ffffff); }
 .app-content { container-type: inline-size; flex: 1; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: .75rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
 .app-content > * { flex-shrink: 0; }
 .app-social-region { position: relative; width: 20rem; flex-shrink: 0; min-height: 0; transition: width 180ms ease; }
@@ -42,7 +72,7 @@ body { margin: 0; }
 .app-social-region.is-collapsed > .sidebar-toggle { position: absolute; right: 0; top: .75rem; z-index: 20; }
 .sidebar-collapsed .app-content { padding-right: 3.25rem; }
 .app-sidebar { position: relative; width: 100%; height: 100%; overflow: auto; scrollbar-gutter: stable; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); }
-/* Barras do app (topo, navegação e amigos) ficam lisas: sem a luz esmeralda dos cards dentro delas. */
+/* Barras do app (topo e amigos) ficam lisas: sem a luz esmeralda dos cards dentro delas. */
 .app-sidebar .card { background-image: none; --tw-inset-shadow: 0 0 #0000; border-color: var(--el-line); }
 .app-sidebar > .sidebar-toggle { position: absolute; right: .875rem; top: .75rem; z-index: 20; }
 .app-sidebar > section { flex-shrink: 0; border: 0; border-radius: 0; background: transparent; }
@@ -50,8 +80,6 @@ body { margin: 0; }
 .app-sidebar > section + section { border-top: 1px solid var(--el-line); }
 .sidebar-toggle, .nav-button, .app-content > section > button { border: 1px solid var(--el-control); border-radius: .375rem; padding: .5rem 1rem; }
 .sidebar-toggle { border: 0; border-radius: 0; padding: 0; background: transparent; box-shadow: none; }
-.theme-switch { width: 2.75rem; align-items: center; }
-.theme-switch > button { width: 2.25rem; padding: 0; border-radius: 9999px; }
 button[aria-current="page"] { background: var(--el-accent-soft); border-color: var(--el-accent); }
 :focus-visible { outline: 2px solid var(--el-accent); outline-offset: 3px; }
 /* Campo dentro de uma caixa que já desenha o foco (focus-within): só a borda de fora. */

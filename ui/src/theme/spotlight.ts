@@ -18,7 +18,7 @@ export function installCardSpotlight() {
   const move = (event: PointerEvent) => {
     const card = fine.matches && !reduced.matches && event.pointerType === 'mouse' && event.target instanceof Element
       ? event.target.closest<HTMLElement>('.card') : null;
-    if (!card || card.closest('.app-sidebar, .app-navigation, .app-toolbar')) { clear(); return; }
+    if (!card || card.closest('.app-sidebar, .app-toolbar')) { clear(); return; }
     if (card !== active) { clear(); active = card; }
     x = event.clientX;
     y = event.clientY;
