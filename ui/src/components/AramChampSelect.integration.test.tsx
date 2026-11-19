@@ -73,7 +73,7 @@ it('rola de novo e acompanha o campeão novo e o banco', async () => {
   act(() => socket().receive({ type: 'champSelect', champSelect: {
     ...aramChampSelect,
     myTeam: aramChampSelect.myTeam.map(p => p.isLocalPlayer ? { ...p, championId: 20 } : p),
-    benchChampions: [...aramChampSelect.benchChampions, { championId: 266, isPriority: false }],
+    benchChampions: [...aramChampSelect.benchChampions, { championId: 266, isPriority: false, availableAtMs: null }],
     rerollsRemaining: 0,
   } }));
   await respond();
@@ -155,7 +155,7 @@ it('escolhe uma das cartas de campeão no início da seleção', async () => {
     ...choosing,
     timer: { ...choosing.timer, phase: 'FINALIZATION' },
     myTeam: choosing.myTeam.map(p => p.isLocalPlayer ? { ...p, championId: 103 } : p),
-    benchChampions: [{ championId: 62, isPriority: false }, { championId: 266, isPriority: false }],
+    benchChampions: [{ championId: 62, isPriority: false, availableAtMs: null }, { championId: 266, isPriority: false, availableAtMs: null }],
     actions: [{ ...choosing.actions[0], championId: 103, completed: true, isInProgress: false }],
     pendingAction: null,
   } }));
@@ -173,4 +173,28 @@ it('o banco fica em cima da escolha de skin, sem o card do seu campeão (#494, #
   const benchRegion = panel().getByRole('region', { name: 'Banco' });
   const skins = panel().getByRole('region', { name: 'Skins' });
   expect(benchRegion.compareDocumentPosition(skins) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it('trava o banco durante a espera e libera quando ela acaba (#588)', () => {
+  render(<App />);
+  const now = Date.now();
+  hello({ benchChampions: [
+    { championId: 103, isPriority: false, availableAtMs: now + 2600 },
+    { championId: 145, isPriority: true, availableAtMs: now - 1 },
+  ] });
+  const ahri = bench().getByRole('button', { name: 'Ahri: libera em 3 s' });
+  expect(ahri).toBeDisabled();
+  expect(within(ahri).getByTestId('bench-cooldown')).toBeInTheDocument();
+  expect(bench().getByRole('button', { name: "Pegar Kai'Sa do banco" })).toBeEnabled();
+  fireEvent.click(ahri);
+  expect(commands().some(m => m.command.type === 'swapBenchChampion')).toBe(false);
+
+  act(() => { vi.advanceTimersByTime(1000); });
+  expect(bench().getByRole('button', { name: 'Ahri: libera em 2 s' })).toBeDisabled();
+  act(() => { vi.advanceTimersByTime(1700); });
+  const free = bench().getByRole('button', { name: 'Pegar Ahri do banco' });
+  expect(free).toBeEnabled();
+  expect(within(free).queryByTestId('bench-cooldown')).not.toBeInTheDocument();
+  fireEvent.click(free);
+  expect(last().command).toEqual({ type: 'swapBenchChampion', championId: 103 });
 });

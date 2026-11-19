@@ -20,6 +20,7 @@
 //! [`check_reroll`] e [`check_bench_swap`] conferem o pedido contra a sessão
 //! atual antes de falar com a LCU.
 
+use std::collections::HashMap;
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
@@ -36,6 +37,121 @@ pub struct BenchChampion {
     pub champion_id: u32,
     /// Campeão com prioridade no banco (a LCU marca alguns assim no ARAM).
     pub is_priority: bool,
+    /// Quando o campeão libera para troca, em milissegundos desde 1970 pelo
+    /// relógio do computador (#588). O client oficial trava o banco por
+    /// [`BENCH_COOLDOWN_MS`] e a LCU não manda esse tempo, então o agente
+    /// calcula (veja [`apply_bench_cooldown`]). `null` quando não há espera
+    /// conhecida. A espera que falta é
+    /// `Math.max(0, availableAtMs - Date.now())`.
+    #[ts(type = "number | null")]
+    pub available_at_ms: Option<u64>,
+}
+
+/// Quanto o banco fica travado depois de cada mudança (#588).
+///
+/// A LCU não manda essa espera: nem a sessão nem a mensagem do servidor
+/// (`teambuilder/v1/tbdGameDtoV1`) têm campo para ela. Medida numa gravação
+/// de tela do client oficial no LoL real (16.22): cerca de 2,6 s.
+pub const BENCH_COOLDOWN_MS: u64 = 2_600;
+
+/// O que o agente já viu do banco numa seleção, para calcular a espera de
+/// cada campeão (#588).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BenchCooldown {
+    /// Id da seleção.
+    session_id: String,
+    /// Quando cada campeão chegou ao banco. `0` para os que já estavam lá
+    /// quando o agente viu a seleção pela primeira vez (hora desconhecida).
+    arrived_at: HashMap<u32, u64>,
+    /// Quando o jogador logado trocou com o banco pela última vez.
+    last_swap_at: Option<u64>,
+}
+
+/// Preenche `available_at_ms` de cada campeão do banco de `cs` (#588).
+///
+/// Como no client oficial (gravação de tela no LoL real, 16.22):
+/// - na fase das cartas (`BAN_PICK`) o banco fica travado até a etapa
+///   acabar e mais [`BENCH_COOLDOWN_MS`];
+/// - no começo da finalização o banco inteiro trava por
+///   [`BENCH_COOLDOWN_MS`];
+/// - depois de cada troca do jogador logado com o banco, o banco inteiro
+///   trava de novo;
+/// - um campeão que acabou de chegar ao banco (troca de um aliado) trava
+///   sozinho.
+///
+/// `previous` é a seleção publicada antes desta; `now_ms` é a hora em que
+/// esta chegou.
+pub(crate) fn apply_bench_cooldown(
+    tracker: &mut Option<BenchCooldown>,
+    previous: Option<&ChampSelect>,
+    cs: &mut ChampSelect,
+    now_ms: u64,
+) {
+    if !cs.bench_enabled {
+        return;
+    }
+    let fresh = tracker.as_ref().is_none_or(|t| t.session_id != cs.id);
+    if fresh {
+        *tracker = Some(BenchCooldown {
+            session_id: cs.id.clone(),
+            ..BenchCooldown::default()
+        });
+    }
+    let Some(track) = tracker.as_mut() else {
+        return;
+    };
+    let previous = previous.filter(|p| p.id == cs.id);
+
+    // O jogador logado pegou um campeão que estava no banco.
+    let local_champion = |c: &ChampSelect| c.local_player().and_then(|p| p.champion_id);
+    if let Some(prev) = previous {
+        let now_mine = local_champion(cs);
+        if now_mine.is_some()
+            && now_mine != local_champion(prev)
+            && prev
+                .bench_champions
+                .iter()
+                .any(|b| Some(b.champion_id) == now_mine)
+        {
+            track.last_swap_at = Some(now_ms);
+        }
+    }
+
+    let on_bench: Vec<u32> = cs.bench_champions.iter().map(|b| b.champion_id).collect();
+    track.arrived_at.retain(|id, _| on_bench.contains(id));
+    for id in &on_bench {
+        track
+            .arrived_at
+            .entry(*id)
+            .or_insert(if fresh { 0 } else { now_ms });
+    }
+
+    let timer = &cs.timer;
+    let phase_lock = match timer.phase {
+        _ if timer.is_infinite => 0,
+        ChampSelectPhase::Planning | ChampSelectPhase::BanPick => timer.ends_at_ms,
+        ChampSelectPhase::Finalization => timer
+            .ends_at_ms
+            .saturating_sub(u64::from(timer.total_time_ms)),
+        _ => 0,
+    };
+    let after = |at: u64| {
+        if at == 0 {
+            0
+        } else {
+            at.saturating_add(BENCH_COOLDOWN_MS)
+        }
+    };
+    let common = after(phase_lock).max(track.last_swap_at.map_or(0, after));
+    for champion in &mut cs.bench_champions {
+        let arrived = track
+            .arrived_at
+            .get(&champion.champion_id)
+            .copied()
+            .unwrap_or(0);
+        let at = common.max(after(arrived));
+        champion.available_at_ms = (at > 0).then_some(at);
+    }
 }
 
 /// Caminho do reroll.
@@ -161,6 +277,7 @@ pub(crate) fn bench_from_raw(champions: &[Value], ids: &[Value]) -> Vec<BenchCha
                 Some(BenchChampion {
                     champion_id: id(&c["championId"])?,
                     is_priority: c["isPriority"].as_bool().unwrap_or(false),
+                    available_at_ms: None,
                 })
             })
             .collect();
@@ -170,6 +287,7 @@ pub(crate) fn bench_from_raw(champions: &[Value], ids: &[Value]) -> Vec<BenchCha
             Some(BenchChampion {
                 champion_id: id(v)?,
                 is_priority: false,
+                available_at_ms: None,
             })
         })
         .collect()
@@ -213,11 +331,13 @@ mod tests {
             [
                 BenchChampion {
                     champion_id: 1,
-                    is_priority: false
+                    is_priority: false,
+                    available_at_ms: None,
                 },
                 BenchChampion {
                     champion_id: 266,
-                    is_priority: true
+                    is_priority: true,
+                    available_at_ms: None,
                 },
             ]
         );
@@ -230,9 +350,148 @@ mod tests {
             cs.bench_champions,
             [BenchChampion {
                 champion_id: 5,
-                is_priority: false
+                is_priority: false,
+                available_at_ms: None,
             }]
         );
+    }
+
+    /// Uma sessão de ARAM recebida em `now`, com o banco `bench`, o jogador
+    /// logado com `mine` e a etapa `phase` com `left` de `total` ms.
+    fn cooldown_session(
+        phase: &str,
+        left: i64,
+        total: i64,
+        mine: u32,
+        bench: &[u32],
+        now: u64,
+    ) -> ChampSelect {
+        let bench: Vec<Value> = bench.iter().map(|id| json!({"championId": id})).collect();
+        let mut raw = json!({
+            "id": "aram-1",
+            "queueId": 2400,
+            "localPlayerCellId": 0,
+            "timer": {"phase": phase, "adjustedTimeLeftInPhase": left, "totalTimeInPhase": total},
+            "myTeam": [{"cellId": 0, "championId": mine}, {"cellId": 1, "championId": 99}],
+            "actions": [],
+            "benchEnabled": true,
+            "benchChampions": bench,
+        });
+        raw["allowRerolling"] = json!(false);
+        ChampSelect::from_json_at(&raw, now).unwrap()
+    }
+
+    fn available(cs: &ChampSelect) -> Vec<(u32, Option<u64>)> {
+        cs.bench_champions
+            .iter()
+            .map(|b| (b.champion_id, b.available_at_ms))
+            .collect()
+    }
+
+    /// Aplica a espera como o hub faz e devolve a seleção publicada.
+    fn publish(
+        tracker: &mut Option<BenchCooldown>,
+        previous: Option<&ChampSelect>,
+        mut cs: ChampSelect,
+        now: u64,
+    ) -> ChampSelect {
+        apply_bench_cooldown(tracker, previous, &mut cs, now);
+        cs
+    }
+
+    #[test]
+    fn espera_do_banco_como_no_client_oficial() {
+        let cd = BENCH_COOLDOWN_MS;
+        let mut tracker = None;
+        // Fase das cartas: travado até a etapa acabar (10 s) e mais a espera.
+        let cards = publish(
+            &mut tracker,
+            None,
+            cooldown_session("BAN_PICK", 10_000, 15_000, 0, &[1], 5_000),
+            5_000,
+        );
+        assert_eq!(available(&cards), [(1, Some(15_000 + cd))]);
+
+        // A finalização começou antes (aos 12 s): conta a partir dela.
+        let fin = publish(
+            &mut tracker,
+            Some(&cards),
+            cooldown_session("FINALIZATION", 30_000, 30_000, 7, &[1, 2], 12_000),
+            12_000,
+        );
+        assert_eq!(
+            available(&fin),
+            [(1, Some(12_000 + cd)), (2, Some(12_000 + cd))]
+        );
+
+        // Um aliado trocou: só o campeão que chegou ao banco (3) trava.
+        let ally = publish(
+            &mut tracker,
+            Some(&fin),
+            cooldown_session("FINALIZATION", 25_000, 30_000, 7, &[1, 2, 3], 17_000),
+            17_000,
+        );
+        assert_eq!(
+            available(&ally),
+            [
+                (1, Some(12_000 + cd)),
+                (2, Some(12_000 + cd)),
+                (3, Some(17_000 + cd))
+            ]
+        );
+
+        // O jogador pegou o 1 do banco: o banco inteiro trava de novo, e o
+        // 7 dele chega ao banco.
+        let mine = publish(
+            &mut tracker,
+            Some(&ally),
+            cooldown_session("FINALIZATION", 20_000, 30_000, 1, &[7, 2, 3], 22_000),
+            22_000,
+        );
+        assert_eq!(
+            available(&mine),
+            [
+                (7, Some(22_000 + cd)),
+                (2, Some(22_000 + cd)),
+                (3, Some(22_000 + cd))
+            ]
+        );
+
+        // Atualização sem mudança no banco: nada muda.
+        let again = publish(
+            &mut tracker,
+            Some(&mine),
+            cooldown_session("FINALIZATION", 19_000, 30_000, 1, &[7, 2, 3], 23_000),
+            23_000,
+        );
+        assert_eq!(available(&again), available(&mine));
+    }
+
+    #[test]
+    fn espera_do_banco_sem_ter_visto_o_comeco() {
+        // O agente conectou no meio da finalização: o que já estava no banco
+        // só espera o começo da etapa, que já passou há muito.
+        let mut tracker = None;
+        let cs = publish(
+            &mut tracker,
+            None,
+            cooldown_session("FINALIZATION", 10_000, 30_000, 7, &[1], 40_000),
+            40_000,
+        );
+        assert_eq!(available(&cs), [(1, Some(20_000 + BENCH_COOLDOWN_MS))]);
+        // Outra seleção começa do zero.
+        let other = {
+            let mut cs = cooldown_session("FINALIZATION", 30_000, 30_000, 7, &[1], 90_000);
+            cs.id = "aram-2".into();
+            cs
+        };
+        let other = publish(&mut tracker, Some(&cs), other, 90_000);
+        assert_eq!(available(&other), [(1, Some(90_000 + BENCH_COOLDOWN_MS))]);
+        // Sem banco, nada é preenchido.
+        let mut normal = cooldown_session("BAN_PICK", 10_000, 15_000, 7, &[1], 0);
+        normal.bench_enabled = false;
+        let normal = publish(&mut tracker, None, normal, 0);
+        assert_eq!(available(&normal), [(1, None)]);
     }
 
     #[test]
@@ -346,8 +605,8 @@ mod tests {
         assert_eq!(value["rerollsRemaining"], json!(1));
         assert_eq!(
             value["benchChampions"],
-            json!([{"championId": 1, "isPriority": false},
-                   {"championId": 266, "isPriority": true}])
+            json!([{"championId": 1, "isPriority": false, "availableAtMs": null},
+                   {"championId": 266, "isPriority": true, "availableAtMs": null}])
         );
     }
 }

@@ -474,6 +474,14 @@ pub(super) fn write_champ_select(
         if shared.autofill_ack.as_deref() == Some(cs.id.as_str()) {
             cs.autofill_notice = false;
         }
+        // A espera de cada campeão do banco depende do que já foi visto
+        // nesta seleção (#588).
+        bench::apply_bench_cooldown(
+            &mut shared.bench_cooldown,
+            shared.state.champ_select.as_ref(),
+            cs,
+            champ_select::now_ms(),
+        );
     }
     if shared.state.champ_select == champ_select {
         return None;
