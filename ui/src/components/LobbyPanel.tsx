@@ -39,6 +39,7 @@ type Props = {
 };
 type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' | 'startTutorial' | 'startPracticeTool' | 'createCustomGame' | 'joinCustomGame' }>;
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
+const CHANGE_MODE_HINT = 'Para trocar a fila, use Trocar modo.';
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 /** Botão em pílula do layout de referência: o principal leva o destaque com brilho; o secundário fica na superfície. */
 
@@ -98,6 +99,30 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
   const [changingMode, setChangingMode] = useState(false);
   const invites = useLobbyInvite(state, send);
   const [picker, setPicker] = useState<number | null>(null);
+  // Balão das rotas, preso aos chips do seu card (#603): abre sozinho enquanto falta escolher
+  // ('auto'); depois, só pelo clique nos chips. Fechar (Esc, clique fora, escolha feita) vale até faltar de novo.
+  const [positionPopover, setPositionPopover] = useState<'auto' | 'open' | 'closed'>('auto');
+  const positionPopoverRef = useRef<HTMLDivElement>(null);
+  const missingNow = positions.first === 'unselected' || !positionsComplete(positions.first, positions.second);
+  // Com as rotas completas, a próxima falta volta a abrir o balão sozinho.
+  const [lastMissing, setLastMissing] = useState(missingNow);
+  if (lastMissing !== missingNow) {
+    setLastMissing(missingNow);
+    if (!missingNow) setPositionPopover('auto');
+  }
+  const popoverOpen = positionPopover === 'open' || (positionPopover === 'auto' && missingNow);
+  useEffect(() => {
+    if (!popoverOpen) return;
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !positionPopoverRef.current?.contains(event.target as Node)) setPositionPopover('closed');
+    };
+    document.addEventListener('keydown', close);
+    document.addEventListener('mousedown', close);
+    return () => {
+      document.removeEventListener('keydown', close);
+      document.removeEventListener('mousedown', close);
+    };
+  }, [popoverOpen]);
   // Avisos dos slots do Jogo Dinâmico (#218), no quadro abaixo da lista.
   const [slotNotes, setSlotNotes] = useState<HTMLDivElement | null>(null);
   const [dropping, setDropping] = useState(false);
@@ -158,7 +183,7 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
   const restriction = !summoner ? 'Aguarde o login no League of Legends.'
     : !phaseAllowsChange ? 'Criar, trocar fila e sair do lobby só estão disponíveis fora da busca e da partida. Aguarde a fase de lobby.'
     : lobby && !lobby.isLeader ? 'Somente o líder pode trocar a fila. Você pode sair do lobby.'
-    : lobby ? 'Para trocar a fila, use Trocar modo.'
+    : lobby ? CHANGE_MODE_HINT
     : 'Escolha um modo para criar um lobby.';
 
   async function execute(command: LobbyCommand): Promise<Outcome> {
@@ -305,18 +330,49 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
   // Posições que faltam na fila agora (#410): marcadas na escolha, como no client oficial.
   const scarce = lobby.scarcePositions;
   const freeSlots = Math.max(0, lobby.maxLobbySize - lobby.members.length);
+  // Rotas (#603): o bloco fica aberto só enquanto falta escolher; depois, abre num balão pelos chips do seu card.
+  const showPositionPopover = canSetPositions && !lobby.orderedPositions && popoverOpen;
+  const positionFieldset = (
+          <fieldset className="flex w-[min(27rem,90vw)] min-w-0 flex-col gap-2.5 rounded-panel border border-line bg-surface p-4 shadow-lift animate-fade-up" disabled={!canSetPositions}>
+            <legend className="sr-only">Suas posições</legend>
+            {!localMember && <p className="px-1 text-body text-muted">Aguarde a identificação do seu membro no lobby.</p>}
+            {phase !== 'Lobby' && <p className="px-1 text-body text-muted">A escolha de posições está disponível na fase de lobby.</p>}
+            {/* Duas escolhas de rota lado a lado (#600), no lugar das listas: um clique em cada. */}
+            <div className="grid gap-3">
+              <PositionPicker label="Posição primária" value={positions.first} scarce={scarce} disabled={!canSetPositions}
+                allowed={() => true} clearable
+                onChange={first => {
+                  choosePositions({ first, second: validPositions(first, positions.second) ? positions.second : 'unselected' });
+                  if (first === 'fill') setPositionPopover('closed');
+                }} />
+              <PositionPicker label="Posição secundária" value={positions.second} scarce={scarce}
+                disabled={!canSetPositions || positions.first === 'unselected' || positions.first === 'fill'}
+                allowed={position => validPositions(positions.first, position)}
+                onChange={second => { choosePositions({ first: positions.first, second }); setPositionPopover('closed'); }} />
+            </div>
+            {scarce.length > 0 && (
+              <p className="flex items-center gap-2 px-1 text-caption text-muted">
+                <ScarceMark />
+                Prioritárias: {scarce.map(position => positionNames[position]).join(', ')}. Faltam na fila agora.
+              </p>
+            )}
+            {!positionsComplete(positions.first, positions.second) && (
+              <p className="px-1 text-caption text-muted">Escolha a posição secundária para salvar.</p>
+            )}
+          </fieldset>
+  );
   // Palco (#600): você no centro; os outros e as vagas livres se espalham a partir do meio.
   const others = lobby.members.filter(member => member.puuid !== summoner?.puuid);
   const seats = stageSeats(localMember, others, freeSlots);
   return (
     <section aria-label="Lobby" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
-      className={cx('flex h-full min-h-0 w-full flex-col gap-5 rounded-panel text-ink transition-shadow',
+      className={cx('flex w-full shrink-0 flex-col gap-4 rounded-panel text-ink transition-shadow',
         dropping && 'ring-2 ring-accent')}>
       {/* Faixa do modo (#600): a fila em destaque e as ações do lobby logo abaixo. */}
-      <header className="lobby-banner relative flex flex-col items-center gap-2 overflow-hidden rounded-panel surface card px-5 pb-5 pt-5 text-center shadow-soft animate-fade-up">
+      <header className="lobby-banner relative flex flex-col items-center gap-1.5 overflow-hidden rounded-panel surface card px-5 py-3.5 text-center shadow-soft animate-fade-up">
         <h2 className="text-caption font-semibold uppercase tracking-[0.08em] text-muted">Lobby</h2>
-        <p className="text-title font-semibold text-balance @min-[44rem]:text-[2rem]"><span className="sr-only">Fila atual: </span><strong className="font-semibold">{queueLabel}</strong></p>
-        <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+        <p className="text-title font-semibold text-balance"><span className="sr-only">Fila atual: </span><strong className="font-semibold">{queueLabel}</strong></p>
+        <div className="mt-0.5 flex flex-wrap items-center justify-center gap-2">
           <span className="rounded-full bg-accent-soft px-3 py-1.5 text-caption font-semibold text-accent-ink">
             {lobby.members.length} / {lobby.maxLobbySize} jogadores
           </span>
@@ -389,9 +445,11 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
               )}
               <div className={cx('relative shrink-0 rounded-full transition-opacity', me ? 'bg-primary-gradient p-1.5 shadow-lift' : 'bg-line p-1', isAway && 'opacity-40 grayscale')}>
                 <Avatar name={me && summoner?.gameName ? summoner.gameName : name} src={assetUrl('profileIcon', member.summonerIconId)}
-                  size={me ? 104 : 76} className="ring-4 ring-bg" />
+                  size={me ? 92 : 68} className="ring-4 ring-bg" />
+                {/* Nível preso embaixo do ícone, como no client oficial: uma linha a menos no palco (#603). */}
+                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-raised px-2 py-0.5 text-[0.6875rem] font-semibold text-muted ring-2 ring-bg">Nível {member.summonerLevel}</span>
               </div>
-              <div className={cx('mt-1 flex max-w-full items-center justify-center gap-1.5 transition-opacity', isAway && 'opacity-50')}>
+              <div className={cx('mt-2 flex max-w-full items-center justify-center gap-1.5 transition-opacity', isAway && 'opacity-50')}>
                 <h3 className={cx('truncate font-semibold', me ? 'text-section' : 'text-body')}>{name}</h3>
                 {member.isLeader && (
                   <span role="img" aria-label="Líder do grupo" title="Líder do grupo"
@@ -400,7 +458,7 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
                   </span>
                 )}
               </div>
-              {me && <p className="-mt-1 text-caption text-muted">Você</p>}
+              {me && <p className="sr-only">Você</p>}
               {isAway && (
                 <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-soft px-2.5 py-1 text-caption font-semibold text-warn">
                   <span aria-hidden="true" className="tracking-widest">•••</span>
@@ -416,7 +474,6 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
               )}
               <div className={cx('flex flex-wrap items-center justify-center gap-1.5 transition-opacity', isAway && 'opacity-50')}>
                 <LobbyRank ranked={member.ranked} queueId={lobby.queueId} />
-                <span className="inline-block rounded-full bg-raised px-2.5 py-1 text-caption font-semibold text-muted">Nível {member.summonerLevel}</span>
               </div>
               {lobby.showQuickPlaySlots && (
                 <div className="relative mt-1">
@@ -427,7 +484,8 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
               {/* Rift Clássico (#230): a 1ª preferência em destaque e as outras em ordem. */}
               {lobby.showPositionSelector && lobby.orderedPositions && <MemberPositionOrder member={member} name={name} />}
               {lobby.showPositionSelector && !lobby.orderedPositions && (
-                <ul aria-label={`Posições de ${name}`} className="flex flex-wrap items-center justify-center gap-1.5">
+                <div ref={me ? positionPopoverRef : undefined} className="relative">
+                  <ul aria-label={`Posições de ${name}`} className="flex flex-wrap items-center justify-center gap-1.5">
                   {[member.firstPosition, member.secondPosition].map((position, slot) => (
                     <li key={slot} title={`${slot === 0 ? 'Primária' : 'Secundária'}: ${positionNames[position]}`}
                       className={cx('flex items-center gap-1 rounded-full px-2.5 py-1 text-caption font-semibold',
@@ -438,6 +496,18 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
                     </li>
                   ))}
                 </ul>
+                  {/* Suas rotas (#603): clicar nos chips abre o balão, para cima, sobre o seu card: a tela tem altura fixa. */}
+                  {me && canSetPositions && (
+                    <button type="button" aria-label="Trocar suas posições" title="Trocar suas posições" aria-expanded={showPositionPopover}
+                      aria-haspopup="dialog" onClick={() => setPositionPopover(showPositionPopover ? 'closed' : 'open')}
+                      className={`absolute -inset-1 rounded-full ring-accent/40 transition-shadow hover:ring-2 ${focusRing}`} />
+                  )}
+                  {me && showPositionPopover && (
+                    <div role="dialog" aria-label="Suas posições" className="absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 text-left">
+                      {positionFieldset}
+                    </div>
+                  )}
+                </div>
               )}
               {/* Tornar líder e remover do grupo (#267): só o líder, nos outros jogadores. */}
               {lobby.isLeader && <div className="absolute right-0 top-0 z-10">
@@ -457,43 +527,17 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
         dismissSuggested={dismissSuggested} onClose={closePicker} />}
 
       {/* Fila sem posições (ARAM, Arena, Co-op, eventos): nada no lugar, como no client oficial. A fila troca pelo "Trocar modo" (#231). */}
-      <div className="grid items-stretch gap-4">
-        {lobby.showPositionSelector && lobby.orderedPositions ? (
-          <PositionOrderCard member={localMember} scarce={scarce} canEdit={canSetPositions} send={send} />
-        ) : lobby.showPositionSelector ? (
-          <fieldset className="mx-auto flex w-full max-w-[52rem] min-w-0 flex-col gap-3 rounded-panel surface card p-4 shadow-soft animate-fade-up" disabled={!canSetPositions}>
-            <legend className="sr-only">Suas posições</legend>
-            {!localMember && <p className="px-1 text-body text-muted">Aguarde a identificação do seu membro no lobby.</p>}
-            {phase !== 'Lobby' && <p className="px-1 text-body text-muted">A escolha de posições está disponível na fase de lobby.</p>}
-            {/* Duas escolhas de rota lado a lado (#600), no lugar das listas: um clique em cada. */}
-            <div className="grid gap-4 @min-[52rem]:grid-cols-2">
-              <PositionPicker label="Posição primária" value={positions.first} scarce={scarce} disabled={!canSetPositions}
-                allowed={() => true} clearable
-                onChange={first => choosePositions({ first, second: validPositions(first, positions.second) ? positions.second : 'unselected' })} />
-              <PositionPicker label="Posição secundária" value={positions.second} scarce={scarce}
-                disabled={!canSetPositions || positions.first === 'unselected' || positions.first === 'fill'}
-                allowed={position => validPositions(positions.first, position)}
-                onChange={second => choosePositions({ first: positions.first, second })} />
-            </div>
-            {scarce.length > 0 && (
-              <p className="flex items-center gap-2 px-1 text-caption text-muted">
-                <ScarceMark />
-                Prioritárias: {scarce.map(position => positionNames[position]).join(', ')}. Faltam na fila agora.
-              </p>
-            )}
-            {!positionsComplete(positions.first, positions.second) && (
-              <p className="px-1 text-caption text-muted">Escolha a posição secundária para salvar.</p>
-            )}
-          </fieldset>
-        ) : lobby.showQuickPlaySlots ? (
-          <div className="flex h-full min-w-0 flex-col gap-2 rounded-panel surface card p-4 shadow-soft animate-fade-up">
-            <h3 className="px-1 text-section font-semibold">Suas posições e campeões</h3>
-            <p className="px-1 text-caption text-muted">No Jogo Dinâmico, escolha as duas posições e um campeão para cada uma no seu card, acima.</p>
-            <div ref={setSlotNotes} className="flex flex-col gap-1 px-1" />
-          </div>
-        ) : null}
-      </div>
-      <p id={descriptionId} className="text-caption text-muted">{restriction}</p>
+      {lobby.showPositionSelector && lobby.orderedPositions ? (
+        <PositionOrderCard member={localMember} scarce={scarce} canEdit={canSetPositions} send={send} />
+      ) : !lobby.showPositionSelector && lobby.showQuickPlaySlots ? (
+        <div className="flex min-w-0 flex-col gap-2 rounded-panel surface card p-4 shadow-soft animate-fade-up">
+          <h3 className="px-1 text-section font-semibold">Suas posições e campeões</h3>
+          <p className="px-1 text-caption text-muted">No Jogo Dinâmico, escolha as duas posições e um campeão para cada uma no seu card, acima.</p>
+          <div ref={setSlotNotes} className="flex flex-col gap-1 px-1" />
+        </div>
+      ) : null}
+      {/* O aviso padrão de Trocar modo fica só para o leitor de tela: a tela do lobby tem altura fixa (#603). */}
+      <p id={descriptionId} className={restriction === CHANGE_MODE_HINT ? 'sr-only' : 'text-center text-caption text-muted'}>{restriction}</p>
       {feedbackLine}
     </section>
   );

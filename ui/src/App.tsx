@@ -134,6 +134,8 @@ export default function App() {
   // Palco do lobby (#600): a personalizada mantém a coluna da direita com a busca e o grupo.
   const stage = !lobbyState?.custom;
   // Na tela do lobby, o botão do alto busca a partida (#600); nas outras páginas, continua levando ao lobby.
+  // Lobby de altura fixa (#603): cabe na janela, sem rolagem; só o chat rola por dentro.
+  const fixedLobby = ready && activePage === 'flow' && lobbyMain && stage && !changingMode;
   const queueInSlot = ready && activePage === 'flow' && lobbyMain && stage && !!lobbyState && !changingMode
     && !unavailableFeature(connection, 'lobby');
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
@@ -155,10 +157,10 @@ export default function App() {
           update={appUpdate} canInstallUpdate={canInstallNow(connection.state?.lcu.state === 'connected' ? connection.state.gameflowPhase : null)} />} />
       <div data-tauri-drag-region className="app-body">
         <div data-tauri-drag-region className="app-main-column">
-          <main ref={contentRef} className="app-content">
+          <main ref={contentRef} className={fixedLobby ? 'app-content is-fixed' : 'app-content'}>
           {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error} />}
           {/* Escondido, e não desmontado, enquanto reconecta: comandos em andamento sobrevivem à queda. */}
-          <div hidden={!ready} className={homeLayout ? 'home-grid' : activePage === 'conversations' ? 'flex h-full min-h-0 flex-col gap-5' : 'flex min-h-full flex-col gap-5'}>
+          <div hidden={!ready} className={homeLayout ? 'home-grid' : activePage === 'conversations' || fixedLobby ? 'flex h-full min-h-0 flex-col gap-5' : 'flex min-h-full flex-col gap-5'}>
             {ready && connection.error && <p role="alert" className="col-span-full text-warn">{connection.error}</p>}
             {/* Modo de compatibilidade (#36): o que o LoL quebrou numa atualização. */}
             {/* Vanguard desconectado (#579): a partida não abriria e viraria esquiva. */}
@@ -228,15 +230,15 @@ export default function App() {
               {/* Personalizada: coluna da direita com largura, só da altura do conteúdo (sem sobra); embaixo, presa à borda, quando a janela é estreita.
                   Palco (#600): embaixo do lobby, o chat à esquerda e o estado da busca e o grupo à direita. */}
               <div hidden={activePage !== 'flow' || screen === 'home' || found || changingMode}
-                className={stage ? 'grid items-start gap-4 @min-[44rem]:grid-cols-2'
+                className={stage ? 'grid min-h-0 flex-1 items-stretch gap-4 @min-[44rem]:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]'
                   : 'sticky bottom-0 z-10 flex h-fit flex-col gap-4 self-start @min-[44rem]:top-0 @min-[44rem]:bottom-auto'}>
                 {/* Com o lobby desligado (#36), o aviso fica no lugar do lobby; aqui não aparece nada. */}
                 <FeatureGate connection={connection} send={connection.send} feature="lobby" quiet>
                   {stage ? <>
-                    <div className="flex min-w-0 flex-col gap-4">
-                      <LobbyChatPanel connection={connection} send={connection.send} />
+                    <div className="flex min-h-0 min-w-0 flex-col gap-4">
+                      <LobbyChatPanel connection={connection} send={connection.send} fill />
                     </div>
-                    <div className="flex min-w-0 flex-col gap-4">
+                    <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto">
                       <QueuePanel connection={connection} send={connection.send} buttonSlot={queueInSlot ? queueSlot : null} />
                       <LobbyGroupCard connection={connection} />
                     </div>

@@ -22,6 +22,7 @@ type Props = {
    */
   buttonSlot?: HTMLElement | null;
 };
+const READY_IN_SLOT = 'O lobby está pronto. Use Buscar partida, no alto da janela.';
 type QueueCommand = Extract<Command, { type: 'startQueue' | 'stopQueue' }>;
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
 
@@ -110,7 +111,7 @@ function QueueActions({ state, send, buttonSlot }: { state: AgentState; send: Ag
     : away.length ? 'Aguarde todos voltarem ao lobby.'
     : !lobby.canStartActivity ? (reasons.length ? 'A busca não pode começar:' : 'O lobby ainda não está pronto para iniciar a busca.')
     : missing.length ? 'Faltam escolhas antes de buscar:'
-    : buttonSlot ? 'O lobby está pronto. Use Buscar partida, no alto da janela.'
+    : buttonSlot ? READY_IN_SLOT
     : 'O lobby está pronto para buscar uma partida.';
 
   async function execute(command: QueueCommand) {
@@ -156,24 +157,34 @@ function QueueActions({ state, send, buttonSlot }: { state: AgentState; send: Ag
       disabled={!canStop || pending} onClick={stop} className={cx('app-play-button app-queue-button', searching && 'is-searching')}>
       <span className="app-play-button-face">
         <span className="flex min-w-0 flex-col items-center leading-tight">
-          <span aria-hidden="true" className="tabular-nums">{matchmaking
-            ? <QueueTime key={`${matchmaking.searchState}:${matchmaking.timeInQueue}`} confirmed={matchmaking.timeInQueue} running={searching} labelled={false} />
-            : 'Na fila'}</span>
-          <span aria-hidden="true" className="app-play-button-detail">Cancelar busca</span>
+          <span aria-hidden="true">Cancelar busca</span>
+          {/* Tempo na fila e estimativa (#603), no lugar do card de busca. */}
+          {matchmaking && <span aria-hidden="true" className="app-play-button-detail tabular-nums">
+            <QueueTime key={`${matchmaking.searchState}:${matchmaking.timeInQueue}`} confirmed={matchmaking.timeInQueue} running={searching} labelled={false} />
+            {matchmaking.estimatedQueueTime > 0 && ` · ~${duration(matchmaking.estimatedQueueTime)}`}
+          </span>}
         </span>
       </span>
     </button>
   </>, buttonSlot);
+  // Com o botão no alto (#603), o card some: o estado e o tempo ficam no botão e, para o leitor
+  // de tela, aqui. Só aparece uma faixa quando há aviso (fila bloqueada, punição, erro).
+  const compact = !!buttonSlot;
+  const readyNotice = restriction === READY_IN_SLOT;
+  const notice = (!!restriction && !readyNotice) || !!feedback.message
+    || (!!matchmaking && (matchmaking.lowPriorityTimeRemaining > 0 || matchmaking.errors.length > 0));
   return (
     <section aria-label="Busca de partida"
-      className={cx('flex w-full flex-col gap-3 rounded-panel surface card p-4 text-ink shadow-lift animate-fade-up @min-[44rem]:shadow-soft',
-        searching && 'ring-2 ring-accent/30')}>
-      <div className="flex flex-col gap-1 px-1">
+      className={compact
+        ? (notice ? 'flex w-full flex-col gap-2 rounded-panel surface card p-3 text-ink shadow-soft animate-fade-up' : 'sr-only')
+        : cx('flex w-full flex-col gap-3 rounded-panel surface card p-4 text-ink shadow-lift animate-fade-up @min-[44rem]:shadow-soft',
+          searching && 'ring-2 ring-accent/30')}>
+      <div className={compact ? 'sr-only' : 'flex flex-col gap-1 px-1'}>
         <h2 className="text-section font-semibold">Busca de partida</h2>
         <p className="text-body text-muted">Estado: <strong className="font-semibold text-ink">{stateLabel(matchmaking)}</strong></p>
       </div>
       {matchmaking && (
-        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 rounded-tile bg-raised px-4 py-3">
+        <div className={compact ? 'sr-only' : 'flex flex-wrap items-end justify-between gap-x-4 gap-y-2 rounded-tile bg-raised px-4 py-3'}>
           <div className="flex flex-col">
             <span className="text-caption text-muted">Tempo na fila</span>
             <span className="text-title font-semibold tabular-nums text-ink">
@@ -199,7 +210,7 @@ function QueueActions({ state, send, buttonSlot }: { state: AgentState; send: Ag
           ))}
         </ul>
       )}
-      {restriction && <div className="rounded-tile bg-emerald-soft px-4 py-2 text-center text-caption font-medium text-warn">
+      {restriction && <div className={compact && readyNotice ? 'sr-only' : 'rounded-tile bg-emerald-soft px-4 py-2 text-center text-caption font-medium text-warn'}>
         <p>{restriction}</p>
         {!matchmaking && !custom && reasons.length > 0 && (
           <ul aria-label="Motivos da fila bloqueada" className="mt-1 flex flex-col gap-0.5 font-semibold">

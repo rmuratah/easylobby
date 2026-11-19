@@ -46,13 +46,13 @@ describe('convidar pelo lobby', () => {
     await act(async () => fireEvent.click(picker.getByRole('button', { name: 'Enviar convites' })));
     expect(send).toHaveBeenCalledWith({ type: 'inviteToLobby', invitees: [{ summonerId: 2001, puuid: 'ana' }, { summonerId: 2002, puuid: 'bia' }] });
     // Convites aceitos fecham o pop-up.
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Convidar amigos' })).not.toBeInTheDocument();
     // Até o convite aparecer no lobby, Ana não volta para a lista; recusado, ela volta.
     rerender(<LobbyPanel connection={connected({ lobby: { ...flexLobby, invitations: [{ puuid: 'ana', summonerId: 2001, state: 'Declined', gameName: '', tagLine: '' }] } })} send={send} />);
     fireEvent.click(lobby().getAllByRole('button', { name: 'Convidar amigo' })[0]);
-    expect(within(screen.getByRole('dialog')).getByRole('checkbox', { name: 'Convidar Ana#BR1' })).toBeEnabled();
+    expect(within(screen.getByRole('dialog', { name: 'Convidar amigos' })).getByRole('checkbox', { name: 'Convidar Ana#BR1' })).toBeEnabled();
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Convidar amigos' })).not.toBeInTheDocument();
   });
 
   it('filtra pelo nome de jogo e pela tagline, e respeita as vagas livres', () => {

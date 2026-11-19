@@ -187,3 +187,5 @@ button[aria-current="page"] { background: var(--el-accent-soft); border-color: v
 @media (prefers-reduced-motion: reduce) { .app-toolbar .app-queue-button.is-searching .app-play-button-face { animation: none; } }
 /* Faixa do modo no lobby (#600): uma luz da cor do Jogar vinda de baixo. */
 .lobby-banner { background-image: radial-gradient(60% 120% at 50% 130%, color-mix(in oklab, var(--el-accent) 28%, transparent), transparent 70%); }
+/* Lobby de altura fixa (#603): a tela cabe na janela e não mostra barra de rolagem. */
+.app-content.is-fixed { overflow: hidden; scrollbar-gutter: auto; }
