@@ -42,6 +42,7 @@ pub(crate) fn raise_main_window(app: &AppHandle) -> tauri::Result<()> {
     };
     window.show()?;
     window.unminimize()?;
+    crate::fit_main_window(&window)?;
     window.set_always_on_top(true)?;
     let focused = window.set_focus();
     window.set_always_on_top(false)?;

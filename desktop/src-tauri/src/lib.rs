@@ -17,7 +17,7 @@ use easylobby_agent::ws::{self, ExitAction, Hub, WsConfig};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    AppHandle, Manager, WebviewWindow,
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
@@ -54,10 +54,25 @@ impl Channel {
     }
 }
 
+/// Abre a janela sempre maximizada (#608): ocupa a área de trabalho, com a
+/// barra superior do app e a barra de tarefas do Windows à vista. Pode ser
+/// temporário; para voltar ao tamanho de antes (1100x700), troque para `false`.
+const ALWAYS_MAXIMIZED: bool = true;
+
+/// Maximiza a janela, se [`ALWAYS_MAXIMIZED`] estiver ligado. Chamada toda
+/// vez que a janela aparece.
+pub(crate) fn fit_main_window(window: &WebviewWindow) -> tauri::Result<()> {
+    if ALWAYS_MAXIMIZED {
+        window.maximize()?;
+    }
+    Ok(())
+}
+
 fn show_main_window(app: &AppHandle) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window("main") {
         window.show()?;
         window.unminimize()?;
+        fit_main_window(&window)?;
         window.set_focus()?;
     }
     Ok(())
