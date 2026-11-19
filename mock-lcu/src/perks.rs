@@ -11,6 +11,12 @@
 //! recomendada da seleção) não ocupam espaço. Uma troca de fase do gameflow
 //! volta as páginas para as gravadas naquela fase, como acontece com o lobby.
 //!
+//! As páginas sugeridas pelo recomendador da seleção (#596,
+//! [`RECOMMENDED_PAGES`]) saem da gravação ou, sem ela, de três páginas
+//! **sintéticas** válidas nas árvores de `mock-lcu/data/`. Criar uma página
+//! com `isTemporary` não precisa de espaço e troca a temporária que já
+//! existir, como a LCU faz com a página do recomendador.
+//!
 //! As funções daqui não mexem no estado: devolvem a resposta e os eventos, e
 //! quem chama emite os eventos (o que atualiza o estado e avisa o WAMP).
 
@@ -34,6 +40,10 @@ pub const PERK_STYLES: &str = "/lol-game-data/assets/v1/perkstyles.json";
 /// Nomes e descrições das runas.
 pub const PERKS: &str = "/lol-game-data/assets/v1/perks.json";
 
+/// Começo do caminho das páginas sugeridas:
+/// `/lol-perks/v1/recommended-pages/champion/{id}/position/{posição}/map/{mapa}`.
+pub const RECOMMENDED_PAGES: &str = "/lol-perks/v1/recommended-pages/champion/";
+
 /// Páginas compradas quando a gravação não diz.
 pub const DEFAULT_OWNED_PAGES: u64 = 5;
 
@@ -54,6 +64,66 @@ pub fn game_data(state: &LcuState, path: &str) -> Option<Response> {
     Some(Response {
         status: 200,
         body: serde_json::from_str(synthetic).expect("dados sintéticos são JSON válido"),
+    })
+}
+
+/// `GET` das páginas sugeridas: as gravadas, ou três sintéticas no formato
+/// da LCU. `None` se o caminho não for o das sugestões.
+pub fn recommended_pages(state: &LcuState, path: &str) -> Option<Response> {
+    let rest = path.strip_prefix(RECOMMENDED_PAGES)?;
+    let parts: Vec<&str> = rest.split('/').collect();
+    let [champion, "position", position, "map", _map] = parts[..] else {
+        return None;
+    };
+    let champion_id: u32 = champion.parse().ok()?;
+    let recorded = state.get(path);
+    if recorded.status == 200 {
+        return Some(recorded);
+    }
+    let page = |primary: u32, sub: u32, perks: &[u32], first: &str, second: &str, index: u32| {
+        json!({
+            "isDefaultPosition": true,
+            "isRecommendationOverride": false,
+            "keystone": {"id": perks[0]},
+            "perks": perks.iter().map(|id| json!({"id": id})).collect::<Vec<_>>(),
+            "position": position.to_uppercase(),
+            "primaryPerkStyleId": primary,
+            "primaryRecommendationAttribute": first,
+            "recommendationChampionId": champion_id,
+            "runeRecommendationId": format!("mock-lcu.{champion_id}.{index}"),
+            "secondaryPerkStyleId": sub,
+            "secondaryRecommendationAttribute": second,
+            "summonerSpellIds": [4, 14],
+        })
+    };
+    Some(Response {
+        status: 200,
+        body: json!([
+            page(
+                8100,
+                8200,
+                &[8128, 8126, 8137, 8135, 8226, 8210, 5008, 5008, 5011],
+                "Executar inimigos",
+                "Ouro",
+                0
+            ),
+            page(
+                8200,
+                8300,
+                &[8229, 8226, 8210, 8237, 8304, 8347, 5008, 5008, 5011],
+                "Dano de Habilidade",
+                "Mana",
+                1
+            ),
+            page(
+                8000,
+                8400,
+                &[8005, 9111, 9104, 8014, 8446, 8429, 5005, 5008, 5001],
+                "Dano contínuo",
+                "Resistência",
+                2
+            ),
+        ]),
     })
 }
 
@@ -89,11 +159,18 @@ pub fn get_page(state: &LcuState, id: u64) -> Response {
 
 /// `POST /lol-perks/v1/pages`: cria a página e a aplica se `current` vier
 /// `true`.
+///
+/// Com `isTemporary`, não precisa de espaço e tira a temporária que já
+/// existia (#596).
 pub fn create(state: &LcuState, body: &Value) -> (Response, Vec<EventFixture>) {
-    if inventory(state).body["canAddCustomPage"] != true {
+    let temporary = body["isTemporary"] == true;
+    if !temporary && inventory(state).body["canAddCustomPage"] != true {
         return (Response::error(400, "Max pages reached"), Vec::new());
     }
     let mut list = pages(state);
+    if temporary {
+        list.retain(|p| p["isTemporary"] != true);
+    }
     let id = list
         .iter()
         .filter_map(|p| p["id"].as_u64())
@@ -373,6 +450,42 @@ mod tests {
         let (response, events) = create(&s, &json!({"name": "x"}));
         assert_eq!(response.status, 400);
         assert!(events.is_empty());
+    }
+
+    #[test]
+    fn paginas_sugeridas_sinteticas() {
+        let s = state();
+        let path = "/lol-perks/v1/recommended-pages/champion/63/position/middle/map/11";
+        let response = recommended_pages(&s, path).unwrap();
+        assert_eq!(response.status, 200);
+        let pages = response.body.as_array().unwrap();
+        assert_eq!(pages.len(), 3);
+        assert_eq!(pages[0]["recommendationChampionId"], 63);
+        assert_eq!(pages[0]["position"], "MIDDLE");
+        assert_eq!(pages[0]["perks"].as_array().unwrap().len(), 9);
+        assert!(recommended_pages(&s, "/lol-perks/v1/recommended-pages/champion/x").is_none());
+    }
+
+    #[test]
+    fn pagina_temporaria_nao_precisa_de_espaco_e_troca_a_anterior() {
+        let mut s = state();
+        s.apply(&event(
+            INVENTORY,
+            json!({"ownedPageCount": 3, "canAddCustomPage": false}),
+        ));
+        let body = |name: &str| json!({"name": name, "isTemporary": true, "current": true});
+        let (response, events) = create(&s, &body("Brand – Cometa Arcano"));
+        assert_eq!(response.status, 200);
+        apply(&mut s, events);
+        let (_, events) = create(&s, &body("Brand – Colheita Sombria"));
+        apply(&mut s, events);
+        let temporary: Vec<_> = pages(&s)
+            .into_iter()
+            .filter(|p| p["isTemporary"] == true)
+            .collect();
+        assert_eq!(temporary.len(), 1);
+        assert_eq!(temporary[0]["name"], "Brand – Colheita Sombria");
+        assert_eq!(current(&s), temporary[0]["id"].as_u64().unwrap());
     }
 
     #[test]

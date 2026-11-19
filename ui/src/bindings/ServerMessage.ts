@@ -33,6 +33,7 @@ import type { RankedStats } from "./RankedStats";
 import type { ReadyCheck } from "./ReadyCheck";
 import type { ReceivedInvitation } from "./ReceivedInvitation";
 import type { RecentPlayer } from "./RecentPlayer";
+import type { RecommendedRunes } from "./RecommendedRunes";
 import type { RuneCatalog } from "./RuneCatalog";
 import type { RunePages } from "./RunePages";
 import type { SuggestedPlayer } from "./SuggestedPlayer";
@@ -80,6 +81,7 @@ export type ServerMessage =
   | { "type": "champSelectChampions", champSelectChampions: ChampSelectChampions, }
   | { "type": "runePages", runePages: RunePages | null, }
   | { "type": "runeCatalog", runeCatalog: RuneCatalog | null, }
+  | { "type": "recommendedRunes", recommendedRunes: RecommendedRunes | null, }
   | { "type": "friends", friends: Array<Friend>, }
   | { "type": "friendGroups", friendGroups: Array<FriendGroup>, }
   | { "type": "recentPlayers", recentPlayers: Array<RecentPlayer>, }

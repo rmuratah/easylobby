@@ -13,6 +13,8 @@ import { SpellIcon, SummonerSpellsPicker } from './SummonerSpellsPicker';
 import { AllySwaps, SwapFeedbackToast } from './ChampSelectSwaps';
 import { ChampSelectChatPanel } from './ChampSelectChatPanel';
 import { RuneQuickPick } from './RuneQuickPick';
+import { RuneRecommenderButton } from './RuneRecommender';
+import { recommenderChampion } from '../agent/runeRecommender';
 import { SkinCarousel } from './SkinCarousel';
 import { AramChampSelectContent } from './AramChampSelect';
 import { QuitCustomChampSelect } from './QuitCustomChampSelect';
@@ -89,6 +91,8 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
   }
   const me = champSelect.myTeam.find(player => player.isLocalPlayer);
   const lockedChampion = lockedPick(champSelect);
+  // O recomendador de runas aparece com o campeão escolhido ou marcado (#596).
+  const recommendedChampion = recommenderChampion(champSelect);
   useTurnCountdownSound(champSelect, !!mine?.turn);
   useLockInSound(champSelect);
   const grid = gridChampions(state, champSelect);
@@ -125,7 +129,11 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
               <div className="champ-select-loadout-body">
                 <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
                   summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} lobby={state.lobby} send={send} />
-                <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes} />
+                <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes}
+                  recommender={recommendedChampion !== null && (
+                    <RuneRecommenderButton key={recommendedChampion} state={state} champSelect={champSelect}
+                      championId={recommendedChampion} send={send} onEdit={onOpenRunes} />
+                  )} />
               </div>
             </section>
             {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}

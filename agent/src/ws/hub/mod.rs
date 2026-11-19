@@ -30,6 +30,7 @@ mod pre_end_of_game;
 mod profile;
 mod ready_check;
 mod retry;
+mod rune_recommender;
 mod runes;
 mod ux_guard;
 mod vanguard;
@@ -125,6 +126,9 @@ struct Shared {
     /// Campeão do último `openChampionSkins` (#369). Skins que chegam
     /// depois de outro campeão ter sido pedido são descartadas.
     champion_skins_request: Option<u32>,
+    /// Campeão e rota do último `openRecommendedRunes` (#596). Sugestões
+    /// que chegam depois de outro pedido são descartadas.
+    recommended_runes_request: Option<(u32, crate::lobby::Position)>,
     /// Elo dos outros membros do lobby, já buscado (#275).
     lobby_ranks: lobby_ranks::LobbyRanks,
     /// A partida ao vivo e o que já foi buscado dela (#268).
@@ -226,6 +230,7 @@ impl Hub {
                     lobby_chat_sync: lobby_chat::LobbyChatSync::default(),
                     player_profile_request: None,
                     champion_skins_request: None,
+                    recommended_runes_request: None,
                     lobby_ranks: lobby_ranks::LobbyRanks::default(),
                     live_game: live_game::LiveGameSync::default(),
                     riot_api: None,
@@ -567,6 +572,7 @@ impl Hub {
                 self.close_lobby_chat(None);
                 self.set_rune_pages(None);
                 self.set_rune_catalog(None);
+                self.set_recommended_runes(None);
                 self.set_summoner_spell_catalog(None);
                 self.set_champion_catalog(None);
                 self.set_playable_champions(None);
