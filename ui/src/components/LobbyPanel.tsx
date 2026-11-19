@@ -255,8 +255,10 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
     onModeSelectChange?.(modeSelectOpen);
   }, [modeSelectOpen, onModeSelectChange]);
   useEffect(() => () => onModeSelectChange?.(false), [onModeSelectChange]);
+  // Confirmações ("Lobby atualizado.", "Posições salvas.") ficam só para o leitor de tela: a mudança já aparece na tela (#613).
+  // Erros e "Criando…" continuam visíveis.
   const feedbackLine = feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}
-    className={feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{feedback.message}</p>;
+    className={feedback.status === 'error' ? 'text-body text-danger' : feedback.status === 'success' ? 'sr-only' : 'text-body text-muted'}>{feedback.message}</p>;
   // Sem lobby, o painel vira a tela de escolha de modo de jogo (#210). No lobby,
   // "Trocar modo" abre a mesma tela, com as mesmas abas (#231, #513); na busca ou na partida, volta ao lobby.
   if (!lobby || modeSelectOpen) {
