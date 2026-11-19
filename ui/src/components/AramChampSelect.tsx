@@ -263,7 +263,6 @@ function Bench({ champSelect, catalog, pickable, busy, onTake }: BenchProps) {
                   </span>
                   <span className="w-full truncate text-center">{name}</span>
                   {isPriority && <span className="text-caption font-semibold text-accent-ink">prioridade</span>}
-                  {notOwned && <span className="text-caption text-muted">não possui</span>}
                   {!notOwned && wait > 0 && <span className="text-caption tabular-nums text-muted">{seconds} s</span>}
                 </button>
               </li>

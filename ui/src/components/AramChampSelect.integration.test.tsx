@@ -97,7 +97,7 @@ it('campeão do banco que o jogador não tem fica em cinza e não dá para clica
   const kaisa = bench().getByRole('button', { name: "Kai'Sa: você não tem esse campeão" });
   expect(kaisa).toBeDisabled();
   expect(kaisa).toHaveClass('grayscale');
-  expect(kaisa).toHaveTextContent('não possui');
+  expect(kaisa).not.toHaveTextContent('não possui');
   expect(kaisa).toHaveTextContent('prioridade');
   fireEvent.click(kaisa);
   expect(commands()).toHaveLength(0);
