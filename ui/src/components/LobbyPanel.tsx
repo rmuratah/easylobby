@@ -411,8 +411,8 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
           return (
             <li key={member.puuid} style={{ animationDelay: `${order * 70}ms` }}
               className={cx('group relative mt-11 flex flex-col items-center gap-2 rounded-panel border bg-surface px-2 pb-3.5 text-center shadow-soft transition-all duration-200 animate-fade-up',
-                // Card por jogador (#607): o seu com a borda de destaque. 
-                me ? 'border-accent ring-1 ring-accent/40' : 'border-line hover:-translate-y-0.5 hover:shadow-lift',
+                // Card por jogador (#607): o seu com a borda de destaque, por cima dos outros para a escolha de campeão aberta nele não ficar escondida.
+                me ? 'z-10 border-accent ring-1 ring-accent/40' : 'border-line hover:-translate-y-0.5 hover:shadow-lift',
                 lobby.showQuickPlaySlots ? 'w-60' : 'w-40 @min-[60rem]:w-[11.5rem]')}>
               {/* O jogador inteiro abre o perfil dele (#308). O botão fica por baixo dos
                   controles (menu do líder, campeões do Jogo Dinâmico), que vêm depois e são posicionados. */}

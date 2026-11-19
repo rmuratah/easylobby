@@ -6,7 +6,7 @@ import { cx } from './base/cx';
 
 type Props = { ranked: RankedStats | null; queueId: number };
 
-/** Elo do jogador no card do lobby (#275). Some enquanto o agente ainda busca os ranks. */
+/** Elo do jogador no card do lobby (#275), sempre numa linha só (#605). Some enquanto o agente ainda busca os ranks. */
 export function LobbyRank({ ranked, queueId }: Props) {
   const [failed, setFailed] = useState<string | null>(null);
   if (!ranked) return null;
