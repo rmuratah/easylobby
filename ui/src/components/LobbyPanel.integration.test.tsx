@@ -552,13 +552,8 @@ describe('lobby pelo único /ws do App', () => {
   });
 });
 
-// As rotas ficam num balão nos chips do seu card (#603): abre pelo botão quando está fechado.
-function positionSelect(name: string) {
-  const open = panel().queryByRole('radiogroup', { name });
-  if (open) return open;
-  fireEvent.click(panel().getByRole('button', { name: 'Trocar suas posições' }));
-  return panel().getByRole('radiogroup', { name });
-}
+// As rotas ficam num card fixo embaixo do seu (#607): os chips dos cards só mostram.
+const positionSelect = (name: string) => panel().getByRole('radiogroup', { name });
 // Cargos confirmados de um jogador, como aparecem nas etiquetas da linha dele.
 const roles = (name: string) => panel().getByRole('list', { name: `Posições de ${name}` });
 function choosePositions(first: string, second = 'unselected') {
@@ -728,10 +723,9 @@ describe('cargos pelo /ws', () => {
 
   it('aguarda puuid local, bloqueia outras fases e acompanha mudanças externas', async () => {
     render(<App />);
-    // Sem o seu membro ou fora da fase de lobby, as rotas ficam travadas: sem balão nem botão (#603).
+    // Sem o seu membro ou fora da fase de lobby, o card das rotas fica travado (#607).
     const locked = () => {
-      expect(panel().queryByRole('radiogroup', { name: 'Posição primária' })).not.toBeInTheDocument();
-      expect(panel().queryByRole('button', { name: 'Trocar suas posições' })).not.toBeInTheDocument();
+      expect(panel().getByRole('group', { name: 'Suas posições' })).toBeDisabled();
     };
     hello({ lobby: { ...testLobby, members: [{ ...testLobby.members[0], puuid: 'outro' }] }, gameflowPhase: 'Lobby' });
     locked();

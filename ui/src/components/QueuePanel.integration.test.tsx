@@ -68,12 +68,12 @@ describe('matchmaking pelo /ws', () => {
     expect(panel().queryByText(/agente/)).not.toBeInTheDocument();
     expect(panel().queryByRole('status')).not.toBeInTheDocument();
     expect(lobbyPanel().queryByRole('combobox', { name: 'Fila' })).not.toBeInTheDocument();
-    // Na busca, as rotas ficam travadas: sem o balão e sem o botão dos chips (#603).
-    expect(lobbyPanel().queryByRole('button', { name: 'Trocar suas posições' })).not.toBeInTheDocument();
+    // Na busca, o card das rotas fica travado (#607).
+    expect(lobbyPanel().getByRole('group', { name: 'Suas posições' })).toBeDisabled();
     act(() => socket().receive({ type: 'gameflowPhase', phase: 'Lobby' }));
     expect(lobbyPanel().queryByRole('button', { name: 'Sair do lobby' })).not.toBeInTheDocument();
-    // Na busca, as rotas ficam travadas: sem o balão e sem o botão dos chips (#603).
-    expect(lobbyPanel().queryByRole('button', { name: 'Trocar suas posições' })).not.toBeInTheDocument();
+    // Na busca, o card das rotas fica travado (#607).
+    expect(lobbyPanel().getByRole('group', { name: 'Suas posições' })).toBeDisabled();
   });
 
   it('sincroniza e limpa o cronômetro nas transições', () => {
@@ -227,7 +227,7 @@ describe('tela unificada', () => {
     hello({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
     expect(screen.getByRole('region', { name: 'Lobby' })).toBeVisible();
     expect(screen.getByRole('region', { name: 'Busca de partida' })).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Trocar suas posições' })).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Suas posições' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
   });
 
