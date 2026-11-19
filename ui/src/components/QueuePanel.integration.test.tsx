@@ -22,7 +22,8 @@ class Socket {
 const socket = () => Socket.instances.at(-1)!;
 const panel = () => within(screen.getByRole('region', { name: 'Busca de partida' }));
 const lobbyPanel = () => within(screen.getByRole('region', { name: 'Lobby' }));
-const button = (name: string) => panel().getByRole('button', { name });
+// O botão da busca fica no lugar do Jogar, na barra do alto (#600).
+const button = (name: string) => screen.getByRole('button', { name });
 const request = (): ClientMessage => JSON.parse(socket().send.mock.lastCall![0]);
 function hello(overrides: Partial<AgentState> = {}) {
   act(() => socket().receive({ type: 'hello', protocol: 1, agentVersion: '0.1.0', state: { ...testState, ...overrides } }));
@@ -39,11 +40,11 @@ describe('matchmaking pelo /ws', () => {
   it('trava a busca enquanto o LoL baixa um patch e libera quando termina (#575)', () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby', lolUpdate: { stage: 'downloading', percent: 40, blocksQueue: true } });
-    expect(button('Iniciar busca')).toBeDisabled();
+    expect(button('Buscar partida')).toBeDisabled();
     expect(panel().getByText(/O League of Legends está se atualizando/)).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Progresso da atualização' })).toHaveAttribute('aria-valuenow', '40');
     act(() => socket().receive({ type: 'lolUpdate', lolUpdate: null }));
-    expect(button('Iniciar busca')).toBeEnabled();
+    expect(button('Buscar partida')).toBeEnabled();
     expect(screen.getByRole('status', { name: 'Atualização do League of Legends' }))
       .toHaveTextContent('Atualização do League of Legends concluída');
   });
@@ -51,11 +52,11 @@ describe('matchmaking pelo /ws', () => {
   it('inicia uma vez e mantém o agente como fonte de verdade', async () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
-    act(() => { fireEvent.click(button('Iniciar busca')); fireEvent.click(button('Iniciar busca')); });
+    act(() => { fireEvent.click(button('Buscar partida')); fireEvent.click(button('Buscar partida')); });
     expect(request().command).toEqual({ type: 'startQueue' });
     expect(socket().send).toHaveBeenCalledTimes(1);
     expect(panel().getByText('Fora da fila', { selector: 'strong' })).toBeInTheDocument();
-    expect(button('Iniciar busca')).toBeDisabled();
+    expect(button('Buscar partida')).toBeDisabled();
     act(() => {
       socket().receive({ type: 'gameflowPhase', phase: 'Matchmaking' });
       socket().receive({ type: 'matchmaking', matchmaking: testMatchmaking });
@@ -67,10 +68,10 @@ describe('matchmaking pelo /ws', () => {
     expect(panel().queryByText(/agente/)).not.toBeInTheDocument();
     expect(panel().queryByRole('status')).not.toBeInTheDocument();
     expect(lobbyPanel().queryByRole('combobox', { name: 'Fila' })).not.toBeInTheDocument();
-    expect(lobbyPanel().getByRole('combobox', { name: 'Posição primária' })).toBeDisabled();
+    expect(lobbyPanel().getByRole('radiogroup', { name: 'Posição primária' })).toBeDisabled();
     act(() => socket().receive({ type: 'gameflowPhase', phase: 'Lobby' }));
     expect(lobbyPanel().queryByRole('button', { name: 'Sair do lobby' })).not.toBeInTheDocument();
-    expect(lobbyPanel().getByRole('combobox', { name: 'Posição primária' })).toBeDisabled();
+    expect(lobbyPanel().getByRole('radiogroup', { name: 'Posição primária' })).toBeDisabled();
   });
 
   it('sincroniza e limpa o cronômetro nas transições', () => {
@@ -126,13 +127,13 @@ describe('matchmaking pelo /ws', () => {
   it('respeita lobby, liderança, prontidão e fase', () => {
     render(<App />);
     hello({ gameflowPhase: 'Lobby' });
-    expect(button('Iniciar busca')).toBeDisabled();
+    expect(button('Buscar partida')).toBeDisabled();
     hello({ lobby: { ...testLobby, isLeader: false }, gameflowPhase: 'Lobby' });
     expect(panel().getByText(/Somente o líder/)).toBeInTheDocument();
     hello({ lobby: { ...testLobby, canStartActivity: false }, gameflowPhase: 'Lobby' });
     expect(panel().getByText(/ainda não está pronto/)).toBeInTheDocument();
     hello({ lobby: testLobby, gameflowPhase: 'None' });
-    expect(button('Iniciar busca')).toBeDisabled();
+    expect(button('Buscar partida')).toBeDisabled();
     hello({ lobby: testLobby, gameflowPhase: 'ReadyCheck', matchmaking: { ...testMatchmaking, searchState: 'Found' } });
     expect(button('Cancelar busca')).toBeDisabled();
   });
@@ -141,7 +142,7 @@ describe('matchmaking pelo /ws', () => {
     render(<App />);
     const away = { ...testLobby.members[0], puuid: 'amigo', summonerId: 2, ready: false, gameName: 'Games e Musica', tagLine: 'BR1', isLeader: false };
     hello({ lobby: { ...testLobby, canStartActivity: false, members: [...testLobby.members, away] }, gameflowPhase: 'Lobby' });
-    expect(button('Iniciar busca')).toBeDisabled();
+    expect(button('Buscar partida')).toBeDisabled();
     // Quem não voltou aparece só no card do jogador, no lobby (#573).
     expect(panel().getByText('Aguarde todos voltarem ao lobby.')).toBeInTheDocument();
     expect(panel().queryByText(/ainda não voltou ao lobby/)).not.toBeInTheDocument();
@@ -150,7 +151,7 @@ describe('matchmaking pelo /ws', () => {
     hello({ lobby: { ...testLobby, members: [...testLobby.members, { ...away, ready: true }] }, gameflowPhase: 'Lobby' });
     expect(lobbyPanel().queryByText('Ainda não voltou ao lobby')).not.toBeInTheDocument();
     expect(panel().queryByText('Aguarde todos voltarem ao lobby.')).not.toBeInTheDocument();
-    expect(button('Iniciar busca')).toBeEnabled();
+    expect(button('Buscar partida')).toBeEnabled();
   });
 
   it('mostra o motivo da fila bloqueada que a LCU mandou (#227)', () => {
@@ -160,7 +161,7 @@ describe('matchmaking pelo /ws', () => {
       { code: 'RestricaoNova', message: null, puuids: [] },
     ];
     hello({ lobby: { ...testLobby, canStartActivity: false, restrictions }, gameflowPhase: 'Lobby' });
-    expect(button('Iniciar busca')).toBeDisabled();
+    expect(button('Buscar partida')).toBeDisabled();
     const reasons = within(panel().getByRole('list', { name: 'Motivos da fila bloqueada' })).getAllByRole('listitem');
     expect(reasons.map(r => r.textContent)).toEqual([
       'Esta fila não aceita grupos deste tamanho.',
@@ -169,7 +170,7 @@ describe('matchmaking pelo /ws', () => {
     // Com a fila liberada, motivos que sobraram não aparecem.
     hello({ lobby: { ...testLobby, canStartActivity: true, restrictions }, gameflowPhase: 'Lobby' });
     expect(panel().queryByRole('list', { name: 'Motivos da fila bloqueada' })).not.toBeInTheDocument();
-    expect(button('Iniciar busca')).toBeEnabled();
+    expect(button('Buscar partida')).toBeEnabled();
   });
 
   it('diz quem está bloqueando a fila e marca o card dele (#411)', () => {
@@ -181,20 +182,22 @@ describe('matchmaking pelo /ws', () => {
     expect(reasons.map(r => r.textContent)).toEqual(['A diferença de elo entre os jogadores do grupo é grande demais (Ana#BR1).']);
     const cards = within(lobbyPanel().getByRole('list', { name: 'Jogadores no lobby' })).getAllByRole('listitem')
       .filter(item => item.parentElement?.getAttribute('aria-label') === 'Jogadores no lobby');
-    expect(cards[1]).toHaveTextContent('Bloqueando a fila: A diferença de elo');
-    expect(cards[0]).not.toHaveTextContent('Bloqueando a fila');
+    // No palco (#600), você fica no meio: o card da Ana é o outro.
+    const ana = cards.find(card => card.textContent?.includes('Ana'))!;
+    expect(ana).toHaveTextContent('Bloqueando a fila: A diferença de elo');
+    expect(cards.find(card => card !== ana)).not.toHaveTextContent('Bloqueando a fila');
   });
 
   it('trata erro, falha de envio e timeout sem repetir comandos', async () => {
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
-    fireEvent.click(button('Iniciar busca'));
+    fireEvent.click(button('Buscar partida'));
     await respond({ status: 'error', code: 'lcu', message: 'Fila indisponível' });
     expect(panel().getByRole('alert')).toHaveTextContent('Fila indisponível');
     socket().send.mockImplementationOnce(() => { throw new Error('envio'); });
-    await act(async () => fireEvent.click(button('Iniciar busca')));
+    await act(async () => fireEvent.click(button('Buscar partida')));
     expect(panel().getByRole('alert')).toHaveTextContent('Não foi possível confirmar');
-    fireEvent.click(button('Iniciar busca'));
+    fireEvent.click(button('Buscar partida'));
     const count = socket().send.mock.calls.length;
     await act(async () => vi.advanceTimersByTime(10000));
     expect(panel().getByRole('alert')).toHaveTextContent('Confira a conexão');
@@ -222,7 +225,7 @@ describe('tela unificada', () => {
     hello({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
     expect(screen.getByRole('region', { name: 'Lobby' })).toBeVisible();
     expect(screen.getByRole('region', { name: 'Busca de partida' })).toBeVisible();
-    expect(screen.getByRole('combobox', { name: 'Posição primária' })).toBeDisabled();
+    expect(screen.getByRole('radiogroup', { name: 'Posição primária' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
   });
 
@@ -230,10 +233,10 @@ describe('tela unificada', () => {
     configure({ defaultHidden: false });
     render(<App />);
     hello({ lobby: testLobby, gameflowPhase: 'Lobby' });
-    expect(screen.getByRole('button', { name: 'Iniciar busca' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Buscar partida' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
     hello({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
     expect(screen.getByRole('button', { name: 'Cancelar busca' })).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Iniciar busca' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Buscar partida' })).not.toBeInTheDocument();
   });
 });

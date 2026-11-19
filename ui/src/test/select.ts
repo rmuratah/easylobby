@@ -20,6 +20,7 @@ function close(combobox: HTMLElement) {
  * Com a lista desabilitada ou a opção desabilitada, nada muda (como no `<select>` nativo).
  */
 export function chooseOption(combobox: HTMLElement, value: string | number) {
+  if (combobox.getAttribute('role') === 'radiogroup') return chooseRadio(combobox, String(value));
   if ((combobox as HTMLButtonElement).disabled || combobox.closest('fieldset:disabled')) return;
   const list = open(combobox);
   const option = list?.querySelector<HTMLElement>(`[role="option"][data-value="${String(value)}"]`);
@@ -30,6 +31,7 @@ export function chooseOption(combobox: HTMLElement, value: string | number) {
 
 /** Opções da lista (abre, lê e fecha). */
 function listOptions(combobox: HTMLElement): HTMLElement[] {
+  if (combobox.getAttribute('role') === 'radiogroup') return Array.from(combobox.querySelectorAll<HTMLElement>('[role="radio"]'));
   const list = open(combobox);
   const options = list ? Array.from(list.querySelectorAll<HTMLElement>('[role="option"]')) : [];
   close(combobox);
@@ -38,10 +40,26 @@ function listOptions(combobox: HTMLElement): HTMLElement[] {
 
 /** Textos das opções da lista, na ordem. */
 export function optionLabels(combobox: HTMLElement): (string | null)[] {
-  return listOptions(combobox).map(option => option.textContent);
+  return listOptions(combobox).map(option => option.getAttribute('aria-label') ?? option.textContent);
 }
 
 /** Opção pelo texto (abre, lê e fecha); `undefined` se não existe. */
 export function optionByLabel(combobox: HTMLElement, label: string): HTMLElement | undefined {
-  return listOptions(combobox).find(option => option.textContent === label);
+  return listOptions(combobox).find(option => (option.getAttribute('aria-label') ?? option.textContent) === label);
+}
+
+/**
+ * Grupo de opções lado a lado (`radiogroup`, como as posições do lobby, #600): clica na opção.
+ * "unselected" desmarca, clicando de novo na opção marcada. Desabilitado, nada muda.
+ */
+function chooseRadio(group: HTMLElement, value: string) {
+  if (group.matches(':disabled') || group.closest('fieldset:disabled')) return;
+  const current = group.getAttribute('data-value');
+  if (value === 'unselected') {
+    if (current && current !== 'unselected') fireEvent.click(group.querySelector<HTMLElement>(`[role="radio"][data-value="${current}"]`)!);
+    return;
+  }
+  const radio = group.querySelector<HTMLElement>(`[role="radio"][data-value="${value}"]`);
+  if (!radio) throw new Error(`opção ${value} não existe no grupo ${group.getAttribute('aria-label')}`);
+  if (current !== value) fireEvent.click(radio);
 }

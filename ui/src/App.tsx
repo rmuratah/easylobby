@@ -73,6 +73,8 @@ export default function App() {
   const [runesOpen, setRunesOpen] = useState(false);
   // Trocar modo no lobby (#513): a tela de modos ocupa a área inteira, sem a busca e o grupo ao lado.
   const [changingMode, setChangingMode] = useState(false);
+  // Lugar do botão Jogar, na barra do alto: no lobby, a busca de partida põe o botão dela ali (#600).
+  const [queueSlot, setQueueSlot] = useState<HTMLDivElement | null>(null);
   // Sair da seleção fecha o pop-up de runas.
   if (runesOpen && screen !== 'champSelect') setRunesOpen(false);
   const [navigation, setNavigation] = useState<{ screen: typeof screen; page: 'main' | Page }>({ screen, page: 'main' });
@@ -128,6 +130,12 @@ export default function App() {
   // A partida em andamento mostra as duas equipes (#268).
   const liveGame = screen === 'other' && liveGamePhases.has(connection.state?.gameflowPhase ?? '') ? connection.state?.liveGame ?? null : null;
   const lobbyMain = screen === 'lobby' || screen === 'queue';
+  const lobbyState = connection.status === 'connected' && connection.state?.lcu.state === 'connected' ? connection.state.lobby : null;
+  // Palco do lobby (#600): a personalizada mantém a coluna da direita com a busca e o grupo.
+  const stage = !lobbyState?.custom;
+  // Na tela do lobby, o botão do alto busca a partida (#600); nas outras páginas, continua levando ao lobby.
+  const queueInSlot = ready && activePage === 'flow' && lobbyMain && stage && !!lobbyState && !changingMode
+    && !unavailableFeature(connection, 'lobby');
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
     : found ? 'Partida encontrada' : screen === 'champSelect' ? 'Seleção de campeões'
       : screen === 'postGame' ? 'Fim de partida'
@@ -139,7 +147,8 @@ export default function App() {
       <TitleBar connection={connection} send={connection.send}
         navigation={<div hidden={!ready} className="contents">
           <TopNavigation active={activePage === 'friendProfile' ? 'profile' : activePage} flowLabel={screen === 'home' ? 'Jogar' : 'Grupo'}
-            flowButtonRef={flowButtonRef} unread={unread} onNavigate={next => setNavigation({ screen, page: next })} />
+            flowButtonRef={flowButtonRef} unread={unread} onNavigate={next => setNavigation({ screen, page: next })}
+            queueSlotRef={setQueueSlot} queueInSlot={queueInSlot} />
         </div>}
         tools={<ToolbarSettings theme={theme} onThemeChange={setPreference}
           sound={soundSettings.settings} onSoundChange={soundSettings.update}
@@ -202,6 +211,7 @@ export default function App() {
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
             {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}
             <div hidden={!playable || (activePage !== 'flow' && activePage !== 'home')} className={homeLayout ? 'home-primary'
+              : lobbyMain && !changingMode && stage ? 'flex min-h-0 flex-1 flex-col gap-5'
               : lobbyMain && !changingMode ? 'grid min-h-0 flex-1 items-stretch gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]'
               : 'flex flex-1 flex-col gap-4'}>
               {homeReserved && <article aria-label="Área reservada para atualização"
@@ -215,14 +225,27 @@ export default function App() {
                   <LobbyPanel connection={connection} send={connection.send} onOpenProfile={openPlayerProfile} onModeSelectChange={setChangingMode} />
                 </FeatureGate>
               </div>
-              {/* Coluna da direita com largura, só da altura do conteúdo (sem sobra); embaixo, presa à borda, quando a janela é estreita. */}
-              <div hidden={activePage !== 'flow' || screen === 'home' || found || changingMode} className="sticky bottom-0 z-10 flex h-fit flex-col gap-4 self-start @min-[44rem]:top-0 @min-[44rem]:bottom-auto">
+              {/* Personalizada: coluna da direita com largura, só da altura do conteúdo (sem sobra); embaixo, presa à borda, quando a janela é estreita.
+                  Palco (#600): embaixo do lobby, o chat à esquerda e o estado da busca e o grupo à direita. */}
+              <div hidden={activePage !== 'flow' || screen === 'home' || found || changingMode}
+                className={stage ? 'grid items-start gap-4 @min-[44rem]:grid-cols-2'
+                  : 'sticky bottom-0 z-10 flex h-fit flex-col gap-4 self-start @min-[44rem]:top-0 @min-[44rem]:bottom-auto'}>
                 {/* Com o lobby desligado (#36), o aviso fica no lugar do lobby; aqui não aparece nada. */}
                 <FeatureGate connection={connection} send={connection.send} feature="lobby" quiet>
-                  <QueuePanel connection={connection} send={connection.send} />
-                  {/* Embaixo da busca, quem foi convidado e o status, e o chat do grupo (#206). */}
-                  <LobbyGroupCard connection={connection} />
-                  <LobbyChatPanel connection={connection} send={connection.send} />
+                  {stage ? <>
+                    <div className="flex min-w-0 flex-col gap-4">
+                      <LobbyChatPanel connection={connection} send={connection.send} />
+                    </div>
+                    <div className="flex min-w-0 flex-col gap-4">
+                      <QueuePanel connection={connection} send={connection.send} buttonSlot={queueInSlot ? queueSlot : null} />
+                      <LobbyGroupCard connection={connection} />
+                    </div>
+                  </> : <>
+                    <QueuePanel connection={connection} send={connection.send} />
+                    {/* Embaixo da busca, quem foi convidado e o status, e o chat do grupo (#206). */}
+                    <LobbyGroupCard connection={connection} />
+                    <LobbyChatPanel connection={connection} send={connection.send} />
+                  </>}
                 </FeatureGate>
               </div>
             </div>

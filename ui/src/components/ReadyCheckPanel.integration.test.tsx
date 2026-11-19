@@ -104,8 +104,8 @@ it('bloqueia resposta desconhecida e ações incompatíveis mesmo antes da fase'
   expect(panel().getByText('Resposta desconhecida')).toBeInTheDocument();
   expect(button('Aceitar')).toBeDisabled();
   hello({ gameflowPhase: 'Lobby', lobby: testLobby, readyCheck: testReadyCheck });
-  expect(screen.queryByRole('button', { name: 'Iniciar busca' })).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Iniciar busca', hidden: true })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Buscar partida' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Buscar partida', hidden: true })).toBeDisabled();
   expect(screen.queryByRole('button', { name: 'Sair do lobby' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Sair do lobby', hidden: true })).not.toBeInTheDocument();
   hello({ gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking, readyCheck: testReadyCheck });

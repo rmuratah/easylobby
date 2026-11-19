@@ -9,8 +9,9 @@ import { InvitePicker } from './LobbyInvites';
 import { positionNames, validPositions } from '../agent/positions';
 import { queuePenalty } from '../agent/matchmaking';
 import type { Position } from '../bindings/Position';
+import { stageSeats } from './lobbyStage';
 import { assetUrl } from '../agent/assets';
-import { Avatar, Select, type SelectOption } from './base';
+import { Avatar } from './base';
 import { cx } from './base/cx';
 import { CloseIcon, CrownIcon, PlusIcon } from './home/icons';
 import { PositionIcon } from './PositionIcon';
@@ -121,8 +122,6 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
   const desired = useRef<Desired>({});
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const descriptionId = useId();
-  const firstId = useId();
-  const secondId = useId();
   const positionContext = useRef(0);
   const confirmedRevision = useRef(0);
   useEffect(() => { confirmedRevision.current += 1; }, [confirmedKey]);
@@ -305,28 +304,23 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
   const queueLabel = lobbyQueueName(lobby, state.queues);
   // Posições que faltam na fila agora (#410): marcadas na escolha, como no client oficial.
   const scarce = lobby.scarcePositions;
-  const positionChoices = (allowed: (position: Position) => boolean): SelectOption<Position>[] =>
-    (Object.keys(positionNames) as Position[]).map(position => ({
-      value: position,
-      label: `${positionNames[position]}${scarce.includes(position) ? ' (prioritária)' : ''}`,
-      icon: <PositionIcon position={position} />,
-      disabled: !allowed(position),
-    }));
   const freeSlots = Math.max(0, lobby.maxLobbySize - lobby.members.length);
+  // Palco (#600): você no centro; os outros e as vagas livres se espalham a partir do meio.
+  const others = lobby.members.filter(member => member.puuid !== summoner?.puuid);
+  const seats = stageSeats(localMember, others, freeSlots);
   return (
     <section aria-label="Lobby" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
-      className={cx('flex h-full min-h-0 w-full flex-col gap-4 rounded-panel text-ink transition-shadow',
+      className={cx('flex h-full min-h-0 w-full flex-col gap-5 rounded-panel text-ink transition-shadow',
         dropping && 'ring-2 ring-accent')}>
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Lobby</h2>
-          <p className="text-title font-semibold"><span className="sr-only">Fila atual: </span><strong className="font-semibold">{queueLabel}</strong></p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Faixa do modo (#600): a fila em destaque e as ações do lobby logo abaixo. */}
+      <header className="lobby-banner relative flex flex-col items-center gap-2 overflow-hidden rounded-panel surface card px-5 pb-5 pt-5 text-center shadow-soft animate-fade-up">
+        <h2 className="text-caption font-semibold uppercase tracking-[0.08em] text-muted">Lobby</h2>
+        <p className="text-title font-semibold text-balance @min-[44rem]:text-[2rem]"><span className="sr-only">Fila atual: </span><strong className="font-semibold">{queueLabel}</strong></p>
+        <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
           <span className="rounded-full bg-accent-soft px-3 py-1.5 text-caption font-semibold text-accent-ink">
             {lobby.members.length} / {lobby.maxLobbySize} jogadores
           </span>
-          <span className="rounded-full surface px-3 py-1.5 shadow-soft text-caption font-medium text-muted">
+          <span className="rounded-full bg-raised px-3 py-1.5 text-caption font-medium text-muted">
             {lobby.isLeader ? 'Você é o líder' : 'Você é membro'}
           </span>
           {/* Lobby aberto ou fechado (#225): todos os modos, menos o Tutorial. */}
@@ -358,100 +352,103 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
         <ArenaTeams lobby={lobby} state={state} localName={localName} send={send} picker={picker} onPicker={setPicker} onOpenProfile={onOpenProfile}
           canSwap={canManageMembers && !!localMember} canManageMembers={canManageMembers} />
       ) : (
-      <ul aria-label="Jogadores no lobby" className="flex min-h-0 flex-1 flex-col gap-3">
-        {lobby.members.map((member, index) => {
+      <ul aria-label="Jogadores no lobby" className="flex flex-wrap items-start justify-center gap-x-3 gap-y-5 px-2 @min-[60rem]:gap-x-6">
+        {seats.map((seat, order) => {
+          if (seat.kind === 'free') {
+            const index = seat.index;
+            return (
+              <li key={`vaga-${index}`} aria-label="Vaga livre" style={{ animationDelay: `${order * 70}ms` }}
+                className="relative flex w-32 flex-col items-center gap-2 pt-4 text-muted animate-fade-up @min-[60rem]:w-40">
+                {/* O "+" abre a lista de amigos para convidar (#206); sem permissão de convidar, fica só o desenho. */}
+                {lobby.canInvite ? (
+                  <button type="button" aria-label="Convidar amigo" title="Convidar amigo" aria-expanded={picker === index}
+                    aria-haspopup="dialog" onClick={() => setPicker(picker === index ? null : index)}
+                    className={`flex size-20 items-center justify-center rounded-full border-2 border-dashed border-line text-muted transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent-ink ${focusRing}`}>
+                    <PlusIcon size={24} />
+                  </button>
+                ) : <span aria-hidden="true" className="flex size-20 items-center justify-center rounded-full border-2 border-dashed border-line"><PlusIcon size={24} /></span>}
+                <span className="text-body font-medium">{lobby.canInvite ? 'Convidar' : 'Vaga livre'}</span>
+              </li>
+            );
+          }
+          const member = seat.member;
           const me = member.puuid === summoner?.puuid;
           const name = me ? localName : memberName(member, state.friends);
           const isAway = away.has(member.puuid);
           return (
-            <li key={member.puuid} style={{ animationDelay: `${index * 70}ms` }}
-              className={cx('relative flex min-h-20 flex-1 items-center gap-4 rounded-panel card px-4 py-3 transition-all duration-200 animate-fade-up',
+            <li key={member.puuid} style={{ animationDelay: `${order * 70}ms` }}
+              className={cx('group relative flex flex-col items-center gap-1.5 rounded-panel px-2 pb-2 pt-1 text-center transition-all duration-200 animate-fade-up',
                 // O card do jogador fica por cima dos outros para a escolha de campeão aberta nele não ficar escondida.
-                me ? 'z-10 bg-surface shadow-lift ring-2 ring-accent/30' : 'surface shadow-soft hover:-translate-y-0.5 hover:shadow-lift')}>
-              {/* O card de outro jogador inteiro abre o perfil dele (#308). O botão fica por baixo dos
-                  controles do card (menu do líder, campeões do Jogo Dinâmico), que vêm depois e são posicionados. */}
+                lobby.showQuickPlaySlots ? 'w-60' : 'w-36 @min-[60rem]:w-44', me && 'z-10')}>
+              {/* O jogador inteiro abre o perfil dele (#308). O botão fica por baixo dos
+                  controles (menu do líder, campeões do Jogo Dinâmico), que vêm depois e são posicionados. */}
               {!me && onOpenProfile && (
                 <button type="button" aria-label={`Ver perfil de ${name}`} title={`Ver perfil de ${name}`}
                   onClick={() => onOpenProfile(member.puuid)}
-                  className={`absolute inset-0 cursor-pointer rounded-panel ${focusRing}`} />
+                  className={`absolute inset-0 cursor-pointer rounded-panel transition-colors hover:bg-raised/60 ${focusRing}`} />
               )}
-              <div className={cx('shrink-0 rounded-full p-1 transition-opacity', me ? 'bg-primary-gradient' : 'bg-raised', isAway && 'opacity-40 grayscale')}>
+              <div className={cx('relative shrink-0 rounded-full transition-opacity', me ? 'bg-primary-gradient p-1.5 shadow-lift' : 'bg-line p-1', isAway && 'opacity-40 grayscale')}>
                 <Avatar name={me && summoner?.gameName ? summoner.gameName : name} src={assetUrl('profileIcon', member.summonerIconId)}
-                  size={me ? 64 : 56} className="ring-2 ring-surface" />
+                  size={me ? 104 : 76} className="ring-4 ring-bg" />
               </div>
-              <div className="min-w-0 flex-1">
-                <div className={cx('flex items-center gap-2 transition-opacity', isAway && 'opacity-50')}>
-                  <h3 className={cx('truncate font-semibold', me ? 'text-section' : 'text-body')}>{name}</h3>
-                  {member.isLeader && (
-                    <span role="img" aria-label="Líder do grupo" title="Líder do grupo"
-                      className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-soft text-warn">
-                      <CrownIcon size={14} />
-                    </span>
-                  )}
-                </div>
-                {me && <p className="truncate text-caption text-muted">Você</p>}
-                {isAway && (
-                  <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-soft px-2.5 py-1 text-caption font-semibold text-warn">
-                    <span aria-hidden="true" className="tracking-widest">•••</span>
-                    Ainda não voltou ao lobby
-                  </p>
+              <div className={cx('mt-1 flex max-w-full items-center justify-center gap-1.5 transition-opacity', isAway && 'opacity-50')}>
+                <h3 className={cx('truncate font-semibold', me ? 'text-section' : 'text-body')}>{name}</h3>
+                {member.isLeader && (
+                  <span role="img" aria-label="Líder do grupo" title="Líder do grupo"
+                    className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-soft text-warn">
+                    <CrownIcon size={14} />
+                  </span>
                 )}
-                {blocking.has(member.puuid) && (
-                  <p title={blocking.get(member.puuid)!.join(' ')}
-                    className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-full bg-emerald-soft px-2.5 py-1 text-caption font-semibold text-warn">
-                    <span aria-hidden="true">!</span>
-                    <span className="truncate">Bloqueando a fila<span className="sr-only">: {blocking.get(member.puuid)!.join(' ')}</span></span>
-                  </p>
-                )}
-                <div className={cx('flex flex-wrap items-center gap-x-2 transition-opacity', isAway && 'opacity-50')}>
-                  <span className="mt-2 inline-block rounded-full bg-raised px-2.5 py-1 text-caption font-semibold text-muted">Nível {member.summonerLevel}</span>
-                  <LobbyRank ranked={member.ranked} queueId={lobby.queueId} />
-                </div>
+              </div>
+              {me && <p className="-mt-1 text-caption text-muted">Você</p>}
+              {isAway && (
+                <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-soft px-2.5 py-1 text-caption font-semibold text-warn">
+                  <span aria-hidden="true" className="tracking-widest">•••</span>
+                  Ainda não voltou ao lobby
+                </p>
+              )}
+              {blocking.has(member.puuid) && (
+                <p title={blocking.get(member.puuid)!.join(' ')}
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-emerald-soft px-2.5 py-1 text-caption font-semibold text-warn">
+                  <span aria-hidden="true">!</span>
+                  <span className="truncate">Bloqueando a fila<span className="sr-only">: {blocking.get(member.puuid)!.join(' ')}</span></span>
+                </p>
+              )}
+              <div className={cx('flex flex-wrap items-center justify-center gap-1.5 transition-opacity', isAway && 'opacity-50')}>
+                <LobbyRank ranked={member.ranked} queueId={lobby.queueId} />
+                <span className="inline-block rounded-full bg-raised px-2.5 py-1 text-caption font-semibold text-muted">Nível {member.summonerLevel}</span>
               </div>
               {lobby.showQuickPlaySlots && (
-                <QuickPlaySlots key={`${lobby.queueId}:${member.puuid}`} member={member} mine={me} canEdit={canSetSlots}
-                  state={state} send={send} notes={me ? slotNotes : undefined} />
+                <div className="relative mt-1">
+                  <QuickPlaySlots key={`${lobby.queueId}:${member.puuid}`} member={member} mine={me} canEdit={canSetSlots}
+                    state={state} send={send} notes={me ? slotNotes : undefined} />
+                </div>
               )}
               {/* Rift Clássico (#230): a 1ª preferência em destaque e as outras em ordem. */}
               {lobby.showPositionSelector && lobby.orderedPositions && <MemberPositionOrder member={member} name={name} />}
               {lobby.showPositionSelector && !lobby.orderedPositions && (
-                <ul aria-label={`Posições de ${name}`} className="flex w-36 shrink-0 flex-col gap-2 @min-[52rem]:w-52">
+                <ul aria-label={`Posições de ${name}`} className="flex flex-wrap items-center justify-center gap-1.5">
                   {[member.firstPosition, member.secondPosition].map((position, slot) => (
-                    <li key={slot} className={cx('flex items-center gap-2 rounded-tile px-3 py-2 text-body font-medium',
-                      slot === 0 ? 'bg-accent-soft text-accent-ink' : 'bg-raised text-muted')}>
-                      <PositionIcon position={position} />
+                    <li key={slot} title={`${slot === 0 ? 'Primária' : 'Secundária'}: ${positionNames[position]}`}
+                      className={cx('flex items-center gap-1 rounded-full px-2.5 py-1 text-caption font-semibold',
+                        slot === 0 ? 'bg-accent-soft text-accent-ink' : 'bg-raised text-muted')}>
+                      <PositionIcon position={position} size={14} />
                       <span className="truncate">{positionNames[position]}</span>{' '}
-                      {/* Em janela estreita, a ordem e a cor dizem qual é qual; o leitor de tela continua ouvindo. */}
-                      <span className="sr-only shrink-0 text-caption @min-[52rem]:not-sr-only @min-[52rem]:ml-auto">{slot === 0 ? 'Primária' : 'Secundária'}</span>
+                      <span className="sr-only">{slot === 0 ? 'Primária' : 'Secundária'}</span>
                     </li>
                   ))}
                 </ul>
               )}
-              {/* Tornar líder e remover do grupo (#267): só o líder, nos cards dos outros. */}
-              {lobby.isLeader && (me
-                // No próprio card não há menu, mas o espaço do "⋯" fica reservado para as posições
-                // e os campeões ficarem alinhados com os dos outros cards.
-                ? <span aria-hidden="true" data-testid="lobby-menu-spacer" className="size-8 shrink-0 self-start" />
-                : <LobbyMemberMenu name={name} summonerId={member.summonerId} send={send} disabled={!canManageMembers} allowedInvite={member.allowedInviteOthers} />
-              )}
+              {/* Tornar líder e remover do grupo (#267): só o líder, nos outros jogadores. */}
+              {lobby.isLeader && <div className="absolute right-0 top-0 z-10">
+                {me
+                  // No próprio card não há menu: o espaço do "⋯" fica reservado, como nos outros.
+                  ? <span aria-hidden="true" data-testid="lobby-menu-spacer" className="block size-8" />
+                  : <LobbyMemberMenu name={name} summonerId={member.summonerId} send={send} disabled={!canManageMembers} allowedInvite={member.allowedInviteOthers} />}
+              </div>}
             </li>
           );
         })}
-        {Array.from({ length: freeSlots }, (_, index) => (
-          <li key={`vaga-${index}`} aria-label="Vaga livre" style={{ animationDelay: `${(lobby.members.length + index) * 70}ms` }}
-            className="relative flex min-h-20 flex-1 items-center justify-center gap-3 rounded-panel border-2 border-dashed border-line bg-surface/40 text-muted animate-fade-up">
-            {/* O "+" abre a lista de amigos para convidar (#206); sem permissão de convidar, fica só o desenho. */}
-            {lobby.canInvite ? (
-              <button type="button" aria-label="Convidar amigo" title="Convidar amigo" aria-expanded={picker === index}
-                aria-haspopup="dialog" onClick={() => setPicker(picker === index ? null : index)}
-                className={`flex size-11 items-center justify-center rounded-full bg-raised text-ink transition-colors hover:bg-accent hover:text-on-accent ${focusRing}`}>
-                <PlusIcon size={20} />
-              </button>
-            ) : <span aria-hidden="true" className="flex size-11 items-center justify-center rounded-full bg-raised"><PlusIcon size={20} /></span>}
-            <span className="text-body font-semibold">Vaga livre</span>
-            
-          </li>
-        ))}
       </ul>
       )}
       {invites.error && picker === null && <p role="alert" className="text-body text-danger">{invites.error}</p>}
@@ -464,25 +461,19 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
         {lobby.showPositionSelector && lobby.orderedPositions ? (
           <PositionOrderCard member={localMember} scarce={scarce} canEdit={canSetPositions} send={send} />
         ) : lobby.showPositionSelector ? (
-          <fieldset className="flex h-full min-w-0 flex-col gap-3 rounded-panel surface card p-4 shadow-soft animate-fade-up" disabled={!canSetPositions}>
+          <fieldset className="mx-auto flex w-full max-w-[52rem] min-w-0 flex-col gap-3 rounded-panel surface card p-4 shadow-soft animate-fade-up" disabled={!canSetPositions}>
             <legend className="sr-only">Suas posições</legend>
-            <h3 aria-hidden="true" className="px-1 text-section font-semibold">Suas posições</h3>
             {!localMember && <p className="px-1 text-body text-muted">Aguarde a identificação do seu membro no lobby.</p>}
             {phase !== 'Lobby' && <p className="px-1 text-body text-muted">A escolha de posições está disponível na fase de lobby.</p>}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex min-w-0 flex-col gap-1.5 px-1">
-                <label className="text-caption font-medium text-muted" htmlFor={firstId}>Posição primária</label>
-                <Select id={firstId} value={positions.first} className="w-full" disabled={!canSetPositions}
-                  options={positionChoices(() => true)}
-                  onChange={first => choosePositions({ first, second: validPositions(first, positions.second) ? positions.second : 'unselected' })} />
-              </div>
-              <div className="flex min-w-0 flex-col gap-1.5 px-1">
-                <label className="text-caption font-medium text-muted" htmlFor={secondId}>Posição secundária</label>
-                <Select id={secondId} value={positions.second} className="w-full"
-                  disabled={!canSetPositions || positions.first === 'fill' || positions.first === 'unselected'}
-                  options={positionChoices(position => validPositions(positions.first, position))}
-                  onChange={second => choosePositions({ first: positions.first, second })} />
-              </div>
+            {/* Duas escolhas de rota lado a lado (#600), no lugar das listas: um clique em cada. */}
+            <div className="grid gap-4 @min-[52rem]:grid-cols-2">
+              <PositionPicker label="Posição primária" value={positions.first} scarce={scarce} disabled={!canSetPositions}
+                allowed={() => true} clearable
+                onChange={first => choosePositions({ first, second: validPositions(first, positions.second) ? positions.second : 'unselected' })} />
+              <PositionPicker label="Posição secundária" value={positions.second} scarce={scarce}
+                disabled={!canSetPositions || positions.first === 'unselected' || positions.first === 'fill'}
+                allowed={position => validPositions(positions.first, position)}
+                onChange={second => choosePositions({ first: positions.first, second })} />
             </div>
             {scarce.length > 0 && (
               <p className="flex items-center gap-2 px-1 text-caption text-muted">
@@ -505,5 +496,50 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
       <p id={descriptionId} className="text-caption text-muted">{restriction}</p>
       {feedbackLine}
     </section>
+  );
+}
+
+const PICKER_POSITIONS = ['top', 'jungle', 'middle', 'bottom', 'utility', 'fill'] as const satisfies readonly Position[];
+const shortNames: Record<(typeof PICKER_POSITIONS)[number], string> = {
+  top: 'Topo', jungle: 'Selva', middle: 'Meio', bottom: 'Atirador', utility: 'Suporte', fill: 'Preencher',
+};
+
+type PickerProps = {
+  label: string;
+  value: Position;
+  scarce: Position[];
+  disabled: boolean;
+  allowed: (position: Position) => boolean;
+  /** Clicar na rota escolhida de novo volta para "Não selecionado". */
+  clearable?: boolean;
+  onChange: (position: Position) => void;
+};
+
+/** Escolha de uma rota (#600): as cinco rotas e Preencher, lado a lado, com a escolhida em destaque. */
+function PositionPicker({ label, value, scarce, disabled, allowed, clearable = false, onChange }: PickerProps) {
+  return (
+    <fieldset role="radiogroup" aria-label={label} disabled={disabled} data-value={value} className="flex min-w-0 flex-col gap-1.5">
+      <span aria-hidden="true" className="px-1 text-caption font-semibold text-muted">{label.replace('Posição ', '').replace(/^./, c => c.toUpperCase())}</span>
+      <div className="grid grid-cols-6 gap-1 rounded-control bg-raised p-1">
+        {PICKER_POSITIONS.map(position => {
+          const checked = value === position;
+          const blocked = !allowed(position);
+          return (
+            <button key={position} type="button" role="radio" aria-checked={checked} data-value={position}
+              aria-label={`${positionNames[position]}${scarce.includes(position) ? ' (prioritária)' : ''}`}
+              title={positionNames[position]} disabled={blocked} aria-disabled={blocked || undefined}
+              onClick={() => onChange(checked && clearable ? 'unselected' : position)}
+              className={cx('relative flex min-w-0 flex-col items-center gap-0.5 rounded-control-sm px-1 py-1.5 text-[0.6875rem] font-semibold transition-colors',
+                'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:cursor-not-allowed',
+                checked ? 'bg-surface text-accent-ink shadow-soft' : 'text-muted enabled:hover:text-ink',
+                blocked && 'opacity-35')}>
+              <PositionIcon position={position} size={20} />
+              <span className="max-w-full truncate">{shortNames[position]}</span>
+              {scarce.includes(position) && <ScarceMark className="absolute right-1 top-1" />}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }

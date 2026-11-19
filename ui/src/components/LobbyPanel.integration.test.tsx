@@ -552,7 +552,7 @@ describe('lobby pelo único /ws do App', () => {
   });
 });
 
-const positionSelect = (name: string) => panel().getByRole('combobox', { name });
+const positionSelect = (name: string) => panel().getByRole('radiogroup', { name });
 // Cargos confirmados de um jogador, como aparecem nas etiquetas da linha dele.
 const roles = (name: string) => panel().getByRole('list', { name: `Posições de ${name}` });
 function choosePositions(first: string, second = 'unselected') {
@@ -715,7 +715,7 @@ describe('cargos pelo /ws', () => {
   ])('sem showPositionSelector, não mostra posições nem aviso no lobby do %s', (_, queue) => {
     render(<App />);
     hello({ lobby: { ...testLobby, ...queue, showPositionSelector: false }, gameflowPhase: 'Lobby' });
-    expect(panel().queryByRole('combobox', { name: 'Posição primária' })).not.toBeInTheDocument();
+    expect(panel().queryByRole('radiogroup', { name: 'Posição primária' })).not.toBeInTheDocument();
     expect(panel().queryByText('Esta fila não permite escolher posições.')).not.toBeInTheDocument();
     expect(socket().send).not.toHaveBeenCalled();
   });

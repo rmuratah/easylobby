@@ -134,7 +134,7 @@ describe('telas confirmadas pelo agente', () => {
     send.mockClear();
     snapshot({ lobby: testReadyLobby, gameflowPhase: 'Lobby' });
     const { rerender } = render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: 'Iniciar busca' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar partida' }));
     fireEvent.click(screen.getByRole('button', { name: 'Início' }));
     snapshot({ lobby: testReadyLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
     rerender(<App />);
@@ -157,7 +157,7 @@ describe('telas confirmadas pelo agente', () => {
     snapshot({ lobby: testLobby, gameflowPhase: 'Lobby', matchmaking: { ...testMatchmaking, searchState: 'Found' } });
     rerender(<App />);
     expect(screen.getByRole('alert')).toHaveTextContent('Partida encontrada');
-    expect(screen.queryByRole('button', { name: 'Iniciar busca' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Buscar partida' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Início' }));
     expect(screen.getByRole('alert')).toBeVisible();

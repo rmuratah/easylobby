@@ -67,7 +67,7 @@ describe('lobby do Modo de Treino (#229)', () => {
     expect(team('Equipe 1').queryByRole('button', { name: 'Juntar-se' })).not.toBeInTheDocument();
     // A busca de partida não vale na personalizada.
     const busca = within(screen.getByRole('region', { name: 'Busca de partida' }));
-    expect(busca.getByRole('button', { name: 'Iniciar busca' })).toBeDisabled();
+    expect(busca.getByRole('button', { name: 'Buscar partida' })).toBeDisabled();
   });
 
   it('adiciona um bot pelo pop-up com busca, muda e tira', async () => {
