@@ -16,7 +16,7 @@ function snapshot(overrides: Parameters<typeof makeState>[0] = {}) {
 }
 
 const column = () => document.getElementById("coluna-amigos")!;
-const region = () => column().parentElement!;
+const region = () => column().closest<HTMLElement>(".app-social-region")!;
 /** Fecha na hora (sem a classe de aberta) e some depois da animação de saída. */
 function expectClosing() {
   expect(region()).not.toHaveClass("is-open");

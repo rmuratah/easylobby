@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
 
-/** Duração da animação de fechar, a mesma de abrir (index.css). */
-export const CLOSE_ANIMATION_MS = 160;
+/** Duração da animação de fechar, a mesma de abrir: a faixa encolhe de volta (index.css). */
+export const CLOSE_ANIMATION_MS = 180;
 
 /**
  * Aba de amigos (#594): começa fechada, numa faixa fina à direita, e abre
