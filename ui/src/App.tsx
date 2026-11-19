@@ -271,12 +271,12 @@ export default function App() {
           </div>
           </main>
         </div>
-        {/* Aba de amigos (#594): fechada numa faixa fina; o mouse em cima abre por cima do conteúdo, sem empurrá-lo. */}
+        {/* Aba de amigos (#594): fechada numa faixa fina; com o mouse em cima, a própria faixa cresce por cima do
+            conteúdo até a largura da aba, sem empurrá-lo. */}
         <div hidden={!ready} {...sidebar.regionProps}
           className={['app-social-region', sidebar.open && 'is-open', sidebar.closing && 'is-closing', sidebar.dragging && 'is-dragging'].filter(Boolean).join(' ')}>
           <div className="app-social-rail">
             <SidebarToggle open={false} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />
-          </div>
           {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento.
               Durante o arraste de um amigo ela só sai da vista (CSS), para não cancelar o arraste. */}
           <aside id="coluna-amigos" aria-label="Amigos e convites" hidden={!sidebar.open && !sidebar.closing && !sidebar.dragging} className="app-sidebar">
@@ -293,6 +293,7 @@ export default function App() {
               )} />
             </FeatureGate>
           </aside>
+          </div>
         </div>
       </div>
       <Notifications connection={connection} quiet={screen === 'champSelect'} sidebarOpen={sidebar.open}

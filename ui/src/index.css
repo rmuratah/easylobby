@@ -67,20 +67,30 @@ body { margin: 0; }
 [data-theme="escuro"] { --el-play-top: #2fbfcc; --el-play-mid: #13909d; --el-play-bottom: #0b6670; --el-play-edge: color-mix(in oklab, #21abb8 60%, #ffffff); }
 .app-content { container-type: inline-size; flex: 1; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: .75rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 0; }
 .app-content > * { flex-shrink: 0; }
-/* Aba de amigos (#594): fechada, só a faixa fina ocupa espaço; aberta, a coluna fica por cima do conteúdo,
+/* Aba de amigos (#594): fechada, só a faixa fina ocupa espaço; aberta, a própria faixa cresce por cima do conteúdo,
    presa à borda direita, e o resto da janela não muda de largura. */
 .app-social-region { position: relative; z-index: 25; width: 2.75rem; flex-shrink: 0; min-height: 0; }
-.app-social-rail { height: 100%; display: flex; flex-direction: column; align-items: center; padding-top: .75rem; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); }
-.app-sidebar { position: absolute; top: 0; right: 0; bottom: 0; width: 20rem; max-width: calc(100vw - 1.5rem); overflow: auto; scrollbar-gutter: stable; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); box-shadow: var(--el-shadow-lift); }
-.app-social-region.is-open > .app-sidebar { animation: social-slide-in 160ms ease-out; }
-/* Fecha com a mesma animação, ao contrário; sem receber o mouse, para não reabrir no caminho. */
-.app-social-region.is-closing > .app-sidebar { animation: social-slide-out 160ms ease-in both; pointer-events: none; }
-/* Arrastando um amigo para o lobby: a coluna sai da vista sem desmontar quem está sendo arrastado. */
-.app-social-region.is-dragging > .app-sidebar { visibility: hidden; pointer-events: none; }
-@keyframes social-slide-in { from { opacity: 0; transform: translateX(.75rem); } to { opacity: 1; transform: none; } }
-/* Nome próprio: trocar só a direção da mesma animação não a reinicia, e a coluna sumiria de uma vez. */
-@keyframes social-slide-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(.75rem); } }
-@media (prefers-reduced-motion: reduce) { .app-social-region.is-open > .app-sidebar { animation: none; } .app-social-region.is-closing > .app-sidebar { visibility: hidden; } }
+.app-social-rail { position: absolute; top: 0; right: 0; bottom: 0; width: 2.75rem; max-width: calc(100vw - 1.5rem); overflow: hidden; border: 1px solid var(--el-line); border-radius: var(--radius-panel); background: var(--el-surface); transition: width 180ms ease-out, box-shadow 180ms ease-out; }
+.app-social-region.is-open > .app-social-rail { width: 20rem; box-shadow: var(--el-shadow-lift); transition-timing-function: ease-out; }
+.app-social-region.is-closing > .app-social-rail { transition-timing-function: ease-in; pointer-events: none; }
+/* O ícone da faixa fechada fica na ponta direita e some enquanto a faixa está aberta. */
+.app-social-rail > .sidebar-toggle { position: absolute; right: calc((2.75rem - 2px - 2rem) / 2); top: .75rem; transition: opacity 120ms ease; }
+.app-social-region.is-open > .app-social-rail > .sidebar-toggle, .app-social-region.is-closing > .app-social-rail > .sidebar-toggle { opacity: 0; pointer-events: none; }
+/* O conteúdo tem a largura da aba aberta, preso à direita: a faixa crescendo vai revelando a lista. */
+.app-sidebar { position: absolute; top: 0; right: 0; bottom: 0; width: calc(20rem - 2px); max-width: calc(100vw - 1.5rem - 2px); overflow: auto; scrollbar-gutter: stable; padding: 0; display: flex; flex-direction: column; }
+.app-social-region.is-open .app-sidebar { animation: social-fade-in 180ms ease-out; }
+.app-social-region.is-closing .app-sidebar { animation: social-fade-out 180ms ease-in both; }
+/* Arrastando um amigo para o lobby: a faixa volta a ser fina e a lista sai da vista sem desmontar quem está sendo arrastado. */
+.app-social-region.is-dragging > .app-social-rail { width: 2.75rem; box-shadow: none; }
+.app-social-region.is-dragging .app-sidebar { visibility: hidden; pointer-events: none; }
+@keyframes social-fade-in { from { opacity: 0; } to { opacity: 1; } }
+/* Nome próprio: trocar só a direção da mesma animação não a reinicia, e a lista sumiria de uma vez. */
+@keyframes social-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .app-social-rail { transition: none; }
+  .app-social-region.is-open .app-sidebar { animation: none; }
+  .app-social-region.is-closing .app-sidebar { visibility: hidden; }
+}
 /* Barras do app (topo e amigos) ficam lisas: sem a luz esmeralda dos cards dentro delas. */
 .app-sidebar .card { background-image: none; --tw-inset-shadow: 0 0 #0000; border-color: var(--el-line); }
 .app-sidebar > .sidebar-toggle { position: absolute; right: .875rem; top: .75rem; z-index: 20; }
