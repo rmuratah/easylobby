@@ -7,7 +7,7 @@ members = ["agent", "mock-lcu", "desktop/src-tauri"]
 default-members = ["agent", "mock-lcu"]
 
 [workspace.package]
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 repository = "https://github.com/rmuratah/easylobby"
 
