@@ -6,7 +6,7 @@ import { cx } from './base/cx';
 
 type Props = { ranked: RankedStats | null; queueId: number };
 
-/** Elo do jogador no card do lobby (#275). Some enquanto o agente ainda busca os ranks. */
+/** Elo do jogador no card do lobby (#275), sempre numa linha só (#605). Some enquanto o agente ainda busca os ranks. */
 export function LobbyRank({ ranked, queueId }: Props) {
   const [failed, setFailed] = useState<string | null>(null);
   if (!ranked) return null;
@@ -19,7 +19,7 @@ export function LobbyRank({ ranked, queueId }: Props) {
   const points = entry.tier ? ` · ${entry.leaguePoints} PDL` : '';
   return (
     <span title={`Elo na ${queueName}`}
-      className={cx('mt-2 inline-flex items-center gap-2 rounded-full py-1 pl-1.5 pr-3 text-body font-semibold',
+      className={cx('mt-2 inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full py-1 pl-1.5 pr-3 text-body font-semibold',
         entry.tier ? 'bg-accent-soft text-accent-ink' : 'bg-raised text-muted')}>
       {src && failed !== src && (
         // O emblema do CommunityDragon tem muita borda transparente: a imagem fica maior que a caixa.

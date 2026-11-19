@@ -435,7 +435,7 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
             <li key={member.puuid} style={{ animationDelay: `${order * 70}ms` }}
               className={cx('group relative flex flex-col items-center gap-1.5 rounded-panel px-2 pb-2 pt-1 text-center transition-all duration-200 animate-fade-up',
                 // O card do jogador fica por cima dos outros para a escolha de campeão aberta nele não ficar escondida.
-                lobby.showQuickPlaySlots ? 'w-60' : 'w-36 @min-[60rem]:w-44', me && 'z-10')}>
+                lobby.showQuickPlaySlots ? 'w-60' : 'min-w-36 max-w-52 @min-[60rem]:min-w-44', me && 'z-10')}>
               {/* O jogador inteiro abre o perfil dele (#308). O botão fica por baixo dos
                   controles (menu do líder, campeões do Jogo Dinâmico), que vêm depois e são posicionados. */}
               {!me && onOpenProfile && (
