@@ -6,7 +6,12 @@ import type { AgentState } from '../bindings/AgentState';
 import type { LobbyChat } from '../bindings/LobbyChat';
 import type { LobbyChatMessage } from '../bindings/LobbyChatMessage';
 
-type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
+type Props = {
+  connection: ConnectionSnapshot;
+  send: AgentClient['send'];
+  /** Ocupa a altura que sobrar, com as mensagens rolando por dentro (lobby de altura fixa, #603). */
+  fill?: boolean;
+};
 
 // Riot ID como no client oficial ("Nome #tag"). O agente preenche o nome; até lá, o do jogador logado ou da lista de amigos.
 function senderName(state: AgentState, message: LobbyChatMessage): string {
@@ -37,27 +42,31 @@ function ChatLine({ state, message }: { state: AgentState; message: LobbyChatMes
 const cardClass = 'flex w-full min-w-0 flex-col gap-2 rounded-panel surface card p-4 text-ink shadow-soft animate-fade-up';
 // Altura fixa da área de mensagens: o card não cresce a cada mensagem nova; o histórico rola por dentro.
 const logBoxClass = 'h-56 shrink-0 px-1';
+const fillCardClass = `${cardClass} h-full min-h-0`;
+const fillLogBoxClass = 'min-h-0 flex-1 px-1';
 
 /**
  * Chat do grupo no lobby (#206), embaixo da busca de partida e do card do grupo.
  * Sozinho no lobby o card some (#285): como no client oficial, a sala só serve com 2 ou mais membros.
  */
-export function LobbyChatPanel({ connection, send }: Props) {
+export function LobbyChatPanel({ connection, send, fill = false }: Props) {
   const state = connection.state;
   const lcu = state?.lcu;
   if (connection.status !== 'connected' || !state || lcu?.state !== 'connected' || !state.lobby) return null;
   if (state.lobby.members.length < 2) return null;
   if (!state.lobbyChat) return (
-    <section aria-label="Chat do grupo" className={cardClass}>
+    <section aria-label="Chat do grupo" className={fill ? fillCardClass : cardClass}>
       <h2 className="px-1 text-section font-semibold">Chat do grupo</h2>
-      <p className={`${logBoxClass} text-body text-muted`}>Aguardando a sala do grupo abrir…</p>
+      <p className={`${fill ? fillLogBoxClass : logBoxClass} text-body text-muted`}>Aguardando a sala do grupo abrir…</p>
     </section>
   );
   // Trocar de sessão ou de jogador desmonta o formulário e invalida respostas em trânsito.
-  return <OpenChat key={`${lcu.session}:${state.summoner?.puuid ?? ''}`} state={state} chat={state.lobbyChat} send={send} />;
+  return <OpenChat key={`${lcu.session}:${state.summoner?.puuid ?? ''}`} state={state} chat={state.lobbyChat} send={send} fill={fill} />;
 }
 
-function OpenChat({ state, chat, send }: { state: AgentState; chat: LobbyChat; send: AgentClient['send'] }) {
+function OpenChat({ state, chat, send, fill }: { state: AgentState; chat: LobbyChat; send: AgentClient['send']; fill: boolean }) {
+  const card = fill ? fillCardClass : cardClass;
+  const logBox = fill ? fillLogBoxClass : logBoxClass;
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,14 +111,14 @@ function OpenChat({ state, chat, send }: { state: AgentState; chat: LobbyChat; s
   }
 
   return (
-    <section aria-label="Chat do grupo" className={cardClass}>
+    <section aria-label="Chat do grupo" className={card}>
       <h2 className="px-1 text-section font-semibold">Chat do grupo</h2>
-      {messages.length === 0 ? <p className={`${logBoxClass} text-body text-muted`}>Nenhuma mensagem ainda.</p>
+      {messages.length === 0 ? <p className={`${logBox} text-body text-muted`}>Nenhuma mensagem ainda.</p>
         : (
           <ol ref={log} onScroll={() => {
             const element = log.current;
             if (element) follow.current = element.scrollHeight - element.scrollTop - element.clientHeight <= 32;
-          }} role="log" aria-label="Mensagens do grupo" className={`${logBoxClass} flex flex-col gap-1 overflow-y-auto`}>
+          }} role="log" aria-label="Mensagens do grupo" className={`${logBox} flex flex-col gap-1 overflow-y-auto`}>
             {messages.map(message => <ChatLine key={message.id} state={state} message={message} />)}
           </ol>
         )}
