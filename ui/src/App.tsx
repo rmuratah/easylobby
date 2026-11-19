@@ -250,13 +250,13 @@ export default function App() {
         </div>
         {/* Aba de amigos (#594): fechada numa faixa fina; o mouse em cima abre por cima do conteúdo, sem empurrá-lo. */}
         <div hidden={!ready} {...sidebar.regionProps}
-          className={['app-social-region', sidebar.open && 'is-open', sidebar.dragging && 'is-dragging'].filter(Boolean).join(' ')}>
+          className={['app-social-region', sidebar.open && 'is-open', sidebar.closing && 'is-closing', sidebar.dragging && 'is-dragging'].filter(Boolean).join(' ')}>
           <div className="app-social-rail">
             <SidebarToggle open={false} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />
           </div>
           {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento.
               Durante o arraste de um amigo ela só sai da vista (CSS), para não cancelar o arraste. */}
-          <aside id="coluna-amigos" aria-label="Amigos e convites" hidden={!sidebar.open && !sidebar.dragging} className="app-sidebar">
+          <aside id="coluna-amigos" aria-label="Amigos e convites" hidden={!sidebar.open && !sidebar.closing && !sidebar.dragging} className="app-sidebar">
             {sidebar.open && <SidebarToggle open onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
             {/* Convites recebidos ficam aqui, sem seção própria; convidar é pelo lobby (#206). */}
             <FeatureGate connection={connection} send={connection.send} feature="lobby" quiet>
