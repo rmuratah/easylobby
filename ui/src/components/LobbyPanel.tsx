@@ -18,7 +18,7 @@ import { PositionIcon } from './PositionIcon';
 import { ScarceMark } from './ScarceMark';
 import { ModeSelect } from './ModeSelect';
 import { QuickPlaySlots } from './QuickPlaySlots';
-import { LobbyRank } from './LobbyRank';
+import { LobbyRank, LobbyWinRate } from './LobbyRank';
 import { LobbyOpenToggle } from './LobbyOpenToggle';
 import { LobbyLinkButton } from './LobbyLinkButton';
 import { LobbyMemberMenu } from './LobbyMemberMenu';
@@ -99,30 +99,6 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
   const [changingMode, setChangingMode] = useState(false);
   const invites = useLobbyInvite(state, send);
   const [picker, setPicker] = useState<number | null>(null);
-  // Balão das rotas, preso aos chips do seu card (#603): abre sozinho enquanto falta escolher
-  // ('auto'); depois, só pelo clique nos chips. Fechar (Esc, clique fora, escolha feita) vale até faltar de novo.
-  const [positionPopover, setPositionPopover] = useState<'auto' | 'open' | 'closed'>('auto');
-  const positionPopoverRef = useRef<HTMLDivElement>(null);
-  const missingNow = positions.first === 'unselected' || !positionsComplete(positions.first, positions.second);
-  // Com as rotas completas, a próxima falta volta a abrir o balão sozinho.
-  const [lastMissing, setLastMissing] = useState(missingNow);
-  if (lastMissing !== missingNow) {
-    setLastMissing(missingNow);
-    if (!missingNow) setPositionPopover('auto');
-  }
-  const popoverOpen = positionPopover === 'open' || (positionPopover === 'auto' && missingNow);
-  useEffect(() => {
-    if (!popoverOpen) return;
-    const close = (event: Event) => {
-      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !positionPopoverRef.current?.contains(event.target as Node)) setPositionPopover('closed');
-    };
-    document.addEventListener('keydown', close);
-    document.addEventListener('mousedown', close);
-    return () => {
-      document.removeEventListener('keydown', close);
-      document.removeEventListener('mousedown', close);
-    };
-  }, [popoverOpen]);
   // Avisos dos slots do Jogo Dinâmico (#218), no quadro abaixo da lista.
   const [slotNotes, setSlotNotes] = useState<HTMLDivElement | null>(null);
   const [dropping, setDropping] = useState(false);
@@ -330,34 +306,33 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
   // Posições que faltam na fila agora (#410): marcadas na escolha, como no client oficial.
   const scarce = lobby.scarcePositions;
   const freeSlots = Math.max(0, lobby.maxLobbySize - lobby.members.length);
-  // Rotas (#603): o bloco fica aberto só enquanto falta escolher; depois, abre num balão pelos chips do seu card.
-  const showPositionPopover = canSetPositions && !lobby.orderedPositions && popoverOpen;
+  // Rotas (#607): os chips dos cards só mostram; a escolha fica num card fixo logo abaixo de você, no meio da tela.
   const positionFieldset = (
-          <fieldset className="flex w-[min(27rem,90vw)] min-w-0 flex-col gap-2.5 rounded-panel border border-line bg-surface p-4 shadow-lift animate-fade-up" disabled={!canSetPositions}>
+          <fieldset aria-label="Suas posições" className="flex w-full min-w-0 flex-col gap-1 rounded-panel border border-accent/40 bg-surface px-3 py-2 shadow-soft animate-fade-up" disabled={!canSetPositions}>
             <legend className="sr-only">Suas posições</legend>
             {!localMember && <p className="px-1 text-body text-muted">Aguarde a identificação do seu membro no lobby.</p>}
             {phase !== 'Lobby' && <p className="px-1 text-body text-muted">A escolha de posições está disponível na fase de lobby.</p>}
             {/* Duas escolhas de rota lado a lado (#600), no lugar das listas: um clique em cada. */}
-            <div className="grid gap-3">
+            <div className="grid gap-x-4 gap-y-2 @min-[44rem]:grid-cols-2">
               <PositionPicker label="Posição primária" value={positions.first} scarce={scarce} disabled={!canSetPositions}
                 allowed={() => true} clearable
                 onChange={first => {
                   choosePositions({ first, second: validPositions(first, positions.second) ? positions.second : 'unselected' });
-                  if (first === 'fill') setPositionPopover('closed');
                 }} />
               <PositionPicker label="Posição secundária" value={positions.second} scarce={scarce}
                 disabled={!canSetPositions || positions.first === 'unselected' || positions.first === 'fill'}
                 allowed={position => validPositions(positions.first, position)}
-                onChange={second => { choosePositions({ first: positions.first, second }); setPositionPopover('closed'); }} />
+                onChange={second => choosePositions({ first: positions.first, second })} />
             </div>
             {scarce.length > 0 && (
-              <p className="flex items-center gap-2 px-1 text-caption text-muted">
+              // Na janela estreita, a legenda fica no título de cada rota marcada: a tela tem altura fixa.
+              <p className="sr-only flex items-center gap-2 px-1 text-[0.6875rem] text-muted @min-[60rem]:not-sr-only">
                 <ScarceMark />
                 Prioritárias: {scarce.map(position => positionNames[position]).join(', ')}. Faltam na fila agora.
               </p>
             )}
             {!positionsComplete(positions.first, positions.second) && (
-              <p className="px-1 text-caption text-muted">Escolha a posição secundária para salvar.</p>
+              <p className="px-1 text-[0.6875rem] text-muted">Escolha a posição secundária para salvar.</p>
             )}
           </fieldset>
   );
@@ -366,19 +341,21 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
   const seats = stageSeats(localMember, others, freeSlots);
   return (
     <section aria-label="Lobby" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
-      className={cx('flex w-full shrink-0 flex-col gap-4 rounded-panel text-ink transition-shadow',
+      className={cx('flex w-full shrink-0 flex-col gap-3 rounded-panel text-ink transition-shadow',
         dropping && 'ring-2 ring-accent')}>
       {/* Faixa do modo (#600): a fila em destaque e as ações do lobby logo abaixo. */}
-      <header className="lobby-banner relative flex flex-col items-center gap-1.5 overflow-hidden rounded-panel surface card px-5 py-3.5 text-center shadow-soft animate-fade-up">
-        <h2 className="text-caption font-semibold uppercase tracking-[0.08em] text-muted">Lobby</h2>
-        <p className="text-title font-semibold text-balance"><span className="sr-only">Fila atual: </span><strong className="font-semibold">{queueLabel}</strong></p>
-        <div className="mt-0.5 flex flex-wrap items-center justify-center gap-2">
-          <span className="rounded-full bg-accent-soft px-3 py-1.5 text-caption font-semibold text-accent-ink">
-            {lobby.members.length} / {lobby.maxLobbySize} jogadores
-          </span>
-          <span className="rounded-full bg-raised px-3 py-1.5 text-caption font-medium text-muted">
-            {lobby.isLeader ? 'Você é o líder' : 'Você é membro'}
-          </span>
+      {/* Faixa do modo (#600), numa linha só (#607): a fila à esquerda e as ações à direita, para sobrar altura para o palco. */}
+      <header className="lobby-banner relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 overflow-hidden rounded-panel surface card px-5 py-2.5 shadow-soft animate-fade-up">
+        <div className="min-w-0">
+          <h2 className="sr-only">Lobby</h2>
+          <p className="text-title font-semibold leading-tight text-balance"><span className="sr-only">Fila atual: </span><strong className="font-semibold">{queueLabel}</strong></p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-caption text-muted">
+            <span className="font-semibold text-accent-ink">{lobby.members.length} / {lobby.maxLobbySize} jogadores</span>
+            <span aria-hidden="true">·</span>
+            <span>{lobby.isLeader ? 'Você é o líder' : 'Você é membro'}</span>
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {/* Lobby aberto ou fechado (#225): todos os modos, menos o Tutorial. */}
           {!isTutorialQueue(lobby.queueId) && <LobbyOpenToggle lobby={lobby} send={send} disabled={phase !== 'Lobby'} />}
           {/* Link para entrar no lobby (#226): todos os modos, menos o Tutorial.
@@ -408,21 +385,21 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
         <ArenaTeams lobby={lobby} state={state} localName={localName} send={send} picker={picker} onPicker={setPicker} onOpenProfile={onOpenProfile}
           canSwap={canManageMembers && !!localMember} canManageMembers={canManageMembers} />
       ) : (
-      <ul aria-label="Jogadores no lobby" className="flex flex-wrap items-start justify-center gap-x-3 gap-y-5 px-2 @min-[60rem]:gap-x-6">
+      <ul aria-label="Jogadores no lobby" className="flex flex-wrap items-stretch justify-center gap-x-2.5 gap-y-4 px-1 @min-[60rem]:gap-x-3">
         {seats.map((seat, order) => {
           if (seat.kind === 'free') {
             const index = seat.index;
             return (
               <li key={`vaga-${index}`} aria-label="Vaga livre" style={{ animationDelay: `${order * 70}ms` }}
-                className="relative flex w-32 flex-col items-center gap-2 pt-4 text-muted animate-fade-up @min-[60rem]:w-40">
+                className="relative mt-11 flex w-40 flex-col items-center justify-center gap-2 rounded-panel border-2 border-dashed border-line px-2 py-6 text-muted animate-fade-up @min-[60rem]:w-[11.5rem]">
                 {/* O "+" abre a lista de amigos para convidar (#206); sem permissão de convidar, fica só o desenho. */}
                 {lobby.canInvite ? (
                   <button type="button" aria-label="Convidar amigo" title="Convidar amigo" aria-expanded={picker === index}
                     aria-haspopup="dialog" onClick={() => setPicker(picker === index ? null : index)}
-                    className={`flex size-20 items-center justify-center rounded-full border-2 border-dashed border-line text-muted transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent-ink ${focusRing}`}>
-                    <PlusIcon size={24} />
+                    className={`flex size-16 items-center justify-center rounded-full bg-raised text-ink transition-colors hover:bg-accent hover:text-on-accent ${focusRing}`}>
+                    <PlusIcon size={22} />
                   </button>
-                ) : <span aria-hidden="true" className="flex size-20 items-center justify-center rounded-full border-2 border-dashed border-line"><PlusIcon size={24} /></span>}
+                ) : <span aria-hidden="true" className="flex size-16 items-center justify-center rounded-full bg-raised"><PlusIcon size={22} /></span>}
                 <span className="text-body font-medium">{lobby.canInvite ? 'Convidar' : 'Vaga livre'}</span>
               </li>
             );
@@ -433,9 +410,10 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
           const isAway = away.has(member.puuid);
           return (
             <li key={member.puuid} style={{ animationDelay: `${order * 70}ms` }}
-              className={cx('group relative flex flex-col items-center gap-1.5 rounded-panel px-2 pb-2 pt-1 text-center transition-all duration-200 animate-fade-up',
-                // O card do jogador fica por cima dos outros para a escolha de campeão aberta nele não ficar escondida.
-                lobby.showQuickPlaySlots ? 'w-60' : 'w-36 @min-[60rem]:w-44', me && 'z-10')}>
+              className={cx('group relative mt-11 flex flex-col items-center gap-2 rounded-panel border bg-surface px-2 pb-3.5 text-center shadow-soft transition-all duration-200 animate-fade-up',
+                // Card por jogador (#607): o seu com a borda de destaque. 
+                me ? 'border-accent ring-1 ring-accent/40' : 'border-line hover:-translate-y-0.5 hover:shadow-lift',
+                lobby.showQuickPlaySlots ? 'w-60' : 'w-40 @min-[60rem]:w-[11.5rem]')}>
               {/* O jogador inteiro abre o perfil dele (#308). O botão fica por baixo dos
                   controles (menu do líder, campeões do Jogo Dinâmico), que vêm depois e são posicionados. */}
               {!me && onOpenProfile && (
@@ -443,14 +421,19 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
                   onClick={() => onOpenProfile(member.puuid)}
                   className={`absolute inset-0 cursor-pointer rounded-panel transition-colors hover:bg-raised/60 ${focusRing}`} />
               )}
-              <div className={cx('relative shrink-0 rounded-full transition-opacity', me ? 'bg-primary-gradient p-1.5 shadow-lift' : 'bg-line p-1', isAway && 'opacity-40 grayscale')}>
+              {/* O ícone sai pela borda de cima do card, com o mesmo tamanho em todos: as linhas ficam alinhadas (#607). */}
+              <div className={cx('relative -mt-11 shrink-0 rounded-full transition-opacity', me ? 'bg-primary-gradient p-1' : 'bg-line p-1', isAway && 'opacity-40 grayscale')}>
                 <Avatar name={me && summoner?.gameName ? summoner.gameName : name} src={assetUrl('profileIcon', member.summonerIconId)}
-                  size={me ? 92 : 68} className="ring-4 ring-bg" />
+                  size={80} className="ring-4 ring-surface" />
                 {/* Nível preso embaixo do ícone, como no client oficial: uma linha a menos no palco (#603). */}
-                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-raised px-2 py-0.5 text-[0.6875rem] font-semibold text-muted ring-2 ring-bg">Nível {member.summonerLevel}</span>
+                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-raised px-2 py-0.5 text-caption font-semibold text-muted ring-2 ring-surface">Nível {member.summonerLevel}</span>
               </div>
-              <div className={cx('mt-2 flex max-w-full items-center justify-center gap-1.5 transition-opacity', isAway && 'opacity-50')}>
-                <h3 className={cx('truncate font-semibold', me ? 'text-section' : 'text-body')}>{name}</h3>
+              <div className={cx('mt-2 flex max-w-full items-start justify-center gap-1 transition-opacity', isAway && 'opacity-50')}>
+                {/* Nick inteiro e a tag numa linha menor, em vez de cortar com "…" (#607). */}
+                <h3 className="min-w-0 text-section font-semibold leading-tight [overflow-wrap:anywhere]">
+                  {splitName(name).nick}
+                  {splitName(name).tag && <span className="block text-body font-medium text-muted">{splitName(name).tag}</span>}
+                </h3>
                 {member.isLeader && (
                   <span role="img" aria-label="Líder do grupo" title="Líder do grupo"
                     className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-soft text-warn">
@@ -475,6 +458,7 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
               <div className={cx('flex flex-wrap items-center justify-center gap-1.5 transition-opacity', isAway && 'opacity-50')}>
                 <LobbyRank ranked={member.ranked} queueId={lobby.queueId} />
               </div>
+              <LobbyWinRate ranked={member.ranked} queueId={lobby.queueId} />
               {lobby.showQuickPlaySlots && (
                 <div className="relative mt-1">
                   <QuickPlaySlots key={`${lobby.queueId}:${member.puuid}`} member={member} mine={me} canEdit={canSetSlots}
@@ -484,29 +468,19 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
               {/* Rift Clássico (#230): a 1ª preferência em destaque e as outras em ordem. */}
               {lobby.showPositionSelector && lobby.orderedPositions && <MemberPositionOrder member={member} name={name} />}
               {lobby.showPositionSelector && !lobby.orderedPositions && (
-                <div ref={me ? positionPopoverRef : undefined} className="relative">
+                // As rotas ficam no pé do card, na mesma altura em todos (#607).
+                <div className="mt-auto pt-1">
                   <ul aria-label={`Posições de ${name}`} className="flex flex-wrap items-center justify-center gap-1.5">
                   {[member.firstPosition, member.secondPosition].map((position, slot) => (
                     <li key={slot} title={`${slot === 0 ? 'Primária' : 'Secundária'}: ${positionNames[position]}`}
                       className={cx('flex items-center gap-1 rounded-full px-2.5 py-1 text-caption font-semibold',
                         slot === 0 ? 'bg-accent-soft text-accent-ink' : 'bg-raised text-muted')}>
-                      <PositionIcon position={position} size={14} />
-                      <span className="truncate">{positionNames[position]}</span>{' '}
+                      <PositionIcon position={position} size={16} />
+                      <span className={slot === 0 ? 'truncate' : 'sr-only @min-[60rem]:not-sr-only @min-[60rem]:truncate'}>{positionNames[position]}</span>{' '}
                       <span className="sr-only">{slot === 0 ? 'Primária' : 'Secundária'}</span>
                     </li>
                   ))}
                 </ul>
-                  {/* Suas rotas (#603): clicar nos chips abre o balão, para cima, sobre o seu card: a tela tem altura fixa. */}
-                  {me && canSetPositions && (
-                    <button type="button" aria-label="Trocar suas posições" title="Trocar suas posições" aria-expanded={showPositionPopover}
-                      aria-haspopup="dialog" onClick={() => setPositionPopover(showPositionPopover ? 'closed' : 'open')}
-                      className={`absolute -inset-1 rounded-full ring-accent/40 transition-shadow hover:ring-2 ${focusRing}`} />
-                  )}
-                  {me && showPositionPopover && (
-                    <div role="dialog" aria-label="Suas posições" className="absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 text-left">
-                      {positionFieldset}
-                    </div>
-                  )}
                 </div>
               )}
               {/* Tornar líder e remover do grupo (#267): só o líder, nos outros jogadores. */}
@@ -526,6 +500,8 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
         loadRecent={loadRecent} suggested={state.suggestedPlayers} loadSuggested={loadSuggested}
         dismissSuggested={dismissSuggested} onClose={closePicker} />}
 
+      {/* Card de escolha das rotas, sempre embaixo de você (#607). */}
+      {lobby.showPositionSelector && !lobby.orderedPositions && !lobby.subteams && positionFieldset}
       {/* Fila sem posições (ARAM, Arena, Co-op, eventos): nada no lugar, como no client oficial. A fila troca pelo "Trocar modo" (#231). */}
       {lobby.showPositionSelector && lobby.orderedPositions ? (
         <PositionOrderCard member={localMember} scarce={scarce} canEdit={canSetPositions} send={send} />
@@ -562,23 +538,23 @@ type PickerProps = {
 /** Escolha de uma rota (#600): as cinco rotas e Preencher, lado a lado, com a escolhida em destaque. */
 function PositionPicker({ label, value, scarce, disabled, allowed, clearable = false, onChange }: PickerProps) {
   return (
-    <fieldset role="radiogroup" aria-label={label} disabled={disabled} data-value={value} className="flex min-w-0 flex-col gap-1.5">
-      <span aria-hidden="true" className="px-1 text-caption font-semibold text-muted">{label.replace('Posição ', '').replace(/^./, c => c.toUpperCase())}</span>
-      <div className="grid grid-cols-6 gap-1 rounded-control bg-raised p-1">
+    <fieldset role="radiogroup" aria-label={label} disabled={disabled} data-value={value} className="flex min-w-0 items-center gap-2">
+      <span aria-hidden="true" className="w-[4.75rem] shrink-0 text-caption font-semibold text-muted">{label.replace('Posição ', '').replace(/^./, c => c.toUpperCase())}</span>
+      <div className="grid min-w-0 flex-1 grid-cols-6 gap-1 rounded-control bg-raised p-1">
         {PICKER_POSITIONS.map(position => {
           const checked = value === position;
           const blocked = !allowed(position);
           return (
             <button key={position} type="button" role="radio" aria-checked={checked} data-value={position}
               aria-label={`${positionNames[position]}${scarce.includes(position) ? ' (prioritária)' : ''}`}
-              title={positionNames[position]} disabled={blocked} aria-disabled={blocked || undefined}
+              title={`${positionNames[position]}${scarce.includes(position) ? ' (prioritária: falta na fila agora)' : ''}`} disabled={blocked} aria-disabled={blocked || undefined}
               onClick={() => onChange(checked && clearable ? 'unselected' : position)}
-              className={cx('relative flex min-w-0 flex-col items-center gap-0.5 rounded-control-sm px-1 py-1.5 text-[0.6875rem] font-semibold transition-colors',
+              className={cx('relative flex min-w-0 flex-col items-center gap-0.5 rounded-control-sm px-1 py-1.5 text-[0.6875rem] @min-[60rem]:py-1 font-semibold transition-colors',
                 'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:cursor-not-allowed',
                 checked ? 'bg-surface text-accent-ink shadow-soft' : 'text-muted enabled:hover:text-ink',
                 blocked && 'opacity-35')}>
-              <PositionIcon position={position} size={20} />
-              <span className="max-w-full truncate">{shortNames[position]}</span>
+              <PositionIcon position={position} size={18} />
+              <span className="sr-only @min-[60rem]:not-sr-only @min-[60rem]:max-w-full @min-[60rem]:truncate">{shortNames[position]}</span>
               {scarce.includes(position) && <ScarceMark className="absolute right-1 top-1" />}
             </button>
           );
@@ -586,4 +562,10 @@ function PositionPicker({ label, value, scarce, disabled, allowed, clearable = f
       </div>
     </fieldset>
   );
+}
+
+/** "Nick#TAG" em nick e "#TAG", para a tag ir numa linha menor no card (#607). */
+function splitName(name: string): { nick: string; tag: string } {
+  const at = name.lastIndexOf('#');
+  return at > 0 ? { nick: name.slice(0, at), tag: name.slice(at) } : { nick: name, tag: '' };
 }

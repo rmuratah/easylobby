@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { RankedStats } from '../bindings/RankedStats';
 import { assetUrl } from '../agent/assets';
-import { lobbyRankQueue, rankLabel, tierEmblemId } from '../agent/profile';
+import { lobbyRankQueue, rankLabel, tierEmblemId, winRate } from '../agent/profile';
 import { cx } from './base/cx';
 
 type Props = { ranked: RankedStats | null; queueId: number };
@@ -19,7 +19,7 @@ export function LobbyRank({ ranked, queueId }: Props) {
   const points = entry.tier ? ` · ${entry.leaguePoints} PDL` : '';
   return (
     <span title={`Elo na ${queueName}`}
-      className={cx('mt-2 inline-flex items-center gap-2 rounded-full py-1 pl-1.5 pr-3 text-body font-semibold',
+      className={cx('inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full py-1 pl-1 pr-3 text-caption font-semibold @min-[60rem]:text-body',
         entry.tier ? 'bg-accent-soft text-accent-ink' : 'bg-raised text-muted')}>
       {src && failed !== src && (
         // O emblema do CommunityDragon tem muita borda transparente: a imagem fica maior que a caixa.
@@ -31,5 +31,18 @@ export function LobbyRank({ ranked, queueId }: Props) {
       <span className="sr-only">{queueName}: </span>
       {label}{points}
     </span>
+  );
+}
+
+/** Vitórias na mesma fila do elo, embaixo dele no card do lobby (#607). Some sem partidas. */
+export function LobbyWinRate({ ranked, queueId }: Props) {
+  if (!ranked) return null;
+  const entry = lobbyRankQueue(queueId) === 'flex' ? ranked.flex : ranked.soloDuo;
+  const rate = winRate(entry.wins, entry.losses);
+  if (rate === null) return null;
+  return (
+    <p className="whitespace-nowrap text-caption text-muted tabular-nums @min-[60rem]:text-body">
+      <span className={rate >= 50 ? 'font-semibold text-accent-ink' : 'font-semibold text-ink'}>{rate}%</span> de vitórias · {entry.wins}V {entry.losses}D
+    </p>
   );
 }
