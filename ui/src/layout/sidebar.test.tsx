@@ -5,7 +5,7 @@ import { useAgent } from "../agent/useAgent";
 import { testConversation, testInvitation } from "../test/events";
 import { testState } from "../test/lobby";
 import { makeState } from "../test/state";
-import { CLOSE_DELAY_MS } from "./sidebar";
+import { CLOSE_ANIMATION_MS } from "./sidebar";
 
 vi.mock("../agent/useAgent");
 
@@ -17,6 +17,14 @@ function snapshot(overrides: Parameters<typeof makeState>[0] = {}) {
 
 const column = () => document.getElementById("coluna-amigos")!;
 const region = () => column().parentElement!;
+/** Fecha na hora (sem a classe de aberta) e some depois da animação de saída. */
+function expectClosing() {
+  expect(region()).not.toHaveClass("is-open");
+  expect(region()).toHaveClass("is-closing");
+  act(() => vi.advanceTimersByTime(CLOSE_ANIMATION_MS));
+  expect(region()).not.toHaveClass("is-closing");
+  expect(column()).not.toBeVisible();
+}
 
 afterEach(() => { vi.useRealTimers(); localStorage.clear(); });
 
@@ -45,37 +53,41 @@ describe("aba de amigos (#594)", () => {
     // Sobrepõe: a área principal não ganha nem perde classe de layout.
     expect(body.className).toBe("app-body");
     fireEvent.mouseLeave(region());
+    // Sem atraso: começa a fechar na hora, ainda visível durante a animação.
     expect(column()).toBeVisible();
-    act(() => vi.advanceTimersByTime(CLOSE_DELAY_MS));
-    expect(column()).not.toBeVisible();
+    expectClosing();
   });
 
-  it("não fecha se o mouse volta logo", () => {
+  it("o mouse voltando no meio da animação de fechar reabre", () => {
     vi.useFakeTimers();
     snapshot();
     render(<App />);
     fireEvent.mouseEnter(region());
     fireEvent.mouseLeave(region());
-    act(() => vi.advanceTimersByTime(CLOSE_DELAY_MS / 2));
+    act(() => vi.advanceTimersByTime(CLOSE_ANIMATION_MS / 2));
     fireEvent.mouseEnter(region());
-    act(() => vi.advanceTimersByTime(CLOSE_DELAY_MS * 2));
+    expect(region()).toHaveClass("is-open");
+    expect(region()).not.toHaveClass("is-closing");
+    act(() => vi.advanceTimersByTime(CLOSE_ANIMATION_MS * 2));
     expect(column()).toBeVisible();
   });
 
   it("abre pelo botão e fecha com Esc ou clique fora", () => {
+    vi.useFakeTimers();
     snapshot();
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Mostrar amigos" }));
     expect(column()).toBeVisible();
     fireEvent.keyDown(column(), { key: "Escape" });
-    expect(column()).not.toBeVisible();
+    expectClosing();
     fireEvent.click(screen.getByRole("button", { name: "Mostrar amigos" }));
     expect(column()).toBeVisible();
     fireEvent.pointerDown(document.querySelector(".app-content")!);
-    expect(column()).not.toBeVisible();
+    expectClosing();
   });
 
   it("o botão dentro da aba aberta recolhe", () => {
+    vi.useFakeTimers();
     snapshot();
     render(<App />);
     fireEvent.mouseEnter(region());
@@ -83,7 +95,7 @@ describe("aba de amigos (#594)", () => {
     expect(close.parentElement).toBe(column());
     expect(close).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(close);
-    expect(column()).not.toBeVisible();
+    expectClosing();
   });
 
   it("avisa convites pendentes com a aba fechada", () => {
