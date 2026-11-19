@@ -125,8 +125,9 @@ export default function App() {
   const playable = screen === 'home' || screen === 'lobby' || screen === 'queue' || found;
   const homeLayout = activePage === 'home' && playable;
   useAppSounds(connection, ready && activePage === 'conversations' ? chatWith : null);
-  // Sem lobby, o cartão principal do Início ainda não tem função definida: criar lobby fica só no Jogar.
-  const homeReserved = activePage === 'home' && screen === 'home';
+  // O cartão principal do Início ainda não tem função definida: criar lobby fica só no Jogar.
+  // Com lobby, o Início continua igual (#611): o lobby fica só no Jogar, e o botão do alto leva até ele.
+  const homeReserved = homeLayout;
   // A partida em andamento mostra as duas equipes (#268).
   const liveGame = screen === 'other' && liveGamePhases.has(connection.state?.gameflowPhase ?? '') ? connection.state?.liveGame ?? null : null;
   const lobbyMain = screen === 'lobby' || screen === 'queue';
