@@ -118,6 +118,13 @@ describe('telas confirmadas pelo agente', () => {
     expect(screen.queryByRole('article', { name: 'Área reservada para atualização' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Criar lobby' })).toBeVisible();
   });
+  it('mantém a área reservada no Início com lobby, sem repetir o lobby (#611)', () => {
+    snapshot({ lobby: testLobby, gameflowPhase: 'Lobby' });
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Início' }));
+    expect(screen.getByRole('article', { name: 'Área reservada para atualização' })).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Lobby' })).not.toBeInTheDocument();
+  });
   it('preserva criar lobby pendente ao receber o lobby', () => {
     send.mockClear();
     snapshot();
