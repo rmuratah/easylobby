@@ -22,6 +22,10 @@ type Props = {
   /** Atualização do app (#35), também no botão de Configurações. */
   update?: AppUpdateState;
   canInstallUpdate?: boolean;
+  /** Recebe o lugar do botão Jogar, onde a busca de partida põe o próprio botão (#600). */
+  queueSlotRef?: (element: HTMLDivElement | null) => void;
+  /** A busca de partida está no lugar do Jogar: o Jogar some e o espaço alarga. */
+  queueInSlot?: boolean;
 };
 
 /**
@@ -30,7 +34,7 @@ type Props = {
  * da barra. Não controla nem remonta o conteúdo. Com a janela estreita, os
  * destinos ficam só com os ícones.
  */
-export function TopNavigation({ active, flowLabel, flowButtonRef, unread = 0, onNavigate }: Pick<Props, 'active' | 'flowLabel' | 'flowButtonRef' | 'unread' | 'onNavigate'>) {
+export function TopNavigation({ active, flowLabel, flowButtonRef, unread = 0, onNavigate, queueSlotRef, queueInSlot = false }: Pick<Props, 'active' | 'flowLabel' | 'flowButtonRef' | 'unread' | 'onNavigate' | 'queueSlotRef' | 'queueInSlot'>) {
   const conversationsLabel = unread > 0 ? `Conversas, ${unread} não ${unread === 1 ? 'lida' : 'lidas'}` : 'Conversas';
   return (
     <nav aria-label="Funcionalidades" className="contents">
@@ -52,8 +56,10 @@ export function TopNavigation({ active, flowLabel, flowButtonRef, unread = 0, on
           <NavigationButton active={false} label="Loja" ariaLabel="Loja — em breve" icon={<StoreIcon />} disabled />
         </div>
       </div>
-      <div className="app-play-slot">
-        <button ref={flowButtonRef} type="button" aria-current={active === 'flow' ? 'page' : undefined}
+      <div className={cx('app-play-slot', queueInSlot && 'is-queue')}>
+        {/* No lobby (#600), o botão da busca de partida entra aqui, no lugar do Jogar. */}
+        <div ref={queueSlotRef} className="contents" />
+        <button ref={flowButtonRef} type="button" hidden={queueInSlot} aria-current={active === 'flow' ? 'page' : undefined}
           aria-label={flowLabel} title={flowLabel} onClick={() => onNavigate('flow')} className="app-play-button">
           <span className="app-play-button-face">
             <SwordsIcon />

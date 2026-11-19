@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { sound } from '../agent/sound';
 import { hoverSound } from '../agent/buttonSounds';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
@@ -10,8 +11,17 @@ import { awayMembers, pendingChoices, restrictionReasons } from '../agent/lobbyR
 import { memberName } from '../agent/friends';
 import { cx } from './base/cx';
 import { useDismiss } from '../agent/useDismiss';
+import { lobbyQueueName } from '../agent/queueOptions';
 
-type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
+type Props = {
+  connection: ConnectionSnapshot;
+  send: AgentClient['send'];
+  /**
+   * Lugar do botão Jogar, na barra do alto (#600). Com ele, o botão da busca sai do card e
+   * toma o lugar do Jogar; o card fica só com o estado, o tempo e os motivos.
+   */
+  buttonSlot?: HTMLElement | null;
+};
 type QueueCommand = Extract<Command, { type: 'startQueue' | 'stopQueue' }>;
 type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
 
@@ -26,7 +36,7 @@ function stateLabel(state: AgentState['matchmaking']): string {
   }
 }
 
-function QueueTime({ confirmed, running }: { confirmed: number; running: boolean }) {
+function QueueTime({ confirmed, running, labelled = true }: { confirmed: number; running: boolean; labelled?: boolean }) {
   const [extra, setExtra] = useState(0);
   useEffect(() => {
     if (!running) return;
@@ -34,10 +44,10 @@ function QueueTime({ confirmed, running }: { confirmed: number; running: boolean
     const timer = setInterval(() => setExtra((Date.now() - startedAt) / 1000), 1000);
     return () => clearInterval(timer);
   }, [running]);
-  return <strong aria-label="Tempo na fila">{duration(confirmed + extra)}</strong>;
+  return labelled ? <strong aria-label="Tempo na fila">{duration(confirmed + extra)}</strong> : <>{duration(confirmed + extra)}</>;
 }
 
-export function QueuePanel({ connection, send }: Props) {
+export function QueuePanel({ connection, send, buttonSlot = null }: Props) {
   const state = connection.state;
   const lcu = state?.lcu;
   if (connection.status !== 'connected' || !state || lcu?.state !== 'connected') {
@@ -48,10 +58,10 @@ export function QueuePanel({ connection, send }: Props) {
       </section>
     );
   }
-  return <QueueActions key={`${lcu.session}:${state.summoner?.puuid ?? ''}`} state={state} send={send} />;
+  return <QueueActions key={`${lcu.session}:${state.summoner?.puuid ?? ''}`} state={state} send={send} buttonSlot={buttonSlot} />;
 }
 
-function QueueActions({ state, send }: { state: AgentState; send: AgentClient['send'] }) {
+function QueueActions({ state, send, buttonSlot }: { state: AgentState; send: AgentClient['send']; buttonSlot: HTMLElement | null }) {
   const { matchmaking, lobby, summoner, gameflowPhase: phase } = state;
   const [feedback, setFeedback] = useState<Feedback>({ status: 'idle', message: '' });
   // O erro some sozinho depois de alguns segundos (#335).
@@ -100,6 +110,7 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
     : away.length ? 'Aguarde todos voltarem ao lobby.'
     : !lobby.canStartActivity ? (reasons.length ? 'A busca não pode começar:' : 'O lobby ainda não está pronto para iniciar a busca.')
     : missing.length ? 'Faltam escolhas antes de buscar:'
+    : buttonSlot ? 'O lobby está pronto. Use Buscar partida, no alto da janela.'
     : 'O lobby está pronto para buscar uma partida.';
 
   async function execute(command: QueueCommand) {
@@ -127,6 +138,32 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
 
   const searching = matchmaking?.searchState === 'Searching';
   const big = 'h-14 min-w-0 flex-1 rounded-full px-6 text-section font-semibold tracking-wide transition-all disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
+  const start = () => { sound.play('click'); void execute({ type: 'startQueue' }); };
+  const stop = () => { void execute({ type: 'stopQueue' }); };
+  // No alto da janela (#600): o mesmo par de botões, com o desenho do Jogar.
+  const topButtons = buttonSlot && createPortal(<>
+    <button ref={startRef} type="button" hidden={active} aria-busy={pending} aria-label="Buscar partida"
+      title={canStart ? 'Buscar partida' : restriction || 'Buscar partida'}
+      disabled={!canStart || pending} onMouseEnter={hoverSound} onClick={start} className="app-play-button app-queue-button">
+      <span className="app-play-button-face">
+        <span className="flex min-w-0 flex-col items-center leading-tight">
+          <span aria-hidden="true">Buscar partida</span>
+          {lobby && <span aria-hidden="true" className="app-play-button-detail">{lobbyQueueName(lobby, state.queues)}</span>}
+        </span>
+      </span>
+    </button>
+    <button ref={stopRef} type="button" hidden={!active} aria-busy={pending} aria-label="Cancelar busca" title="Cancelar busca"
+      disabled={!canStop || pending} onClick={stop} className={cx('app-play-button app-queue-button', searching && 'is-searching')}>
+      <span className="app-play-button-face">
+        <span className="flex min-w-0 flex-col items-center leading-tight">
+          <span aria-hidden="true" className="tabular-nums">{matchmaking
+            ? <QueueTime key={`${matchmaking.searchState}:${matchmaking.timeInQueue}`} confirmed={matchmaking.timeInQueue} running={searching} labelled={false} />
+            : 'Na fila'}</span>
+          <span aria-hidden="true" className="app-play-button-detail">Cancelar busca</span>
+        </span>
+      </span>
+    </button>
+  </>, buttonSlot);
   return (
     <section aria-label="Busca de partida"
       className={cx('flex w-full flex-col gap-3 rounded-panel surface card p-4 text-ink shadow-lift animate-fade-up @min-[44rem]:shadow-soft',
@@ -172,20 +209,19 @@ function QueueActions({ state, send }: { state: AgentState; send: AgentClient['s
       </div>}
       {feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}
         className={cx('px-1', feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted')}>{feedback.message}</p>}
-      <div className="mt-auto flex items-center gap-2">
+      {topButtons || <div className="mt-auto flex items-center gap-2">
         <button ref={startRef} type="button" hidden={active} aria-busy={pending}
-          disabled={!canStart || pending} onMouseEnter={hoverSound}
-          onClick={() => { sound.play('click'); void execute({ type: 'startQueue' }); }}
+          disabled={!canStart || pending} onMouseEnter={hoverSound} onClick={start}
           className={cx(big, 'bg-accent text-on-accent shadow-soft enabled:hover:-translate-y-0.5 disabled:bg-raised disabled:text-muted disabled:shadow-none')}>
-          Iniciar busca
+          Buscar partida
         </button>
         <button ref={stopRef} type="button" hidden={!active} aria-busy={pending}
-          disabled={!canStop || pending} onClick={() => { void execute({ type: 'stopQueue' }); }}
+          disabled={!canStop || pending} onClick={stop}
           className={cx(big, 'bg-surface text-accent-ink ring-2 ring-accent disabled:text-muted disabled:ring-control',
             searching && canStop && !pending && 'animate-search-ring')}>
           Cancelar busca
         </button>
-      </div>
+      </div>}
     </section>
   );
 }

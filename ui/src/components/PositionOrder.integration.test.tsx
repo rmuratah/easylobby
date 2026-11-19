@@ -43,7 +43,7 @@ describe('preferências de posição do Rift Clássico (#230)', () => {
   it('ordena pelas setas e salva a ordem só no Salvar', async () => {
     render(<App />);
     hello({ gameflowPhase: 'Lobby', lobby: jadeLobby });
-    expect(panel().queryByRole('combobox', { name: 'Posição primária' })).not.toBeInTheDocument();
+    expect(panel().queryByRole('radiogroup', { name: 'Posição primária' })).not.toBeInTheDocument();
     expect(panel().getByText(/Ordene as 5 posições/)).toBeInTheDocument();
     fireEvent.click(panel().getByRole('button', { name: 'Definir preferências' }));
     expect(order()).toEqual(['1ª: Topo', '2ª: Selva', '3ª: Meio', '4ª: Atirador', '5ª: Suporte']);

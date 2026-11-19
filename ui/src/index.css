@@ -160,3 +160,16 @@ button[aria-current="page"] { background: var(--el-accent-soft); border-color: v
   &[data-tier="DIAMOND"] { --tier: #96A4F7; } &[data-tier="MASTER"] { --tier: #CB93EE; } &[data-tier="GRANDMASTER"] { --tier: #F5847C; }
   &[data-tier="CHALLENGER"] { --tier: #73C8F7; }
 }
+
+/* Busca de partida no lugar do Jogar (#600): o espaço alarga para "Buscar partida" e o nome da fila. */
+.app-play-slot.is-queue { width: 13.5rem; }
+.app-queue-button .app-play-button-face { font-size: .9375rem; letter-spacing: .1em; }
+.app-play-button-detail { display: block; max-width: 10.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .625rem; font-weight: 700; letter-spacing: .1em; opacity: .85; }
+.app-toolbar .app-queue-button:disabled { cursor: not-allowed; filter: grayscale(.75) brightness(.9); }
+.app-toolbar .app-queue-button:disabled .app-play-button-face::after { display: none; }
+.app-toolbar .app-queue-button.is-searching .app-play-button-face { animation: queue-pulse 2.4s ease-in-out infinite; }
+@keyframes queue-pulse { 50% { filter: brightness(1.12); } }
+@media (max-width: 1099px) { .app-play-slot.is-queue { width: 12rem; } .app-play-button-detail { max-width: 8.5rem; } .app-queue-button .app-play-button-face { font-size: .875rem; letter-spacing: .08em; } }
+@media (prefers-reduced-motion: reduce) { .app-toolbar .app-queue-button.is-searching .app-play-button-face { animation: none; } }
+/* Faixa do modo no lobby (#600): uma luz da cor do Jogar vinda de baixo. */
+.lobby-banner { background-image: radial-gradient(60% 120% at 50% 130%, color-mix(in oklab, var(--el-accent) 28%, transparent), transparent 70%); }
