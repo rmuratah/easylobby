@@ -10,6 +10,10 @@
 //! menos que `ReconnectConfig::kill_ux` seja `false`. Por padrão o
 //! fechamento espera `ReconnectConfig::kill_ux_delay`, porque o Vanguard fecha
 //! o LoL (VAN7003) se não achar a UI enquanto inicializa.
+//!
+//! Antes de fechar a UI, reabri-la ou encerrar o LoL, o agente devolve o som
+//! das sessões da UI que pôs no mudo ([`release_mute`]): o Windows guarda o
+//! mudo de uma UI que fecha no mudo (#621).
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,6 +21,7 @@ use std::time::Duration;
 use reqwest::Method;
 
 use crate::rest::{LcuClient, LcuError};
+use crate::ux_window::release_mute;
 
 /// Fecha a UI oficial e mantém o client rodando.
 pub const KILL_UX: &str = "/riotclient/kill-ux";
@@ -39,11 +44,13 @@ pub const UX_STATE_REQUEST_PATH: &str = "/riotclient/ux-state/request";
 /// Fecha a UI oficial (`POST /riotclient/kill-ux`). A LCU continua
 /// respondendo. Chamar com a UI já fechada não faz mal.
 pub async fn kill_ux(client: &LcuClient) -> Result<(), LcuError> {
+    release_mute();
     client.send::<()>(Method::POST, KILL_UX, None).await
 }
 
 /// Reabre a UI oficial (`POST /riotclient/launch-ux`).
 pub async fn launch_ux(client: &LcuClient) -> Result<(), LcuError> {
+    release_mute();
     client.send::<()>(Method::POST, LAUNCH_UX, None).await
 }
 
@@ -55,6 +62,7 @@ pub async fn minimize_ux(client: &LcuClient) -> Result<(), LcuError> {
 /// Encerra o LoL (`POST /process-control/v1/process/quit`). A LCU responde
 /// antes de o processo fechar, e a conexão cai logo depois.
 pub async fn quit_client(client: &LcuClient) -> Result<(), LcuError> {
+    release_mute();
     client.send::<()>(Method::POST, QUIT_CLIENT, None).await
 }
 

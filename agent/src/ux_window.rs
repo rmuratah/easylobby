@@ -31,6 +31,17 @@
 //! agente silenciou voltam a ter som. Uma sessão que já estava no mudo fica
 //! como estava.
 //!
+//! O Windows guarda o mudo por executável: o Chromium da UI cria as sessões
+//! sem `AUDCLNT_STREAMFLAGS_NOPERSIST`, e uma UI que fecha no mudo abre no
+//! mudo da próxima vez, até sem o easylobby (#621). Por isso o som tem de
+//! voltar com a UI ainda viva: [`release_mute`] devolve o som antes de cada
+//! `kill-ux`, `launch-ux` e `quit` (veja [`crate::ux`]), e os processos
+//! liberados ficam [`RELEASE_FOR`] sem voltar ao mudo, o tempo de fecharem.
+//! Um arquivo na pasta de configuração ([`CLEAN_FILE`]) diz que o agente
+//! não deixou nenhum mudo salvo. Sem ele (o app caiu com a UI no mudo, ou o
+//! mudo ficou salvo pela 0.1.3), uma sessão da UI que já nasce no mudo conta
+//! como silenciada pelo agente e ganha o som de volta na próxima liberação.
+//!
 //! [`UxHider::stop`] encerra o esconderijo. Com `restore`, mostra de novo as
 //! janelas escondidas, para o botão de emergência (`launch-ux`) achar a UI
 //! visível. Soltar o [`UxHider`] encerra sem mostrar nada.
@@ -45,6 +56,30 @@ pub const UX_PROCESSES: [&str; 2] = ["LeagueClientUx", "LeagueClientUxRender"];
 
 /// Intervalo da varredura que esconde as janelas que o hook não pegou.
 pub const SWEEP_EVERY: Duration = Duration::from_millis(250);
+
+/// Quanto um processo da UI liberado por [`release_mute`] fica sem voltar ao
+/// mudo: o tempo de o `kill-ux` ou o `quit` fecharem a UI (#621). Se ele
+/// ainda existir depois disso, o esconderijo o silencia de novo.
+pub const RELEASE_FOR: Duration = Duration::from_secs(10);
+
+/// Arquivo, na [pasta de configuração](crate::riot_api::config_dir), que diz
+/// que nenhum mudo da UI oficial ficou salvo no Windows pelo agente (#621).
+pub const CLEAN_FILE: &str = "ux-mute-ok";
+
+/// Quanto [`UxHider::stop`] espera a thread do esconderijo acabar (e devolver
+/// o som), para o app não sair antes disso.
+#[cfg(windows)]
+const STOP_WAIT: Duration = Duration::from_secs(1);
+
+/// Devolve o som das sessões de áudio da UI oficial que o agente pôs no mudo,
+/// com a UI ainda viva, para o Windows não guardar o mudo (#621). Chame
+/// antes de fechar a UI ou o LoL e antes de reabrir a UI. Os processos
+/// liberados ficam [`RELEASE_FOR`] sem voltar ao mudo. Fora do Windows não
+/// faz nada.
+pub fn release_mute() {
+    #[cfg(windows)]
+    windows::release_mute();
+}
 
 /// Por que o esconderijo não começou.
 #[derive(Debug, Error)]
@@ -67,7 +102,8 @@ pub fn is_ux_process(name: &str) -> bool {
     UX_PROCESSES.iter().any(|p| base.eq_ignore_ascii_case(p))
 }
 
-type StopFn = Box<dyn FnOnce(bool) + Send>;
+/// Para o esconderijo: `(restore, wait)`. Com `wait`, espera a thread acabar.
+type StopFn = Box<dyn FnOnce(bool, bool) + Send>;
 
 /// Esconde as janelas da UI oficial até [`UxHider::stop`] ou até ser solto.
 pub struct UxHider {
@@ -88,7 +124,9 @@ impl UxHider {
     pub fn start() -> Result<Self, HideError> {
         #[cfg(windows)]
         {
-            windows::start().map(Self::from_stop)
+            windows::start().map(|stop| Self {
+                stop: Some(Box::new(stop)),
+            })
         }
         #[cfg(not(windows))]
         {
@@ -96,27 +134,30 @@ impl UxHider {
         }
     }
 
-    /// Esconderijo que chama `stop` ao parar. Também serve aos testes do Hub.
-    #[cfg(any(windows, test))]
+    /// Esconderijo que chama `stop` ao parar. Serve aos testes do Hub.
+    #[cfg(test)]
     pub(crate) fn from_stop(stop: impl FnOnce(bool) + Send + 'static) -> Self {
         Self {
-            stop: Some(Box::new(stop)),
+            stop: Some(Box::new(move |restore, _wait| stop(restore))),
         }
     }
 
     /// Para de esconder. Com `restore`, mostra de novo as janelas que este
-    /// esconderijo escondeu e que ainda existem.
+    /// esconderijo escondeu e que ainda existem. Espera até [`STOP_WAIT`] a
+    /// thread acabar, para o som da UI já ter voltado quando o app sair.
     pub fn stop(mut self, restore: bool) {
         if let Some(stop) = self.stop.take() {
-            stop(restore);
+            stop(restore, true);
         }
     }
 }
 
 impl Drop for UxHider {
+    /// Solto, para sem mostrar nada e sem esperar: o [`Hub`](crate::ws::Hub)
+    /// solta o esconderijo velho com a trava na mão.
     fn drop(&mut self) {
         if let Some(stop) = self.stop.take() {
-            stop(false);
+            stop(false, false);
         }
     }
 }
@@ -146,7 +187,9 @@ mod windows {
         WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_QUIT, WM_TIMER,
     };
 
-    use super::{is_ux_process, HideError, SWEEP_EVERY};
+    use super::{is_ux_process, HideError, STOP_WAIT, SWEEP_EVERY};
+
+    pub(super) use mute::release as release_mute;
 
     /// Estado da thread do esconderijo. O hook fora de contexto e o timer
     /// chegam na própria thread, então não precisa de trava.
@@ -166,18 +209,26 @@ mod windows {
         static STATE: RefCell<State> = RefCell::default();
     }
 
-    pub(super) fn start() -> Result<impl FnOnce(bool) + Send + 'static, HideError> {
+    pub(super) fn start() -> Result<impl FnOnce(bool, bool) + Send + 'static, HideError> {
         let restore = Arc::new(AtomicBool::new(false));
         let (ready_tx, ready_rx) = mpsc::channel();
+        // Fecha quando a thread acaba (o `Sender` cai junto com ela).
+        let (done_tx, done_rx) = mpsc::channel::<()>();
         let thread_restore = Arc::clone(&restore);
         std::thread::Builder::new()
             .name("easylobby-ux-hider".into())
-            .spawn(move || run(&ready_tx, &thread_restore))?;
+            .spawn(move || {
+                let _done = done_tx;
+                run(&ready_tx, &thread_restore);
+            })?;
         let thread_id = ready_rx.recv().map_err(|_| HideError::Hook)??;
-        Ok(move |show_again: bool| {
+        Ok(move |show_again: bool, wait: bool| {
             restore.store(show_again, Ordering::SeqCst);
             // SAFETY: só posta uma mensagem; se a thread já acabou, falha sem efeito.
             unsafe { PostThreadMessageW(thread_id, WM_QUIT, 0, 0) };
+            if wait {
+                let _ = done_rx.recv_timeout(STOP_WAIT);
+            }
         })
     }
 
@@ -361,7 +412,9 @@ mod windows {
     /// áudio, e o pid de cada uma, de `IAudioSessionControl2::GetProcessId`.
     /// Nenhum processo do LoL é aberto.
     mod mute {
+        use std::path::PathBuf;
         use std::sync::{Mutex, MutexGuard, PoisonError};
+        use std::time::Instant;
 
         use windows::core::{implement, Interface, Ref, Result};
         use windows::Win32::Media::Audio::{
@@ -373,22 +426,62 @@ mod windows {
             CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
         };
 
-        use super::super::is_ux_process;
+        use super::super::{is_ux_process, CLEAN_FILE, RELEASE_FOR};
 
-        /// Quantos esconderijos estão silenciando e os pids que o agente pôs
-        /// no mudo, para devolver o som quando o último parar.
+        /// Quantos esconderijos estão silenciando, os pids que o agente pôs
+        /// no mudo (para devolver o som) e os que ele liberou há pouco.
         struct Shared {
             active: usize,
             muted: Vec<u32>,
+            /// Pids liberados por [`release`], com quando: não voltam ao mudo
+            /// por [`RELEASE_FOR`] (#621).
+            released: Vec<(u32, Instant)>,
+            /// Ficou mudo salvo de antes ([`CLEAN_FILE`] ausente): uma sessão
+            /// da UI que nasce no mudo conta como silenciada pelo agente.
+            adopt: bool,
         }
 
         static SHARED: Mutex<Shared> = Mutex::new(Shared {
             active: 0,
             muted: Vec::new(),
+            released: Vec::new(),
+            adopt: false,
         });
 
         fn shared() -> MutexGuard<'static, Shared> {
             SHARED.lock().unwrap_or_else(PoisonError::into_inner)
+        }
+
+        /// O arquivo que diz que nenhum mudo ficou salvo (#621).
+        fn clean_file() -> Option<PathBuf> {
+            crate::riot_api::config_dir().map(|dir| dir.join(CLEAN_FILE))
+        }
+
+        /// Se ficou mudo salvo de antes. Sem pasta de configuração, confia
+        /// que não (o comportamento de antes).
+        fn left_muted() -> bool {
+            clean_file().is_some_and(|file| !file.exists())
+        }
+
+        /// Anota que o agente deixou (`false`) ou não deixou (`true`) mudo
+        /// salvo. Um erro só faz a próxima abertura conferir de novo.
+        fn mark_clean(clean: bool) {
+            let Some(file) = clean_file() else {
+                return;
+            };
+            let result = if clean {
+                file.parent()
+                    .map_or(Ok(()), std::fs::create_dir_all)
+                    .and_then(|()| std::fs::write(&file, b""))
+            } else {
+                match std::fs::remove_file(&file) {
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                    other => other,
+                }
+            };
+            if let Err(error) = result {
+                tracing::warn!("erro ao anotar o mudo da UI oficial: {error}");
+            }
         }
 
         /// Entra no COM (MTA) nesta thread. `false` se não deu.
@@ -415,13 +508,25 @@ mod windows {
             /// o esconderijo segue só com as janelas.
             pub(super) fn start() -> Option<Self> {
                 let managers = managers().ok()?;
+                {
+                    let mut shared = shared();
+                    if shared.active == 0 {
+                        shared.adopt = left_muted();
+                        if shared.adopt {
+                            tracing::info!(
+                                "o mudo da UI oficial pode ter ficado salvo no Windows: \
+                                 o som volta na próxima liberação (#621)"
+                            );
+                        }
+                    }
+                    shared.active += 1;
+                }
                 let notification: IAudioSessionNotification = OnSessionCreated.into();
                 for manager in &managers {
                     // SAFETY: `notification` vive no `Muter` até o `finish`,
                     // que desinscreve antes de soltar.
                     let _ = unsafe { manager.RegisterSessionNotification(&notification) };
                 }
-                shared().active += 1;
                 Some(Self {
                     managers,
                     notification,
@@ -446,25 +551,73 @@ mod windows {
                     // SAFETY: a mesma inscrição do `start`.
                     let _ = unsafe { manager.UnregisterSessionNotification(&self.notification) };
                 }
-                let pids = {
+                {
                     let mut shared = shared();
                     shared.active = shared.active.saturating_sub(1);
                     if shared.active > 0 {
                         return;
                     }
-                    std::mem::take(&mut shared.muted)
-                };
-                if pids.is_empty() {
-                    return;
                 }
-                for_each_session(&self.managers, |session| {
-                    if session_pid(session).is_some_and(|pid| pids.contains(&pid)) {
-                        if let Ok(volume) = session.cast::<ISimpleAudioVolume>() {
-                            // SAFETY: sem contexto de evento (ponteiro nulo aceito).
-                            let _ = unsafe { volume.SetMute(false, std::ptr::null()) };
-                        }
+                unmute_recorded(&self.managers);
+            }
+        }
+
+        /// Devolve o som das sessões anotadas em `muted` e marca os pids como
+        /// liberados. Se todas voltaram a ter som, anota que nenhum mudo
+        /// ficou salvo; uma sessão que já não existe pode ter deixado o mudo
+        /// salvo, e a próxima abertura confere.
+        fn unmute_recorded(managers: &[IAudioSessionManager2]) {
+            let pids = std::mem::take(&mut shared().muted);
+            if pids.is_empty() {
+                return;
+            }
+            let mut unmuted = Vec::new();
+            for_each_session(managers, |session| {
+                let Some(pid) = session_pid(session).filter(|pid| pids.contains(pid)) else {
+                    return;
+                };
+                if let Ok(volume) = session.cast::<ISimpleAudioVolume>() {
+                    // SAFETY: sem contexto de evento (ponteiro nulo aceito).
+                    if unsafe { volume.SetMute(false, std::ptr::null()) }.is_ok() {
+                        unmuted.push(pid);
                     }
+                }
+            });
+            let clean = pids.iter().all(|pid| unmuted.contains(pid));
+            if !clean {
+                tracing::warn!("o som de parte da UI oficial não voltou: ela já tinha fechado");
+            }
+            let mut shared = shared();
+            let now = Instant::now();
+            shared.released.retain(|(pid, _)| !pids.contains(pid));
+            shared.released.extend(pids.iter().map(|&pid| (pid, now)));
+            // Com a trava, para não anotar "sem mudo" logo depois de outra
+            // sessão entrar no mudo.
+            if clean && shared.muted.is_empty() {
+                shared.adopt = false;
+                mark_clean(true);
+            }
+        }
+
+        /// Devolve o som das sessões da UI que o agente pôs no mudo, numa
+        /// thread própria (com o COM dela) e esperando acabar (#621).
+        pub(in super::super) fn release() {
+            if shared().muted.is_empty() {
+                return;
+            }
+            let worker = std::thread::Builder::new()
+                .name("easylobby-ux-unmute".into())
+                .spawn(|| {
+                    if !init_com() {
+                        return;
+                    }
+                    if let Ok(managers) = managers() {
+                        unmute_recorded(&managers);
+                    }
+                    uninit_com();
                 });
+            if let Ok(worker) = worker {
+                let _ = worker.join();
             }
         }
 
@@ -517,21 +670,36 @@ mod windows {
         }
 
         /// Põe a sessão no mudo e anota o pid. Uma sessão que já estava no
-        /// mudo (pelo jogador) não é anotada, para não ganhar som depois.
+        /// mudo (pelo jogador) não é anotada, para não ganhar som depois,
+        /// a menos que o agente tenha deixado mudo salvo de antes (#621). Um
+        /// pid liberado há pouco fica com som: a UI dele está fechando.
         fn mute(session: &IAudioSessionControl, pid: u32) {
+            let adopt = {
+                let mut shared = shared();
+                shared.released.retain(|(_, at)| at.elapsed() < RELEASE_FOR);
+                if shared.released.iter().any(|&(p, _)| p == pid) {
+                    return;
+                }
+                shared.adopt
+            };
             let Ok(volume) = session.cast::<ISimpleAudioVolume>() else {
                 return;
             };
             // SAFETY: sem contexto de evento (ponteiro nulo aceito).
             unsafe {
                 if volume.GetMute().is_ok_and(|muted| muted.as_bool()) {
-                    return;
-                }
-                if volume.SetMute(true, std::ptr::null()).is_err() {
+                    if !adopt {
+                        return;
+                    }
+                } else if volume.SetMute(true, std::ptr::null()).is_err() {
                     return;
                 }
             }
             let mut shared = shared();
+            if shared.muted.is_empty() {
+                // O mudo agora pode ficar salvo no Windows até o som voltar.
+                mark_clean(false);
+            }
             if !shared.muted.contains(&pid) {
                 shared.muted.push(pid);
             }
