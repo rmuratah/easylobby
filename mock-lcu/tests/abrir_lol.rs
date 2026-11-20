@@ -66,3 +66,16 @@ async fn senha_errada_nao_abre_nada() {
     mock.shutdown().await;
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[tokio::test]
+async fn o_riot_client_de_mentira_tem_login() {
+    let (mock, creds, ca_pem, dir) = start("login").await;
+    let client = LcuClient::with_root_certificate(&creds, ca_pem.as_bytes()).unwrap();
+
+    assert_eq!(
+        launcher::riot_login(&client).await.unwrap(),
+        launcher::RiotLogin::LoggedIn
+    );
+    mock.shutdown().await;
+    let _ = std::fs::remove_dir_all(dir);
+}

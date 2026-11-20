@@ -33,7 +33,7 @@ function LaunchLeague({ send }: { send: AgentClient['send'] }) {
       const result = await send({ type: 'launchLeague' });
       if (!mounted.current) return;
       setState(result.status === 'ok'
-        ? { status: 'opening', message: 'Abrindo o League of Legends. Esta tela muda sozinha quando ele conectar.' }
+        ? { status: 'opening', message: 'Abrindo o League of Legends. Se o Riot Client pedir login, entre na sua conta e o LoL abre sozinho. Esta tela muda quando ele conectar.' }
         : { status: 'error', message: 'Não foi possível abrir o League of Legends. Abra pelo Riot Client e o easylobby conecta sozinho.' });
     } catch {
       if (mounted.current) setState({ status: 'error', message: 'Não foi possível pedir a abertura. Abra pelo Riot Client e o easylobby conecta sozinho.' });

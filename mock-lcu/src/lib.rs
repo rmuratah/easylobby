@@ -1590,6 +1590,12 @@ async fn handle_request(
                 None => Response::error(404, format!("mock-lcu: {path} não existe")),
             }
         }
+        // O Riot Client de mentira sempre tem login: o agente pergunta antes
+        // de pedir o LoL (#619).
+        (&Method::GET, RIOT_CLIENT_AUTHORIZATION) => Response {
+            status: 200,
+            body: serde_json::json!({ "type": "authorization", "mock": true }),
+        },
         // Patch simulado (#575).
         (&Method::POST, patch::START) => {
             let body = read_json(request).await;
@@ -1715,6 +1721,9 @@ fn answer_ready_check(shared: &Shared, response: &str) -> Response {
         Err(error) => error,
     }
 }
+
+/// Rota do Riot Client com o login atual.
+const RIOT_CLIENT_AUTHORIZATION: &str = "/rso-auth/v1/authorization";
 
 /// Prefixo da rota do Riot Client que abre um produto.
 const PRODUCT_LAUNCHER_PREFIX: &str = "/product-launcher/v1/products/";

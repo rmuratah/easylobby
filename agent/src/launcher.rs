@@ -11,11 +11,18 @@
 //!    (`%LOCALAPPDATA%\Riot Games\Riot Client\Config\lockfile`), Basic Auth e o
 //!    `riotgames.pem` fixado, como na LCU
 //!    ([`LaunchOutcome::RequestedFromRiotClient`]). Chamar o executável com o
-//!    Riot Client já aberto só mostrava a janela dele, sem abrir o LoL.
-//! 3. Senão (ou se a API falhar), chama `RiotClientServices.exe
+//!    Riot Client já aberto e com login só mostrava a janela dele, sem abrir o
+//!    LoL. Antes, `GET /rso-auth/v1/authorization` diz se há login (404 é
+//!    sem login); sem login, segue para o passo 3 (#619).
+//! 3. Senão (sem login, ou se a API falhar), chama `RiotClientServices.exe
 //!    --launch-product=league_of_legends --launch-patchline=live`
-//!    ([`LaunchOutcome::Launched`]). Se ninguém fez login, o Riot Client
-//!    mostra a tela de login e abre o LoL depois.
+//!    ([`LaunchOutcome::Launched`]), que mostra a janela do Riot Client: a tela
+//!    de login, se ninguém fez login.
+//!
+//! Depois do passo 3, uma tarefa em segundo plano espera o login (veja
+//! [`LoginWatch`]): quando o Riot Client tem login e o LoL não abriu sozinho,
+//! ela pede o LoL pela API local, como no passo 2. Assim o jogador só faz
+//! login e o LoL abre, com o easylobby conectando como sempre.
 //!
 //! O executável é procurado nesta ordem:
 //!
@@ -49,6 +56,8 @@ use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use thiserror::Error;
@@ -70,6 +79,20 @@ pub const RIOT_CLIENT_INSTALLS_FILE: &str = "RiotClientInstalls.json";
 
 /// Onde o instalador da Riot põe o Riot Client por padrão.
 pub const DEFAULT_RIOT_CLIENT_PATH: &str = r"C:\Riot Games\Riot Client\RiotClientServices.exe";
+
+/// Rota da API local do Riot Client com o login atual: 404 quando ninguém
+/// fez login.
+pub const RIOT_CLIENT_AUTHORIZATION: &str = "/rso-auth/v1/authorization";
+
+/// De quanto em quanto tempo a espera do login olha o Riot Client e o LoL.
+pub const LOGIN_WATCH_POLL: Duration = Duration::from_secs(2);
+
+/// Quanto tempo a espera do login dura antes de desistir.
+pub const LOGIN_WATCH_LIMIT: Duration = Duration::from_secs(15 * 60);
+
+/// Quanto esperar, depois do login, o Riot Client abrir o LoL sozinho
+/// (ele foi chamado com `--launch-product`) antes de pedir pela API.
+pub const LOGIN_GRACE: Duration = Duration::from_secs(10);
 
 /// Caminho do lockfile do Riot Client dentro do `%LOCALAPPDATA%`.
 pub const RIOT_CLIENT_LOCKFILE: [&str; 4] = ["Riot Games", "Riot Client", "Config", "lockfile"];
@@ -187,7 +210,8 @@ pub enum LaunchOutcome {
         /// Porta da API do Riot Client.
         port: u16,
     },
-    /// O executável do Riot Client foi chamado para abrir o LoL.
+    /// O executável do Riot Client foi chamado para abrir o LoL. Uma tarefa
+    /// em segundo plano espera o login e pede o LoL, se ele não abrir sozinho.
     Launched {
         riot_client: RiotClient,
         /// Pid do processo disparado.
@@ -206,6 +230,13 @@ pub enum RiotClientApiError {
     Lockfile(#[from] LockfileError),
     #[error(transparent)]
     Rest(#[from] LcuError),
+}
+
+/// Se o Riot Client tem alguém logado.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RiotLogin {
+    LoggedIn,
+    LoggedOut,
 }
 
 /// O que [`plan_launch`] decidiu fazer.
@@ -266,7 +297,8 @@ pub async fn launch_league(options: &LaunchOptions) -> Result<LaunchOutcome, Lau
     let mut api_error = None;
     if processes.iter().any(is_riot_client) || options.riot_client_lockfile.is_some() {
         match request_from_riot_client(options).await {
-            Ok(port) => return Ok(LaunchOutcome::RequestedFromRiotClient { port }),
+            Ok(Some(port)) => return Ok(LaunchOutcome::RequestedFromRiotClient { port }),
+            Ok(None) => tracing::info!("o Riot Client está sem login; mostrando a tela de login"),
             Err(e) => api_error = Some(e),
         }
     }
@@ -275,6 +307,7 @@ pub async fn launch_league(options: &LaunchOptions) -> Result<LaunchOutcome, Lau
         LaunchPlan::AlreadyRunning { pid } => Ok(LaunchOutcome::AlreadyRunning { pid }),
         LaunchPlan::Launch { riot_client, args } => {
             let pid = spawn_detached(&riot_client.path, &args)?;
+            spawn_login_watch(options.clone());
             Ok(LaunchOutcome::Launched {
                 riot_client,
                 pid,
@@ -284,9 +317,9 @@ pub async fn launch_league(options: &LaunchOptions) -> Result<LaunchOutcome, Lau
     }
 }
 
-/// Lê o lockfile do Riot Client e pede o LoL pela API dele, com o
-/// `riotgames.pem` fixado. Devolve a porta da API.
-async fn request_from_riot_client(options: &LaunchOptions) -> Result<u16, RiotClientApiError> {
+/// Lê o lockfile do Riot Client e monta o cliente da API dele, com o
+/// `riotgames.pem` fixado. Devolve também a porta da API.
+async fn riot_client_api(options: &LaunchOptions) -> Result<(LcuClient, u16), RiotClientApiError> {
     let path = match &options.riot_client_lockfile {
         Some(path) => path.clone(),
         None => riot_client_lockfile_path().ok_or(RiotClientApiError::NoLockfilePath)?,
@@ -296,8 +329,168 @@ async fn request_from_riot_client(options: &LaunchOptions) -> Result<u16, RiotCl
         Some(pem) => LcuClient::with_root_certificate(&credentials, &pem)?,
         None => LcuClient::new(&credentials)?,
     };
+    Ok((client, credentials.port))
+}
+
+/// Pede o LoL pela API do Riot Client, se ele tem login. Devolve a porta da
+/// API, ou `None` quando ninguém fez login (o pedido não abriria nada).
+async fn request_from_riot_client(
+    options: &LaunchOptions,
+) -> Result<Option<u16>, RiotClientApiError> {
+    let (client, port) = riot_client_api(options).await?;
+    // Se a rota do login falhar por outro motivo, tenta abrir como antes.
+    if let Ok(RiotLogin::LoggedOut) = riot_login(&client).await {
+        return Ok(None);
+    }
     request_launch(&client, options).await?;
-    Ok(credentials.port)
+    Ok(Some(port))
+}
+
+/// Pergunta ao Riot Client, pela API local dele, se alguém fez login.
+///
+/// `client` aponta para o Riot Client, não para a LCU. 404 em
+/// [`RIOT_CLIENT_AUTHORIZATION`] quer dizer sem login.
+pub async fn riot_login(client: &LcuClient) -> Result<RiotLogin, LcuError> {
+    match client
+        .get::<serde_json::Value>(RIOT_CLIENT_AUTHORIZATION)
+        .await
+    {
+        Ok(_) => Ok(RiotLogin::LoggedIn),
+        Err(e) if e.status() == Some(404) => Ok(RiotLogin::LoggedOut),
+        Err(e) => Err(e),
+    }
+}
+
+/// O que a espera do login faz a cada olhada.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WatchStep {
+    /// Olhar de novo daqui a [`LOGIN_WATCH_POLL`].
+    Wait,
+    /// Pedir o LoL pela API do Riot Client.
+    Launch,
+    /// Parar: o LoL abriu ou passou do [`LOGIN_WATCH_LIMIT`].
+    Stop,
+}
+
+/// Espera o login no Riot Client depois de chamar o executável, e decide
+/// quando pedir o LoL (#619).
+///
+/// O Riot Client chamado com `--launch-product` costuma abrir o LoL sozinho
+/// depois do login; quando não abre (por exemplo, ele já estava aberto na
+/// bandeja), o LoL é pedido pela API [`LOGIN_GRACE`] depois do login.
+#[derive(Debug, Clone)]
+pub struct LoginWatch {
+    started: Instant,
+    logged_in_since: Option<Instant>,
+}
+
+impl LoginWatch {
+    pub fn new(now: Instant) -> Self {
+        Self {
+            started: now,
+            logged_in_since: None,
+        }
+    }
+
+    /// Decide o próximo passo com o que foi visto agora. `login` é `None`
+    /// quando o Riot Client não respondeu (ainda abrindo, por exemplo).
+    pub fn step(
+        &mut self,
+        now: Instant,
+        league_running: bool,
+        login: Option<RiotLogin>,
+    ) -> WatchStep {
+        if league_running || now.duration_since(self.started) >= LOGIN_WATCH_LIMIT {
+            return WatchStep::Stop;
+        }
+        match login {
+            Some(RiotLogin::LoggedIn) => {
+                let since = *self.logged_in_since.get_or_insert(now);
+                if now.duration_since(since) >= LOGIN_GRACE {
+                    WatchStep::Launch
+                } else {
+                    WatchStep::Wait
+                }
+            }
+            Some(RiotLogin::LoggedOut) => {
+                self.logged_in_since = None;
+                WatchStep::Wait
+            }
+            None => WatchStep::Wait,
+        }
+    }
+
+    /// O pedido do LoL falhou: espera outro [`LOGIN_GRACE`] antes de tentar
+    /// de novo.
+    pub fn launch_failed(&mut self, now: Instant) {
+        self.logged_in_since = Some(now);
+    }
+}
+
+/// Se já há uma espera do login rodando (só uma por vez).
+static WATCHING_LOGIN: AtomicBool = AtomicBool::new(false);
+
+/// Solta [`WATCHING_LOGIN`] quando a espera termina, até num pânico.
+struct WatchingGuard;
+
+impl Drop for WatchingGuard {
+    fn drop(&mut self) {
+        WATCHING_LOGIN.store(false, Ordering::SeqCst);
+    }
+}
+
+/// Começa a espera do login em segundo plano, se ainda não há uma.
+fn spawn_login_watch(options: LaunchOptions) {
+    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+        return;
+    };
+    if WATCHING_LOGIN.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    runtime.spawn(async move {
+        let _guard = WatchingGuard;
+        watch_login(&options).await;
+    });
+}
+
+/// Laço da [`LoginWatch`]: olha o LoL e o login do Riot Client a cada
+/// [`LOGIN_WATCH_POLL`] e pede o LoL quando é a hora.
+async fn watch_login(options: &LaunchOptions) {
+    let mut watch = LoginWatch::new(Instant::now());
+    loop {
+        tokio::time::sleep(LOGIN_WATCH_POLL).await;
+        let league_running = tokio::task::spawn_blocking(|| {
+            lockfile::list_processes().iter().any(|p| p.is_client())
+        })
+        .await
+        .unwrap_or(false);
+        let api = if league_running {
+            None
+        } else {
+            riot_client_api(options).await.ok()
+        };
+        let login = match &api {
+            Some((client, _)) => riot_login(client).await.ok(),
+            None => None,
+        };
+        match watch.step(Instant::now(), league_running, login) {
+            WatchStep::Wait => {}
+            WatchStep::Stop => return,
+            WatchStep::Launch => {
+                let Some((client, _)) = &api else { continue };
+                match request_launch(client, options).await {
+                    Ok(()) => {
+                        tracing::info!("login feito no Riot Client; LoL pedido pela API");
+                        return;
+                    }
+                    Err(e) => {
+                        tracing::warn!("não consegui pedir o LoL depois do login: {e}");
+                        watch.launch_failed(Instant::now());
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// CA do mock-lcu ao lado de um lockfile configurado à mão, como na
@@ -686,6 +879,89 @@ mod tests {
         assert_eq!(
             conteudo.trim(),
             "--launch-product=league_of_legends --launch-patchline=live"
+        );
+    }
+
+    #[test]
+    fn espera_o_login_e_pede_o_lol_depois_da_folga() {
+        let t0 = Instant::now();
+        let mut watch = LoginWatch::new(t0);
+        let s = |n: u64| t0 + Duration::from_secs(n);
+
+        // Riot Client abrindo, depois a tela de login.
+        assert_eq!(watch.step(s(2), false, None), WatchStep::Wait);
+        assert_eq!(
+            watch.step(s(4), false, Some(RiotLogin::LoggedOut)),
+            WatchStep::Wait
+        );
+        // Login feito: dá a folga para o Riot Client abrir o LoL sozinho.
+        assert_eq!(
+            watch.step(s(60), false, Some(RiotLogin::LoggedIn)),
+            WatchStep::Wait
+        );
+        assert_eq!(
+            watch.step(s(65), false, Some(RiotLogin::LoggedIn)),
+            WatchStep::Wait
+        );
+        assert_eq!(
+            watch.step(s(70), false, Some(RiotLogin::LoggedIn)),
+            WatchStep::Launch
+        );
+        // Pedido falhou: outra folga antes de tentar de novo.
+        watch.launch_failed(s(70));
+        assert_eq!(
+            watch.step(s(72), false, Some(RiotLogin::LoggedIn)),
+            WatchStep::Wait
+        );
+        assert_eq!(
+            watch.step(s(80), false, Some(RiotLogin::LoggedIn)),
+            WatchStep::Launch
+        );
+    }
+
+    #[test]
+    fn para_quando_o_lol_abre_sozinho() {
+        let t0 = Instant::now();
+        let mut watch = LoginWatch::new(t0);
+        let s = |n: u64| t0 + Duration::from_secs(n);
+        assert_eq!(
+            watch.step(s(30), false, Some(RiotLogin::LoggedIn)),
+            WatchStep::Wait
+        );
+        assert_eq!(watch.step(s(32), true, None), WatchStep::Stop);
+    }
+
+    #[test]
+    fn sair_da_conta_zera_a_folga() {
+        let t0 = Instant::now();
+        let mut watch = LoginWatch::new(t0);
+        let s = |n: u64| t0 + Duration::from_secs(n);
+        assert_eq!(
+            watch.step(s(2), false, Some(RiotLogin::LoggedIn)),
+            WatchStep::Wait
+        );
+        assert_eq!(
+            watch.step(s(4), false, Some(RiotLogin::LoggedOut)),
+            WatchStep::Wait
+        );
+        assert_eq!(
+            watch.step(s(13), false, Some(RiotLogin::LoggedIn)),
+            WatchStep::Wait
+        );
+        assert_eq!(
+            watch.step(s(23), false, Some(RiotLogin::LoggedIn)),
+            WatchStep::Launch
+        );
+    }
+
+    #[test]
+    fn desiste_depois_do_limite() {
+        let t0 = Instant::now();
+        let mut watch = LoginWatch::new(t0);
+        let fim = t0 + LOGIN_WATCH_LIMIT;
+        assert_eq!(
+            watch.step(fim, false, Some(RiotLogin::LoggedOut)),
+            WatchStep::Stop
         );
     }
 }
