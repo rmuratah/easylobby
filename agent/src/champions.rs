@@ -91,6 +91,12 @@ impl ChampionCatalog {
         Some(Self { champions })
     }
 
+    /// Se algum campeão tem rotas (#250). Sem rotas, a UI esconde o filtro
+    /// de rota, e o agente relê o catálogo no login e na seleção (#625).
+    pub fn has_positions(&self) -> bool {
+        self.champions.iter().any(|c| !c.positions.is_empty())
+    }
+
     pub fn get(&self, id: u32) -> Option<&Champion> {
         self.champions.iter().find(|c| c.id == id)
     }
@@ -316,6 +322,16 @@ mod tests {
         assert_eq!(catalog.get(62).unwrap().roles, ["fighter", "tank"]);
         assert!(catalog.get(103).unwrap().roles.is_empty());
         assert!(ChampionCatalog::from_json(&json!({})).is_none());
+    }
+
+    #[test]
+    fn diz_se_o_catalogo_tem_rotas() {
+        let summary = json!([{"id": 1, "name": "Annie", "alias": "Annie"}]);
+        let catalog = ChampionCatalog::from_json(&summary).unwrap();
+        assert!(!catalog.has_positions());
+        assert!(!catalog.clone().with_positions(&json!({})).has_positions());
+        let catalog = catalog.with_positions(&json!({"1": ["MIDDLE"]}));
+        assert!(catalog.has_positions());
     }
 
     #[test]

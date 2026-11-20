@@ -468,7 +468,15 @@ impl Hub {
                 self.set_rune_pages_if(stamps.rune_pages, rune_pages.ok());
                 // Antes da seleção, para a UI já poder desenhar os feitiços.
                 self.set_summoner_spell_catalog(spell_catalog.ok().flatten());
-                self.set_champion_catalog(champion_catalog.ok().flatten());
+                let champion_catalog = champion_catalog.ok().flatten();
+                if champion_catalog
+                    .as_ref()
+                    .is_some_and(|c| !c.has_positions())
+                {
+                    // Relidas no login e na seleção (#625).
+                    tracing::warn!("o LoL não mandou as rotas dos campeões ao conectar");
+                }
+                self.set_champion_catalog(champion_catalog);
                 // Antes do login a LCU responde erro; o login relê (#218).
                 if let Ok(Some(champions)) = playable_champions {
                     self.set_playable_champions(Some(champions));
@@ -629,6 +637,8 @@ impl Hub {
     fn after_login(&self) {
         self.spawn_refresh_queues();
         self.spawn_refresh_playable_champions();
+        // As rotas dos campeões, se a conexão não as leu (#625).
+        self.spawn_refresh_champion_catalog();
         self.spawn_refresh_tutorial();
         // O saldo também só responde depois do login (#370).
         self.spawn_refresh_wallet();
@@ -663,6 +673,10 @@ impl Hub {
             } else if !honor::post_game(Some(phase)) {
                 self.set_honor_ballot(None);
             }
+        }
+        // O filtro de rota da seleção, se o catálogo veio sem rotas (#625).
+        if before != Some(phase) && phase == GameflowPhase::ChampSelect {
+            self.spawn_refresh_champion_catalog();
         }
         // A partida ao vivo começa ou termina (#268).
         if before != Some(phase) {

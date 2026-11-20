@@ -443,10 +443,11 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect, foote
             if (event.key === 'Escape') { setQuery(''); return; }
             if (event.key === 'Enter' && query && first && onSelect) { event.preventDefault(); onSelect(first.champion.id); }
           }}
-          className="champ-select-search h-9 min-w-32 flex-1 rounded-control border border-control bg-surface px-3 text-body text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" />
+          className="champ-select-search h-9 min-w-32 max-w-72 flex-1 rounded-control border border-control bg-surface px-3 text-body text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" />
         <span id={hintId} className="sr-only">Enter marca o primeiro campeão da busca; Esc limpa.</span>
+        {/* A busca tem largura máxima, e o filtro de rota fica na mesma linha, à direita (#625). */}
         {showLanes && (
-          <ul aria-label="Filtrar por rota" className="flex gap-1">
+          <ul aria-label="Filtrar por rota" className="ml-auto flex shrink-0 gap-1">
             {LANES.map(option => (
               <li key={option}>
                 <button type="button" aria-pressed={activeLane === option} title={positionNames[option]}
