@@ -56,7 +56,8 @@ async fn run() -> Result<(), String> {
                 "Riot Client chamado (pid {pid}): {} ({:?})",
                 riot_client.path.display(),
                 riot_client.source
-            )
+            );
+            println!("Se o Riot Client pedir login, entre na conta: o LoL é pedido depois")
         }
     }
 
