@@ -50,7 +50,7 @@ it('pede as trocas disponíveis com um aliado', async () => {
     champSelect: withSwaps({ pickOrderSwaps: [{ id: 8, cellId: 1, state: 'INVALID' }], positionSwaps: [{ id: 9, cellId: 1, state: 'SENT' }] }),
   }));
   const sent = within(panel().getByRole('group', { name: 'Seu pedido de troca de posição' }));
-  expect(sent.getByText('Aguardando a resposta da troca de posição.')).toBeVisible();
+  expect(panel().getByRole('group', { name: 'Seu pedido de troca de posição' })).toHaveTextContent('Aguardando a resposta da troca de posição…');
   fireEvent.click(sent.getByRole('button', { name: 'Cancelar pedido' }));
   expect(last().command).toEqual({ type: 'cancelSwap', kind: 'position', swapId: 9 });
 });
@@ -61,7 +61,8 @@ it.each([['Aceitar', 'acceptSwap'], ['Recusar', 'declineSwap']] as const)('%s um
   const request = within(panel().getByRole('group', { name: 'Pedido de troca de campeão' }));
   // O pedido fica dentro do card de quem pediu, sem aviso em cima do card do meio (#562).
   expect(within(panel().getByRole('region', { name: 'Seu time' })).getByRole('group', { name: 'Pedido de troca de campeão' })).toBeVisible();
-  expect(request.getByText('Quer trocar de campeão')).toBeVisible();
+  expect(request.getByText('Quer trocar de campeão')).toBeInTheDocument();
+  expect(request.getByText('Trocar campeão?')).toBeVisible();
   fireEvent.click(request.getByRole('button', { name: label }));
   expect(last().command).toEqual({ type, kind: 'champion', swapId: 7 });
   fireEvent.click(request.getByRole('button', { name: label }));

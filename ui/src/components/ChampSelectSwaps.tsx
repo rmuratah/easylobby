@@ -9,6 +9,8 @@ type SwapCommand = 'requestSwap' | 'acceptSwap' | 'declineSwap' | 'cancelSwap';
 
 const buttonClass = 'rounded-control-sm border bg-surface px-2 py-0.5 text-caption font-medium text-ink hover:bg-raised disabled:cursor-not-allowed disabled:opacity-50';
 
+const iconButtonClass = 'flex size-5 shrink-0 items-center justify-center rounded-control-sm border disabled:cursor-not-allowed disabled:opacity-50';
+
 function allyName(champSelect: ChampSelect, cellId: number): string {
   const index = champSelect.myTeam.findIndex(p => p.cellId === cellId);
   return index < 0 ? 'Aliado' : playerName(champSelect.myTeam[index], index, true);
@@ -25,6 +27,15 @@ function sendSwap(run: Run, type: SwapCommand, { kind, swap }: SwapEntry) {
   void run({ type, kind, swapId: swap.id }, texts[type](swapKindNames[kind]));
 }
 
+function SwapIcon() {
+  return (
+    <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25"
+      strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+      <path d="M7 4 3 8l4 4M3 8h14M17 12l4 4-4 4M21 16H7" />
+    </svg>
+  );
+}
+
 type OffersProps = { champSelect: ChampSelect; cellId: number; busy: boolean; run: Run };
 
 /** Botões para pedir as trocas disponíveis com um aliado (#25). */
@@ -35,10 +46,13 @@ export function SwapOffers({ champSelect, cellId, busy, run }: OffersProps) {
   return (
     <div className="flex flex-wrap gap-1">
       {available.map(entry => (
-        <button key={`${entry.kind}:${entry.swap.id}`} type="button" disabled={busy} className={`${buttonClass} border-control`}
-          aria-label={`Pedir troca de ${swapKindNames[entry.kind]} com ${name}`}
+        // Rótulo curto com o ícone de troca (#623): os botões cabem numa linha do card, que tem altura fixa.
+        <button key={`${entry.kind}:${entry.swap.id}`} type="button" disabled={busy}
+          className={`${buttonClass} inline-flex items-center gap-1 border-control`}
+          aria-label={`Pedir troca de ${swapKindNames[entry.kind]} com ${name}`} title={`Trocar ${swapKindNames[entry.kind]}`}
           onClick={() => sendSwap(run, 'requestSwap', entry)}>
-          Trocar {swapKindNames[entry.kind]}
+          <SwapIcon />
+          <span className="capitalize">{swapKindNames[entry.kind]}</span>
         </button>
       ))}
     </div>
@@ -51,26 +65,37 @@ export function AllySwaps({ champSelect, cellId, busy, run }: OffersProps) {
   const received = swapsIn(champSelect, 'RECEIVED', cellId);
   const sent = swapsIn(champSelect, 'SENT', cellId);
   if (received.length === 0 && sent.length === 0) return <SwapOffers champSelect={champSelect} cellId={cellId} busy={busy} run={run} />;
+  // Cada pedido numa linha só (#623): os cards dos aliados dividem a altura fixa da coluna.
   return (
     <div className="mt-1 flex flex-col gap-1">
       {received.map(entry => (
         <div key={`r:${entry.kind}:${entry.swap.id}`} role="group" aria-label={`Pedido de troca de ${swapKindNames[entry.kind]}`}
-          className="flex flex-col gap-1 rounded-control-sm border border-accent bg-accent-soft p-1.5 animate-fade-up">
-          <p className="text-caption font-semibold text-accent-ink">Quer trocar de {swapKindNames[entry.kind]}</p>
-          <div className="flex flex-wrap gap-1">
-            <button type="button" disabled={busy} className={`${buttonClass} border-accent font-semibold`}
-              onClick={() => sendSwap(run, 'acceptSwap', entry)}>Aceitar</button>
-            <button type="button" disabled={busy} className={`${buttonClass} border-control`}
-              onClick={() => sendSwap(run, 'declineSwap', entry)}>Recusar</button>
-          </div>
+          className="flex min-w-0 items-center gap-1 rounded-control-sm border border-accent bg-accent-soft py-0.5 pr-0.5 pl-1.5 animate-fade-up">
+          <p className="min-w-0 flex-1 truncate text-caption font-semibold text-accent-ink" title={`Quer trocar de ${swapKindNames[entry.kind]}`}>
+            <span className="sr-only">Quer trocar de {swapKindNames[entry.kind]}</span>
+            <span aria-hidden="true">Trocar {swapKindNames[entry.kind]}?</span>
+          </p>
+          <button type="button" disabled={busy} aria-label="Aceitar" title="Aceitar"
+            className={`${iconButtonClass} border-accent bg-accent text-on-accent hover:brightness-110`}
+            onClick={() => sendSwap(run, 'acceptSwap', entry)}>
+            <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"
+              strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5 10 17.5 19 7" /></svg>
+          </button>
+          <button type="button" disabled={busy} aria-label="Recusar" title="Recusar"
+            className={`${iconButtonClass} border-control bg-surface text-ink hover:bg-raised`} onClick={() => sendSwap(run, 'declineSwap', entry)}>
+            <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"
+              strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+          </button>
         </div>
       ))}
       {sent.map(entry => (
         <div key={`s:${entry.kind}:${entry.swap.id}`} role="group" aria-label={`Seu pedido de troca de ${swapKindNames[entry.kind]}`}
-          className="flex flex-col items-start gap-1">
-          <p className="text-caption text-muted">Aguardando a resposta da troca de {swapKindNames[entry.kind]}.</p>
-          <button type="button" disabled={busy} className={`${buttonClass} border-control`}
-            onClick={() => sendSwap(run, 'cancelSwap', entry)}>Cancelar pedido</button>
+          className="flex min-w-0 items-center gap-1">
+          <p className="min-w-0 flex-1 truncate text-caption text-muted" title={`Aguardando a resposta da troca de ${swapKindNames[entry.kind]}.`}>
+            Aguardando<span className="sr-only"> a resposta da troca de {swapKindNames[entry.kind]}</span>…
+          </p>
+          <button type="button" disabled={busy} aria-label="Cancelar pedido" className={`${buttonClass} shrink-0 border-control`}
+            onClick={() => sendSwap(run, 'cancelSwap', entry)}>Cancelar</button>
         </div>
       ))}
     </div>

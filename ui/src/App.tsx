@@ -137,6 +137,9 @@ export default function App() {
   // Na tela do lobby, o botão do alto busca a partida (#600); nas outras páginas, continua levando ao lobby.
   // Lobby de altura fixa (#603): cabe na janela, sem rolagem; só o chat rola por dentro.
   const fixedLobby = ready && activePage === 'flow' && lobbyMain && stage && !changingMode;
+  // Seleção de campeões de altura e largura fixas (#623): cabe na janela, sem rolagem; só a grade e o chat rolam por dentro.
+  const fixedChampSelect = ready && activePage === 'flow' && screen === 'champSelect';
+  const fixedScreen = fixedLobby || fixedChampSelect;
   const queueInSlot = ready && activePage === 'flow' && lobbyMain && stage && !!lobbyState && !changingMode
     && !unavailableFeature(connection, 'lobby');
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
@@ -158,10 +161,10 @@ export default function App() {
           update={appUpdate} canInstallUpdate={canInstallNow(connection.state?.lcu.state === 'connected' ? connection.state.gameflowPhase : null)} />} />
       <div data-tauri-drag-region className="app-body">
         <div data-tauri-drag-region className="app-main-column">
-          <main ref={contentRef} className={fixedLobby ? 'app-content is-fixed' : 'app-content'}>
+          <main ref={contentRef} className={fixedScreen ? 'app-content is-fixed' : 'app-content'}>
           {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error} />}
           {/* Escondido, e não desmontado, enquanto reconecta: comandos em andamento sobrevivem à queda. */}
-          <div hidden={!ready} className={homeLayout ? 'home-grid' : activePage === 'conversations' || fixedLobby ? 'flex h-full min-h-0 flex-col gap-5' : 'flex min-h-full flex-col gap-5'}>
+          <div hidden={!ready} className={homeLayout ? 'home-grid' : activePage === 'conversations' || fixedScreen ? 'flex h-full min-h-0 flex-col gap-5' : 'flex min-h-full flex-col gap-5'}>
             {ready && connection.error && <p role="alert" className="col-span-full text-warn">{connection.error}</p>}
             {/* Modo de compatibilidade (#36): o que o LoL quebrou numa atualização. */}
             {/* Vanguard desconectado (#579): a partida não abriria e viraria esquiva. */}
@@ -200,7 +203,8 @@ export default function App() {
                   visible={ready && activePage === 'conversations'} />
               </FeatureGate>
             </section>
-            {activePage === 'flow' && screen === 'champSelect' && <h2 className="text-title font-semibold tracking-[-0.015em]">{title}</h2>}
+            {/* Na seleção (#623), o card da etapa faz as vezes de título: o nome da tela fica só para o leitor de tela. */}
+            {activePage === 'flow' && screen === 'champSelect' && <h2 className="sr-only">{title}</h2>}
             {activePage === 'flow' && screen === 'other' && (liveGame && connection.state
               ? <LiveGamePanel state={connection.state} game={liveGame} onOpenProfile={openPlayerProfile} />
               : <EmptyState title={phaseLabel(connection.state?.gameflowPhase)}
@@ -262,7 +266,7 @@ export default function App() {
               <ReadyCheckPanel connection={connection} send={connection.send} />
             </FeatureGate>}
             {/* Montada fora da tela também, para a busca e as ações em andamento sobreviverem à navegação. */}
-            <div hidden={activePage !== 'flow' || screen !== 'champSelect'}>
+            <div hidden={activePage !== 'flow' || screen !== 'champSelect'} className="flex min-h-0 flex-1 flex-col">
               <FeatureGate connection={connection} send={connection.send} feature="champSelect">
                 <ChampSelectPanel connection={connection} send={connection.send}
                   onOpenRunes={() => setRunesOpen(true)} />

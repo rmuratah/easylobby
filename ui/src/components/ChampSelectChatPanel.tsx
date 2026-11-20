@@ -17,7 +17,7 @@ function senderName(champSelect: ChampSelect, message: ChampSelectChatMessage): 
 /** Chat do time na seleção de campeões (#27). */
 export function ChampSelectChatPanel(props: Props) {
   if (!props.chat) return (
-    <section aria-label="Chat do time" className="flex min-w-0 flex-col gap-2 rounded-card border border-edge bg-surface card p-3 text-ink">
+    <section aria-label="Chat do time" className="champ-select-chat flex min-w-0 flex-col gap-2 rounded-card border border-edge bg-surface card p-3 text-ink">
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Chat do time</h3>
       <p className="text-muted">Aguardando a sala do chat abrir…</p>
       <div className="mt-auto flex gap-2">
@@ -76,14 +76,14 @@ function OpenChat({ champSelect, chat, send }: Props & { chat: ChampSelectChat }
   }
 
   return (
-    <section aria-label="Chat do time" className="flex min-w-0 flex-col gap-2 rounded-card border border-edge bg-surface card p-3 text-ink">
+    <section aria-label="Chat do time" className="champ-select-chat flex min-w-0 flex-col gap-2 rounded-card border border-edge bg-surface card p-3 text-ink">
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">Chat do time</h3>
       {messages.length === 0 ? <p className="text-muted">Nenhuma mensagem ainda.</p>
           : (
             <ol ref={log} onScroll={() => {
               const element = log.current;
               if (element) follow.current = element.scrollHeight - element.scrollTop - element.clientHeight <= 32;
-            }} role="log" aria-label="Mensagens do time" className="flex max-h-40 flex-col gap-1 overflow-y-auto pr-1">
+            }} role="log" aria-label="Mensagens do time" className="flex max-h-40 min-h-5 shrink flex-col gap-1 overflow-y-auto pr-1">
               {messages.map(message => (
                 <li key={message.id} className="break-words text-body">
                   <span className="text-caption text-muted">{messageTime(message)} </span>

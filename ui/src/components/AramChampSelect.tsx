@@ -63,7 +63,7 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
   }
   return (
     <section aria-label="Seleção de campeões" className="champ-select text-ink">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card border border-edge bg-surface card px-5 py-3 text-ink">
+      <div className="champ-select-status flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card border border-edge bg-surface card px-5 py-3 text-ink">
         <div className="flex min-w-0 flex-1 flex-col">
           <p className="text-caption text-muted">Modo: <strong className="font-semibold text-ink">{mode}</strong></p>
           <p role="status" className="text-section font-semibold text-accent-ink">
@@ -71,14 +71,14 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
           </p>
         </div>
         <p className="flex items-baseline gap-2 text-caption text-muted">Tempo:
-          <span className="text-[2rem] font-semibold leading-none tabular-nums text-ink">
+          <span className="champ-select-timer text-[2rem] font-semibold leading-none tabular-nums text-ink">
             <Countdown key={`${champSelect.timer.phase}:${champSelect.timer.endsAtMs}`} champSelect={champSelect} />
           </span>
         </p>
         <QuitCustomChampSelect champSelect={champSelect} send={send} />
       </div>
       <div className="champ-select-board">
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className="champ-select-side">
           <TeamList label="Seu time" players={champSelect.myTeam} ally acting={new Set()} catalog={catalog}
             renderActions={player => player.isLocalPlayer ? null
               : <SwapOffers champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
@@ -103,7 +103,7 @@ export function AramChampSelectContent({ state, champSelect, send, onOpenRunes }
             feedback={[pick.feedback, reroll.feedback, bench.feedback]} />}
           <ChampSelectSwaps champSelect={champSelect} busy={swap.pending} run={swap.run} feedback={swap.feedback} />
         </div>
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className="champ-select-side">
           {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}
         </div>
       </div>
