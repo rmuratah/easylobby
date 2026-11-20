@@ -29,12 +29,13 @@ import { cx } from './base/cx';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send']; onOpenRunes?: () => void };
 
-export function ChampionIcon({ id, size = 40, dim = false, gray = false }: { id: number | null; size?: number; dim?: boolean; gray?: boolean }) {
+export function ChampionIcon({ id, size = 40, dim = false, gray = false, className }:
+  { id: number | null; size?: number; dim?: boolean; gray?: boolean; /** Com classe, o tamanho vem dela (CSS). */ className?: string }) {
   // O fundo fica no lugar da imagem enquanto ela carrega ou quando não há ícone.
   return (
-    <span aria-hidden="true" className={cx('inline-block shrink-0 overflow-hidden rounded-control-sm bg-raised', dim && 'opacity-50', gray && 'grayscale')}
-      style={{ width: size, height: size }}>
-      {id ? <img src={assetUrl('champion', id)} alt="" width={size} height={size}
+    <span aria-hidden="true" className={cx('inline-block shrink-0 overflow-hidden rounded-control-sm bg-raised', dim && 'opacity-50', gray && 'grayscale', className)}
+      style={className ? undefined : { width: size, height: size }}>
+      {id ? <img src={assetUrl('champion', id)} alt="" width={size} height={size} className="size-full"
         onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }} /> : null}
     </span>
   );
@@ -68,6 +69,8 @@ export type ContentProps = { state: AgentState; champSelect: ChampSelect; send: 
 function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentProps) {
   const catalog = state.championCatalog;
   const acting = actingCells(champSelect);
+  // Os dois times dividem a coluna no mesmo número de linhas, para os cards terem a mesma altura (#434, #623).
+  const teamRows = Math.max(champSelect.myTeam.length, champSelect.theirTeam.length);
   const mine = myAction(champSelect);
   // A escolha na grade vale só para a ação em que foi feita; depois vale o que a LCU marcou.
   const [choice, setChoice] = useState<{ actionId: number; championId: number } | null>(null);
@@ -76,7 +79,6 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
   const confirm = useCommand(send);
   const swap = useCommand(send);
   // Os adversários usam a altura dos cards do seu time (#434).
-  const [allyCardHeight, setAllyCardHeight] = useState<number | null>(null);
   function select(championId: number) {
     if (!mine || confirm.pending) return;
     setChoice({ actionId: mine.action.id, championId });
@@ -103,11 +105,11 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
       <ChampSelectStatus champSelect={champSelect} send={send} />
       <SwapFeedbackToast feedback={swap.feedback} />
       <div className="champ-select-board">
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className="champ-select-side">
           {/* Os bans de cada time ficam em cima do nome dele (#475). */}
           <TeamBans label="Bans do seu time" ids={champSelect.bans.myTeam} slots={banSlots(champSelect, true)} catalog={catalog} />
           <TeamList label="Seu time" players={champSelect.myTeam} ally acting={acting} catalog={catalog}
-            onCardHeight={setAllyCardHeight} reservedCardHeight={ALLY_CARD_HEIGHT}
+            rows={teamRows}
             renderActions={player => player.isLocalPlayer ? null
               : <AllySwaps champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
         </div>
@@ -123,35 +125,30 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
             footer={<ActionBar mine={mine} chosen={chosen || null} chosenAvailable={chosenAvailable} catalog={catalog}
               busy={confirm.pending} onConfirm={lockIn} feedback={[confirm.feedback, hover.feedback]} />} />
           )}
-          {/* Embaixo das skins (ou da grade): feitiços e runas lado a lado à esquerda e o chat do time à direita (#562). */}
-          <div className="champ-select-extras">
-            <section aria-label="Feitiços e runas" className="champ-select-loadout rounded-card border border-edge bg-surface card p-4 text-ink">
-              <div className="champ-select-loadout-body">
-                <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
-                  summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} lobby={state.lobby} send={send} />
-                <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes}
-                  recommender={recommendedChampion !== null && (
-                    <RuneRecommenderButton key={recommendedChampion} state={state} champSelect={champSelect}
-                      championId={recommendedChampion} send={send} onEdit={onOpenRunes} />
-                  )} />
-              </div>
-            </section>
-            {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}
-          </div>
+          {/* Embaixo das skins (ou da grade): feitiços e runas lado a lado (#562). O chat do time fica embaixo do time
+              adversário (#623), para a grade ter mais altura numa janela baixa. */}
+          <section aria-label="Feitiços e runas" className="champ-select-loadout rounded-card border border-edge bg-surface card p-4 text-ink">
+            <div className="champ-select-loadout-body">
+              <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
+                summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} lobby={state.lobby} send={send} />
+              <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes}
+                recommender={recommendedChampion !== null && (
+                  <RuneRecommenderButton key={recommendedChampion} state={state} champSelect={champSelect}
+                    championId={recommendedChampion} send={send} onEdit={onOpenRunes} />
+                )} />
+            </div>
+          </section>
         </div>
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className="champ-select-side">
           <TeamBans label="Bans do time adversário" ids={champSelect.bans.theirTeam} slots={banSlots(champSelect, false)} catalog={catalog} />
           <TeamList label="Time adversário" players={champSelect.theirTeam} ally={false} acting={acting} catalog={catalog}
-            minCardHeight={allyCardHeight} />
+            rows={teamRows} />
+          {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}
         </div>
       </div>
     </section>
   );
 }
-
-/** Altura do card do aliado com os três botões de troca (campeão, vez e posição) ou com um pedido de troca: os cards
- * já começam com ela, para a tela não mudar de formato no meio da seleção (#562). */
-const ALLY_CARD_HEIGHT = '8.25rem';
 
 /** Segundos finais da sua vez que tocam o tique (#475). */
 const TICK_FROM_SECONDS = 10;
@@ -208,7 +205,7 @@ function ChampSelectStatus({ champSelect, send }: { champSelect: ChampSelect; se
       </div>
       {/* A chave recria o relógio quando a etapa muda, sem esperar o próximo tique. */}
       <p className="flex items-baseline gap-2 text-caption text-muted">Tempo:
-        <span className={cx('text-[2rem] font-semibold leading-none tabular-nums', ban ? 'text-danger' : 'text-ink')}>
+        <span className={cx('champ-select-timer text-[2rem] font-semibold leading-none tabular-nums', ban ? 'text-danger' : 'text-ink')}>
           <Countdown key={`${champSelect.timer.phase}:${champSelect.timer.endsAtMs}`} champSelect={champSelect} />
         </span>
       </p>
@@ -245,50 +242,36 @@ type TeamProps = {
   catalog: ChampionCatalog | null;
   /** Botões extras de cada jogador (as trocas com um aliado, por exemplo). */
   renderActions?: (player: ChampSelectPlayer) => ReactNode;
-  /** Avisa a altura dos cards desta lista (iguais entre si, #428) quando ela muda. */
-  onCardHeight?: (height: number) => void;
-  /** Altura mínima de cada card, para igualar à do outro time (#434). */
-  minCardHeight?: number | null;
-  /** Altura reservada desde o começo (CSS), para os cards não crescerem quando aparecem botões (#562). */
-  reservedCardHeight?: string;
+  /** Quantas linhas a lista divide (#623): a mesma nos dois times, para os cards terem a mesma altura (#434). */
+  rows?: number;
 };
 
-export function TeamList({ label, players, ally, acting, catalog, renderActions, onCardHeight, minCardHeight, reservedCardHeight }: TeamProps) {
-  const listRef = useRef<HTMLUListElement>(null);
-  const firstCell = players[0]?.cellId;
-  useEffect(() => {
-    const card = listRef.current?.firstElementChild;
-    if (!onCardHeight || !card || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => onCardHeight(card.getBoundingClientRect().height));
-    observer.observe(card);
-    return () => observer.disconnect();
-  }, [onCardHeight, players.length, firstCell]);
+export function TeamList({ label, players, ally, acting, catalog, renderActions, rows }: TeamProps) {
   return (
-    <section aria-label={label} className="flex min-w-0 flex-col gap-2">
+    <section aria-label={label} className="flex min-w-0 flex-[1_0_auto] flex-col gap-2">
       <h3 className="text-caption font-semibold uppercase tracking-[0.06em] text-muted">{label}</h3>
       {players.length === 0 ? <p className="text-body text-muted">Sem jogadores.</p> : (
-        // Todos os cards do time com a altura do maior (#428): as linhas da grade dividem o espaço por igual.
-        // Uma coluna que não passa da largura do time: o nome longo é cortado em vez de esticar os cards (#475).
-        <ul ref={listRef} className="grid grid-cols-[minmax(0,1fr)] auto-rows-fr gap-2"
-          style={minCardHeight ? { gridAutoRows: `minmax(${minCardHeight}px, 1fr)` }
-            : reservedCardHeight ? { gridAutoRows: `minmax(${reservedCardHeight}, 1fr)` } : undefined}>
+        // Os cards dividem por igual a altura que sobra na coluna, que vai até o fim da janela (#428, #623), sem ficar
+        // menores que o conteúdo: o card com um pedido de troca fica mais alto, e os outros, um pouco mais baixos. Uma coluna que não passa da largura do time: o nome longo é cortado em vez de esticar os cards (#475).
+        <ul data-side={ally ? 'ally' : 'enemy'} className="champ-select-team grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] content-stretch gap-2"
+          style={{ gridTemplateRows: `repeat(${Math.max(rows ?? 0, players.length)}, auto)` }}>
           {players.map((player, index) => {
             const intent = !player.championId && player.championPickIntent ? player.championPickIntent : null;
             const champion = player.championId ?? intent;
             return (
               // O seu card tem destaque forte (contorno grosso e sombra) para achar você no time de relance.
               <li key={player.cellId} aria-current={player.isLocalPlayer ? 'true' : undefined}
-                className={cx('flex min-w-0 items-center gap-2 rounded-card border p-2 text-ink',
+                className={cx('champ-select-card flex min-h-0 min-w-0 items-center gap-2 overflow-hidden rounded-card border p-2 text-ink',
                   acting.has(player.cellId) ? 'border-accent bg-accent-soft' : player.isLocalPlayer ? 'border-accent bg-surface' : 'border-line bg-surface',
                   player.isLocalPlayer && 'shadow-lift ring-2 ring-accent')}>
-                <ChampionIcon id={champion} dim={intent !== null} />
+                <ChampionIcon id={champion} dim={intent !== null} className="champ-select-card-icon" />
                 {ally && (player.spell1Id || player.spell2Id) ? (
                   <span className="flex flex-col gap-0.5" aria-hidden="true">
                     <SpellIcon id={player.spell1Id} size={18} />
                     <SpellIcon id={player.spell2Id} size={18} />
                   </span>
                 ) : null}
-                <div className="min-w-0">
+                <div className="champ-select-card-text min-w-0">
                   <p className="truncate text-body font-semibold">
                     {playerName(player, index, ally)}{player.isLocalPlayer && ' (você)'}
                   </p>
@@ -334,7 +317,7 @@ function TeamBans({ label, ids, slots, catalog }: { label: string; ids: number[]
   if (slots === 0) return null;
   return (
     <section aria-label={label} className="flex min-w-0 flex-col gap-1">
-      <h3 className="text-caption text-muted">{label}</h3>
+      <h3 className="champ-select-bans-title text-caption text-muted">{label}</h3>
       <ul className="flex flex-wrap gap-1">
         {Array.from({ length: slots }, (_, index) => {
           const id = ids[index];
@@ -452,7 +435,7 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect, foote
   return (
     <section aria-label={label} className="champ-select-picker flex min-w-0 flex-col gap-3 rounded-card border border-edge bg-surface card p-4 text-ink">
       <div className="flex flex-wrap items-center gap-3">
-        <h3 className="text-section font-semibold">{label}</h3>
+        <h3 className="champ-select-picker-title text-section font-semibold">{label}</h3>
         <input ref={searchRef} type="search" aria-label="Buscar campeão" placeholder="Digite para buscar" value={query}
           aria-keyshortcuts="Enter Escape" aria-describedby={hintId}
           onChange={event => setQuery(event.target.value)}
@@ -460,7 +443,7 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect, foote
             if (event.key === 'Escape') { setQuery(''); return; }
             if (event.key === 'Enter' && query && first && onSelect) { event.preventDefault(); onSelect(first.champion.id); }
           }}
-          className="h-9 min-w-32 flex-1 rounded-control border border-control bg-surface px-3 text-body text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" />
+          className="champ-select-search h-9 min-w-32 flex-1 rounded-control border border-control bg-surface px-3 text-body text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" />
         <span id={hintId} className="sr-only">Enter marca o primeiro campeão da busca; Esc limpa.</span>
         {showLanes && (
           <ul aria-label="Filtrar por rota" className="flex gap-1">
@@ -498,7 +481,7 @@ function ChampionGrid({ state, champSelect, grid: all, selected, onSelect, foote
             ))}
           </ul>
         )}
-      {footer && <div className="flex min-h-[5.25rem] shrink-0 items-start justify-center border-t border-line pt-3">{footer}</div>}
+      {footer && <div className="champ-select-picker-footer flex min-h-[5.25rem] shrink-0 items-start justify-center border-t border-line pt-3">{footer}</div>}
     </section>
   );
 }

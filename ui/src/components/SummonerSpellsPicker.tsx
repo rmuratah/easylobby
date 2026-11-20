@@ -80,7 +80,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queu
                 onClick={() => { setByHover(false); setOpen(open === slot && !byHover ? null : slot); }}
                 className="flex w-full min-w-0 items-center gap-1.5 rounded-control border border-control bg-surface px-1.5 py-1 text-ink aria-expanded:border-accent aria-expanded:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50">
                 <SpellIcon id={current[slot] || null} size={26} />
-                <span className="min-w-0 truncate text-body">{spellName(catalog, current[slot] || null)}</span>
+                <span className="spell-slot-name min-w-0 truncate text-body">{spellName(catalog, current[slot] || null)}</span>
               </button>
               {open === slot && (
                 // O espaço em branco embaixo da grade faz parte da área do mouse: ir do botão até a grade não fecha.
@@ -112,7 +112,7 @@ export function SummonerSpellsPicker({ champSelect, catalog, summonerLevel, queu
         })}
       </div>
       {!catalog && <p className="text-muted">Carregando feitiços…</p>}
-      {rule === 'required' && <p className="text-caption text-muted">Na ranqueada, o caçador fica com o Golpear; dá para trocar a tecla.</p>}
+      {rule === 'required' && <p className="loadout-hint text-caption text-muted">Na ranqueada, o caçador fica com o Golpear; dá para trocar a tecla.</p>}
       {command.feedback.status !== 'idle' && (
         <p role={command.feedback.status === 'error' ? 'alert' : 'status'}
           className={command.feedback.status === 'error' ? 'text-danger' : 'text-muted'}>{command.feedback.message}</p>

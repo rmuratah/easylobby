@@ -120,18 +120,51 @@ button[aria-current="page"] { background: var(--el-accent-soft); border-color: v
     .home-secondary { order: initial; grid-column: 2; grid-row: 1; min-height: 0; grid-template-rows: repeat(2, minmax(0, 1fr)); }
   }
 }
-.champ-select { display: flex; flex-direction: column; gap: 1rem; }
-.champ-select-board { display: grid; grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr) minmax(11rem, 15rem); gap: 1rem; align-items: start; }
-.champ-select-center { container-type: inline-size; display: flex; flex-direction: column; gap: 1rem; min-width: 0; align-self: stretch; }
-/* Embaixo do card do meio (#562): o card de feitiços e runas na metade esquerda e o chat do time na direita.
-   Com o meio estreito (janela de 960 px), o chat desce para baixo do card. */
-/* Os dois cards descem até o fim dos cards dos times (#562). */
-.champ-select-extras { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: stretch; }
-@container (min-width: 50rem) { .champ-select-extras { grid-template-columns: minmax(0, 5fr) minmax(0, 4fr); } }
-.champ-select-loadout { container-type: inline-size; min-width: 0; }
+/* Seleção de altura e largura fixas (#623): ocupa a janela sem rolagem. O quadro estica até o fim da janela, os cards
+   dos times dividem a altura por igual e a grade de campeões fica com o que sobra no meio (só ela e o chat rolam). */
+.champ-select { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .75rem; }
+.champ-select-board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr) minmax(11rem, 15rem); grid-template-rows: minmax(0, 1fr); gap: 1rem; align-items: stretch; }
+.champ-select-side { display: flex; flex-direction: column; gap: .75rem; min-width: 0; min-height: 0; }
+/* Chat embaixo do time adversário (#623): encolhe com a janela, mas a caixa de mensagem fica sempre à vista. */
+.champ-select-side .champ-select-chat { flex: 0 1 auto; min-height: 6.5rem; overflow: hidden; }
+.champ-select-center { container-type: inline-size; display: flex; flex-direction: column; gap: .75rem; min-width: 0; min-height: 0; }
+/* Embaixo do card do meio (#562): o card de feitiços e runas, da altura do conteúdo. */
+.champ-select-loadout { container-type: inline-size; flex: none; min-width: 0; }
 /* Dentro do card, feitiços à esquerda e runas à direita; num card muito estreito, um embaixo do outro. */
 .champ-select-loadout-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
 @container (min-width: 22rem) { .champ-select-loadout-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+/* Ícone do campeão nos cards dos times. */
+.champ-select-card-icon { width: 2.5rem; height: 2.5rem; }
+/* Janela baixa (#623): a seleção fica compacta para caber sem rolagem, com a grade de campeões ainda à vista.
+   O card da etapa e os cards dos times encolhem, o título da grade fica só para o leitor de tela, a busca e as rotas
+   ficam numa linha, e feitiços e runas ficam sempre lado a lado (a dica do Golpear sai). */
+@media (max-height: 51rem) {
+  .champ-select-status { padding-block: .5rem; row-gap: .375rem; }
+  .champ-select-timer { font-size: 1.5rem; }
+  .champ-select-side { gap: .5rem; }
+  .champ-select-bans-title { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+  .champ-select-team { gap: .375rem; }
+  .champ-select-card { padding: .375rem; }
+  .champ-select-card-icon { width: 2rem; height: 2rem; }
+  /* No time adversário, o nome e o campeão ficam numa linha só. */
+  .champ-select-team[data-side="enemy"] .champ-select-card-text { display: flex; align-items: baseline; gap: .375rem; }
+  .champ-select-team[data-side="enemy"] .champ-select-card-text > p:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .champ-select-chat { padding: .625rem; gap: .375rem; }
+  .champ-select-chat > p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .champ-select-picker { padding: .75rem; gap: .5rem; }
+  .champ-select-picker > div:first-child { flex-wrap: nowrap; gap: .5rem; }
+  .champ-select-picker-title { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+  .champ-select-search { min-width: 5rem; }
+  .champ-select-picker-footer { min-height: 0; padding-top: .5rem; }
+  .champ-select-loadout { padding: .75rem; }
+  .champ-select-loadout-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; }
+  .champ-select-loadout .loadout-hint { display: none; }
+  /* Card estreito (janela de 960 px): os feitiços ficam só com o ícone e as runas ficam com o resto da largura. */
+  @container (max-width: 24rem) {
+    .champ-select-loadout-body { grid-template-columns: auto minmax(0, 1fr); }
+    .champ-select-loadout .spell-slot-name { display: none; }
+  }
+}
 /* Fase de banimento (#423): o card da etapa fica vermelho e a tela ganha detalhes vermelhos sutis
    (quem está na vez, a grade de banir e o campeão marcado). Nas escolhas, tudo volta ao normal. */
 .champ-select-status.is-ban {
@@ -144,11 +177,11 @@ button[aria-current="page"] { background: var(--el-accent-soft); border-color: v
 .champ-select[data-ban-phase] section[aria-label="Campeões para banir"] { border-color: color-mix(in oklab, var(--el-danger) 45%, var(--el-line)); background-image: radial-gradient(90% 40% at 50% 0%, color-mix(in oklab, var(--el-danger) 8%, transparent), transparent 70%); }
 .champ-select[data-ban-phase] section[aria-label="Campeões para banir"] h3 { color: var(--el-danger); }
 .champ-select[data-ban-phase] .champion-grid button[aria-pressed="true"] { border-color: var(--el-danger); background-color: color-mix(in oklab, var(--el-danger) 14%, var(--el-surface)); }
-/* A grade tem altura fixa, mesmo com poucos campeões na busca, e encolhe com a altura da janela para o botão de
-   banir e escolher, embaixo dela, ficar à vista (#475). */
+/* A grade ocupa a altura que sobra no meio, mesmo com poucos campeões na busca, e encolhe com a altura da janela para
+   o botão de banir e escolher, embaixo dela, ficar à vista (#475, #623). */
 .champion-grid-area { flex: 1; min-height: 0; }
-/* Altura fixa do card do meio da seleção (grade de campeões e escolha de skin, #477): os dois têm o mesmo tamanho. */
-.champ-select-picker { height: calc(clamp(12rem, calc(100vh - 27rem), 26rem) + 11rem); }
+/* Card do meio da seleção (grade de campeões e escolha de skin, #477): os dois têm o mesmo tamanho, o que sobra da janela. */
+.champ-select-picker { flex: 1 1 0; min-height: 0; }
 .champion-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.25rem, 1fr)); grid-auto-rows: max-content; align-content: start; gap: .25rem; overflow: auto; scrollbar-gutter: stable; }
 /* Coleção (#369): a grade dos campeões e a das skins, que crescem com a largura. */
 .collection-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: .75rem; }
