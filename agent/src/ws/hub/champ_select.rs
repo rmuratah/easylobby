@@ -45,6 +45,53 @@ impl Hub {
         });
     }
 
+    /// Relê o catálogo de campeões quando ele está sem rotas (#625).
+    ///
+    /// As rotas vêm de `recommended-champion-positions`, lido uma vez ao
+    /// conectar. Com o LoL ainda subindo ou antes do login, a LCU pode não
+    /// mandar nada, e o filtro de rota sumia da seleção até o LoL reiniciar.
+    /// Chamada no login e quando a seleção começa; com as rotas já no
+    /// catálogo, não faz nada.
+    pub(super) fn spawn_refresh_champion_catalog(&self) {
+        if self
+            .lock()
+            .state
+            .champion_catalog
+            .as_ref()
+            .is_some_and(ChampionCatalog::has_positions)
+        {
+            return;
+        }
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let Some(client) = self.client() else {
+            return;
+        };
+        let session = self.lock().session;
+        let hub = self.clone();
+        runtime.spawn(async move {
+            let Ok(Some(catalog)) = champions::catalog(&client).await else {
+                return;
+            };
+            if hub.lock().session != session {
+                return;
+            }
+            if catalog.has_positions() {
+                tracing::info!("rotas dos campeões lidas de novo");
+                hub.set_champion_catalog(Some(catalog));
+            } else {
+                tracing::warn!(
+                    "o LoL ainda não mandou as rotas dos campeões; o filtro de rota fica escondido"
+                );
+                // Sem catálogo nenhum, o sem rotas é melhor que nada.
+                if hub.lock().state.champion_catalog.is_none() {
+                    hub.set_champion_catalog(Some(catalog));
+                }
+            }
+        });
+    }
+
     /// Publica os campeões do jogo (#28).
     pub fn set_champion_catalog(&self, catalog: Option<ChampionCatalog>) {
         self.update(|shared| {
