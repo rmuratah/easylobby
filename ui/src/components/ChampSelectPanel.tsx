@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { assetUrl } from '../agent/assets';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import {
@@ -98,6 +98,10 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
   useTurnCountdownSound(champSelect, !!mine?.turn);
   useLockInSound(champSelect);
   const grid = gridChampions(state, champSelect);
+  const center = useRef<HTMLDivElement>(null);
+  const chatBeside = useWideEnough(center, CHAT_BESIDE_MIN_PX);
+  const chatPanel = state.gameflowPhase === 'ChampSelect'
+    && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />;
   const chosenAvailable = !!chosen && grid.some(item => item.champion.id === chosen && item.available);
   // Na fase de banimento (#423) a tela ganha detalhes vermelhos (estilos em index.css).
   return (
@@ -113,7 +117,7 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
             renderActions={player => player.isLocalPlayer ? null
               : <AllySwaps champSelect={champSelect} cellId={player.cellId} busy={swap.pending} run={swap.run} />} />
         </div>
-        <div className="champ-select-center">
+        <div ref={center} className="champ-select-center">
           {/* Com o campeão confirmado, a seção de campeões vira a escolha de skin (#477). */}
           {me && lockedChampion ? (
             <SkinCarousel state={state} send={send} championId={lockedChampion}
@@ -125,29 +129,52 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
             footer={<ActionBar mine={mine} chosen={chosen || null} chosenAvailable={chosenAvailable} catalog={catalog}
               busy={confirm.pending} onConfirm={lockIn} feedback={[confirm.feedback, hover.feedback]} />} />
           )}
-          {/* Embaixo das skins (ou da grade): feitiços e runas lado a lado (#562). O chat do time fica embaixo do time
-              adversário (#623), para a grade ter mais altura numa janela baixa. */}
-          <section aria-label="Feitiços e runas" className="champ-select-loadout rounded-card border border-edge bg-surface card p-4 text-ink">
-            <div className="champ-select-loadout-body">
-              <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
-                summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} lobby={state.lobby} send={send} />
-              <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes}
-                recommender={recommendedChampion !== null && (
-                  <RuneRecommenderButton key={recommendedChampion} state={state} champSelect={champSelect}
-                    championId={recommendedChampion} send={send} onEdit={onOpenRunes} />
-                )} />
-            </div>
-          </section>
+          {/* Embaixo das skins (ou da grade): feitiços e runas lado a lado (#562) e, na outra metade, o chat do time (#633).
+              Com o meio estreito (janela pequena), o chat volta para baixo do time adversário (#623). */}
+          <div className="champ-select-bottom">
+            <section aria-label="Feitiços e runas" className="champ-select-loadout rounded-card border border-edge bg-surface card p-4 text-ink">
+              <div className="champ-select-loadout-body">
+                <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
+                  summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} lobby={state.lobby} send={send} />
+                <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes}
+                  recommender={recommendedChampion !== null && (
+                    <RuneRecommenderButton key={recommendedChampion} state={state} champSelect={champSelect}
+                      championId={recommendedChampion} send={send} onEdit={onOpenRunes} />
+                  )} />
+              </div>
+            </section>
+            {chatBeside && chatPanel}
+          </div>
         </div>
         <div className="champ-select-side">
           <TeamBans label="Bans do time adversário" ids={champSelect.bans.theirTeam} slots={banSlots(champSelect, false)} catalog={catalog} />
           <TeamList label="Time adversário" players={champSelect.theirTeam} ally={false} acting={acting} catalog={catalog}
             rows={teamRows} />
-          {state.gameflowPhase === 'ChampSelect' && <ChampSelectChatPanel champSelect={champSelect} chat={state.champSelectChat} send={send} />}
+          {!chatBeside && chatPanel}
         </div>
       </div>
     </section>
   );
+}
+
+/** Largura mínima do meio da seleção para o chat ficar ao lado de feitiços e runas (#633): cada metade com uns 20rem. */
+const CHAT_BESIDE_MIN_PX = 640;
+
+/**
+ * `true` enquanto o elemento tiver pelo menos `min` px de largura. Sem `ResizeObserver` (testes), considera largo.
+ */
+function useWideEnough(ref: RefObject<HTMLElement | null>, min: number): boolean {
+  const [wide, setWide] = useState(true);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element || typeof ResizeObserver !== 'function') return;
+    const update = () => setWide(element.getBoundingClientRect().width >= min);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref, min]);
+  return wide;
 }
 
 /** Segundos finais da sua vez que tocam o tique (#475). */
