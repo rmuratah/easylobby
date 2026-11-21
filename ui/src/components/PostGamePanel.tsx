@@ -80,8 +80,9 @@ export function PostGamePanel({ connection, send, onOpenProfile, visible = true 
 
   if (ballot && voting) {
     return (
-      <section aria-label="Fim de partida" className="flex flex-1 flex-col items-center justify-center rounded-panel surface card shadow-soft animate-fade-up px-6 py-10">
-        <HonorVote ballot={ballot} send={send} disabled={!available} onDone={() => { setDoneGameId(ballot.gameId); }} />
+      <section aria-label="Fim de partida" className="flex flex-1 flex-col items-center overflow-y-auto rounded-panel surface card shadow-soft animate-fade-up px-6 py-6">
+        <HonorVote ballot={ballot} send={send} disabled={!available} result={result} queues={connection.state?.queues}
+          onDone={() => { setDoneGameId(ballot.gameId); }} />
       </section>
     );
   }

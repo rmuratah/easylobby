@@ -159,6 +159,24 @@ it('mostra as honras da partida, o seu time e o time inimigo', () => {
   expect(panel().queryByRole('button', { name: 'Jogar de novo' })).not.toBeInTheDocument();
 });
 
+it('mostra o resultado da partida e o desempenho de cada jogador na votação (#629)', () => {
+  render(<App />);
+  hello({ gameflowPhase: 'PreEndOfGame', honorBallot: ballot, gameResult: testGameResult });
+  expect(honor().getByLabelText('Resultado da partida')).toHaveTextContent('Vitória·Ranqueada Solo/Duo·25:51');
+  // Viego (p-viego) acha o jogador pelo campeão; o resultado de teste tem outros puuids.
+  const viego = within(honor().getByRole('button', { name: 'Honrar Victor' }));
+  expect(viego.getByText('11 / 2 / 9')).toBeInTheDocument();
+  expect(viego.getByText('17,1 mil de dano')).toBeInTheDocument();
+  expect(viego.getByText('13,8 mil de ouro')).toBeInTheDocument();
+});
+
+it('vota sem a faixa e sem os números quando o resultado é de outra partida', () => {
+  render(<App />);
+  hello({ gameflowPhase: 'PreEndOfGame', honorBallot: ballot, gameResult: { ...testGameResult, gameId: 1 } });
+  expect(honor().queryByLabelText('Resultado da partida')).not.toBeInTheDocument();
+  expect(honor().queryByText('11 / 2 / 9')).not.toBeInTheDocument();
+});
+
 it('honra vários jogadores, inclusive do time inimigo, até as honras acabarem', async () => {
   render(<App />);
   hello({ gameflowPhase: 'EndOfGame', honorBallot: ballot });
