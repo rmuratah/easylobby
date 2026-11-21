@@ -1,19 +1,32 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { AgentClient } from '../agent/client';
+import { assetUrl } from '../agent/assets';
+import { compactNumber, resultQueue, resultTitle } from '../agent/gameResult';
+import { formatDuration } from '../agent/profile';
 import { LANES, positionNames, type Lane } from '../agent/positions';
 import { useCommand } from '../agent/useCommand';
+import type { GameQueue } from '../bindings/GameQueue';
+import type { GameResult } from '../bindings/GameResult';
 import type { HonorBallot } from '../bindings/HonorBallot';
 import type { HonorCandidate } from '../bindings/HonorCandidate';
+import type { MatchPlayer } from '../bindings/MatchPlayer';
 import { Button } from './base';
 import { cx } from './base/cx';
 import { ChampionIcon } from './ChampSelectPanel';
 import { PositionIcon } from './PositionIcon';
-import { playerName, votesLeft } from '../agent/honor';
+import { ballotPlayerStats, playerName, votesLeft } from '../agent/honor';
 
 type Props = {
   ballot: HonorBallot;
   send: AgentClient['send'];
   disabled?: boolean;
+  /**
+   * Resultado da partida, que chega antes da cédula (#629): mostra a faixa
+   * de resultado e o desempenho de cada jogador. Sem ele, só a votação.
+   */
+  result?: GameResult | null;
+  /** Filas conhecidas, para o nome da fila na faixa de resultado. */
+  queues?: GameQueue[];
   /** O jogador encerrou a votação com "Pular" ou "Concluir". */
   onDone: () => void;
 };
@@ -37,9 +50,10 @@ function lane(role: string): Lane | null {
  * quando o jogador aparece em `honoredPuuids` da cédula; se isso não
  * acontece em [`HONOR_CONFIRM_MS`], a tela avisa e deixa tentar de novo.
  * Quem chama tira a votação da tela quando as honras acabam ou o jogador
- * pula.
+ * pula. Com o resultado da partida, mostra também como ela terminou e o
+ * desempenho de cada jogador, com a arte do campeão no fundo do card (#629).
  */
-export function HonorVote({ ballot, send, disabled = false, onDone }: Props) {
+export function HonorVote({ ballot, send, disabled = false, result = null, queues = [], onDone }: Props) {
   const { feedback, pending, run } = useCommand(send);
   const [sent, setSent] = useState<{ gameId: number; puuid: string } | null>(null);
   const [target, setTarget] = useState<string | null>(null);
@@ -79,29 +93,35 @@ export function HonorVote({ ballot, send, disabled = false, onDone }: Props) {
     const name = playerName(player);
     const playerLane = lane(player.role);
     const honored = ballot.honoredPuuids.includes(player.puuid);
+    const stats = ballotPlayerStats(result, ballot, player);
     const status = honored ? 'Honrado' : waiting === player.puuid ? 'Confirmando…' : pending && target === player.puuid ? 'Honrando…' : null;
     return (
       <li key={player.puuid} className="w-[calc(50%-0.25rem)] sm:w-[calc(20%-0.4rem)]">
         <button type="button" aria-label={honored ? `${name}, honrado` : `Honrar ${name}`} aria-pressed={honored}
           disabled={busy || honored || left === 0}
           onClick={() => { void honor(player); }}
-          className={cx('flex w-full flex-col items-center gap-2 rounded-control border border-t-4 bg-surface p-3 text-center focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+          className={cx('group relative isolate flex w-full flex-col items-center gap-1.5 overflow-hidden rounded-control border border-t-4 bg-surface p-3 text-center focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
             opponent ? 'border-t-danger' : 'border-t-status-game',
             honored ? 'border-accent bg-raised' : 'border-control hover:border-accent hover:bg-raised disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-control disabled:hover:bg-surface')}>
+          <ChampionArt championId={player.championId} />
           <ChampionIcon id={player.championId} size={48} />
           <span className="w-full truncate text-body text-ink">{name}</span>
           <span className="flex items-center gap-1 text-caption text-muted">
             {playerLane && <PositionIcon position={playerLane} size={14} />}
             {playerLane ? positionNames[playerLane] : player.championName}
           </span>
-          <span className={cx('min-h-[1lh] text-caption', honored ? 'font-semibold text-accent' : 'text-muted')}>{status}</span>
+          {stats && <Performance player={stats} />}
+          {/* No canto, por cima da arte, para não reservar uma linha vazia no card. */}
+          {status && <span className={cx('absolute right-1.5 top-1.5 rounded-full bg-surface px-2 py-0.5 text-caption shadow-soft',
+            honored ? 'font-semibold text-accent' : 'text-muted')}>{status}</span>}
         </button>
       </li>
     );
   };
 
   return (
-    <section aria-label="Honra" className="flex w-full max-w-[52rem] flex-col items-center gap-4">
+    <section aria-label="Honra" className="my-auto flex w-full max-w-[52rem] flex-col items-center gap-4">
+      {result && result.gameId === ballot.gameId && <ResultBanner result={result} queues={queues} />}
       <div className="flex flex-col items-center gap-2 text-center">
         <h2 className="text-[1.375rem] font-semibold tracking-[-0.01em] text-ink">Honre jogadores</h2>
         <Diamonds total={ballot.votes} left={left} />
@@ -144,5 +164,51 @@ function Diamonds({ total, left }: { total: number; left: number }) {
         </svg>
       ))}
     </div>
+  );
+}
+
+/**
+ * A splash da skin padrão do campeão no fundo do card, apagada por baixo de
+ * um degradê da cor do card para o nome e os números continuarem legíveis.
+ * Some se a imagem não carregar.
+ */
+function ChampionArt({ championId }: { championId: number }) {
+  const [failed, setFailed] = useState(false);
+  if (failed || championId <= 0) return null;
+  return (
+    <>
+      <img src={assetUrl('skinSplash', championId * 1000)} alt="" aria-hidden="true" loading="lazy"
+        className="absolute inset-0 -z-10 h-full w-full object-cover object-[center_20%] opacity-45 transition-opacity group-hover:opacity-60"
+        onError={() => setFailed(true)} />
+      <span aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-t from-surface via-surface/85 to-surface/30" />
+    </>
+  );
+}
+
+/** KDA, dano a campeões e ouro do jogador na partida. */
+function Performance({ player: p }: { player: MatchPlayer }) {
+  return (
+    <dl className="flex w-full flex-col items-center gap-0.5">
+      <dt className="sr-only">KDA</dt>
+      <dd className="text-body font-semibold tabular-nums text-ink">{p.kills} / {p.deaths} / {p.assists}</dd>
+      <dt className="sr-only">Dano a campeões</dt>
+      <dd className="text-caption tabular-nums text-muted">{compactNumber(p.damageToChampions)} de dano</dd>
+      <dt className="sr-only">Ouro</dt>
+      <dd className="text-caption tabular-nums text-muted">{compactNumber(p.gold)} de ouro</dd>
+    </dl>
+  );
+}
+
+/** Como a partida terminou: resultado, fila e duração, acima da votação. */
+function ResultBanner({ result, queues }: { result: GameResult; queues: GameQueue[] }) {
+  const tone = result.result === 'win' ? 'text-accent-ink' : result.result === 'loss' ? 'text-danger' : 'text-muted';
+  return (
+    <p aria-label="Resultado da partida" className="flex flex-wrap items-center justify-center gap-x-2 rounded-control bg-raised px-4 py-1.5 text-body text-muted">
+      <span className={cx('font-semibold', tone)}>{resultTitle[result.result]}</span>
+      <span aria-hidden="true">·</span>
+      <span>{resultQueue(result, queues)}</span>
+      <span aria-hidden="true">·</span>
+      <span className="tabular-nums">{formatDuration(result.durationSecs)}</span>
+    </p>
   );
 }
