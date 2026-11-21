@@ -118,6 +118,8 @@ pub fn respond(
 
 /// `POST` [`SIMULATE`]: o primeiro aliado com troca `AVAILABLE` do tipo
 /// pede a troca ao jogador. 404 fora da seleção ou sem troca disponível.
+/// Trocas de cargo e de vez só valem entre quem ainda não travou o
+/// campeão, como no client oficial (#631).
 pub fn simulate(state: &LcuState, kind: SwapKind) -> (Response, Vec<EventFixture>) {
     let current = state.get(SESSION);
     if current.status != 200 {
@@ -125,10 +127,15 @@ pub fn simulate(state: &LcuState, kind: SwapKind) -> (Response, Vec<EventFixture
     }
     let mut session = current.body;
     let key = list_key(kind);
-    let Some(index) = session[key]
-        .as_array()
-        .and_then(|list| list.iter().position(|s| s["state"] == "AVAILABLE"))
-    else {
+    let locked = locked_cells(&session);
+    let blocked = |cell: &Value| {
+        kind != SwapKind::Champion
+            && (locked.contains(&session["localPlayerCellId"]) || locked.contains(cell))
+    };
+    let Some(index) = session[key].as_array().and_then(|list| {
+        list.iter()
+            .position(|s| s["state"] == "AVAILABLE" && !blocked(&s["cellId"]))
+    }) else {
         return (
             Response::error(404, "mock-lcu: nenhuma troca disponível"),
             Vec::new(),
@@ -137,6 +144,19 @@ pub fn simulate(state: &LcuState, kind: SwapKind) -> (Response, Vec<EventFixture
     open_swap(&mut session[key], index, "RECEIVED");
     let body = session[key][index].clone();
     (Response { status: 200, body }, vec![event(session)])
+}
+
+/// As células que já confirmaram o pick.
+fn locked_cells(session: &Value) -> Vec<Value> {
+    session["actions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_array)
+        .flatten()
+        .filter(|a| a["type"] == "pick" && a["completed"] == true)
+        .map(|a| a["actorCellId"].clone())
+        .collect()
 }
 
 /// Põe a entrada `index` em `state` e as outras disponíveis em `INVALID`.
@@ -237,7 +257,7 @@ mod tests {
                 "actions": [[
                     {"id": 13, "type": "pick", "actorCellId": 2, "completed": false},
                     {"id": 14, "type": "pick", "actorCellId": 4, "completed": false},
-                    {"id": 1, "type": "pick", "actorCellId": 4, "completed": true},
+                    {"id": 1, "type": "pick", "actorCellId": 3, "completed": true},
                 ]],
                 "trades": [
                     {"cellId": 4, "id": 47, "state": "AVAILABLE"},
@@ -358,8 +378,29 @@ mod tests {
         let actions = &session(&state)["actions"][0];
         assert_eq!(actions[0]["actorCellId"], 4);
         assert_eq!(actions[1]["actorCellId"], 2);
-        // Pick já feito não muda de dono.
-        assert_eq!(actions[2]["actorCellId"], 4);
+        // O pick de outro aliado não muda de dono.
+        assert_eq!(actions[2]["actorCellId"], 3);
+    }
+
+    #[test]
+    fn quem_travou_nao_pede_troca_de_cargo_nem_de_vez() {
+        // A célula 4 trava o campeão: o client oficial não deixa mais
+        // trocar de cargo nem de vez com ela (#631).
+        let mut state = state();
+        let mut s = session(&state);
+        s["actions"][0][1]["completed"] = json!(true);
+        apply(&mut state, &[event(s)]);
+        for kind in [SwapKind::Position, SwapKind::PickOrder] {
+            assert_eq!(simulate(&state, kind).0.status, 404, "{kind:?}");
+        }
+        assert_eq!(simulate(&state, SwapKind::Champion).0.status, 200);
+
+        // Também não quando quem travou foi o jogador.
+        let mut state = self::state();
+        let mut s = session(&state);
+        s["actions"][0][0]["completed"] = json!(true);
+        apply(&mut state, &[event(s)]);
+        assert_eq!(simulate(&state, SwapKind::Position).0.status, 404);
     }
 
     #[test]
