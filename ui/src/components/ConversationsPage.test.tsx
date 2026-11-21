@@ -59,6 +59,8 @@ describe('ConversationsPage', () => {
     expect(screen.getByRole('button', { name: /Abrir conversa com Amigo/ })).toHaveAttribute('aria-current', 'true');
     const view = within(screen.getByRole('region', { name: 'Conversa com Amigo' }));
     expect(view.getByRole('log', { name: 'Mensagens' })).toHaveTextContent('Amigo: bora?');
+    // Os nomes `sr-only` das mensagens ficam presos à lista, que rola: sem isso a página rola para um vazio (#637).
+    expect(view.getByRole('log', { name: 'Mensagens' })).toHaveClass('relative');
     expect(commands(send)).toEqual([{ type: 'setActiveConversation', conversationId: testConversation.id }]);
     fireEvent.click(view.getByRole('button', { name: 'Voltar às conversas' }));
     expect(screen.queryByRole('region', { name: 'Conversa com Amigo' })).toBeNull();
