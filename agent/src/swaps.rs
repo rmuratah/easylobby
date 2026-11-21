@@ -14,7 +14,10 @@
 //! jogador logado ([`SwapState`]): `AVAILABLE` (dá para pedir), `SENT` (o
 //! jogador pediu e espera), `RECEIVED` (o aliado pediu e espera a resposta),
 //! `BUSY`/`INVALID` (não dá agora, por exemplo enquanto outra troca está
-//! aberta). O agente manda as três listas para a UI em
+//! aberta). A LCU deixa as trocas de cargo e de vez em `AVAILABLE` depois
+//! dos picks; o agente as passa para `INVALID` quando o jogador logado ou o
+//! aliado já travou o campeão (#631), como o client oficial. O agente manda
+//! as três listas para a UI em
 //! [`ChampSelect`](crate::champ_select::ChampSelect) e a UI decide os botões
 //! por elas.
 //!

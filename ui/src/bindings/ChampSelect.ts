@@ -76,11 +76,14 @@ export type ChampSelect = {
    */
   trades: Array<ChampSelectSwap>,
   /**
-   * Trocas de vez no draft com cada aliado (#25).
+   * Trocas de vez no draft com cada aliado (#25). Em `INVALID` quando o
+   * jogador logado ou o aliado já confirmou o pick (#631), como no client
+   * oficial, mesmo que a LCU mande `AVAILABLE`.
    */
   pickOrderSwaps: Array<ChampSelectSwap>,
   /**
-   * Trocas de cargo com cada aliado (#25).
+   * Trocas de cargo com cada aliado (#25), com a mesma regra do pick
+   * confirmado de `pickOrderSwaps` (#631).
    */
   positionSwaps: Array<ChampSelectSwap>,
   /**

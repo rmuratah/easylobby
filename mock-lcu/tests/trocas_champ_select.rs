@@ -307,10 +307,22 @@ async fn cancela_troca_de_vez_gravada_e_recusa_troca_de_cargo() {
     let (cancelled, result) = until_response(&mut ui, 2).await;
     assert_eq!(result, CommandResult::Ok);
     let cancelled = cancelled.expect("a seleção nova chega antes da resposta");
-    assert!(cancelled
-        .pick_order_swaps
+    // Com quem já travou o campeão a troca de vez não volta (#631).
+    let locked: Vec<i32> = cancelled
+        .actions
         .iter()
-        .all(|s| s.state == SwapState::Available));
+        .filter(|a| a.action_type == ChampSelectActionType::Pick && a.completed)
+        .map(|a| a.actor_cell_id)
+        .collect();
+    assert!(!locked.is_empty(), "na gravação um aliado já travou");
+    for swap in &cancelled.pick_order_swaps {
+        let expected = if locked.contains(&swap.cell_id) {
+            SwapState::Invalid
+        } else {
+            SwapState::Available
+        };
+        assert_eq!(swap.state, expected, "troca de vez com {}", swap.cell_id);
+    }
     assert_eq!(cancelled.actions, cs.actions);
 
     // Um aliado pede troca de cargo e o jogador recusa: nada muda.

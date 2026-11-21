@@ -104,9 +104,12 @@ pub struct ChampSelect {
     /// Trocas de campeão com cada aliado (#25). Vazia quando a fila não
     /// deixa trocar ou antes de os dois terem campeão.
     pub trades: Vec<ChampSelectSwap>,
-    /// Trocas de vez no draft com cada aliado (#25).
+    /// Trocas de vez no draft com cada aliado (#25). Em `INVALID` quando o
+    /// jogador logado ou o aliado já confirmou o pick (#631), como no client
+    /// oficial, mesmo que a LCU mande `AVAILABLE`.
     pub pick_order_swaps: Vec<ChampSelectSwap>,
-    /// Trocas de cargo com cada aliado (#25).
+    /// Trocas de cargo com cada aliado (#25), com a mesma regra do pick
+    /// confirmado de `pickOrderSwaps` (#631).
     pub position_swaps: Vec<ChampSelectSwap>,
     /// A seleção tem banco de campeões (ARAM e ARAM: Desordem, #201): sem
     /// ban nem pick, cada jogador recebe um campeão sorteado.
@@ -417,6 +420,27 @@ impl ChampSelect {
             obfuscated_puuid: p.obfuscated_puuid,
         };
 
+        // Quem já travou o campeão não troca mais de cargo nem de vez (#631),
+        // mas a LCU deixa essas trocas em `AVAILABLE` (gravação 16.22).
+        let locked: Vec<i32> = actions
+            .iter()
+            .filter(|a| a.action_type == ChampSelectActionType::Pick && a.completed)
+            .map(|a| a.actor_cell_id)
+            .collect();
+        let local_locked = locked.contains(&local);
+        let block_locked = |list: Vec<ChampSelectSwap>| -> Vec<ChampSelectSwap> {
+            list.into_iter()
+                .map(|mut s| {
+                    if s.state == SwapState::Available
+                        && (local_locked || locked.contains(&s.cell_id))
+                    {
+                        s.state = SwapState::Invalid;
+                    }
+                    s
+                })
+                .collect()
+        };
+
         let my_team: Vec<ChampSelectPlayer> = raw.my_team.into_iter().map(player).collect();
         let autofill_notice = my_team.iter().any(|p| p.is_local_player && p.is_autofilled);
         let time_left_ms = clamp_ms(raw.timer.adjusted_time_left_in_phase);
@@ -441,8 +465,8 @@ impl ChampSelect {
             actions,
             pending_action,
             trades: swaps(raw.trades),
-            pick_order_swaps: swaps(raw.pick_order_swaps),
-            position_swaps: swaps(raw.position_swaps),
+            pick_order_swaps: block_locked(swaps(raw.pick_order_swaps)),
+            position_swaps: block_locked(swaps(raw.position_swaps)),
             bench_enabled: raw.bench_enabled,
             bench_champions: bench::bench_from_raw(&raw.bench_champions, &raw.bench_champion_ids),
             allow_rerolling: raw.allow_rerolling,
@@ -1131,7 +1155,7 @@ mod tests {
             {"cellId": 0, "id": 30, "state": "SENT"},
             {"cellId": 4, "id": 47, "state": "INVALID"},
         ]);
-        raw["pickOrderSwaps"] = json!([{"cellId": 0, "id": 28, "state": "AVAILABLE"}]);
+        raw["pickOrderSwaps"] = json!([{"cellId": 3, "id": 28, "state": "AVAILABLE"}]);
         raw["positionSwaps"] = json!([
             {"cellId": 0, "id": 8, "state": "RECEIVED"},
             {"cellId": 3, "id": 10, "state": "ESTADO_NOVO"},
@@ -1148,7 +1172,7 @@ mod tests {
                 swap(47, 4, SwapState::Invalid)
             ]
         );
-        assert_eq!(cs.pick_order_swaps, [swap(28, 0, SwapState::Available)]);
+        assert_eq!(cs.pick_order_swaps, [swap(28, 3, SwapState::Available)]);
         assert_eq!(
             cs.position_swaps,
             [
@@ -1171,6 +1195,46 @@ mod tests {
         assert_eq!(value["trades"], json!([]));
         assert_eq!(value["pickOrderSwaps"], json!([]));
         assert_eq!(value["positionSwaps"], json!([]));
+    }
+
+    #[test]
+    fn sem_troca_de_cargo_nem_de_vez_depois_do_pick() {
+        // Na gravação 16.22 a LCU deixa as trocas de cargo e de vez em
+        // `AVAILABLE` depois dos picks; o client oficial esconde (#631).
+        // Na sessão de teste a célula 0 já travou e a 1 (o jogador) não.
+        let mut raw = session();
+        let list = json!([
+            {"cellId": 0, "id": 20, "state": "AVAILABLE"},
+            {"cellId": 3, "id": 23, "state": "AVAILABLE"},
+            {"cellId": 4, "id": 24, "state": "RECEIVED"},
+        ]);
+        raw["positionSwaps"] = list.clone();
+        raw["pickOrderSwaps"] = list;
+        raw["trades"] = json!([{"cellId": 0, "id": 30, "state": "AVAILABLE"}]);
+        let swap = |id, cell_id, state| ChampSelectSwap { id, cell_id, state };
+        let cs = ChampSelect::from_json_at(&raw, 0).unwrap();
+        let expected = [
+            swap(20, 0, SwapState::Invalid),
+            swap(23, 3, SwapState::Available),
+            swap(24, 4, SwapState::Received),
+        ];
+        assert_eq!(cs.position_swaps, expected);
+        assert_eq!(cs.pick_order_swaps, expected);
+        // A troca de campeão é justamente depois do pick.
+        assert_eq!(cs.trades, [swap(30, 0, SwapState::Available)]);
+
+        // Depois que o jogador trava, não troca de cargo com ninguém; um
+        // pedido aberto continua para dar para responder.
+        raw["actions"][4][0]["completed"] = json!(true);
+        raw["actions"][4][0]["isInProgress"] = json!(false);
+        let cs = ChampSelect::from_json_at(&raw, 0).unwrap();
+        let expected = [
+            swap(20, 0, SwapState::Invalid),
+            swap(23, 3, SwapState::Invalid),
+            swap(24, 4, SwapState::Received),
+        ];
+        assert_eq!(cs.position_swaps, expected);
+        assert_eq!(cs.pick_order_swaps, expected);
     }
 
     #[test]
