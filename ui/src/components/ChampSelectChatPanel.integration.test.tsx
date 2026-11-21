@@ -211,3 +211,16 @@ it('identifica aliados anônimos e acompanha a célula resolvida pelo agente', (
   } }));
   expect(chat().getByText('vou de jungle').closest('li')).toHaveTextContent('Amigo#BR1');
 });
+
+it('fica ao lado de feitiços e runas e volta para baixo do time adversário com o meio estreito (#633)', () => {
+  const { unmount } = render(<App />); hello();
+  const loadout = screen.getByRole('region', { name: 'Feitiços e runas' });
+  expect(loadout.parentElement).toContainElement(screen.getByRole('region', { name: 'Chat do time' }));
+  unmount();
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  const width = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 400 } as DOMRect);
+  render(<App />); hello();
+  const enemies = screen.getByRole('region', { name: 'Time adversário' });
+  expect(enemies.parentElement).toContainElement(screen.getByRole('region', { name: 'Chat do time' }));
+  width.mockRestore();
+});

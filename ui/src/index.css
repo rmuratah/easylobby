@@ -125,11 +125,17 @@ button[aria-current="page"] { background: var(--el-accent-soft); border-color: v
 .champ-select { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .75rem; }
 .champ-select-board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr) minmax(11rem, 15rem); grid-template-rows: minmax(0, 1fr); gap: 1rem; align-items: stretch; }
 .champ-select-side { display: flex; flex-direction: column; gap: .75rem; min-width: 0; min-height: 0; }
-/* Chat embaixo do time adversário (#623): encolhe com a janela, mas a caixa de mensagem fica sempre à vista. */
+/* Com o meio estreito (#633), o chat fica embaixo do time adversário (#623): encolhe com a janela, mas a caixa de
+   mensagem fica sempre à vista. */
 .champ-select-side .champ-select-chat { flex: 0 1 auto; min-height: 6.5rem; overflow: hidden; }
 .champ-select-center { container-type: inline-size; display: flex; flex-direction: column; gap: .75rem; min-width: 0; min-height: 0; }
-/* Embaixo do card do meio (#562): o card de feitiços e runas, da altura do conteúdo. */
-.champ-select-loadout { container-type: inline-size; flex: none; min-width: 0; }
+/* Embaixo do card do meio (#562, #633): o card de feitiços e runas e o chat do time dividem a largura ao meio, com a
+   altura do card de feitiços e runas. Sem o chat, feitiços e runas ficam com a largura toda. */
+.champ-select-bottom { flex: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); grid-template-rows: minmax(6.5rem, auto); gap: .75rem; min-width: 0; }
+.champ-select-loadout { container-type: inline-size; min-width: 0; }
+/* O chat não aumenta a altura da linha (contain: size): estica até a altura do card ao lado e o histórico rola. */
+.champ-select-bottom .champ-select-chat { contain: size; overflow: hidden; }
+.champ-select-bottom .champ-select-chat [role="log"] { flex: 1 1 0; max-height: none; min-height: 0; }
 /* Dentro do card, feitiços à esquerda e runas à direita; num card muito estreito, um embaixo do outro. */
 .champ-select-loadout-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
 @container (min-width: 22rem) { .champ-select-loadout-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
