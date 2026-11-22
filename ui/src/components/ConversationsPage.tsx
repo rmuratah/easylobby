@@ -167,7 +167,9 @@ function ConversationView({ conversation, name, send, onBack }: {
       {messages.length === 0
         ? <p className="flex-1 text-body text-muted">Nenhuma mensagem nesta sessão. Mande a primeira.</p>
         : (
-          <ol ref={log} role="log" aria-label="Mensagens" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
+          // `relative` (#637): os nomes `sr-only` das mensagens são `absolute`; sem isso eles escapam da
+          // rolagem da lista e esticam a página inteira até a altura do histórico, com espaço vazio embaixo.
+          <ol ref={log} role="log" aria-label="Mensagens" className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
             {messages.map(message => (
               <li key={message.id} className={cx('flex flex-col gap-0.5', message.fromMe ? 'items-end' : 'items-start')}>
                 <span className="sr-only">{message.fromMe ? 'Você' : name}: </span>
