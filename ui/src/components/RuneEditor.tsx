@@ -140,8 +140,14 @@ function RuneGrid({ catalog, draft, disabled, onChange }: {
   const sub = findStyle(catalog, draft.subStyleId);
   const perk = (id: number) => catalog.perks.find(p => p.id === id);
 
-  function row(perks: number[], label: string, selected: (id: number) => boolean, choose: (id: number) => void, size: number) {
-    const anySelected = perks.some(selected);
+  // Com as duas runas da secundária escolhidas, a linha que sobrou fica
+  // apagada como as runas não escolhidas: clicar nela ainda troca a escolha
+  // mais antiga, como no client oficial.
+  const subFull = draft.sub.length >= 2;
+
+  function row(perks: number[], label: string, selected: (id: number) => boolean, choose: (id: number) => void, size: number,
+    full = false) {
+    const anySelected = full || perks.some(selected);
     return (
       <div role="group" aria-label={label} className={runeRow} style={columns(perks.length)}>
         {perks.map(id => (
@@ -174,7 +180,7 @@ function RuneGrid({ catalog, draft, disabled, onChange }: {
         {styles(allowedSubStyles(catalog, primary), draft.subStyleId, 'Árvore secundária', id => onChange(withSubStyle(draft, id)))}
         {subSlots(sub).map((slot, index) => (
           <div key={`s${index}`}>{row(slot.perks, `Secundária, linha ${index + 1}`,
-            id => draft.sub.some(pick => pick.row === index && pick.perkId === id), id => onChange(withSubPerk(draft, index, id)), 42)}</div>
+            id => draft.sub.some(pick => pick.row === index && pick.perkId === id), id => onChange(withSubPerk(draft, index, id)), 42, subFull)}</div>
         ))}
         {statSlots(primary).map((slot, index) => (
           <div key={`f${index}`}>{row(slot.perks, slot.label || `Fragmento ${index + 1}`,

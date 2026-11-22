@@ -153,6 +153,31 @@ describe('RunePagesPanel', () => {
     expect(create).toHaveAttribute('title', expect.stringMatching(/Todas as páginas estão ocupadas/));
   });
 
+  it('com as duas runas da secundária escolhidas, apaga a linha que sobrou, sem travar', () => {
+    render(<RunePagesPanel connection={connection()} send={ok()} />);
+    const icon = (legend: string, name: string) => row(legend).getByRole('button', { name }).firstElementChild;
+    // A página usa Golpe Desleal (linha 1) e Caçador Voraz (linha 3): a linha 2 fica cinza.
+    expect(icon('Secundária, linha 1', 'Golpe Desleal')).not.toHaveClass('grayscale');
+    expect(icon('Secundária, linha 1', 'Gosto de Sangue')).toHaveClass('grayscale');
+    expect(icon('Secundária, linha 2', 'Globos Oculares')).toHaveClass('grayscale');
+    expect(icon('Secundária, linha 2', 'Sentinela Zumbi')).toHaveClass('grayscale');
+    expect(row('Secundária, linha 2').getByRole('button', { name: 'Globos Oculares' })).toBeEnabled();
+
+    // Clicar na linha apagada troca a escolha mais antiga; agora sobra a linha 1.
+    click(row('Secundária, linha 2').getByRole('button', { name: 'Globos Oculares' }));
+    expect(row('Secundária, linha 2').getByRole('button', { name: 'Globos Oculares' })).toHaveAttribute('aria-pressed', 'true');
+    expect(icon('Secundária, linha 2', 'Globos Oculares')).not.toHaveClass('grayscale');
+    expect(icon('Secundária, linha 1', 'Golpe Desleal')).toHaveClass('grayscale');
+    expect(row('Secundária, linha 1').getByRole('button', { name: 'Golpe Desleal' })).toHaveAttribute('aria-pressed', 'false');
+
+    // Com uma escolha só, as outras linhas ficam coloridas.
+    click(row('Árvore secundária').getByRole('button', { name: 'Feitiçaria' }));
+    click(row('Árvore secundária').getByRole('button', { name: 'Dominação' }));
+    click(row('Secundária, linha 1').getByRole('button', { name: 'Golpe Desleal' }));
+    expect(icon('Secundária, linha 2', 'Globos Oculares')).not.toHaveClass('grayscale');
+    expect(icon('Secundária, linha 3', 'Caçador Voraz')).not.toHaveClass('grayscale');
+  });
+
   it('mostra o nome e a descrição completa da runa ao passar o mouse', () => {
     render(<RunePagesPanel connection={connection()} send={ok()} />);
     const rune = row('Runa principal').getByRole('button', { name: 'Ritmo Fatal' });
