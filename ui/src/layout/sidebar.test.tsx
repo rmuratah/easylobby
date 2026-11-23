@@ -5,7 +5,7 @@ import { useAgent } from "../agent/useAgent";
 import { testConversation, testInvitation } from "../test/events";
 import { testState } from "../test/lobby";
 import { makeState } from "../test/state";
-import { CLOSE_ANIMATION_MS } from "./sidebar";
+import { CLOSE_ANIMATION_MS, PINNED_STORAGE_KEY } from "./sidebar";
 
 vi.mock("../agent/useAgent");
 
@@ -92,7 +92,7 @@ describe("aba de amigos (#594)", () => {
     render(<App />);
     fireEvent.mouseEnter(region());
     const close = screen.getByRole("button", { name: "Recolher amigos" });
-    expect(close.parentElement).toBe(column());
+    expect(close.closest("aside")).toBe(column());
     expect(close).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(close);
     expectClosing();
@@ -126,5 +126,73 @@ describe("aba de amigos (#594)", () => {
     expect(column()).not.toBeVisible();
     fireEvent.mouseEnter(region());
     expect(screen.getByRole("region", { name: "Amigos" })).toBe(friends);
+  });
+});
+
+describe("aba de amigos fixada (#643)", () => {
+  it("fixar deixa a aba aberta, empurrando o conteúdo, e salva a escolha", () => {
+    vi.useFakeTimers();
+    snapshot();
+    render(<App />);
+    fireEvent.mouseEnter(region());
+    const pin = screen.getByRole("button", { name: "Fixar amigos" });
+    expect(pin).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(pin);
+    expect(region()).toHaveClass("is-open", "is-pinned");
+    expect(screen.getByRole("button", { name: "Desafixar amigos" })).toHaveAttribute("aria-pressed", "true");
+    expect(localStorage.getItem(PINNED_STORAGE_KEY)).toBe("sim");
+    // Mouse saindo, Esc e clique fora não fecham.
+    fireEvent.mouseLeave(region());
+    fireEvent.keyDown(column(), { key: "Escape" });
+    fireEvent.pointerDown(document.querySelector(".app-content")!);
+    act(() => vi.advanceTimersByTime(CLOSE_ANIMATION_MS * 2));
+    expect(region()).toHaveClass("is-open");
+    expect(region()).not.toHaveClass("is-closing");
+    expect(column()).toBeVisible();
+  });
+
+  it("abre já fixada quando a escolha está salva", () => {
+    localStorage.setItem(PINNED_STORAGE_KEY, "sim");
+    snapshot();
+    render(<App />);
+    expect(column()).toBeVisible();
+    expect(region()).toHaveClass("is-pinned");
+  });
+
+  it("desafixar volta a abrir com o mouse em cima", () => {
+    vi.useFakeTimers();
+    localStorage.setItem(PINNED_STORAGE_KEY, "sim");
+    snapshot();
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Desafixar amigos" }));
+    expect(localStorage.getItem(PINNED_STORAGE_KEY)).toBeNull();
+    expect(region()).not.toHaveClass("is-pinned");
+    // Continua aberta enquanto o mouse está em cima e fecha quando ele sai.
+    expect(column()).toBeVisible();
+    fireEvent.mouseLeave(region());
+    expectClosing();
+  });
+
+  it("recolher a aba fixada também desafixa", () => {
+    vi.useFakeTimers();
+    localStorage.setItem(PINNED_STORAGE_KEY, "sim");
+    snapshot();
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Recolher amigos" }));
+    expect(localStorage.getItem(PINNED_STORAGE_KEY)).toBeNull();
+    expectClosing();
+    expect(region()).not.toHaveClass("is-pinned");
+  });
+
+  it("fixada, arrastar um amigo não esconde a aba", () => {
+    vi.useFakeTimers();
+    localStorage.setItem(PINNED_STORAGE_KEY, "sim");
+    snapshot();
+    render(<App />);
+    fireEvent.dragStart(column());
+    act(() => vi.advanceTimersByTime(0));
+    expect(region()).not.toHaveClass("is-dragging");
+    fireEvent.dragEnd(column());
+    expect(column()).toBeVisible();
   });
 });
