@@ -96,11 +96,10 @@ it('na seleção de campeões, só avisa mensagens e deixa os convites na coluna
   expect(notices().queryByText(/convidou você/)).not.toBeInTheDocument();
 });
 
-it('avisa partida encontrada até o jogador responder', () => {
+it('não repete a partida encontrada no canto, que já abre no pop-up do meio da tela (#649)', () => {
   render(<App />);
   hello({ gameflowPhase: 'ReadyCheck', readyCheck: testReadyCheck });
-  expect(notices().getByRole('alert')).toHaveTextContent('Partida encontrada!');
-  receive({ type: 'readyCheck', readyCheck: { ...testReadyCheck, playerResponse: 'Accepted' } });
+  expect(screen.getByRole('region', { name: 'Partida encontrada' })).toBeInTheDocument();
   expect(region()).not.toBeInTheDocument();
 });
 

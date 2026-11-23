@@ -24,9 +24,10 @@ type Props = {
 };
 
 /**
- * Avisos de mensagem, convite e partida encontrada (#33), no canto da janela.
- * Só avisam: responder ao convite, à partida ou à mensagem continua nas telas
- * de cada assunto (#32, #20 e #31). O aviso de mensagem abre a conversa.
+ * Avisos de mensagem e convite (#33), no canto da janela, e o som da partida
+ * encontrada. A partida encontrada já abre num pop-up no meio da tela (#649),
+ * então não ganha aviso no canto. Responder ao convite ou à mensagem continua
+ * nas telas de cada assunto (#32 e #31). O aviso de mensagem abre a conversa.
  */
 export function Notifications({ connection, quiet = false, sidebarOpen = false, openConversationId = null, onOpenConversation }: Props) {
   const state = connection.status === 'connected' && connection.state?.lcu.state === 'connected' ? connection.state : null;
@@ -45,16 +46,10 @@ export function Notifications({ connection, quiet = false, sidebarOpen = false, 
   const matchFound = state !== null && matchFoundPending(state);
   useMatchFoundSound(matchFound);
   const notices = messages.filter(n => n.conversationId !== openConversationId);
-  if (!matchFound && invitations.length === 0 && notices.length === 0) return null;
+  if (invitations.length === 0 && notices.length === 0) return null;
   return (
     <section aria-label="Notificações"
       className={cx('fixed right-4 top-[8.5rem] z-50 flex max-w-[calc(100vw-2rem)] flex-col gap-2', quiet ? 'w-64' : 'w-80')}>
-      {matchFound && (
-        <div role="alert" className="rounded-card border-2 border-accent bg-surface card p-3 text-ink shadow-[0_8px_24px_-12px_var(--el-overlay)]">
-          <p className="font-semibold text-accent-ink">Partida encontrada!</p>
-          <p className="text-caption text-muted">Aceite ou recuse no painel da partida.</p>
-        </div>
-      )}
       {invitations.map(invitation => (
         <Notice key={invitation.invitationId} title="Convite para jogar" text={invitationText(invitation)}
           onDismiss={() => setDismissed(current => new Set(current).add(invitation.invitationId))} />
