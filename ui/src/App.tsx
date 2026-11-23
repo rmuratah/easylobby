@@ -23,6 +23,7 @@ import { useAppUpdate } from './agent/useAppUpdate';
 import { canInstallNow } from './agent/appUpdate';
 import { useSidebar } from './layout/sidebar';
 import { TopNavigation, ToolbarSettings, type NavigationPage } from './layout/TopNavigation';
+import { SidebarPin } from './layout/SidebarPin';
 import { SidebarToggle } from './layout/SidebarToggle';
 import { connectionView } from './screens/connection';
 import { ConnectionScreen } from './components/connection/ConnectionScreen';
@@ -279,15 +280,18 @@ export default function App() {
           </main>
         </div>
         {/* Aba de amigos (#594): fechada numa faixa fina; com o mouse em cima, a própria faixa cresce por cima do
-            conteúdo até a largura da aba, sem empurrá-lo. */}
+            conteúdo até a largura da aba, sem empurrá-lo. Fixada (#643), fica aberta ao lado do conteúdo e o empurra. */}
         <div hidden={!ready} {...sidebar.regionProps}
-          className={['app-social-region', sidebar.open && 'is-open', sidebar.closing && 'is-closing', sidebar.dragging && 'is-dragging'].filter(Boolean).join(' ')}>
+          className={['app-social-region', sidebar.open && 'is-open', sidebar.pinned && 'is-pinned', sidebar.closing && 'is-closing', sidebar.dragging && 'is-dragging'].filter(Boolean).join(' ')}>
           <div className="app-social-rail">
             <SidebarToggle open={false} onToggle={sidebar.toggle} invitations={invitations} unread={unread} />
           {/* Sempre montada: escondida, a coluna mantém conversas e convites em andamento.
               Durante o arraste de um amigo ela só sai da vista (CSS), para não cancelar o arraste. */}
           <aside id="coluna-amigos" aria-label="Amigos e convites" hidden={!sidebar.open && !sidebar.closing && !sidebar.dragging} className="app-sidebar">
-            {sidebar.open && <SidebarToggle open onToggle={sidebar.toggle} invitations={invitations} unread={unread} />}
+            {sidebar.open && <div className="app-sidebar-actions">
+              <SidebarPin pinned={sidebar.pinned} onToggle={sidebar.togglePinned} />
+              <SidebarToggle open onToggle={sidebar.toggle} invitations={invitations} unread={unread} />
+            </div>}
             {/* Convites recebidos ficam aqui, sem seção própria; convidar é pelo lobby (#206). */}
             <FeatureGate connection={connection} send={connection.send} feature="lobby" quiet>
               <InvitationsPanel connection={connection} send={connection.send} />

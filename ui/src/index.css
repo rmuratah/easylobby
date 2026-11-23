@@ -83,19 +83,24 @@ body { margin: 0; }
 /* Arrastando um amigo para o lobby: a faixa volta a ser fina e a lista sai da vista sem desmontar quem está sendo arrastado. */
 .app-social-region.is-dragging > .app-social-rail { width: 2.75rem; box-shadow: none; }
 .app-social-region.is-dragging .app-sidebar { visibility: hidden; pointer-events: none; }
+/* Fixada (#643): a aba ocupa a largura dela ao lado do conteúdo, que encolhe, e fica aberta sem a sombra de por cima. */
+.app-social-region { transition: width 180ms ease-out; }
+.app-social-region.is-pinned { width: 20rem; max-width: calc(100vw - 1.5rem); }
+.app-social-region.is-pinned > .app-social-rail { box-shadow: none; }
+.app-social-region.is-pinned .app-sidebar { animation: none; }
 @keyframes social-fade-in { from { opacity: 0; } to { opacity: 1; } }
 /* Nome próprio: trocar só a direção da mesma animação não a reinicia, e a lista sumiria de uma vez. */
 @keyframes social-fade-out { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .app-social-rail { transition: none; }
+  .app-social-rail, .app-social-region { transition: none; }
   .app-social-region.is-open .app-sidebar { animation: none; }
   .app-social-region.is-closing .app-sidebar { visibility: hidden; }
 }
 /* Barras do app (topo e amigos) ficam lisas: sem a luz esmeralda dos cards dentro delas. */
 .app-sidebar .card { background-image: none; --tw-inset-shadow: 0 0 #0000; border-color: var(--el-line); }
-.app-sidebar > .sidebar-toggle { position: absolute; right: .875rem; top: .75rem; z-index: 20; }
+.app-sidebar-actions { position: absolute; right: .875rem; top: .75rem; z-index: 20; display: flex; gap: .25rem; }
 .app-sidebar > section { flex-shrink: 0; border: 0; border-radius: 0; background: transparent; }
-.app-sidebar > section:first-of-type { padding-right: 3.25rem; }
+.app-sidebar > section:first-of-type { padding-right: 5.5rem; }
 .app-sidebar > section + section { border-top: 1px solid var(--el-line); }
 .sidebar-toggle, .nav-button, .app-content > section > button { border: 1px solid var(--el-control); border-radius: .375rem; padding: .5rem 1rem; }
 .sidebar-toggle { border: 0; border-radius: 0; padding: 0; background: transparent; box-shadow: none; }
