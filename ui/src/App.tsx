@@ -137,7 +137,8 @@ export default function App() {
   const stage = !lobbyState?.custom;
   // Na tela do lobby, o botão do alto busca a partida (#600); nas outras páginas, continua levando ao lobby.
   // Lobby de altura fixa (#603): cabe na janela, sem rolagem; só o chat rola por dentro.
-  const fixedLobby = ready && activePage === 'flow' && lobbyMain && stage && !changingMode;
+  // Também com a partida encontrada (#650): a tela não rola nem muda de tamanho quando a partida aparece.
+  const fixedLobby = ready && activePage === 'flow' && (lobbyMain || found) && stage && !changingMode;
   // Seleção de campeões de altura e largura fixas (#623): cabe na janela, sem rolagem; só a grade e o chat rolam por dentro.
   const fixedChampSelect = ready && activePage === 'flow' && screen === 'champSelect';
   const fixedScreen = fixedLobby || fixedChampSelect;
@@ -219,7 +220,7 @@ export default function App() {
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
             {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}
             <div hidden={!playable || (activePage !== 'flow' && activePage !== 'home')} className={homeLayout ? 'home-primary'
-              : lobbyMain && !changingMode && stage ? 'flex min-h-0 flex-1 flex-col gap-5'
+              : (lobbyMain || found) && !changingMode && stage ? 'flex min-h-0 flex-1 flex-col gap-5'
               : lobbyMain && !changingMode ? 'grid min-h-0 flex-1 items-stretch gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]'
               : 'flex flex-1 flex-col gap-4'}>
               {homeReserved && <article aria-label="Área reservada para atualização"

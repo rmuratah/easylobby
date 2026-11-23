@@ -174,6 +174,15 @@ describe('telas confirmadas pelo agente', () => {
     expect(screen.getByText('Carregando a seleção de campeões…')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
   });
+  it('mantém o lobby de tamanho fixo, sem rolagem, com a partida encontrada (#650)', () => {
+    snapshot({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
+    const { rerender } = render(<App />);
+    expect(screen.getByRole('main')).toHaveClass('is-fixed');
+    snapshot({ lobby: testLobby, gameflowPhase: 'ReadyCheck', matchmaking: { ...testMatchmaking, searchState: 'Found' },
+      readyCheck: { state: 'InProgress', playerResponse: 'None', timer: 2, duration: 12 } });
+    rerender(<App />);
+    expect(screen.getByRole('main')).toHaveClass('is-fixed');
+  });
 });
 
 describe('vez do jogador na seleção (#431)', () => {
