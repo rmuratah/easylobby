@@ -93,7 +93,7 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
   }
   const me = champSelect.myTeam.find(player => player.isLocalPlayer);
   const lockedChampion = lockedPick(champSelect);
-  // O recomendador de runas aparece com o campeão escolhido ou marcado (#596).
+  // O recomendador de runas aparece sempre e só habilita com o campeão escolhido ou marcado (#596, #647).
   const recommendedChampion = recommenderChampion(champSelect);
   useTurnCountdownSound(champSelect, !!mine?.turn);
   useLockInSound(champSelect);
@@ -137,10 +137,10 @@ function ChampSelectContent({ state, champSelect, send, onOpenRunes }: ContentPr
                 <SummonerSpellsPicker champSelect={champSelect} catalog={state.summonerSpellCatalog}
                   summonerLevel={state.summoner?.summonerLevel ?? null} queues={state.queues} lobby={state.lobby} send={send} />
                 <RuneQuickPick runePages={state.runePages} catalog={state.runeCatalog} send={send} onEdit={onOpenRunes}
-                  recommender={recommendedChampion !== null && (
-                    <RuneRecommenderButton key={recommendedChampion} state={state} champSelect={champSelect}
+                  recommender={
+                    <RuneRecommenderButton key={recommendedChampion ?? 'nenhum'} state={state} champSelect={champSelect}
                       championId={recommendedChampion} send={send} onEdit={onOpenRunes} />
-                  )} />
+                  } />
               </div>
             </section>
             {chatBeside && chatPanel}

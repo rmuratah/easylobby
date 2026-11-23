@@ -56,11 +56,18 @@ const suggestions = (position: RecommendedRunes['position'] = 'middle'): Recomme
 beforeEach(() => { vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal('WebSocket', Socket); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-it('só mostra o recomendador com um campeão escolhido ou marcado', () => {
+it('mostra o recomendador sempre e só habilita com um campeão escolhido ou marcado', () => {
   render(<App />); hello({ champSelect: draftChampSelect });
-  expect(runes().queryByRole('button', { name: 'Recomendador de runas' })).toBeNull();
+  const disabled = runes().getByRole('button', { name: 'Recomendador de runas' });
+  expect(disabled).toBeVisible();
+  expect(disabled).toHaveAttribute('aria-disabled', 'true');
+  expect(disabled).toHaveAttribute('title', 'Escolha um campeão para ver as runas recomendadas');
+  fireEvent.click(disabled);
+  expect(screen.queryByRole('dialog', { name: /Recomendador/ })).toBeNull();
   hello();
-  expect(runes().getByRole('button', { name: 'Recomendador de runas' })).toBeVisible();
+  const enabled = runes().getByRole('button', { name: 'Recomendador de runas' });
+  expect(enabled).not.toHaveAttribute('aria-disabled');
+  expect(enabled).toHaveAttribute('title', 'Recomendador de runas');
 });
 
 it('mostra as sugestões da rota e aplica a escolhida', async () => {

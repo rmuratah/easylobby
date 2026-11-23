@@ -17,7 +17,8 @@ import { SpellIcon } from './SummonerSpellsPicker';
 type Props = {
   state: AgentState;
   champSelect: ChampSelect;
-  championId: number;
+  /** Campeão escolhido ou marcado; sem ele, o botão fica desabilitado (#647). */
+  championId: number | null;
   send: AgentClient['send'];
   /** Abre o editor de runas, para "Editar a página depois de aplicar". */
   onEdit?: () => void;
@@ -28,21 +29,26 @@ type Props = {
  * páginas de runas que o client sugere para o campeão na rota. Escolher uma
  * a aplica como página temporária, sem gastar página comprada.
  */
-export function RuneRecommenderButton(props: Props) {
+export function RuneRecommenderButton({ championId, ...props }: Props) {
   const [open, setOpen] = useState(false);
+  // Sem campeão, o botão continua no lugar, desabilitado e com a explicação (#647).
+  // aria-disabled (e não disabled) mantém o foco e o tooltip no botão.
+  const disabled = championId === null;
   return (
     <>
-      <button type="button" aria-label="Recomendador de runas" title="Recomendador de runas" aria-haspopup="dialog"
-        onClick={() => setOpen(true)}
-        className="flex size-9 shrink-0 items-center justify-center rounded-control border border-control text-muted hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+      <button type="button" aria-label="Recomendador de runas" aria-haspopup="dialog" aria-disabled={disabled || undefined}
+        title={disabled ? 'Escolha um campeão para ver as runas recomendadas' : 'Recomendador de runas'}
+        onClick={() => { if (!disabled) setOpen(true); }}
+        className={cx('flex size-9 shrink-0 items-center justify-center rounded-control border border-control text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+          disabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-raised hover:text-ink')}>
         <RecommenderIcon />
       </button>
-      {open && <RuneRecommenderDialog {...props} onClose={() => setOpen(false)} />}
+      {open && championId !== null && <RuneRecommenderDialog {...props} championId={championId} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function RuneRecommenderDialog({ state, champSelect, championId, send, onEdit, onClose }: Props & { onClose: () => void }) {
+function RuneRecommenderDialog({ state, champSelect, championId, send, onEdit, onClose }: Omit<Props, 'championId'> & { championId: number; onClose: () => void }) {
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
