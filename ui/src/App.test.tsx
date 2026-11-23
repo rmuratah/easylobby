@@ -182,12 +182,6 @@ describe('telas confirmadas pelo agente', () => {
       readyCheck: { state: 'InProgress', playerResponse: 'None', timer: 2, duration: 12 } });
     rerender(<App />);
     expect(screen.getByRole('main')).toHaveClass('is-fixed');
-    const card = screen.getByRole('region', { name: 'Partida encontrada' });
-    // Botões na linha do título: o card cabe embaixo do lobby numa janela de 960x640.
-    expect(within(card).getByRole('heading', { name: 'Partida encontrada' }).parentElement!.parentElement)
-      .toContainElement(within(card).getByRole('button', { name: 'Aceitar' }));
-    // O aviso das ações bloqueadas não fica atrás do card.
-    expect(screen.getByText(/só estão disponíveis fora da busca/)).toHaveClass('sr-only');
   });
 });
 

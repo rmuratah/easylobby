@@ -137,7 +137,7 @@ export default function App() {
   const stage = !lobbyState?.custom;
   // Na tela do lobby, o botão do alto busca a partida (#600); nas outras páginas, continua levando ao lobby.
   // Lobby de altura fixa (#603): cabe na janela, sem rolagem; só o chat rola por dentro.
-  // Também com a partida encontrada (#650): o card dela fica no lugar da faixa de baixo, sem a página rolar.
+  // Também com a partida encontrada (#650): a tela não rola nem muda de tamanho quando a partida aparece.
   const fixedLobby = ready && activePage === 'flow' && (lobbyMain || found) && stage && !changingMode;
   // Seleção de campeões de altura e largura fixas (#623): cabe na janela, sem rolagem; só a grade e o chat rolam por dentro.
   const fixedChampSelect = ready && activePage === 'flow' && screen === 'champSelect';
@@ -260,12 +260,12 @@ export default function App() {
             </div>
             {/* A partida encontrada fica no lugar da faixa de busca, logo abaixo do lobby, e continua visível nas outras páginas. */}
             {found && !connection.state?.readyCheck && <section role="alert"
-              className={`sticky bottom-0 z-10 flex w-full max-w-[56rem] flex-col gap-1 rounded-card border-2 border-accent bg-accent-soft p-5 text-ink ${fixedLobby ? 'shrink-0 self-center' : ''}`}>
+              className="sticky bottom-0 z-10 flex max-w-[56rem] flex-col gap-1 rounded-card border-2 border-accent bg-accent-soft p-5 text-ink">
               <h2 className="text-title font-semibold tracking-[-0.015em] text-accent-ink">Partida encontrada</h2>
               <p className="text-body">Aguardando os dados de confirmação do agente. Use “Abrir client oficial”, no alto da janela, se precisar.</p>
             </section>}
             {found && <FeatureGate connection={connection} send={connection.send} feature="readyCheck">
-              <ReadyCheckPanel connection={connection} send={connection.send} compact={fixedLobby} />
+              <ReadyCheckPanel connection={connection} send={connection.send} />
             </FeatureGate>}
             {/* Montada fora da tela também, para a busca e as ações em andamento sobreviverem à navegação. */}
             <div hidden={activePage !== 'flow' || screen !== 'champSelect'} className="flex min-h-0 flex-1 flex-col">
