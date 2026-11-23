@@ -1,3 +1,5 @@
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { playerName } from '../agent/champSelect';
 import { swapKindNames, swapsIn, type SwapEntry } from '../agent/swaps';
 import type { CommandFeedback, CommandTexts } from '../agent/useCommand';
@@ -38,24 +40,135 @@ function SwapIcon() {
 
 type OffersProps = { champSelect: ChampSelect; cellId: number; busy: boolean; run: Run };
 
-/** Botões para pedir as trocas disponíveis com um aliado (#25). */
+/** Tempo para o mouse passar do botão para o menu (e de volta) sem o menu fechar. */
+const HOVER_CLOSE_MS = 150;
+const MENU_GAP = 4;
+
+/**
+ * Um botão "Trocar" no card do aliado (#641): passar o mouse (ou clicar, ou Enter pelo teclado) abre um menu com as
+ * trocas que valem naquele momento, as `AVAILABLE` que o agente manda. A troca de posição some depois do pick, por
+ * exemplo. O menu vai para o `body` porque o card tem altura fixa e corta o que passa dele.
+ */
 export function SwapOffers({ champSelect, cellId, busy, run }: OffersProps) {
   const available = swapsIn(champSelect, 'AVAILABLE', cellId);
-  if (available.length === 0) return null;
+  const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<CSSProperties | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<number | undefined>(undefined);
+  const menuId = useId();
+  const empty = available.length === 0;
+
+  function cancelClose() { window.clearTimeout(closeTimer.current); }
+  // A posição é medida de novo a cada abertura, com o menu invisível até lá.
+  function show() { cancelClose(); if (!open) setPlacement(null); setOpen(true); }
+  function close() { cancelClose(); setOpen(false); }
+  function closeSoon() { cancelClose(); closeTimer.current = window.setTimeout(() => setOpen(false), HOVER_CLOSE_MS); }
+
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+
+  // Pedir uma troca trava os botões; sem troca disponível o botão some. Nos dois casos o menu fecha.
+  if (open && (busy || empty)) setOpen(false);
+
+  // Embaixo do botão, alinhado pela esquerda, ou em cima quando falta espaço. Acompanha rolagem e redimensionamento.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const rect = button.current?.getBoundingClientRect();
+      if (!rect) return;
+      const height = menu.current?.offsetHeight ?? 0;
+      const up = window.innerHeight - rect.bottom - MENU_GAP < height + 8 && rect.top > window.innerHeight - rect.bottom;
+      setPlacement({
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - (menu.current?.offsetWidth ?? 0) - 8)),
+        ...(up ? { bottom: window.innerHeight - rect.top + MENU_GAP } : { top: rect.bottom + MENU_GAP }),
+      });
+    }
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open]);
+
+  // Esc e clique fora fecham.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      window.clearTimeout(closeTimer.current);
+      setOpen(false);
+      button.current?.focus();
+    };
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (button.current?.contains(target) || menu.current?.contains(target)) return;
+      window.clearTimeout(closeTimer.current);
+      setOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer);
+    };
+  }, [open]);
+
+  if (empty) return null;
   const name = allyName(champSelect, cellId);
+
+  function items() { return Array.from(menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []); }
+
+  function onMenuKey(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const list = items();
+    const index = list.indexOf(document.activeElement as HTMLButtonElement);
+    const next = event.key === 'ArrowDown' ? index + 1 : event.key === 'ArrowUp' ? index - 1
+      : event.key === 'Home' ? 0 : event.key === 'End' ? list.length - 1 : null;
+    if (next === null) return;
+    event.preventDefault();
+    list[(next + list.length) % list.length]?.focus();
+  }
+
   return (
-    <div className="flex flex-wrap gap-1">
-      {available.map(entry => (
-        // Rótulo curto com o ícone de troca (#623): os botões cabem numa linha do card, que tem altura fixa.
-        <button key={`${entry.kind}:${entry.swap.id}`} type="button" disabled={busy}
-          className={`${buttonClass} inline-flex items-center gap-1 border-control`}
-          aria-label={`Pedir troca de ${swapKindNames[entry.kind]} com ${name}`} title={`Trocar ${swapKindNames[entry.kind]}`}
-          onClick={() => sendSwap(run, 'requestSwap', entry)}>
-          <SwapIcon />
-          <span className="capitalize">{swapKindNames[entry.kind]}</span>
-        </button>
-      ))}
-    </div>
+    <>
+      <button ref={button} type="button" disabled={busy}
+        className={`${buttonClass} inline-flex items-center gap-1 ${open ? 'border-accent' : 'border-control'}`}
+        aria-label={`Trocar com ${name}`} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined}
+        onMouseEnter={show} onMouseLeave={closeSoon}
+        onClick={() => { if (open) close(); else show(); }}
+        onKeyDown={event => {
+          if (event.key !== 'ArrowDown') return;
+          event.preventDefault();
+          show();
+          requestAnimationFrame(() => items()[0]?.focus());
+        }}
+        onBlur={event => { if (!menu.current?.contains(event.relatedTarget as Node | null)) closeSoon(); }}>
+        <SwapIcon />
+        <span>Trocar</span>
+      </button>
+      {open && createPortal(
+        <div ref={menu} id={menuId} role="menu" aria-label={`Trocas com ${name}`}
+          style={placement ? { position: 'fixed', ...placement } : { position: 'fixed', visibility: 'hidden' }}
+          onMouseEnter={cancelClose} onMouseLeave={closeSoon} onKeyDown={onMenuKey}
+          onBlur={event => {
+            const to = event.relatedTarget as Node | null;
+            if (!menu.current?.contains(to) && to !== button.current) closeSoon();
+          }}
+          className="z-[60] flex min-w-32 flex-col gap-0.5 rounded-control-lg border border-line bg-surface p-1 text-ink shadow-lift animate-select-in">
+          {available.map(entry => (
+            <button key={`${entry.kind}:${entry.swap.id}`} type="button" role="menuitem" disabled={busy}
+              aria-label={`Pedir troca de ${swapKindNames[entry.kind]} com ${name}`}
+              className="flex items-center gap-2 rounded-control-sm px-2.5 py-1.5 text-left text-body font-medium hover:bg-raised focus-visible:bg-raised focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => { close(); sendSwap(run, 'requestSwap', entry); }}>
+              <SwapIcon />
+              <span className="capitalize">{swapKindNames[entry.kind]}</span>
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 

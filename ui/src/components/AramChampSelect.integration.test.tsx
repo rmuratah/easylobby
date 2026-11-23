@@ -58,7 +58,8 @@ it('mostra o campeão, os rerolls, o banco, o time e as runas, sem grade', () =>
   expect(bench().getByRole('button', { name: "Pegar Kai'Sa do banco" })).toHaveTextContent('prioridade');
   const team = within(panel().getByRole('region', { name: 'Seu time' }));
   expect(team.getByText('Amigo#BR1').closest('li')).toHaveTextContent('Wukong');
-  expect(team.getByRole('button', { name: 'Pedir troca de campeão com Amigo#BR1' })).toBeEnabled();
+  fireEvent.mouseEnter(team.getByRole('button', { name: 'Trocar com Amigo#BR1' }));
+  expect(within(screen.getByRole('menu', { name: 'Trocas com Amigo#BR1' })).getByRole('menuitem', { name: 'Pedir troca de campeão com Amigo#BR1' })).toBeEnabled();
   expect(panel().queryByRole('list', { name: 'Grade de campeões' })).not.toBeInTheDocument();
   expect(panel().queryByRole('region', { name: 'Time adversário' })).not.toBeInTheDocument();
   expect(panel().getByRole('region', { name: 'Suas runas' })).toBeInTheDocument();
