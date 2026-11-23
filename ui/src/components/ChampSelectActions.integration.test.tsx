@@ -69,7 +69,7 @@ it('na vez do ban, marca na grade e confirma pelo botão', async () => {
     actions: draftChampSelect.actions.map(a => a.id === 1 ? { ...banAction, championId: 20, completed: true, isInProgress: false } : a),
   });
   expect(panel().queryByRole('button', { name: /Banir/ })).not.toBeInTheDocument();
-  expect(panel().getByText(/Ainda não é sua vez/)).toBeVisible();
+  expect(panel().queryByText(/Ainda não é sua vez/)).not.toBeInTheDocument();
 });
 
 it('na vez do pick escolhe, e mostra o erro da LCU sem travar', async () => {
@@ -90,7 +90,7 @@ it('fora da vez marca a intenção do pick, sem botão de confirmar', () => {
   fireEvent.click(tile('Nunu e Willump'));
   expect(last().command).toEqual({ type: 'hoverChampion', actionId: 4, championId: 20 });
   expect(panel().queryByRole('button', { name: /Escolher/ })).not.toBeInTheDocument();
-  expect(panel().getByText(/Intenção: Nunu e Willump/)).toBeVisible();
+  expect(panel().queryByText(/Intenção:|Ainda não é sua vez/)).not.toBeInTheDocument();
 });
 
 it('não deixa confirmar campeão que ficou indisponível', () => {

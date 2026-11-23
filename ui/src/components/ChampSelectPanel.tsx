@@ -392,16 +392,8 @@ function ActionBar({ mine, chosen, chosenAvailable, catalog, busy, onConfirm, fe
   const message = shown && <p role={shown.status === 'error' ? 'alert' : 'status'}
     className={shown.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{shown.message}</p>;
   if (!mine) return message ?? null;
-  if (!mine.turn) {
-    return (
-      <div className="flex flex-col items-center gap-1 text-center">
-        <p className="text-body text-muted">
-          {chosen ? `Intenção: ${championName(catalog, chosen)}. ` : ''}Ainda não é sua vez; o campeão marcado aparece para o time.
-        </p>
-        {message}
-      </div>
-    );
-  }
+  // Fora da vez não há aviso (#645): o campeão marcado já aparece no card do time.
+  if (!mine.turn) return message ?? null;
   const ban = mine.action.type === 'ban';
   return (
     <div className="flex flex-col items-center gap-1 text-center">
