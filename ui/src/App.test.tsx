@@ -174,6 +174,21 @@ describe('telas confirmadas pelo agente', () => {
     expect(screen.getByText('Carregando a seleção de campeões…')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
   });
+  it('mantém o lobby de tamanho fixo, sem rolagem, com a partida encontrada (#650)', () => {
+    snapshot({ lobby: testLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
+    const { rerender } = render(<App />);
+    expect(screen.getByRole('main')).toHaveClass('is-fixed');
+    snapshot({ lobby: testLobby, gameflowPhase: 'ReadyCheck', matchmaking: { ...testMatchmaking, searchState: 'Found' },
+      readyCheck: { state: 'InProgress', playerResponse: 'None', timer: 2, duration: 12 } });
+    rerender(<App />);
+    expect(screen.getByRole('main')).toHaveClass('is-fixed');
+    const card = screen.getByRole('region', { name: 'Partida encontrada' });
+    // Botões na linha do título: o card cabe embaixo do lobby numa janela de 960x640.
+    expect(within(card).getByRole('heading', { name: 'Partida encontrada' }).parentElement!.parentElement)
+      .toContainElement(within(card).getByRole('button', { name: 'Aceitar' }));
+    // O aviso das ações bloqueadas não fica atrás do card.
+    expect(screen.getByText(/só estão disponíveis fora da busca/)).toHaveClass('sr-only');
+  });
 });
 
 describe('vez do jogador na seleção (#431)', () => {

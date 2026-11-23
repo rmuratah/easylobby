@@ -517,7 +517,8 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
         </div>
       ) : null}
       {/* O aviso padrão de Trocar modo fica só para o leitor de tela: a tela do lobby tem altura fixa (#603). */}
-      <p id={descriptionId} className={restriction === CHANGE_MODE_HINT ? 'sr-only' : 'text-center text-caption text-muted'}>{restriction}</p>
+      {/* Com a partida encontrada (#650), o card dela já diz o que fazer: o aviso fica só para o leitor de tela e não fica atrás do card. */}
+      <p id={descriptionId} className={restriction === CHANGE_MODE_HINT || state.readyCheck ? 'sr-only' : 'text-center text-caption text-muted'}>{restriction}</p>
       {feedbackLine}
     </section>
   );

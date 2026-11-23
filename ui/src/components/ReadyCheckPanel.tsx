@@ -6,8 +6,13 @@ import type { ReadyCheck } from '../bindings/ReadyCheck';
 import { readyCheckLabels, responseLabels } from '../agent/readyCheck';
 import { Button } from './base';
 
-type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
-export function ReadyCheckPanel({ connection, send }: Props) {
+type Props = {
+  connection: ConnectionSnapshot;
+  send: AgentClient['send'];
+  /** No lobby de tamanho fixo (#650): botões na mesma linha do título, para o card caber embaixo do lobby sem rolagem. */
+  compact?: boolean;
+};
+export function ReadyCheckPanel({ connection, send, compact = false }: Props) {
   // O relógio fica aqui para sobreviver às remontagens de ReadyCheckActions (ex.: ao aceitar).
   const [clock] = useState(createClock);
   const state = connection.state;
@@ -15,7 +20,7 @@ export function ReadyCheckPanel({ connection, send }: Props) {
   const check = state.readyCheck;
   // Cada contexto tem seu próprio ciclo de vida; promessas antigas não atualizam o novo painel.
   return <ReadyCheckActions key={`${state.lcu.session}:${state.summoner?.puuid}:${state.gameflowPhase}:${check.state}:${check.playerResponse}`}
-    check={check} active={state.gameflowPhase === 'ReadyCheck'} send={send} clock={clock} />;
+    check={check} active={state.gameflowPhase === 'ReadyCheck'} send={send} clock={clock} compact={compact} />;
 }
 
 // Contador e barra usam o mesmo relógio, ancorado no timer da LCU. O timer chega de segundo
@@ -75,7 +80,7 @@ function TimeBar({ check, clock }: { check: ReadyCheck; clock: Clock }) {
   </div>;
 }
 
-function ReadyCheckActions({ check, active, send, clock }: { check: ReadyCheck; active: boolean; send: AgentClient['send']; clock: Clock }) {
+function ReadyCheckActions({ check, active, send, clock, compact }: { check: ReadyCheck; active: boolean; send: AgentClient['send']; clock: Clock; compact: boolean }) {
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState(false);
   const [pending, setPending] = useState(false);
@@ -127,25 +132,31 @@ function ReadyCheckActions({ check, active, send, clock }: { check: ReadyCheck; 
     return () => window.removeEventListener('keydown', onKey);
   }, [canAnswer]);
   const answering = active && check.state === 'InProgress';
+  const actions = <div className="flex flex-wrap items-center gap-3">
+    <Button variant="primary" size="lg" className="min-w-[10rem]" disabled={!canAnswer || pending}
+      aria-keyshortcuts="Enter" onMouseEnter={hoverSound} onClick={() => { void answer('acceptReadyCheck'); }}>Aceitar</Button>
+    <Button variant="secondary" size="lg" disabled={!canAnswer || pending} onMouseEnter={hoverSound}
+      onClick={() => { void answer('declineReadyCheck'); }}>Recusar</Button>
+    {canAnswer && <span className="text-caption text-muted">Enter aceita</span>}
+  </div>;
   return <section aria-label="Partida encontrada"
-    className="sticky bottom-0 z-10 flex w-full max-w-[56rem] flex-col gap-4 rounded-card border-2 border-accent bg-accent-soft p-5 text-ink shadow-[0_-8px_24px_-12px_var(--el-overlay)]">
+    className={`sticky bottom-0 z-10 flex w-full max-w-[56rem] flex-col rounded-card border-2 border-accent bg-accent-soft text-ink shadow-[0_-8px_24px_-12px_var(--el-overlay)] ${compact ? 'shrink-0 gap-3 self-center px-5 py-4' : 'gap-4 p-5'}`}>
     <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <h2 className="text-title font-semibold tracking-[-0.015em] text-accent-ink">Partida encontrada</h2>
-        <p role={check.state === 'Error' ? 'alert' : 'status'} className="text-body">Estado: {readyCheckLabels[check.state]}</p>
-        <p className="text-body text-muted">Resposta confirmada: <strong className="font-semibold text-ink">{responseLabels[check.playerResponse]}</strong></p>
+        {/* Compacto, estado e resposta dividem uma linha. */}
+        <div className={compact ? 'flex flex-wrap gap-x-4' : 'contents'}>
+          <p role={check.state === 'Error' ? 'alert' : 'status'} className="text-body">Estado: {readyCheckLabels[check.state]}</p>
+          <p className="text-body text-muted">Resposta confirmada: <strong className="font-semibold text-ink">{responseLabels[check.playerResponse]}</strong></p>
+        </div>
       </div>
+      {compact && actions}
       {answering && <p className="flex flex-col items-center text-caption text-muted">Tempo para responder
         <span className="text-[2.5rem] font-semibold leading-none tabular-nums text-ink"><Countdown check={check} clock={clock} /></span></p>}
     </div>
     {answering && <TimeBar check={check} clock={clock} />}
-    <div className="flex flex-wrap items-center gap-3">
-      <Button variant="primary" size="lg" className="min-w-[10rem]" disabled={!canAnswer || pending}
-        aria-keyshortcuts="Enter" onMouseEnter={hoverSound} onClick={() => { void answer('acceptReadyCheck'); }}>Aceitar</Button>
-      <Button variant="secondary" size="lg" disabled={!canAnswer || pending} onMouseEnter={hoverSound}
-        onClick={() => { void answer('declineReadyCheck'); }}>Recusar</Button>
-      {canAnswer && <span className="text-caption text-muted">Enter aceita</span>}
-    </div>
-    {feedback && <p role={error ? 'alert' : 'status'} className={error ? 'text-body text-danger' : 'text-body text-muted'}>{feedback}</p>}
+    {!compact && actions}
+    {/* Compacto, só o erro aparece: "Resposta confirmada" já mostra o envio, e o card não cresce por cima do lobby. */}
+    {feedback && <p role={error ? 'alert' : 'status'} className={error ? 'text-body text-danger' : compact ? 'sr-only' : 'text-body text-muted'}>{feedback}</p>}
   </section>;
 }

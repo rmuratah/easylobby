@@ -137,7 +137,8 @@ export default function App() {
   const stage = !lobbyState?.custom;
   // Na tela do lobby, o botão do alto busca a partida (#600); nas outras páginas, continua levando ao lobby.
   // Lobby de altura fixa (#603): cabe na janela, sem rolagem; só o chat rola por dentro.
-  const fixedLobby = ready && activePage === 'flow' && lobbyMain && stage && !changingMode;
+  // Também com a partida encontrada (#650): o card dela fica no lugar da faixa de baixo, sem a página rolar.
+  const fixedLobby = ready && activePage === 'flow' && (lobbyMain || found) && stage && !changingMode;
   // Seleção de campeões de altura e largura fixas (#623): cabe na janela, sem rolagem; só a grade e o chat rolam por dentro.
   const fixedChampSelect = ready && activePage === 'flow' && screen === 'champSelect';
   const fixedScreen = fixedLobby || fixedChampSelect;
@@ -219,7 +220,7 @@ export default function App() {
             {/* Posições estáveis: navegar ou mudar de tela não recria comandos em andamento. */}
             {/* Tela unificada (#129): o lobby fica sempre à vista; a busca e a partida encontrada aparecem embaixo dele. */}
             <div hidden={!playable || (activePage !== 'flow' && activePage !== 'home')} className={homeLayout ? 'home-primary'
-              : lobbyMain && !changingMode && stage ? 'flex min-h-0 flex-1 flex-col gap-5'
+              : (lobbyMain || found) && !changingMode && stage ? 'flex min-h-0 flex-1 flex-col gap-5'
               : lobbyMain && !changingMode ? 'grid min-h-0 flex-1 items-stretch gap-5 @min-[44rem]:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]'
               : 'flex flex-1 flex-col gap-4'}>
               {homeReserved && <article aria-label="Área reservada para atualização"
@@ -259,12 +260,12 @@ export default function App() {
             </div>
             {/* A partida encontrada fica no lugar da faixa de busca, logo abaixo do lobby, e continua visível nas outras páginas. */}
             {found && !connection.state?.readyCheck && <section role="alert"
-              className="sticky bottom-0 z-10 flex max-w-[56rem] flex-col gap-1 rounded-card border-2 border-accent bg-accent-soft p-5 text-ink">
+              className={`sticky bottom-0 z-10 flex w-full max-w-[56rem] flex-col gap-1 rounded-card border-2 border-accent bg-accent-soft p-5 text-ink ${fixedLobby ? 'shrink-0 self-center' : ''}`}>
               <h2 className="text-title font-semibold tracking-[-0.015em] text-accent-ink">Partida encontrada</h2>
               <p className="text-body">Aguardando os dados de confirmação do agente. Use “Abrir client oficial”, no alto da janela, se precisar.</p>
             </section>}
             {found && <FeatureGate connection={connection} send={connection.send} feature="readyCheck">
-              <ReadyCheckPanel connection={connection} send={connection.send} />
+              <ReadyCheckPanel connection={connection} send={connection.send} compact={fixedLobby} />
             </FeatureGate>}
             {/* Montada fora da tela também, para a busca e as ações em andamento sobreviverem à navegação. */}
             <div hidden={activePage !== 'flow' || screen !== 'champSelect'} className="flex min-h-0 flex-1 flex-col">
