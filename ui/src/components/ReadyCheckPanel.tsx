@@ -1,10 +1,34 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { sound } from '../agent/sound';
 import { hoverSound } from '../agent/buttonSounds';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import type { ReadyCheck } from '../bindings/ReadyCheck';
 import { readyCheckLabels, responseLabels } from '../agent/readyCheck';
 import { Button } from './base';
+
+// A partida encontrada abre num pop-up pequeno no meio da janela, por cima de tudo (barra superior e aba de
+// amigos inclusive), com o fundo escurecido em volta (#649). Clicar fora não fecha: é preciso responder.
+function MatchFoundOverlay({ children }: { children: ReactNode }) {
+  return createPortal(
+    <div data-testid="match-found-overlay"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-overlay p-4 animate-fade-up">
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+const cardClass = 'flex w-full max-w-sm flex-col items-center gap-4 rounded-card border-2 border-accent bg-accent-soft p-6 text-center text-ink shadow-lift';
+
+export function MatchFoundPending() {
+  return <MatchFoundOverlay>
+    <section role="alert" className={cardClass}>
+      <h2 className="text-title font-semibold tracking-[-0.015em] text-accent-ink">Partida encontrada</h2>
+      <p className="text-body">Aguardando os dados de confirmação do agente. Use “Abrir client oficial”, no alto da janela, se precisar.</p>
+    </section>
+  </MatchFoundOverlay>;
+}
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 export function ReadyCheckPanel({ connection, send }: Props) {
@@ -127,25 +151,24 @@ function ReadyCheckActions({ check, active, send, clock }: { check: ReadyCheck; 
     return () => window.removeEventListener('keydown', onKey);
   }, [canAnswer]);
   const answering = active && check.state === 'InProgress';
-  return <section aria-label="Partida encontrada"
-    className="sticky bottom-0 z-10 flex w-full max-w-[56rem] flex-col gap-4 rounded-card border-2 border-accent bg-accent-soft p-5 text-ink shadow-[0_-8px_24px_-12px_var(--el-overlay)]">
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <h2 className="text-title font-semibold tracking-[-0.015em] text-accent-ink">Partida encontrada</h2>
-        <p role={check.state === 'Error' ? 'alert' : 'status'} className="text-body">Estado: {readyCheckLabels[check.state]}</p>
-        <p className="text-body text-muted">Resposta confirmada: <strong className="font-semibold text-ink">{responseLabels[check.playerResponse]}</strong></p>
+  return <MatchFoundOverlay>
+    <section aria-label="Partida encontrada" className={cardClass}>
+      <h2 className="text-title font-semibold tracking-[-0.015em] text-accent-ink">Partida encontrada</h2>
+      {answering && <p className="flex flex-col items-center gap-1 text-caption text-muted">Tempo para responder
+        <span className="text-[2.75rem] font-semibold leading-none tabular-nums text-ink"><Countdown check={check} clock={clock} /></span></p>}
+      {answering && <TimeBar check={check} clock={clock} />}
+      <div className="grid w-full grid-cols-2 gap-3">
+        <Button variant="primary" size="lg" disabled={!canAnswer || pending}
+          aria-keyshortcuts="Enter" onMouseEnter={hoverSound} onClick={() => { void answer('acceptReadyCheck'); }}>Aceitar</Button>
+        <Button variant="secondary" size="lg" disabled={!canAnswer || pending} onMouseEnter={hoverSound}
+          onClick={() => { void answer('declineReadyCheck'); }}>Recusar</Button>
       </div>
-      {answering && <p className="flex flex-col items-center text-caption text-muted">Tempo para responder
-        <span className="text-[2.5rem] font-semibold leading-none tabular-nums text-ink"><Countdown check={check} clock={clock} /></span></p>}
-    </div>
-    {answering && <TimeBar check={check} clock={clock} />}
-    <div className="flex flex-wrap items-center gap-3">
-      <Button variant="primary" size="lg" className="min-w-[10rem]" disabled={!canAnswer || pending}
-        aria-keyshortcuts="Enter" onMouseEnter={hoverSound} onClick={() => { void answer('acceptReadyCheck'); }}>Aceitar</Button>
-      <Button variant="secondary" size="lg" disabled={!canAnswer || pending} onMouseEnter={hoverSound}
-        onClick={() => { void answer('declineReadyCheck'); }}>Recusar</Button>
-      {canAnswer && <span className="text-caption text-muted">Enter aceita</span>}
-    </div>
-    {feedback && <p role={error ? 'alert' : 'status'} className={error ? 'text-body text-danger' : 'text-body text-muted'}>{feedback}</p>}
-  </section>;
+      <div className="flex flex-col gap-0.5 text-caption text-muted">
+        <p role={check.state === 'Error' ? 'alert' : 'status'}>Estado: {readyCheckLabels[check.state]}</p>
+        <p>Resposta confirmada: <strong className="font-semibold text-ink">{responseLabels[check.playerResponse]}</strong></p>
+        {canAnswer && <p>Enter aceita</p>}
+      </div>
+      {feedback && <p role={error ? 'alert' : 'status'} className={error ? 'text-body text-danger' : 'text-body text-muted'}>{feedback}</p>}
+    </section>
+  </MatchFoundOverlay>;
 }

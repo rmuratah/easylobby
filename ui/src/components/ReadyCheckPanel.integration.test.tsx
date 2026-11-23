@@ -202,11 +202,14 @@ it('Enter aceita a partida uma vez, mas não quando o foco está num campo', () 
   expect(request().command.type).toBe('acceptReadyCheck');
 });
 
-it('mostra a partida encontrada embaixo do lobby, na mesma tela', () => {
+it('mostra a partida encontrada num pop-up por cima do lobby, com o fundo escurecido (#649)', () => {
   render(<App />); open();
   const lobby = screen.getByRole('region', { name: 'Lobby' });
   const found = screen.getByRole('region', { name: 'Partida encontrada' });
   expect(lobby).toBeVisible();
-  expect(lobby.compareDocumentPosition(found) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  const overlay = screen.getByTestId('match-found-overlay');
+  expect(overlay).toContainElement(found);
+  expect(overlay.parentElement).toBe(document.body);
+  expect(overlay).toHaveClass('fixed', 'inset-0', 'bg-overlay');
   expect(screen.queryByRole('region', { name: 'Busca de partida' })).not.toBeInTheDocument();
 });
