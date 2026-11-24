@@ -72,7 +72,7 @@ const WAMP_EVENT: u64 = 8;
 /// invocador logado e os ranks dele (#171), e os pedidos do LoL para
 /// mostrar a UI oficial (#188). Os da LCU são os mesmos que o gravador de
 /// fixtures (#5) grava.
-pub const EASYLOBBY_EVENT_PREFIXES: [&str; 18] = [
+pub const EASYLOBBY_EVENT_PREFIXES: [&str; 19] = [
     "/lol-gameflow/v1/",
     "/lol-lobby/v2/",
     "/lol-matchmaking/v1/",
@@ -97,6 +97,9 @@ pub const EASYLOBBY_EVENT_PREFIXES: [&str; 18] = [
     crate::end_of_game::EOG_STATS_PATH,
     // Vanguard conectado ou não (#579).
     crate::vanguard::SESSION_PATH,
+    // Sinal do vigia do Vanguard (#661). Só o URI importa: o conteúdo do
+    // ajuste não é usado.
+    crate::vanguard::WATCHER_SIGNAL_PATH,
     // Patch do LoL em andamento (#575). A trava da fila vem pelo gameflow.
     crate::lol_update::PATCH_STATE_PATH,
 ];
@@ -537,11 +540,15 @@ mod tests {
             "/lol-pre-end-of-game/v1/currentSequenceEvent",
             "/lol-honor-v2/v1/ballot",
             "/lol-end-of-game/v1/eog-stats-block",
+            "/lol-vanguard/v1/session",
+            "/lol-settings/v1/local/lol-user-experience",
         ] {
             assert!(filter.matches(uri), "{uri}");
         }
         for uri in [
             "/lol-chat/v1/settings",
+            // O gêmeo `/v2/` do sinal do vigia do Vanguard não entra (#661).
+            "/lol-settings/v2/local/lol-user-experience",
             "/lol-store/v1/catalog",
             "/lol-summoner/v1/summoners/1",
             "/riotclient/ux-state",

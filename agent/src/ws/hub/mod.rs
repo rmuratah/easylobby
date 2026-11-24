@@ -858,6 +858,11 @@ impl Hub {
             crate::vanguard::SESSION_PATH => {
                 self.set_vanguard(crate::vanguard::Vanguard::from_json(&event.data));
             }
+            // O vigia do Vanguard deu sinal (#661).
+            crate::vanguard::WATCHER_SIGNAL_PATH if deleted => {}
+            crate::vanguard::WATCHER_SIGNAL_PATH => {
+                self.note_vanguard_watcher(tokio::time::Instant::now());
+            }
             // Saldo do cabeçalho (#370). O item da Essência Laranja some
             // quando o saldo zera.
             crate::wallet::ORANGE_ESSENCE_PATH if deleted => {

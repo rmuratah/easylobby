@@ -2,6 +2,9 @@
 //!
 //! O agente lê o estado ao conectar e no login, e aplica os eventos do WAMP
 //! no mesmo URI. Com o LoL fechado, o estado volta a `null`.
+//!
+//! O sinal do vigia do Vanguard (#661) também chega aqui, e é ele que libera
+//! o primeiro `kill-ux` (veja `ux_guard`).
 
 use std::time::Duration;
 
@@ -59,12 +62,30 @@ impl Hub {
             let was_connected = shared.state.vanguard.as_ref().is_some_and(|v| v.connected);
             if !connected {
                 shared.ux_guard.vanguard_ready_at = None;
+                // O vigia vai ter de se ligar de novo (#661).
+                shared.ux_guard.forget_watcher();
             } else if !was_connected {
                 shared.ux_guard.vanguard_ready_at = Some(tokio::time::Instant::now());
             }
             shared.state.vanguard = vanguard.clone();
             Some(ServerMessage::Vanguard { vanguard })
         });
+    }
+
+    /// O vigia do Vanguard regravou o ajuste dele (#661); veja
+    /// [`vanguard::WATCHER_SIGNAL_PATH`]. No sinal que o confirma, o primeiro
+    /// `kill-ux` fica liberado.
+    pub(super) fn note_vanguard_watcher(&self, now: tokio::time::Instant) {
+        let mut shared = self.lock();
+        if !shared.ux_guard.note_watcher(now) {
+            return;
+        }
+        if let Some(ready_at) = shared.ux_guard.vanguard_ready_at {
+            tracing::info!(
+                "vigia do Vanguard ligado, {} s depois de o Vanguard conectar",
+                now.saturating_duration_since(ready_at).as_secs()
+            );
+        }
     }
 
     /// Fecha o LoL e abre de novo (#579). Com o Vanguard caído no meio da

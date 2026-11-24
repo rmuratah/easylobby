@@ -31,6 +31,11 @@
 //! espera a guarda fica desligada, senão o próprio LoL abrindo a janela
 //! (`ShowMain`) armaria um `kill-ux` na hora.
 //!
+//! Esse primeiro `kill-ux` também espera o Vanguard conectar (#579) e o
+//! vigia dele se ligar à LCU (#661): com a UI fechada antes disso, o Vanguard
+//! cai com o código 7003 cerca de 146 s depois de conectar, e a partida
+//! seguinte vira esquiva. Veja [`vanguard_allows_kill`].
+//!
 //! Enquanto a UI não pode ser fechada (a espera do primeiro `kill-ux` e cada
 //! sequência de fechar de novo), a janela dela fica escondida pelo
 //! [`UxHider`] (#286), para o jogador não ver o client oficial. Se o
@@ -86,27 +91,49 @@ pub(super) const SPARE_BEFORE_GAME: Duration = Duration::from_secs(15);
 /// Vanguard levou 27 s para conectar, fechar a UI 23 s depois fez o Vanguard
 /// cair com o código 7003 dois minutos mais tarde, e a partida seguinte virou
 /// esquiva. Num PC em que a folga foi de 29 s, nunca caiu.
+///
+/// A folga sozinha não basta (#661): ela vale com o vigia do Vanguard já
+/// ligado. Sem sinal dele, a espera é [`WATCHER_MISSING_FACTOR`].
 const VANGUARD_SPARE_FACTOR: u32 = 2;
+
+/// Sem sinal do vigia do Vanguard, quanto o primeiro `kill-ux` espera desde
+/// que o Vanguard conectou (#661), em múltiplos de `kill_ux_delay` (180 s
+/// com o padrão). Sem o vigia, o Vanguard cai de 146 a 150 s depois de
+/// conectar: se passou disso conectado, o vigia se ligou e foi o sinal que
+/// não chegou.
+const WATCHER_MISSING_FACTOR: u32 = 6;
+
+/// Intervalo mínimo entre o primeiro sinal do vigia do Vanguard e o sinal
+/// que o confirma (#661). O vigia dá sinal a cada 30 s; uma gravação solta
+/// do ajuste, ou duas seguidas, não contam como ele.
+const WATCHER_MIN_GAP: Duration = Duration::from_secs(15);
 
 /// Quanto o primeiro `kill-ux` espera, desde a conexão, por uma resposta do
 /// Vanguard, em múltiplos de `kill_ux_delay` (120 s com o padrão). Sem o
 /// endpoint (versão antiga do LoL, mock), fecha depois disso.
 const VANGUARD_UNKNOWN_FACTOR: u32 = 4;
 
-/// Se o Vanguard já deixa o primeiro `kill-ux` sair (#579): conectado há
-/// pelo menos `2 × delay`; sem resposta da LCU, depois de `4 × delay` desde a
-/// conexão. Desconectado, espera: fechar a UI não ajuda, e o aviso da UI pede
-/// para reabrir o LoL.
+/// Se o Vanguard já deixa o primeiro `kill-ux` sair (#579, #661): conectado
+/// há pelo menos `2 × delay` e com o vigia dele ligado (`watcher`); sem sinal
+/// do vigia, conectado há pelo menos `6 × delay`; sem resposta da LCU, depois
+/// de `4 × delay` desde a conexão. Desconectado, espera: fechar a UI não
+/// ajuda, e o aviso da UI pede para reabrir o LoL.
 pub(super) fn vanguard_allows_kill(
     vanguard: Option<&crate::vanguard::Vanguard>,
     ready_at: Option<Instant>,
+    watcher: bool,
     connected_at: Instant,
     now: Instant,
     delay: Duration,
 ) -> bool {
     match vanguard {
         Some(v) if v.connected => {
-            ready_at.is_none_or(|at| now >= at + delay * VANGUARD_SPARE_FACTOR)
+            let factor = if watcher {
+                VANGUARD_SPARE_FACTOR
+            } else {
+                WATCHER_MISSING_FACTOR
+            };
+            ready_at.is_none_or(|at| now >= at + delay * factor)
         }
         Some(_) => false,
         None => now >= connected_at + delay * VANGUARD_UNKNOWN_FACTOR,
@@ -133,6 +160,39 @@ pub(super) struct UxGuard {
     /// Quando o Vanguard passou a `CONNECTED` nesta conexão (#579), ou
     /// `None` com ele desconectado ou sem resposta.
     pub(super) vanguard_ready_at: Option<Instant>,
+    /// Primeiro sinal do vigia do Vanguard desde que o Vanguard conectou
+    /// (#661). Veja [`UxGuard::note_watcher`].
+    watcher_first_at: Option<Instant>,
+    /// O vigia do Vanguard deu sinal de novo: está ligado à LCU, e fechar a
+    /// UI oficial não derruba mais o Vanguard (#661).
+    pub(super) watcher_confirmed: bool,
+}
+
+impl UxGuard {
+    /// Anota um sinal do vigia do Vanguard
+    /// ([`crate::vanguard::WATCHER_SIGNAL_PATH`], #661). Devolve `true` no
+    /// sinal que confirma o vigia: o primeiro que chega pelo menos
+    /// [`WATCHER_MIN_GAP`] depois do primeiro de todos. Sem o Vanguard
+    /// conectado o sinal não conta, porque o LoL também grava o ajuste ao
+    /// subir.
+    pub(super) fn note_watcher(&mut self, now: Instant) -> bool {
+        if self.vanguard_ready_at.is_none() || self.watcher_confirmed {
+            return false;
+        }
+        match self.watcher_first_at {
+            None => self.watcher_first_at = Some(now),
+            Some(first) if now >= first + WATCHER_MIN_GAP => self.watcher_confirmed = true,
+            Some(_) => {}
+        }
+        self.watcher_confirmed
+    }
+
+    /// O Vanguard deixou de estar conectado: o vigia vai ter de se ligar de
+    /// novo, e os sinais dele contam do zero.
+    pub(super) fn forget_watcher(&mut self) {
+        self.watcher_first_at = None;
+        self.watcher_confirmed = false;
+    }
 }
 
 /// Fases em que o LoL costuma reabrir a UI oficial ao entrar.
@@ -240,6 +300,18 @@ fn ux_context(shared: &super::Shared) -> String {
                 cs.timer.phase
             )
         }
+    }
+}
+
+/// Descreve, para o log do primeiro `kill-ux`, o que o Vanguard dizia quando
+/// ele saiu: mostra se a UI fechou com o vigia ligado ou pela espera máxima
+/// (#661).
+fn vanguard_context(shared: &super::Shared) -> &'static str {
+    match shared.state.vanguard.as_ref() {
+        Some(v) if !v.connected => "Vanguard desconectado",
+        Some(_) if shared.ux_guard.watcher_confirmed => "vigia do Vanguard ligado",
+        Some(_) => "sem sinal do vigia do Vanguard",
+        None => "sem resposta do Vanguard",
     }
 }
 
@@ -360,13 +432,14 @@ impl Hub {
             }
             tokio::time::sleep(delay).await;
             loop {
-                match hub.take_scheduled_kill(session, generation, connected_at, delay) {
+                let now = Instant::now();
+                match hub.take_scheduled_kill(session, generation, connected_at, delay, now) {
                     ScheduledKill::Cancelled => break,
                     ScheduledKill::Wait => tokio::time::sleep(KILL_UX_RETRY).await,
                     ScheduledKill::Kill => {
                         // Se falhar, a guarda (agora ligada) fecha na próxima
                         // vez que o LoL pedir a janela.
-                        tracing::info!("primeiro kill-ux ({})", hub.ux_context_now());
+                        tracing::info!("primeiro kill-ux ({})", hub.first_kill_context_now());
                         if let Err(error) = ux::kill_ux(&client).await {
                             tracing::warn!("primeiro kill-ux falhou: {error}");
                         }
@@ -410,14 +483,15 @@ impl Hub {
         }
     }
 
-    /// Decide o fechamento adiado. Em [`ScheduledKill::Kill`], já liga a
-    /// guarda.
+    /// Decide o fechamento adiado, no instante `now`. Em
+    /// [`ScheduledKill::Kill`], já liga a guarda.
     fn take_scheduled_kill(
         &self,
         session: u64,
         generation: u64,
         connected_at: Instant,
         delay: Duration,
+        now: Instant,
     ) -> ScheduledKill {
         let mut shared = self.lock();
         if shared.session != session || shared.ux_guard.generation != generation {
@@ -426,12 +500,14 @@ impl Hub {
         if !may_kill(&shared) {
             return ScheduledKill::Wait;
         }
-        // O Vanguard derruba a sessão (7003) se a UI some cedo demais (#579).
+        // O Vanguard derruba a sessão (7003) se a UI some antes de o vigia
+        // dele se ligar (#579, #661).
         if !vanguard_allows_kill(
             shared.state.vanguard.as_ref(),
             shared.ux_guard.vanguard_ready_at,
+            shared.ux_guard.watcher_confirmed,
             connected_at,
-            Instant::now(),
+            now,
             delay,
         ) {
             return ScheduledKill::Wait;
@@ -445,6 +521,13 @@ impl Hub {
     /// [`ux_context`] do estado atual.
     fn ux_context_now(&self) -> String {
         ux_context(&self.lock())
+    }
+
+    /// [`ux_context`] e [`vanguard_context`] do estado atual, para o log do
+    /// primeiro `kill-ux`.
+    fn first_kill_context_now(&self) -> String {
+        let shared = self.lock();
+        format!("{}, {}", ux_context(&shared), vanguard_context(&shared))
     }
 
     /// Se a sequência `generation` da conexão `session` ainda vale.
@@ -506,6 +589,7 @@ mod tests {
     fn primeiro_kill_ux_espera_o_vanguard() {
         use crate::vanguard::Vanguard;
         let t0 = Instant::now();
+        let secs = Duration::from_secs;
         let ok = Vanguard {
             connected: true,
             state: "CONNECTED".into(),
@@ -517,45 +601,148 @@ mod tests {
             status: None,
         };
         let delay = crate::connection::DEFAULT_KILL_UX_DELAY;
-        let ready = t0 + Duration::from_secs(27);
-        // Conectado há pouco: espera a folga.
-        assert!(!vanguard_allows_kill(
-            Some(&ok),
-            Some(ready),
-            t0,
-            ready + Duration::from_secs(23),
-            delay
-        ));
-        assert!(vanguard_allows_kill(
-            Some(&ok),
-            Some(ready),
-            t0,
-            ready + Duration::from_secs(60),
-            delay
-        ));
+        let ready = t0 + secs(27);
+        let allows = |vanguard: Option<&Vanguard>, ready_at, watcher, now| {
+            vanguard_allows_kill(vanguard, ready_at, watcher, t0, now, delay)
+        };
+        // Com o vigia ligado e o Vanguard conectado há pouco: espera a folga.
+        assert!(!allows(Some(&ok), Some(ready), true, ready + secs(23)));
+        assert!(allows(Some(&ok), Some(ready), true, ready + secs(60)));
+        // Sem sinal do vigia (#661) a folga não basta: espera passar o prazo
+        // em que o Vanguard cai sem ele (até 150 s depois de conectar).
+        assert!(!allows(Some(&ok), Some(ready), false, ready + secs(60)));
+        assert!(!allows(Some(&ok), Some(ready), false, ready + secs(151)));
+        assert!(allows(Some(&ok), Some(ready), false, ready + secs(180)));
         // Desconectado: não fecha nunca.
-        assert!(!vanguard_allows_kill(
-            Some(&off),
-            None,
-            t0,
-            t0 + Duration::from_secs(600),
-            delay
-        ));
+        assert!(!allows(Some(&off), None, true, t0 + secs(600)));
         // Sem resposta da LCU: fecha depois da espera máxima.
-        assert!(!vanguard_allows_kill(
-            None,
-            None,
-            t0,
-            t0 + Duration::from_secs(30),
-            delay
-        ));
-        assert!(vanguard_allows_kill(
-            None,
-            None,
-            t0,
-            t0 + Duration::from_secs(120),
-            delay
-        ));
+        assert!(!allows(None, None, false, t0 + secs(30)));
+        assert!(allows(None, None, false, t0 + secs(120)));
+    }
+
+    #[test]
+    fn vigia_do_vanguard_precisa_de_dois_sinais() {
+        let t0 = Instant::now();
+        let secs = Duration::from_secs;
+        let mut guard = UxGuard::default();
+        // Sem o Vanguard conectado, é o LoL gravando o ajuste ao subir.
+        assert!(!guard.note_watcher(t0));
+        assert!(!guard.note_watcher(t0 + secs(30)));
+        assert!(!guard.watcher_confirmed);
+
+        guard.vanguard_ready_at = Some(t0 + secs(40));
+        // O primeiro sinal não basta, nem outro logo em seguida.
+        assert!(!guard.note_watcher(t0 + secs(41)));
+        assert!(!guard.note_watcher(t0 + secs(42)));
+        assert!(!guard.watcher_confirmed);
+        // O sinal seguinte do vigia, 30 s depois do primeiro, confirma.
+        assert!(guard.note_watcher(t0 + secs(71)));
+        assert!(guard.watcher_confirmed);
+        // Confirmado, os outros sinais não mudam nada.
+        assert!(!guard.note_watcher(t0 + secs(101)));
+        assert!(guard.watcher_confirmed);
+
+        // O Vanguard caiu: os sinais contam do zero.
+        guard.forget_watcher();
+        assert!(!guard.watcher_confirmed);
+        assert!(!guard.note_watcher(t0 + secs(131)));
+        assert!(guard.note_watcher(t0 + secs(161)));
+    }
+
+    fn vanguard_event(state: &str) -> ConnectionEvent {
+        event(
+            crate::vanguard::SESSION_PATH,
+            EventType::Update,
+            json!({"state": state, "vanguardStatus": 0}),
+        )
+    }
+
+    #[tokio::test]
+    async fn evento_do_ajuste_e_o_sinal_do_vigia() {
+        let hub = Hub::new();
+        // O conteúdo do ajuste não é lido.
+        let sinal = || {
+            event(
+                crate::vanguard::WATCHER_SIGNAL_PATH,
+                EventType::Update,
+                json!({}),
+            )
+        };
+        // O LoL grava o ajuste ao subir, antes de o Vanguard conectar.
+        hub.apply(sinal()).await;
+        assert_eq!(hub.lock().ux_guard.watcher_first_at, None);
+
+        hub.apply(vanguard_event("CONNECTED")).await;
+        hub.apply(sinal()).await;
+        let first = hub.lock().ux_guard.watcher_first_at;
+        let first = first.expect("o sinal do vigia não contou");
+        assert!(!hub.lock().ux_guard.watcher_confirmed);
+        // O sinal seguinte, 30 s depois, confirma o vigia.
+        hub.note_vanguard_watcher(first + Duration::from_secs(30));
+        assert!(hub.lock().ux_guard.watcher_confirmed);
+
+        // O Vanguard caiu (7003): o vigia vai ter de se ligar de novo.
+        hub.apply(vanguard_event("NOT_CONNECTED")).await;
+        assert!(!hub.lock().ux_guard.watcher_confirmed);
+        assert_eq!(hub.lock().ux_guard.watcher_first_at, None);
+    }
+
+    /// Hub no lobby com o fechamento adiado armado e o Vanguard conectado.
+    /// Devolve também a sequência atual e quando o Vanguard conectou.
+    async fn com_o_vanguard_conectado() -> (Hub, u64, u64, Instant) {
+        let hub = Hub::new();
+        hub.apply(vanguard_event("CONNECTED")).await;
+        let (session, generation, ready) = {
+            let mut shared = hub.lock();
+            shared.ux_guard.kill_pending = true;
+            shared.state.gameflow_phase = Some(GameflowPhase::Lobby);
+            let ready = shared.ux_guard.vanguard_ready_at;
+            (shared.session, shared.ux_guard.generation, ready.unwrap())
+        };
+        (hub, session, generation, ready)
+    }
+
+    #[tokio::test]
+    async fn primeiro_kill_ux_espera_o_vigia_do_vanguard() {
+        let (hub, session, generation, ready) = com_o_vanguard_conectado().await;
+        let delay = crate::connection::DEFAULT_KILL_UX_DELAY;
+        let secs = Duration::from_secs;
+        let decide =
+            |after| hub.take_scheduled_kill(session, generation, ready, delay, ready + after);
+        // A folga do Vanguard venceu, mas o vigia não se ligou: a primeira
+        // tentativa dele falhou, e a segunda vem aos 91 s (#661).
+        assert_eq!(decide(secs(60)), ScheduledKill::Wait);
+        assert_eq!(decide(secs(90)), ScheduledKill::Wait);
+        // Um sinal só ainda não libera.
+        hub.note_vanguard_watcher(ready + secs(91));
+        assert_eq!(decide(secs(95)), ScheduledKill::Wait);
+        // O segundo sinal confirma o vigia, e a UI fecha.
+        hub.note_vanguard_watcher(ready + secs(121));
+        assert_eq!(decide(secs(125)), ScheduledKill::Kill);
+        assert!(hub.lock().ux_guard.active);
+        assert!(!hub.lock().ux_guard.kill_pending);
+    }
+
+    #[tokio::test]
+    async fn sem_sinal_do_vigia_fecha_depois_do_prazo_do_vanguard() {
+        let (hub, session, generation, ready) = com_o_vanguard_conectado().await;
+        let delay = crate::connection::DEFAULT_KILL_UX_DELAY;
+        let secs = Duration::from_secs;
+        let decide =
+            |after| hub.take_scheduled_kill(session, generation, ready, delay, ready + after);
+        // Sem o vigia, o Vanguard cai até 150 s depois de conectar.
+        assert_eq!(decide(secs(151)), ScheduledKill::Wait);
+        // Passou disso ainda conectado: fecha, mesmo sem sinal.
+        assert_eq!(decide(secs(180)), ScheduledKill::Kill);
+
+        // Se ele caiu no prazo, a UI não fecha: o aviso pede para reabrir o
+        // LoL.
+        let (hub, session, generation, ready) = com_o_vanguard_conectado().await;
+        hub.apply(vanguard_event("NOT_CONNECTED")).await;
+        let decide =
+            |after| hub.take_scheduled_kill(session, generation, ready, delay, ready + after);
+        assert_eq!(decide(secs(180)), ScheduledKill::Wait);
+        assert_eq!(decide(secs(600)), ScheduledKill::Wait);
     }
 
     #[test]
@@ -730,8 +917,9 @@ mod tests {
             let shared = hub.lock();
             (shared.session, shared.ux_guard.generation)
         };
+        let now = Instant::now();
         assert_eq!(
-            hub.take_scheduled_kill(session, generation, Instant::now(), Duration::ZERO),
+            hub.take_scheduled_kill(session, generation, now, Duration::ZERO, now),
             ScheduledKill::Kill
         );
         assert!(!hub.lock().ux_guard.kill_pending);
