@@ -1,6 +1,6 @@
 //! Páginas de runas e o catálogo das árvores.
 
-use super::{command_result, not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
+use super::{not_connected, Hub, Resource, Shared, Stamp, REFRESH_ATTEMPTS};
 use crate::rest::LcuError;
 use crate::runes::{self, RuneCatalog, RunePageError, RunePageInput, RunePages};
 use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
@@ -43,7 +43,7 @@ impl Hub {
             return not_connected();
         };
         let result = runes::select_page(&client, id).await;
-        self.after_rune_command(result).await
+        self.after_rune_command(RuneAction::Select, result).await
     }
 
     /// Cria uma página de runas e a aplica (comando `createRunePage`, #26).
@@ -57,7 +57,7 @@ impl Hub {
             return not_connected();
         };
         let result = runes::create_page(&client, &page, catalog.as_ref()).await;
-        self.after_rune_page_command(result).await
+        self.after_rune_page_command(RuneAction::Save, result).await
     }
 
     /// Edita a página de runas `id` (comando `updateRunePage`, #26).
@@ -70,7 +70,7 @@ impl Hub {
             return not_connected();
         };
         let result = runes::update_page(&client, id, &page, catalog.as_ref()).await;
-        self.after_rune_page_command(result).await
+        self.after_rune_page_command(RuneAction::Save, result).await
     }
 
     /// Apaga a página de runas `id` (comando `deleteRunePage`, #26).
@@ -79,29 +79,42 @@ impl Hub {
             return not_connected();
         };
         let result = runes::delete_page(&client, id).await;
-        self.after_rune_command(result).await
+        self.after_rune_command(RuneAction::Delete, result).await
     }
 
     pub(super) async fn after_rune_page_command(
         &self,
+        action: RuneAction,
         result: Result<(), RunePageError>,
     ) -> CommandResult {
         match result {
-            Ok(()) => self.after_rune_command(Ok(())).await,
+            Ok(()) => self.after_rune_command(action, Ok(())).await,
             Err(RunePageError::Invalid(invalid)) => {
                 CommandResult::error(ErrorCode::InvalidCommand, invalid.to_string())
             }
-            Err(RunePageError::Lcu(error)) => self.after_rune_command(Err(error)).await,
+            Err(RunePageError::Lcu(error)) => self.after_rune_command(action, Err(error)).await,
         }
     }
 
     /// Depois de um comando de runas que deu certo, relê as páginas pelo
-    /// REST e publica antes de devolver, sem esperar o evento do WAMP.
-    pub(super) async fn after_rune_command(&self, result: Result<(), LcuError>) -> CommandResult {
-        if result.is_ok() {
-            self.refresh_rune_pages().await;
+    /// REST e publica antes de devolver, sem esperar o evento do WAMP. Se
+    /// deu errado, devolve uma mensagem para o jogador e deixa o erro cru
+    /// só no log (#655).
+    pub(super) async fn after_rune_command(
+        &self,
+        action: RuneAction,
+        result: Result<(), LcuError>,
+    ) -> CommandResult {
+        match result {
+            Ok(()) => {
+                self.refresh_rune_pages().await;
+                CommandResult::Ok
+            }
+            Err(error) => {
+                tracing::warn!("comando de runas falhou: {error}");
+                CommandResult::error(ErrorCode::Lcu, friendly_error(action, &error))
+            }
         }
-        command_result(result)
     }
 
     /// Relê as páginas de runas depois de um comando; como
@@ -119,6 +132,43 @@ impl Hub {
                 return;
             }
         }
+    }
+}
+
+/// O que o comando de runas tentava fazer, para escolher a mensagem de
+/// erro.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum RuneAction {
+    /// Aplicar uma página que já existe.
+    Select,
+    /// Criar ou salvar uma página (também a sugestão de runas).
+    Save,
+    /// Excluir uma página.
+    Delete,
+}
+
+/// Mensagem para o jogador quando a LCU recusa ou não responde um comando
+/// de runas (#655). Completa a frase "Não foi possível aplicar a página: "
+/// da UI, sem rota nem código HTTP.
+pub(super) fn friendly_error(action: RuneAction, error: &LcuError) -> String {
+    if error.is_timeout() {
+        return "o LoL demorou para responder. Tente de novo em alguns segundos.".into();
+    }
+    if error.is_transport() {
+        return "a conexão com o LoL falhou. Confira se ele está aberto e tente de novo.".into();
+    }
+    match (action, error.status()) {
+        (RuneAction::Select, Some(400 | 422)) => "a página está inválida neste patch \
+            (runas incompletas ou que mudaram com a atualização). Edite a página, \
+            escolha as runas que faltam e salve antes de aplicar."
+            .into(),
+        (RuneAction::Save, Some(400 | 422)) => "o LoL não aceitou estas runas. Confira se \
+            todas estão escolhidas e tente de novo."
+            .into(),
+        (_, Some(403)) => "o LoL não deixa mudar esta página agora.".into(),
+        (_, Some(404)) => "a página não existe mais. Escolha outra na lista.".into(),
+        (_, Some(_)) => "o LoL recusou o pedido. Tente de novo.".into(),
+        (_, None) => "algo deu errado ao falar com o LoL. Tente de novo.".into(),
     }
 }
 
@@ -209,6 +259,36 @@ mod tests {
         ))
         .await;
         assert_eq!(hub.state().rune_pages, None);
+    }
+
+    #[test]
+    fn erro_da_lcu_vira_mensagem_amigavel() {
+        let status = |status: u16, message: &str| LcuError::Status {
+            method: reqwest::Method::PUT,
+            path: CURRENT_PAGE_PATH.into(),
+            status,
+            message: Some(message.into()),
+            body: json!({"message": message}),
+        };
+        let invalid = status(422, "Page is invalid and can't be set as active.");
+        let text = friendly_error(RuneAction::Select, &invalid);
+        assert!(
+            text.starts_with("a página está inválida neste patch"),
+            "{text}"
+        );
+        assert!(text.contains("Edite a página"), "{text}");
+        for action in [RuneAction::Select, RuneAction::Save, RuneAction::Delete] {
+            for code in [400, 403, 404, 422, 500] {
+                let text = friendly_error(action, &status(code, "Page is invalid"));
+                assert!(!text.contains("lol-perks"), "{text}");
+                assert!(!text.contains(&code.to_string()), "{text}");
+                assert!(!text.contains("invalid"), "{text}");
+            }
+        }
+        assert_eq!(
+            friendly_error(RuneAction::Save, &status(400, "bad")),
+            "o LoL não aceitou estas runas. Confira se todas estão escolhidas e tente de novo."
+        );
     }
 
     #[tokio::test]
