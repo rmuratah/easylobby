@@ -308,15 +308,10 @@ export function TeamList({ label, players, ally, acting, catalog, renderActions,
                     {ally || !champion ? <span className="sr-only">{champion ? championName(catalog, champion) : 'Sem campeão'}
                       {((ally && player.assignedPosition !== 'unselected') || acting.has(player.cellId)) && ' · '}</span>
                       : championName(catalog, champion)}
-                    {/* Ícone oficial da rota ao lado do nome, como no lobby (#517). */}
+                    {/* Ícone oficial da rota ao lado do nome, como no lobby (#517). Sem marca de autofill, como no client oficial (#657). */}
                     {ally && player.assignedPosition !== 'unselected' && (
                       <span className="inline-flex items-center gap-1 align-middle">
                         <PositionIcon position={player.assignedPosition} size={14} />{positionNames[player.assignedPosition]}
-                      </span>
-                    )}
-                    {ally && player.isAutofilled && (
-                      <span title="Posição de autofill: o jogador não escolheu esta posição" className="ml-1 inline-flex items-center gap-0.5 align-middle font-semibold text-accent-ink">
-                        <PositionIcon position="fill" size={12} />(autofill)
                       </span>
                     )}
                     {/* Quem está na vez já tem o card em destaque; o texto fica só para o leitor de tela (#475). */}
