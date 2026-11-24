@@ -4,6 +4,7 @@ import type { RankedStats } from '../../bindings/RankedStats';
 import type { RankedEntry } from '../../bindings/RankedEntry';
 import { rankLabel } from '../../agent/profile';
 import { Avatar } from '../base';
+import { TierEmblem } from '../TierEmblem';
 
 /**
  * Quem está logado: ícone, Riot ID e nível (#128). No início, ocupa o cartão
@@ -27,17 +28,24 @@ export function SummonerHeader({ summoner, ranked }: { summoner: Summoner; ranke
         </h2>
         <p className="rounded-full bg-raised px-3 py-1 text-caption font-semibold text-muted">Nível {summoner.summonerLevel}</p>
       </div>
-      <dl className="mx-5 mt-3 grid w-[calc(100%-2.5rem)] grid-cols-2 gap-2 text-left">
-        <div className="rounded-tile bg-raised p-3">
-          <dt className="text-caption font-semibold text-muted">Solo/Duo</dt>
-          <dd className="mt-1 text-body font-semibold text-ink">{rank(ranked?.soloDuo)}</dd>
-        </div>
-        <div className="rounded-tile bg-raised p-3">
-          <dt className="text-caption font-semibold text-muted">Flex</dt>
-          <dd className="mt-1 text-body font-semibold text-ink">{rank(ranked?.flex)}</dd>
-        </div>
+      <dl className="mx-5 mt-3 grid w-[calc(100%-2.5rem)] flex-1 grid-cols-2 gap-2 text-left">
+        <RankTile title="Solo/Duo" entry={ranked?.soloDuo} />
+        <RankTile title="Flex" entry={ranked?.flex} />
       </dl>
     </section>
+  );
+}
+
+/** Uma fila no card: nome, elo e PDL e, embaixo, o emblema do elo (#659). */
+function RankTile({ title, entry }: { title: string; entry: RankedEntry | undefined }) {
+  return (
+    <div className="flex flex-col rounded-tile bg-raised p-3">
+      <dt className="text-caption font-semibold text-muted">{title}</dt>
+      <dd className="mt-1 text-body font-semibold text-ink">{rank(entry)}</dd>
+      <dd className="flex flex-1 items-center justify-center pt-3 pb-1">
+        <TierEmblem tier={entry?.tier ?? null} size="md" />
+      </dd>
+    </div>
   );
 }
 
