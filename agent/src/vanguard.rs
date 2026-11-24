@@ -8,6 +8,9 @@
 //! `GET /lol-vanguard/v1/session` responde `{"state":"CONNECTED",
 //! "vanguardStatus":0}` com o Vanguard funcionando (conferido no 16.22), e o
 //! WAMP avisa no mesmo URI quando o estado muda.
+//!
+//! Conectado, o Vanguard ainda cai sozinho com o código 7003 se o vigia dele
+//! não se ligar à LCU (#661); veja [`WATCHER_SIGNAL_PATH`].
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -17,6 +20,22 @@ use crate::rest::{LcuClient, LcuError};
 
 /// Sessão do Vanguard na LCU (e URI dos eventos dela).
 pub const SESSION_PATH: &str = "/lol-vanguard/v1/session";
+
+/// Ajuste local "fechar o client durante a partida" na LCU, e URI dos
+/// eventos dele: o sinal do vigia do Vanguard (#661).
+///
+/// Cerca de 1 s depois de o Vanguard conectar, um programa de fora da LCU
+/// (aqui, o "vigia"; pelos horários, é do próprio Vanguard) se liga a ela e
+/// passa a regravar esse ajuste como desligado a cada 30 s. Cada gravação
+/// vira um `Update` neste URI, e é o único sinal dele que a LCU dá. O LoL
+/// também grava o ajuste uma vez ao subir, antes de o Vanguard conectar.
+///
+/// Em cerca de metade das aberturas do LoL (6 de 11 nos logs) a primeira
+/// tentativa do vigia falha, e a segunda vem uns 91 s depois de o Vanguard
+/// conectar. Nos logs, ele só se ligou com a UI oficial aberta, e sem ele o
+/// Vanguard desconectou com o código 7003 de 146 a 150 s depois de conectar.
+/// Com o vigia já ligado, fechar a UI não derrubou mais nada.
+pub const WATCHER_SIGNAL_PATH: &str = "/lol-settings/v1/local/lol-user-experience";
 
 /// O estado com o Vanguard funcionando.
 const CONNECTED: &str = "CONNECTED";
