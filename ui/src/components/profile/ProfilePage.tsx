@@ -15,11 +15,12 @@ import { availabilityColors, describeActivity } from '../../agent/friends';
 import { assetUrl } from '../../agent/assets';
 import { useCommand } from '../../agent/useCommand';
 import {
-  formatDuration, kda, matchesFilter, matchFilters, matchStats, queueLabel, rankLabel, tierEmblemId, tierName, timeAgo, winRate,
+  formatDuration, kda, matchesFilter, matchFilters, matchStats, queueLabel, rankLabel, timeAgo, winRate,
   type MatchFilter,
 } from '../../agent/profile';
 import { Avatar, Button, EmptyState, Segmented, Spinner } from '../base';
 import { cx } from '../base/cx';
+import { TierEmblem } from '../TierEmblem';
 import { CopyRiotIdButton } from './CopyRiotIdButton';
 import { LiveGamePanel } from '../LiveGamePanel';
 import { GameIcon, ItemRow } from '../GameIcons';
@@ -297,7 +298,7 @@ function RankCard({ title, entry, missing }: { title: string; entry: RankedEntry
   const rate = entry ? winRate(entry.wins, entry.losses) : null;
   return (
     <article aria-label={title} className="flex items-center gap-4 rounded-panel surface card p-5 shadow-soft">
-      <TierEmblem tier={entry?.tier ?? null} />
+      <TierEmblem tier={entry?.tier ?? null} className="-my-3" />
       <div className="min-w-0">
         <h3 className="text-caption font-semibold text-muted">{title}</h3>
         {!entry ? <p className="mt-1 text-body text-muted">{missing}</p> : <>
@@ -310,30 +311,6 @@ function RankCard({ title, entry, missing }: { title: string; entry: RankedEntry
         </>}
       </div>
     </article>
-  );
-}
-
-/** Emblema do elo; sem classificação, ou se a imagem não carregar, um círculo com a sigla do tier. */
-function TierEmblem({ tier }: { tier: string | null }) {
-  const [failed, setFailed] = useState<string | null>(null);
-  const id = tier ? tierEmblemId(tier) : null;
-  const src = id ? assetUrl('rankedEmblem', id) : null;
-  if (tier && src && failed !== src) {
-    // A imagem do CommunityDragon tem muita borda transparente: ela fica com
-    // o dobro do tamanho da caixa, centralizada, e a borda sobra para fora.
-    return (
-      <span aria-hidden="true" className="relative -my-3 size-28 shrink-0">
-        <img src={src} alt="" width={224} height={224} onError={() => setFailed(src)}
-          className="pointer-events-none absolute left-1/2 top-1/2 size-56 max-w-none -translate-x-1/2 -translate-y-1/2 object-contain" />
-      </span>
-    );
-  }
-  return (
-    <span aria-hidden="true"
-      className={cx('flex size-16 shrink-0 items-center justify-center rounded-full border-2 text-caption font-bold uppercase',
-        tier ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line bg-raised text-muted')}>
-      {tier ? tierName(tier).slice(0, 3) : '—'}
-    </span>
   );
 }
 
