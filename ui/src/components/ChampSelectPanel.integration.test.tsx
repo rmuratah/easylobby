@@ -182,7 +182,7 @@ it('espera a sessão e o catálogo, e some quando a seleção fecha', () => {
   expect(screen.getByText(/A partida está abrindo/)).toBeVisible();
 });
 
-it('não mostra aviso de autofill, só a marca no card de quem caiu em autofill', () => {
+it('não mostra aviso nem marca de autofill, só a rota no card (#657)', () => {
   const [me, ally] = draftChampSelect.myTeam;
   const autofilled = {
     ...draftChampSelect, autofillNotice: true,
@@ -192,8 +192,9 @@ it('não mostra aviso de autofill, só a marca no card de quem caiu em autofill'
   expect(panel().queryByRole('region', { name: 'Aviso de autofill' })).not.toBeInTheDocument();
   expect(panel().queryByText(/Você foi colocado/)).not.toBeInTheDocument();
   const mine = within(panel().getByRole('region', { name: 'Seu time' }));
-  expect(mine.getByText('Victor#BR1 (você)').closest('li')).toHaveTextContent('Meio(autofill)');
-  expect(mine.getByText('Amigo#BR1').closest('li')).toHaveTextContent('Selva(autofill)');
+  expect(mine.getByText('Victor#BR1 (você)').closest('li')).toHaveTextContent('Meio');
+  expect(mine.getByText('Amigo#BR1').closest('li')).toHaveTextContent('Selva');
+  expect(panel().queryByText(/autofill/)).not.toBeInTheDocument();
 });
 
 it('sem autofill não mostra aviso nem ícone', () => {
