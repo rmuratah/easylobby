@@ -5,6 +5,7 @@
 //! (`openRecommendedRunes`). Elas ficam no estado até outra rota ou outro
 //! campeão ser pedido e somem quando o LoL fecha.
 
+use super::runes::RuneAction;
 use super::{not_connected, Hub, Shared};
 use crate::lobby::Position;
 use crate::rune_recommender::{self, RecommendedRunes};
@@ -93,7 +94,7 @@ impl Hub {
             catalog,
         )
         .await;
-        self.after_rune_page_command(result).await
+        self.after_rune_page_command(RuneAction::Save, result).await
     }
 }
 
