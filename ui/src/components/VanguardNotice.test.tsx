@@ -55,4 +55,26 @@ describe('aviso de Vanguard desconectado (#579)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reabrir o LoL' }));
     expect(await screen.findByRole('status')).toHaveTextContent('O LoL está abrindo de novo.');
   });
+
+  it('no VAN 216, manda esperar até o horário e não oferece reabrir o LoL (#668)', () => {
+    const refused = connection({ connected: false, state: 'ERROR', status: 216 });
+    const { rerender } = render(<VanguardBanner connection={refused} send={send} waitUntil={new Date(2026, 10, 24, 21, 52, 18).getTime()} />);
+    const banner = screen.getByRole('alert', { name: 'Vanguard desconectado' });
+    // O horário arredonda para o minuto de cima.
+    expect(screen.getByRole('heading', { name: 'Espere até as 21:53 para abrir o LoL de novo' })).toBeInTheDocument();
+    expect(banner).toHaveTextContent('erro VAN 216');
+    expect(banner).toHaveTextContent('reabrir agora não resolve');
+    expect(banner).toHaveTextContent('ERROR (código 216)');
+    expect(screen.queryByRole('button', { name: 'Reabrir o LoL' })).not.toBeInTheDocument();
+    // Antes de o app guardar a hora da recusa.
+    rerender(<VanguardBanner connection={refused} send={send} waitUntil={null} />);
+    expect(screen.getByRole('heading', { name: 'Espere 30 minutos para abrir o LoL de novo' })).toBeInTheDocument();
+  });
+
+  it('com outro código, continua oferecendo reabrir o LoL (#668)', () => {
+    render(<VanguardBanner connection={connection({ connected: false, state: 'ERROR', status: 7003 })} send={send}
+      waitUntil={new Date(2026, 10, 24, 21, 52, 18).getTime()} />);
+    expect(screen.getByRole('heading', { name: 'O Vanguard não está conectado' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reabrir o LoL' })).toBeInTheDocument();
+  });
 });

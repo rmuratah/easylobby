@@ -2,11 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import type { AgentClient } from '../../agent/client';
 import type { ConnectionView } from '../../screens/connection';
 import { Button, EmptyState, Spinner } from '../base';
+import { VanguardWaitNotice } from '../VanguardNotice';
 
-type Props = { view: NonNullable<ConnectionView['screen']>; send: AgentClient['send']; error: string | null };
+type Props = {
+  view: NonNullable<ConnectionView['screen']>; send: AgentClient['send']; error: string | null;
+  /** Fim da espera do VAN 216 (#668), de `useVanguardWait`: o aviso fica junto do botão de abrir o LoL. */
+  vanguardWaitUntil: number | null;
+};
 
 /** Ocupa a área principal enquanto o app não está pronto para jogar (#128). */
-export function ConnectionScreen({ view, send, error }: Props) {
+export function ConnectionScreen({ view, send, error, vanguardWaitUntil }: Props) {
   const icon = view.kind === 'connecting' ? undefined : view.kind === 'lolClosed' ? <PlayIcon /> : <AlertIcon />;
   return (
     <div className="flex min-h-full flex-1 flex-col items-center justify-center">
@@ -16,7 +21,10 @@ export function ConnectionScreen({ view, send, error }: Props) {
         icon={icon}
         title={view.title}
         description={<>{view.description}{error && <span role="alert" className="mt-2 block text-warn">{error}</span>}</>}
-        action={view.kind === 'lolClosed' ? <LaunchLeague send={send} /> : undefined}
+        action={view.kind === 'lolClosed' ? <>
+          {vanguardWaitUntil !== null && <VanguardWaitNotice until={vanguardWaitUntil} />}
+          <LaunchLeague send={send} />
+        </> : undefined}
       />
     </div>
   );

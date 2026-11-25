@@ -36,6 +36,7 @@ import { totalUnread } from './agent/chat';
 import { CompatibilityBanner, FeatureGate } from './components/CompatibilityNotice';
 import { LcuSlowBanner } from './components/LcuSlowBanner';
 import { VanguardBanner } from './components/VanguardNotice';
+import { useVanguardWait } from './agent/vanguardWait';
 import { LolUpdateBanner } from './components/LolUpdateBanner';
 import { unavailableFeature } from './agent/compatibility';
 
@@ -47,6 +48,8 @@ export default function App() {
   const { theme, setPreference } = useTheme();
   const soundSettings = useSoundSettings();
   const appUpdate = useAppUpdate();
+  // Espera do VAN 216 (#668): vale também depois de o LoL fechar.
+  const vanguardWait = useVanguardWait(connection);
   /** Última conversa aberta: o botão Conversas volta para ela (#251). */
   const [chatWith, setChatWith] = useState<string | null>(null);
   /**
@@ -164,13 +167,14 @@ export default function App() {
       <div data-tauri-drag-region className="app-body">
         <div data-tauri-drag-region className="app-main-column">
           <main ref={contentRef} className={fixedScreen ? 'app-content is-fixed' : 'app-content'}>
-          {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error} />}
+          {view.screen && <ConnectionScreen view={view.screen} send={connection.send} error={connection.error}
+            vanguardWaitUntil={vanguardWait} />}
           {/* Escondido, e não desmontado, enquanto reconecta: comandos em andamento sobrevivem à queda. */}
           <div hidden={!ready} className={homeLayout ? 'home-grid' : activePage === 'conversations' || fixedScreen ? 'flex h-full min-h-0 flex-col gap-5' : 'flex min-h-full flex-col gap-5'}>
             {ready && connection.error && <p role="alert" className="col-span-full text-warn">{connection.error}</p>}
             {/* Modo de compatibilidade (#36): o que o LoL quebrou numa atualização. */}
             {/* Vanguard desconectado (#579): a partida não abriria e viraria esquiva. */}
-            {ready && <VanguardBanner connection={connection} send={connection.send} />}
+            {ready && <VanguardBanner connection={connection} send={connection.send} waitUntil={vanguardWait} />}
             {ready && <CompatibilityBanner connection={connection} send={connection.send} />}
             {/* O LoL demorando para responder ao conectar (#580). */}
             {ready && <LcuSlowBanner connection={connection} send={connection.send} />}
