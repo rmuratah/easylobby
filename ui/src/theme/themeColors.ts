@@ -25,6 +25,7 @@ export const themeColors = {
       "text": "#2F6553"
     },
     "destructive": "#E24947",
+    "orange": "#C45A0E",
     "status": {
       "online": "#3EB268",
       "ingame": "#348DCF",
@@ -66,6 +67,7 @@ export const themeColors = {
       "text": "#AAD5C3"
     },
     "destructive": "#F3625D",
+    "orange": "#F59A4F",
     "status": {
       "online": "#54C57A",
       "ingame": "#55AEE8",

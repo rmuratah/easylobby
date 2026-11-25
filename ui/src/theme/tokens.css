@@ -21,6 +21,7 @@
   --el-palette-accent-bg: #E6F1EC;
   --el-palette-accent-text: #2F6553;
   --el-palette-destructive: #E24947;
+  --el-palette-orange: #C45A0E;
   --el-palette-status-online: #3EB268;
   --el-palette-status-ingame: #348DCF;
   --el-palette-status-away: #E1A447;
@@ -43,6 +44,7 @@
   --el-accent-soft: #D7F3F9;
   --el-accent-ink: #03778a;
   --el-danger: #bf4242;
+  --el-orange: #af5311;
   --el-warn: #2f6553;
   --el-status-online: #389c5f;
   --el-status-game: #348dcf;
@@ -72,6 +74,7 @@
   --el-palette-accent-bg: #162622;
   --el-palette-accent-text: #AAD5C3;
   --el-palette-destructive: #F3625D;
+  --el-palette-orange: #F59A4F;
   --el-palette-status-online: #54C57A;
   --el-palette-status-ingame: #55AEE8;
   --el-palette-status-away: #EEB154;
@@ -94,6 +97,7 @@
   --el-accent-soft: #05343D;
   --el-accent-ink: #21abb8;
   --el-danger: #f3625d;
+  --el-orange: #f59a4f;
   --el-warn: #aad5c3;
   --el-status-online: #54c57a;
   --el-status-game: #55aee8;
@@ -115,6 +119,7 @@
   --color-accent-soft: var(--el-accent-soft);
   --color-accent-ink: var(--el-accent-ink);
   --color-danger: var(--el-danger);
+  --color-orange: var(--el-orange);
   --color-warn: var(--el-warn);
   --color-status-online: var(--el-status-online);
   --color-status-game: var(--el-status-game);
