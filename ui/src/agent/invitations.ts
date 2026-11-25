@@ -2,8 +2,9 @@ import type { Friend } from '../bindings/Friend';
 import type { GameQueue } from '../bindings/GameQueue';
 import type { InvitationState } from '../bindings/InvitationState';
 import type { Lobby } from '../bindings/Lobby';
+import type { PlayerCard } from '../bindings/PlayerCard';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
-import { friendNick, isOnline } from './friends';
+import { findPlayerCard, friendDisplayName, friendNick, isOnline, playerCardName } from './friends';
 import { queueNames } from './queues';
 
 /** Convites que ainda ocupam uma vaga no grupo: o amigo pode aceitar a qualquer momento. */
@@ -14,19 +15,35 @@ export const isOpenInvitation = (state: InvitationState) => !!openStates[state];
  * Amigo que mandou o convite, achado pelo `summonerId`. `undefined` quando
  * quem convidou não está na lista de amigos.
  */
-export function invitationSender(invitation: ReceivedInvitation, friends: Friend[]): Friend | undefined {
+function invitationSender(invitation: ReceivedInvitation, friends: Friend[]): Friend | undefined {
   if (invitation.fromSummonerId <= 0) return undefined;
   return friends.find(f => f.summonerId === invitation.fromSummonerId);
 }
 
 /**
  * Nome de quem convidou: o nick do amigo (sem a tag, como na lista de
- * amigos), o nome que a LCU mandou (pode vir vazio com o Riot ID) ou "Um
- * amigo".
+ * amigos), o de quem não é amigo que o agente buscou (#675), o nome que a
+ * LCU mandou (pode vir vazio com o Riot ID) ou "Um amigo".
  */
-export function inviterName(invitation: ReceivedInvitation, friends: Friend[]): string {
+export function inviterName(invitation: ReceivedInvitation, friends: Friend[], cards: readonly PlayerCard[] = []): string {
   const sender = invitationSender(invitation, friends);
-  return (sender && friendNick(sender)) || invitation.fromSummonerName || 'Um amigo';
+  const card = sender ? undefined : findPlayerCard(cards, '', invitation.fromSummonerId);
+  return (sender && friendNick(sender)) || card?.gameName || invitation.fromSummonerName || 'Um amigo';
+}
+
+/**
+ * Quem convidou, para o aviso: o nick, o Riot ID completo (para a dica) e o
+ * ícone de invocador, do amigo ou de quem não é amigo (#675). Ícone `null`
+ * enquanto o agente não buscou.
+ */
+export function inviter(invitation: ReceivedInvitation, friends: Friend[], cards: readonly PlayerCard[] = []):
+  { name: string; riotId: string | undefined; profileIconId: number | null } {
+  const name = inviterName(invitation, friends, cards);
+  const sender = invitationSender(invitation, friends);
+  if (sender) return { name, riotId: friendDisplayName(sender), profileIconId: sender.profileIconId };
+  const card = findPlayerCard(cards, '', invitation.fromSummonerId);
+  if (card) return { name, riotId: playerCardName(card), profileIconId: card.profileIconId || null };
+  return { name, riotId: undefined, profileIconId: null };
 }
 
 /**

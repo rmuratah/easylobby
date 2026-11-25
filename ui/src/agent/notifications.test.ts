@@ -59,6 +59,9 @@ it('monta os textos de nome e convite', () => {
   expect(conversationName({ ...testConversation, gameName: '' })).toBe('Um amigo');
   expect(invitationText(testInvitation)).toBe('Um amigo convidou você para Ranqueada Solo/Duo');
   expect(invitationText({ ...testInvitation, fromSummonerName: 'Victor', queue: null })).toBe('Victor convidou você para um lobby');
+  // Quem não é amigo: o nick que o agente buscou (#675).
+  const zed = { puuid: 'zed', summonerId: testInvitation.fromSummonerId, gameName: 'Zed', tagLine: 'KR1', profileIconId: 1 };
+  expect(invitationText({ ...testInvitation, fromSummonerName: '' }, [], [zed])).toBe('Zed convidou você para Ranqueada Solo/Duo');
 });
 
 it('só considera partida encontrada pendente antes de responder', () => {

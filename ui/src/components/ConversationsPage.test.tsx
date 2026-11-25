@@ -52,6 +52,12 @@ describe('ConversationsPage', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('mostra o ícone de invocador do amigo na lista e na conversa aberta (#675)', () => {
+    const friend = { ...testFriend, id: bia.id, puuid: 'bia', gameName: 'Bia', tagLine: 'BR1', profileIconId: 777 };
+    const { container } = render(<Harness connection={connectedWith([bia], [friend])} send={okSend()} initial={bia.id} />);
+    expect(container.querySelectorAll('img[src$="/assets/profileIcon/777"]')).toHaveLength(2);
+  });
+
   it('abre a conversa pela lista, marca como ativa e desmarca ao voltar', () => {
     const send = okSend();
     render(<Harness connection={connectedWith([testConversation])} send={send} />);

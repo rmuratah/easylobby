@@ -8,6 +8,7 @@ use crate::ws::protocol::{CommandResult, ErrorCode, ServerMessage};
 impl Hub {
     pub fn set_received_invitations(&self, invitations: Vec<ReceivedInvitation>) {
         self.update(|shared| write_invitations(shared, invitations));
+        self.sync_player_cards();
     }
 
     pub(super) fn set_received_invitations_if(
@@ -18,6 +19,7 @@ impl Hub {
         self.update_if(Resource::Invitations, stamp, |shared| {
             write_invitations(shared, invitations)
         });
+        self.sync_player_cards();
     }
 
     /// Relê pelo REST os convites recebidos e publica, se nada mais novo
@@ -134,6 +136,7 @@ impl Hub {
                         recent_players: players,
                     })
                 });
+                self.sync_player_cards();
                 CommandResult::Ok
             }
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
@@ -160,6 +163,7 @@ impl Hub {
                     }
                     write_suggested_players(shared, list)
                 });
+                self.sync_player_cards();
                 CommandResult::Ok
             }
             Err(error) => CommandResult::error(ErrorCode::Lcu, error.to_string()),
@@ -195,11 +199,13 @@ impl Hub {
             list.retain(|p| p.summoner_id != summoner_id);
             write_suggested_players(shared, list)
         });
+        self.sync_player_cards();
         CommandResult::Ok
     }
 
     pub fn set_suggested_players(&self, suggested_players: Vec<SuggestedPlayer>) {
         self.update(|shared| write_suggested_players(shared, suggested_players));
+        self.sync_player_cards();
     }
 
     pub fn set_recent_players(&self, recent_players: Vec<RecentPlayer>) {
@@ -210,6 +216,7 @@ impl Hub {
             shared.state.recent_players = recent_players.clone();
             Some(ServerMessage::RecentPlayers { recent_players })
         });
+        self.sync_player_cards();
     }
 }
 

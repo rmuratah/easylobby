@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { AgentClient } from '../agent/client';
 import { searchChampions } from '../agent/champSelect';
-import { playerName } from '../agent/friends';
+import { memberName, playerName } from '../agent/friends';
 import { positionNames } from '../agent/positions';
 import { assetUrl } from '../agent/assets';
 import { useCommand } from '../agent/useCommand';
@@ -214,13 +214,23 @@ export function PracticeLobby({ lobby, state, send, canLeave, leaving, onLeave, 
   );
 }
 
+/**
+ * Riot ID de outro jogador da personalizada: o que o agente buscou para o
+ * membro do lobby (#325), que vale também para quem não é amigo (#675), ou o
+ * da lista de amigos.
+ */
+function customMemberName(member: CustomMember, state: AgentState): string {
+  const lobbyMember = member.puuid ? state.lobby?.members.find(m => m.puuid === member.puuid) : undefined;
+  return lobbyMember ? memberName(lobbyMember, state.friends) : playerName(member.puuid, member.summonerId, state.friends);
+}
+
 function PlayerRow({ member, me, state, send, manage = false, disabled = false }: {
   member: CustomMember; me: boolean; state: AgentState;
   send: AgentClient['send']; manage?: boolean; disabled?: boolean;
 }) {
   const summoner = state.summoner;
   const name = me && summoner?.gameName ? `${summoner.gameName}${summoner.tagLine ? `#${summoner.tagLine}` : ''}`
-    : playerName(member.puuid, member.summonerId, state.friends);
+    : customMemberName(member, state);
   return (
     <div className={cx('flex min-h-14 items-center gap-3 rounded-tile px-3 py-2', me ? 'bg-accent-soft' : 'bg-raised')}>
       <Avatar name={name} src={assetUrl('profileIcon', member.summonerIconId)} size={40} />

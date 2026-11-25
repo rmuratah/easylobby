@@ -497,7 +497,7 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
       {invites.error && picker === null && <p role="alert" className="text-body text-danger">{invites.error}</p>}
       {picker !== null && <InvitePicker invites={invites} groups={state.friendGroups} recent={state.recentPlayers}
         loadRecent={loadRecent} suggested={state.suggestedPlayers} loadSuggested={loadSuggested}
-        dismissSuggested={dismissSuggested} onClose={closePicker} />}
+        dismissSuggested={dismissSuggested} cards={state.playerCards} onClose={closePicker} />}
 
       {/* Card de escolha das rotas, sempre embaixo de você (#607). */}
       {lobby.showPositionSelector && !lobby.orderedPositions && !lobby.subteams && positionFieldset}

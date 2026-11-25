@@ -27,6 +27,7 @@ import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
 import type { PatchNotes } from "./PatchNotes";
+import type { PlayerCard } from "./PlayerCard";
 import type { PlayerLiveGame } from "./PlayerLiveGame";
 import type { PlayerProfile } from "./PlayerProfile";
 import type { RankedStats } from "./RankedStats";
@@ -87,6 +88,7 @@ export type ServerMessage =
   | { "type": "recentPlayers", recentPlayers: Array<RecentPlayer>, }
   | { "type": "suggestedPlayers", suggestedPlayers: Array<SuggestedPlayer>, }
   | { "type": "receivedInvitations", invitations: Array<ReceivedInvitation>, }
+  | { "type": "playerCards", playerCards: Array<PlayerCard>, }
   | { "type": "conversation", conversation: Conversation, }
   | { "type": "conversationClosed", id: string, }
   | { "type": "ranked", ranked: RankedStats | null, }

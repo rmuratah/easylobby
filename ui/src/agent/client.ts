@@ -53,6 +53,7 @@ export function applyEvent(state: AgentState, message: StateEvent): AgentState {
       state.lcu.state === 'connected' && state.gameflowPhase === 'ChampSelect' && state.champSelect
         ? message.champSelectChat : null };
     case 'receivedInvitations': return { ...state, receivedInvitations: message.invitations };
+    case 'playerCards': return { ...state, playerCards: message.playerCards };
     case 'conversation': {
       const { conversation } = message;
       const known = state.conversations.some(c => c.id === conversation.id);

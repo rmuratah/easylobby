@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { conversationName, messageTime, sortConversations } from '../agent/chat';
+import { assetUrl } from '../agent/assets';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import { friendNick } from '../agent/friends';
 import type { Conversation } from '../bindings/Conversation';
@@ -69,7 +70,7 @@ export function ConversationsPage({ connection, send, activeId, onActiveChange, 
             <ul aria-label="Conversas abertas" className="flex flex-col gap-1">
               {sorted.map(conversation => (
                 <li key={conversation.id}>
-                  <ConversationItem conversation={conversation} name={conversationName(conversation, friends)}
+                  <ConversationItem conversation={conversation} name={conversationName(conversation, friends)} icon={friendIcon(conversation.id, friends)}
                     selected={conversation.id === active?.id} onOpen={() => onActiveChange(conversation.id)} />
                 </li>
               ))}
@@ -77,7 +78,7 @@ export function ConversationsPage({ connection, send, activeId, onActiveChange, 
           )}
       </Card>
       {active
-        ? <ConversationView key={active.id} conversation={active} name={conversationName(active, friends)} send={send}
+        ? <ConversationView key={active.id} conversation={active} name={conversationName(active, friends)} icon={friendIcon(active.id, friends)} send={send}
             onBack={() => onActiveChange(null)} />
         : (
           <Card className="hidden min-h-0 items-center justify-center p-6 text-center @min-[44rem]:flex">
@@ -88,8 +89,14 @@ export function ConversationsPage({ connection, send, activeId, onActiveChange, 
   );
 }
 
-function ConversationItem({ conversation, name, selected, onOpen }: {
-  conversation: Conversation; name: string; selected: boolean; onOpen: () => void;
+/** Ícone de invocador do amigo da conversa (#675), pelo `pid` que é o id dela. */
+function friendIcon(conversationId: string, friends: Friend[]): string | undefined {
+  const id = friends.find(f => f.id === conversationId)?.profileIconId;
+  return id != null ? assetUrl('profileIcon', id) : undefined;
+}
+
+function ConversationItem({ conversation, name, icon, selected, onOpen }: {
+  conversation: Conversation; name: string; icon: string | undefined; selected: boolean; onOpen: () => void;
 }) {
   const last = conversation.messages.at(-1);
   const unread = conversation.unreadCount;
@@ -99,7 +106,7 @@ function ConversationItem({ conversation, name, selected, onOpen }: {
       className={cx('flex w-full items-center gap-3 rounded-control px-2 py-2 text-left transition-colors',
         'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
         selected ? 'bg-accent-soft text-accent-ink' : 'hover:bg-raised')}>
-      <Avatar name={name} size={32} />
+      <Avatar name={name} size={32} src={icon} />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-body font-semibold">{name}</span>
         <span className="truncate text-caption text-muted">
@@ -115,8 +122,8 @@ function newConversation(friend: Friend): Conversation {
   return { id: friend.id, gameName: friend.gameName, tagLine: friend.tagLine, unreadCount: 0, messages: [] };
 }
 
-function ConversationView({ conversation, name, send, onBack }: {
-  conversation: Conversation; name: string; send: AgentClient['send']; onBack: () => void;
+function ConversationView({ conversation, name, icon, send, onBack }: {
+  conversation: Conversation; name: string; icon: string | undefined; send: AgentClient['send']; onBack: () => void;
 }) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -161,7 +168,7 @@ function ConversationView({ conversation, name, send, onBack }: {
     <Card as="section" aria-label={`Conversa com ${name}`} className="flex min-h-0 w-full flex-col gap-3 p-4 text-ink">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" onClick={onBack} aria-label="Voltar às conversas" title="Voltar às conversas" className="px-2 @min-[44rem]:hidden">←</Button>
-        <Avatar name={name} size={28} />
+        <Avatar name={name} size={28} src={icon} />
         <h2 className="min-w-0 truncate text-section font-semibold" title={name}>{name}</h2>
       </div>
       {messages.length === 0

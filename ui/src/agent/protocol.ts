@@ -1,6 +1,7 @@
 import type { ReadyCheckState } from '../bindings/ReadyCheckState';
 import type { ReadyCheckResponse } from '../bindings/ReadyCheckResponse';
 import type { ServerMessage } from '../bindings/ServerMessage';
+import type { PlayerCard } from '../bindings/PlayerCard';
 import type { AdvancedStats } from '../bindings/AdvancedStats';
 import type { GameResult } from '../bindings/GameResult';
 import type { PerkStats } from '../bindings/PerkStats';
@@ -230,6 +231,10 @@ function receivedInvitation(v: unknown): v is ReceivedInvitation {
   return object(v) && strings(v, ['invitationId', 'fromSummonerName']) && uints(v, ['fromSummonerId', 'queueId']) &&
     (v.queue === null || isQueue(v.queue)) && typeof v.canAccept === 'boolean';
 }
+// Nick e ícone de quem não é amigo (#675).
+function playerCard(v: unknown): v is PlayerCard {
+  return object(v) && strings(v, ['puuid', 'gameName', 'tagLine']) && uints(v, ['summonerId', 'profileIconId']);
+}
 function conversation(v: unknown): v is Conversation {
   return object(v) && strings(v, ['id', 'gameName', 'tagLine']) && uint(v.unreadCount) && list(v.messages, object);
 }
@@ -451,7 +456,7 @@ function lobbyLink(v: unknown): v is LobbyLink | null {
 function state(v: unknown): v is AgentState {
   return object(v) && status(v.lcu) && summoner(v.summoner) && nullableString(v.gameflowPhase) && list(v.unavailableFeatures, unavailableFeature) && typeof v.lcuSlow === 'boolean' && lobby(v.lobby) && lobbyLink(v.lobbyLink) &&
     readyCheck(v.readyCheck) && honorBallot(v.honorBallot) && gameResult(v.gameResult) && matchmaking(v.matchmaking) && list(v.queues, gameQueue) && nullableIds(v.playableChampions) && tutorial(v.tutorial) && nullableIds(v.availableBots) && lobbyChat(v.lobbyChat) && customGames(v.customGames) && champSelect(v.champSelect) &&
-    list(v.receivedInvitations, receivedInvitation) && list(v.conversations, conversation) &&
+    list(v.receivedInvitations, receivedInvitation) && list(v.playerCards, playerCard) && list(v.conversations, conversation) &&
     champSelectChat(v.champSelectChat) && runePages(v.runePages) && runeCatalog(v.runeCatalog) && recommendedRunes(v.recommendedRunes) &&
     summonerSpellCatalog(v.summonerSpellCatalog) && championCatalog(v.championCatalog) &&
     champSelectChampions(v.champSelectChampions) && list(v.friends, friend) && list(v.friendGroups, friendGroup) && list(v.recentPlayers, recentPlayer) && list(v.suggestedPlayers, suggestedPlayer) &&
@@ -501,6 +506,7 @@ export function parseMessage(text: string): ServerMessage | null {
     case 'friendGroups': valid = list(v.friendGroups, friendGroup); break;
     case 'recentPlayers': valid = list(v.recentPlayers, recentPlayer); break;
     case 'suggestedPlayers': valid = list(v.suggestedPlayers, suggestedPlayer); break;
+    case 'playerCards': valid = list(v.playerCards, playerCard); break;
     case 'ranked': valid = ranked(v.ranked); break;
     case 'championMasteries': valid = list(v.championMasteries, championMastery); break;
     case 'lpHistory': valid = lpHistory(v.lpHistory); break;

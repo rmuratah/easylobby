@@ -147,6 +147,31 @@ describe('convidar pelo lobby', () => {
     expect(send).toHaveBeenCalledWith({ type: 'inviteToLobby', invitees: [{ summonerId: 4001, puuid: '' }] });
   });
 
+  it('mostra o ícone de invocador dos sugeridos e dos recentes que não são amigos (#675)', async () => {
+    const suggestedPlayers = [
+      { summonerId: 4001, puuid: '', gameName: 'Duda', tagLine: 'BR1', summonerName: '', reason: 'friendOfFriend' as const, commonFriendName: 'Ana' },
+    ];
+    const recentPlayers = [
+      { puuid: 'rafa', summonerId: 3001, gameName: 'Rafinha', tagLine: 'BR1', summonerName: '', championId: 64, playedAt: '2026-11-07T20:00:00.000Z' },
+      { puuid: 'teo', summonerId: 3002, gameName: 'Téo', tagLine: 'BR1', summonerName: '', championId: 86, playedAt: '2026-11-07T19:00:00.000Z' },
+    ];
+    const playerCards = [
+      { puuid: 'duda', summonerId: 4001, gameName: 'Duda', tagLine: 'BR1', profileIconId: 501 },
+      { puuid: 'rafa', summonerId: 3001, gameName: 'Rafinha', tagLine: 'BR1', profileIconId: 502 },
+    ];
+    render(<LobbyPanel connection={connected({ suggestedPlayers, recentPlayers, playerCards })} send={ok()} />);
+    fireEvent.click(lobby().getAllByRole('button', { name: 'Convidar amigo' })[0]);
+    await act(async () => {});
+    const picker = within(screen.getByRole('dialog', { name: 'Convidar amigos' }));
+    fireEvent.click(picker.getByRole('button', { name: /Recentes/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Convidar amigos' });
+    expect(dialog.querySelector('img[src$="/assets/profileIcon/501"]')).not.toBeNull();
+    expect(dialog.querySelector('img[src$="/assets/profileIcon/502"]')).not.toBeNull();
+    // Sem ícone buscado ainda, o recente fica com o campeão que jogou.
+    expect(dialog.querySelector('img[src$="/assets/champion/86"]')).not.toBeNull();
+    expect(dialog.querySelector('img[src$="/assets/champion/64"]')).toBeNull();
+  });
+
   it('as pastas de amigos abrem e fecham', () => {
     const amigos = { id: 7, name: 'Fiotes', priority: 1, collapsed: true };
     render(<LobbyPanel connection={connected({ friends: [ana, { ...bia, groupId: 7, groupName: 'Fiotes' }], friendGroups: [{ id: 0, name: '**Default', priority: 0, collapsed: false }, amigos] })} send={ok()} />);

@@ -70,6 +70,15 @@ describe('lobby do Modo de Treino (#229)', () => {
     expect(busca.getByRole('button', { name: 'Buscar partida' })).toBeDisabled();
   });
 
+  it('mostra o Riot ID de quem não é amigo, que o agente buscou para o lobby (#675)', () => {
+    render(<App />);
+    const zed: CustomMember = { puuid: 'zed', summonerId: 9, summonerIconId: 4567, isLeader: false, bot: null };
+    const lobby = practice({ team2: [zed] });
+    const zedMember = { ...testLobby.members[0], puuid: 'zed', summonerId: 9, isLeader: false, gameName: 'Zed', tagLine: 'KR1' };
+    hello({ lobby: { ...lobby, members: [...lobby.members, zedMember] } });
+    expect(team('Equipe 2').getByText('Zed#KR1')).toBeInTheDocument();
+  });
+
   it('adiciona um bot pelo pop-up com busca, muda e tira', async () => {
     render(<App />);
     hello({ lobby: practice({ team2: [ashe] }), championCatalog: champions, availableBots: [1, 22] });

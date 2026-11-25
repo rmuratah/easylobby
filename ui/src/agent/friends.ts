@@ -4,6 +4,7 @@ import type { Friend } from '../bindings/Friend';
 import type { FriendGroup } from '../bindings/FriendGroup';
 import type { LeagueStatus } from '../bindings/LeagueStatus';
 import type { LobbyMember } from '../bindings/LobbyMember';
+import type { PlayerCard } from '../bindings/PlayerCard';
 
 export const availabilityNames = {
   online: 'Online',
@@ -63,6 +64,21 @@ export function friendDisplayName(friend: Friend): string {
  */
 export function friendNick(friend: Friend): string {
   return friend.gameName || friend.name || 'Amigo';
+}
+
+/**
+ * Nick e ícone de quem não é amigo (#675), que o agente busca na LCU para os
+ * convites recebidos, os sugeridos e os recentes. Acha pelo `puuid` ou, na
+ * falta dele, pelo `summonerId`.
+ */
+export function findPlayerCard(cards: readonly PlayerCard[], puuid: string, summonerId: number): PlayerCard | undefined {
+  return (puuid ? cards.find(c => c.puuid === puuid) : undefined)
+    ?? (summonerId > 0 ? cards.find(c => c.summonerId === summonerId) : undefined);
+}
+
+/** Riot ID completo de um {@link PlayerCard} (`Zed#BR1`, ou só o nome sem tag). */
+export function playerCardName(card: PlayerCard): string {
+  return card.tagLine ? `${card.gameName}#${card.tagLine}` : card.gameName;
 }
 
 /** Nome da pasta padrão na LCU. */

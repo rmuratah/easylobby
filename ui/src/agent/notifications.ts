@@ -1,6 +1,9 @@
 import type { AgentState } from '../bindings/AgentState';
 import type { Conversation } from '../bindings/Conversation';
+import type { Friend } from '../bindings/Friend';
+import type { PlayerCard } from '../bindings/PlayerCard';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
+import { inviterName } from './invitations';
 import { queueNames } from './queues';
 
 /** Aviso de mensagem nova numa conversa 1:1 (#33). Um por conversa. */
@@ -19,8 +22,8 @@ export function conversationName(conversation: Conversation): string {
   return conversation.gameName || 'Um amigo';
 }
 
-export function invitationText(invitation: ReceivedInvitation): string {
-  const from = invitation.fromSummonerName || 'Um amigo';
+export function invitationText(invitation: ReceivedInvitation, friends: Friend[] = [], cards: readonly PlayerCard[] = []): string {
+  const from = inviterName(invitation, friends, cards);
   const queue = invitation.queue ? queueNames[invitation.queue] : 'um lobby';
   return `${from} convidou você para ${queue}`;
 }

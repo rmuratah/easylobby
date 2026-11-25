@@ -101,6 +101,16 @@ describe('InvitationsPanel', () => {
     expect(within(item).getByRole('button', { name: 'Aceitar convite de Ana' })).toBeEnabled();
   });
 
+  it('mostra o nick e o ícone de quem convidou sem ser amigo, que o agente buscou (#675)', () => {
+    const invitation = { ...testInvitation, fromSummonerId: 9999, fromSummonerName: '', queue: 'aram' as const, queueId: 450 };
+    const zed = { puuid: 'zed', summonerId: 9999, gameName: 'Zed', tagLine: 'KR1', profileIconId: 4567 };
+    const { container } = render(panel(connected({ receivedInvitations: [invitation], playerCards: [zed] }), vi.fn()));
+    const item = within(screen.getByRole('list', { name: 'Convites recebidos' })).getByRole('listitem');
+    expect(item).toHaveTextContent('Zed chamou você para ARAM.');
+    expect(within(item).getByText('Zed')).toHaveAttribute('title', 'Zed#KR1');
+    expect(container.querySelector('img[src$="/assets/profileIcon/4567"]')).not.toBeNull();
+  });
+
   it('usa o nome fixo da fila conhecida e o nome da LCU quando quem convidou não é amigo', () => {
     const invitation = { ...testInvitation, fromSummonerId: 9999, fromSummonerName: 'Zed', queue: 'aram' as const, queueId: 450 };
     render(panel(connected({ receivedInvitations: [invitation] }), vi.fn()));

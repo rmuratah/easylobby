@@ -98,6 +98,7 @@ pub mod mastery;
 pub mod match_history;
 pub mod matchmaking;
 pub mod patch_notes;
+pub mod player_cards;
 pub mod player_profile;
 pub mod players;
 pub mod pre_end_of_game;

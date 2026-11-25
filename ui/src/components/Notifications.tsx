@@ -51,7 +51,7 @@ export function Notifications({ connection, quiet = false, sidebarOpen = false, 
     <section aria-label="Notificações"
       className={cx('fixed right-4 top-[8.5rem] z-50 flex max-w-[calc(100vw-2rem)] flex-col gap-2', quiet ? 'w-64' : 'w-80')}>
       {invitations.map(invitation => (
-        <Notice key={invitation.invitationId} title="Convite para jogar" text={invitationText(invitation)}
+        <Notice key={invitation.invitationId} title="Convite para jogar" text={invitationText(invitation, state?.friends, state?.playerCards)}
           onDismiss={() => setDismissed(current => new Set(current).add(invitation.invitationId))} />
       ))}
       {notices.map(notice => <MessageToast key={notice.conversationId} notice={notice} compact={quiet} onDismiss={dismissMessage}

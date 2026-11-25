@@ -71,6 +71,7 @@ use crate::mastery::ChampionMastery;
 use crate::match_history::{MatchDetails, MatchHistory};
 use crate::matchmaking::Matchmaking;
 use crate::patch_notes::PatchNotes;
+use crate::player_cards::PlayerCard;
 use crate::player_profile::PlayerProfile;
 use crate::players::{RecentPlayer, SuggestedPlayer};
 use crate::queues::GameQueue;
@@ -268,6 +269,9 @@ pub enum ServerMessage {
     ReceivedInvitations {
         invitations: Vec<ReceivedInvitation>,
     },
+    /// O nick e o ícone de quem não é amigo mudaram (#675). Sempre a lista
+    /// inteira; veja [`AgentState::player_cards`].
+    PlayerCards { player_cards: Vec<PlayerCard> },
     /// Uma conversa 1:1 com um amigo (#31) abriu ou mudou: mensagem nova
     /// (recebida ou mandada), não lidas, nome do amigo. Sempre a conversa
     /// inteira, com o histórico da sessão; a UI troca a conversa de mesmo
@@ -445,6 +449,11 @@ pub struct AgentState {
     pub suggested_players: Vec<SuggestedPlayer>,
     /// Convites de lobby recebidos e ainda pendentes (#32).
     pub received_invitations: Vec<ReceivedInvitation>,
+    /// Nick e ícone de quem aparece em `receivedInvitations`,
+    /// `suggestedPlayers` ou `recentPlayers` e não é amigo (#675). O agente
+    /// busca na LCU quando as listas mudam, então chegam depois delas; sem
+    /// ordem definida. Ache o jogador pelo `puuid` ou pelo `summonerId`.
+    pub player_cards: Vec<PlayerCard>,
     /// Conversas 1:1 abertas (#31), cada uma com o histórico da sessão. Sem
     /// ordem definida; a UI ordena (pela última mensagem, por exemplo).
     pub conversations: Vec<Conversation>,
@@ -1195,6 +1204,7 @@ mod tests {
                     "customGames": null,
                     "champSelect": null,
                     "receivedInvitations": [],
+                    "playerCards": [],
                     "recentPlayers": [],
                     "suggestedPlayers": [],
                     "conversations": [],

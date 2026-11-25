@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AgentClient, ConnectionSnapshot } from '../agent/client';
 import { assetUrl } from '../agent/assets';
-import { friendDisplayName } from '../agent/friends';
-import { invitationQueueName, invitationSender, inviterName } from '../agent/invitations';
+import { invitationQueueName, inviter } from '../agent/invitations';
 import type { AgentState } from '../bindings/AgentState';
 import type { Command } from '../bindings/Command';
 import type { Friend } from '../bindings/Friend';
 import type { GameQueue } from '../bindings/GameQueue';
+import type { PlayerCard } from '../bindings/PlayerCard';
 import type { ReceivedInvitation } from '../bindings/ReceivedInvitation';
 import { Avatar, Button, Card } from './base';
 
@@ -94,7 +94,7 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
           <ul aria-label="Convites recebidos" className="flex flex-col gap-2">
             {received.map(invitation => (
               <ReceivedItem
-                key={invitation.invitationId} invitation={invitation} friends={friends} queues={state.queues} busy={busy(`invitation:${invitation.invitationId}`)} locked={locked}
+                key={invitation.invitationId} invitation={invitation} friends={friends} cards={state.playerCards} queues={state.queues} busy={busy(`invitation:${invitation.invitationId}`)} locked={locked}
                 onAccept={() => { void execute({ type: 'acceptInvitation', invitationId: invitation.invitationId }); }}
                 onDecline={() => { void execute({ type: 'declineInvitation', invitationId: invitation.invitationId }); }}
               />
@@ -110,18 +110,17 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
   );
 }
 
-function ReceivedItem({ invitation, friends, queues, busy, locked, onAccept, onDecline }: {
-  invitation: ReceivedInvitation; friends: Friend[]; queues: GameQueue[]; busy: boolean; locked: boolean; onAccept: () => void; onDecline: () => void;
+function ReceivedItem({ invitation, friends, cards, queues, busy, locked, onAccept, onDecline }: {
+  invitation: ReceivedInvitation; friends: Friend[]; cards: PlayerCard[]; queues: GameQueue[]; busy: boolean; locked: boolean; onAccept: () => void; onDecline: () => void;
 }) {
-  const sender = invitationSender(invitation, friends);
-  const name = inviterName(invitation, friends);
-  const icon = sender?.profileIconId != null ? assetUrl('profileIcon', sender.profileIconId) : undefined;
+  const { name, riotId, profileIconId } = inviter(invitation, friends, cards);
+  const icon = profileIconId != null ? assetUrl('profileIcon', profileIconId) : undefined;
   return (
     <li className="flex flex-col gap-2 rounded-card border border-accent bg-accent-soft p-3">
       <span className="flex items-start gap-2">
         <Avatar name={name} size={32} src={icon} />
         <span className="min-w-0 break-words text-body">
-          <strong title={sender ? friendDisplayName(sender) : undefined}>{name}</strong> chamou você
+          <strong title={riotId}>{name}</strong> chamou você
           para <strong>{invitationQueueName(invitation, queues)}</strong>.
         </span>
       </span>
