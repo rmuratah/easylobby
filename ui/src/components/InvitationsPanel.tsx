@@ -14,7 +14,7 @@ type Props = { connection: ConnectionSnapshot; send: AgentClient['send'] };
 type InvitationCommand = Extract<Command, { type: 'acceptInvitation' | 'declineInvitation' }>;
 /** Fases em que o agente recusa trocar de grupo (#506), as mesmas do `party_locked_in`. */
 const partyLockedPhases = new Set<string>(['ChampSelect', 'GameStart', 'InProgress', 'Reconnect']);
-type Feedback = { status: 'idle' | 'success' | 'error'; message: string };
+type Feedback = { status: 'idle' | 'error'; message: string };
 
 /**
  * Convites recebidos (#32), sem seção própria: aparecem só enquanto existem,
@@ -55,8 +55,8 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
 
   const busy = (key: string) => pending.has(key) || done.has(key);
 
-  /** `success` vazio não mostra aviso (aceitar: o lobby novo já basta, #507). */
-  async function execute(command: InvitationCommand, success = '') {
+  /** Sem aviso de sucesso: o lobby novo ou o convite sumindo já bastam (#507, #666). */
+  async function execute(command: InvitationCommand) {
     const key = commandKey(command);
     if (inFlight.current.has(key) || done.has(key)) return;
     inFlight.current.add(key);
@@ -66,7 +66,7 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
       if (!mounted.current) return;
       if (result.status === 'ok') {
         setDone(current => new Set(current).add(key));
-        setFeedback(success ? { status: 'success', message: success } : { status: 'idle', message: '' });
+        setFeedback({ status: 'idle', message: '' });
       } else {
         setFeedback({ status: 'error', message: result.code === 'notConnected'
           ? 'O League of Legends desconectou. Aguarde a reconexão e confira os convites antes de tentar novamente.'
@@ -96,8 +96,7 @@ function InvitationsActions({ state, send }: { state: AgentState; send: AgentCli
               <ReceivedItem
                 key={invitation.invitationId} invitation={invitation} friends={friends} queues={state.queues} busy={busy(`invitation:${invitation.invitationId}`)} locked={locked}
                 onAccept={() => { void execute({ type: 'acceptInvitation', invitationId: invitation.invitationId }); }}
-                onDecline={() => { void execute({ type: 'declineInvitation', invitationId: invitation.invitationId },
-                  `Convite de ${inviterName(invitation, friends)} recusado.`); }}
+                onDecline={() => { void execute({ type: 'declineInvitation', invitationId: invitation.invitationId }); }}
               />
             ))}
           </ul>

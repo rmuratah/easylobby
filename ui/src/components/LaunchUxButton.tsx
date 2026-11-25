@@ -4,7 +4,7 @@ import { Button } from './base';
 import { cx } from './base/cx';
 
 type Props = { connection: ConnectionSnapshot; send: AgentClient['send']; compact?: boolean };
-type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
+type Feedback = { status: 'idle' | 'pending' | 'error'; message: string };
 
 export function LaunchUxButton({ connection, send, compact = false }: Props) {
   const lcu = connection.state?.lcu;
@@ -32,7 +32,8 @@ function LaunchUxAction({ available, send, compact }: { available: boolean; send
       const result = await send({ type: 'launchUx' });
       if (!mounted.current) return;
       if (result.status === 'ok') {
-        setFeedback({ status: 'success', message: 'Abertura do client oficial confirmada.' });
+        // O client oficial abre na frente: sem confirmação (#666).
+        setFeedback({ status: 'idle', message: '' });
       } else {
         setFeedback({ status: 'error', message: result.code === 'notConnected'
           ? 'O League of Legends não está conectado. Aguarde a reconexão e tente novamente.'

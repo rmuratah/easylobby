@@ -1,10 +1,6 @@
-import { useEffect, useState } from 'react';
 import type { LolUpdate } from '../bindings/LolUpdate';
 import type { LolUpdateStage } from '../bindings/LolUpdateStage';
 import { Spinner } from './base';
-
-/** Quanto tempo o aviso de "atualização concluída" fica na tela. */
-export const DONE_NOTICE_MS = 8000;
 
 const titles: Record<LolUpdateStage, string> = {
   checking: 'Preparando a atualização do League of Legends',
@@ -22,41 +18,14 @@ function description(update: LolUpdate): string {
   }
 }
 
-/** Se o LoL está mexendo nos arquivos do jogo (o agente não fecha a UI oficial nesse meio-tempo). */
-const running = (update: LolUpdate | null) =>
-  !!update && (update.stage === 'downloading' || update.stage === 'repairing' || update.blocksQueue);
-
 /**
  * Patch do LoL em andamento (#575): com a UI oficial fechada, o jogador não via
  * o progresso e achava que o app tinha travado. Mostra a etapa, a barra de
- * progresso e se a fila está esperando; quando termina, avisa por alguns
- * segundos que a fila já liberou.
+ * progresso e se a fila está esperando. Quando termina, a faixa só some: o
+ * botão de buscar volta a funcionar (#666).
  */
 export function LolUpdateBanner({ update }: { update: LolUpdate | null }) {
-  const [previous, setPrevious] = useState(update);
-  const [done, setDone] = useState(false);
-  // Ajuste durante a renderização (e não num efeito): o fim do patch é a passagem de "rodando" para "sem patch".
-  if (previous !== update) {
-    setPrevious(update);
-    if (running(previous) && !update) setDone(true);
-    else if (update) setDone(false);
-  }
-  useEffect(() => {
-    if (!done) return;
-    const timer = setTimeout(() => setDone(false), DONE_NOTICE_MS);
-    return () => clearTimeout(timer);
-  }, [done]);
-
-  if (!update) {
-    if (!done) return null;
-    return (
-      <section role="status" aria-label="Atualização do League of Legends"
-        className="col-span-full flex flex-col gap-1 rounded-card border border-line bg-surface card p-4">
-        <h2 className="text-body font-semibold text-ink">Atualização do League of Legends concluída</h2>
-        <p className="text-body text-muted">A busca de partida já está liberada.</p>
-      </section>
-    );
-  }
+  if (!update) return null;
   const percent = update.percent;
   return (
     <section role="status" aria-label="Atualização do League of Legends"

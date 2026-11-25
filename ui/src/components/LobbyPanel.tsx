@@ -38,7 +38,7 @@ type Props = {
   onModeSelectChange?: (open: boolean) => void;
 };
 type LobbyCommand = Extract<Command, { type: 'createLobby' | 'createLobbyById' | 'leaveLobby' | 'setPositions' | 'startTutorial' | 'startPracticeTool' | 'createCustomGame' | 'joinCustomGame' }>;
-type Feedback = { status: 'idle' | 'pending' | 'success' | 'error'; message: string };
+type Feedback = { status: 'idle' | 'pending' | 'error'; message: string };
 const CHANGE_MODE_HINT = 'Para trocar a fila, use Trocar modo.';
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 /** Botão em pílula do layout de referência: o principal leva o destaque com brilho; o secundário fica na superfície. */
@@ -189,12 +189,8 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
         if (command.type === 'setPositions' && revision === confirmedRevision.current) {
           setAcceptedPositions({ confirmedKey, first: command.first, second: command.second });
         }
-        setFeedback({ status: 'success', message: command.type === 'setPositions'
-          ? 'Posições salvas.' : command.type === 'leaveLobby'
-          ? 'Saída do lobby confirmada.' : command.type === 'startTutorial' ? 'Tutorial iniciado.'
-          : command.type === 'startPracticeTool' ? 'Modo de Treino iniciado.'
-          : command.type === 'createCustomGame' ? 'Partida personalizada criada.'
-          : command.type === 'joinCustomGame' ? 'Você entrou na partida personalizada.' : 'Lobby atualizado.' });
+        // Sem confirmação de sucesso: a mudança já aparece na tela (#666).
+        setFeedback({ status: 'idle', message: '' });
         return 'ok';
       }
       setFeedback({ status: 'error', message: result.code === 'notConnected'
@@ -255,10 +251,9 @@ function LobbyActions({ state, send, onOpenProfile, onModeSelectChange }: { stat
     onModeSelectChange?.(modeSelectOpen);
   }, [modeSelectOpen, onModeSelectChange]);
   useEffect(() => () => onModeSelectChange?.(false), [onModeSelectChange]);
-  // Confirmações ("Lobby atualizado.", "Posições salvas.") ficam só para o leitor de tela: a mudança já aparece na tela (#613).
-  // Erros e "Criando…" continuam visíveis.
+  // Só erros e "Criando…": o sucesso já aparece na tela (#666).
   const feedbackLine = feedback.message && <p role={feedback.status === 'error' ? 'alert' : 'status'}
-    className={feedback.status === 'error' ? 'text-body text-danger' : feedback.status === 'success' ? 'sr-only' : 'text-body text-muted'}>{feedback.message}</p>;
+    className={feedback.status === 'error' ? 'text-body text-danger' : 'text-body text-muted'}>{feedback.message}</p>;
   // Sem lobby, o painel vira a tela de escolha de modo de jogo (#210). No lobby,
   // "Trocar modo" abre a mesma tela, com as mesmas abas (#231, #513); na busca ou na partida, volta ao lobby.
   if (!lobby || modeSelectOpen) {

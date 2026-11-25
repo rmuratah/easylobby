@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConnectionSnapshot } from '../agent/client';
 import { parseMessage } from '../agent/protocol';
@@ -53,6 +53,10 @@ describe('aviso de Vanguard desconectado (#579)', () => {
     expect(restart).toHaveBeenCalledWith({ type: 'restartLeague' });
     expect(await screen.findByText('Não dá para reabrir o LoL com partida encontrada, na seleção de campeões nem na partida.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Reabrir o LoL' }));
-    expect(await screen.findByRole('status')).toHaveTextContent('O LoL está abrindo de novo.');
+    await act(async () => {});
+    expect(restart).toHaveBeenCalledTimes(2);
+    // Sem confirmação de sucesso: a tela de conexão mostra o LoL abrindo (#666).
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Não dá para reabrir/)).not.toBeInTheDocument();
   });
 });

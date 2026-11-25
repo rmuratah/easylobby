@@ -1,13 +1,10 @@
-import { act, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 import type { LolUpdate } from '../bindings/LolUpdate';
-import { DONE_NOTICE_MS, LolUpdateBanner } from './LolUpdateBanner';
+import { LolUpdateBanner } from './LolUpdateBanner';
 
 const downloading: LolUpdate = { stage: 'downloading', percent: 42, blocksQueue: true };
 const banner = () => screen.queryByRole('status', { name: 'Atualização do League of Legends' });
-
-beforeEach(() => { vi.useFakeTimers(); });
-afterEach(() => { vi.useRealTimers(); });
 
 describe('aviso de atualização do LoL (#575)', () => {
   it('não mostra nada sem atualização', () => {
@@ -34,16 +31,8 @@ describe('aviso de atualização do LoL (#575)', () => {
     expect(banner()).toHaveTextContent('quando você sair do grupo e da partida');
   });
 
-  it('avisa que terminou e some depois de alguns segundos', () => {
+  it('some quando o patch termina, sem aviso de concluída (#666)', () => {
     const { rerender } = render(<LolUpdateBanner update={downloading} />);
-    rerender(<LolUpdateBanner update={null} />);
-    expect(banner()).toHaveTextContent('Atualização do League of Legends concluída');
-    act(() => { vi.advanceTimersByTime(DONE_NOTICE_MS); });
-    expect(banner()).toBeNull();
-  });
-
-  it('uma atualização que só estava esperando não vira "concluída" ao sumir', () => {
-    const { rerender } = render(<LolUpdateBanner update={{ stage: 'pending', percent: null, blocksQueue: false }} />);
     rerender(<LolUpdateBanner update={null} />);
     expect(banner()).toBeNull();
   });

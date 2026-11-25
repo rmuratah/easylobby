@@ -126,7 +126,8 @@ function ReadyCheckActions({ check, active, send, clock }: { check: ReadyCheck; 
         setError(true);
         setFeedback(`Não foi possível responder: ${result.message}`);
       } else {
-        setFeedback('Resposta enviada.');
+        // O painel já mostra a resposta confirmada (#666).
+        setFeedback('');
       }
     } catch {
       if (!mounted.current) return;

@@ -92,7 +92,7 @@ describe('lobby pelo único /ws do App', () => {
     expect(panel().getByText(queueNames[queue], { selector: 'strong' })).toBeInTheDocument();
     expect(panel().getByRole('status')).toHaveTextContent('Criando');
     await ok();
-    expect(panel().getByRole('status')).toHaveTextContent('Lobby atualizado.');
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
     expect(panel().queryByRole('button', { name: 'Trocar fila' })).not.toBeInTheDocument();
     expect(panel().queryByRole('combobox', { name: 'Fila' })).not.toBeInTheDocument();
     expect(button('Trocar modo')).toBeEnabled();
@@ -107,7 +107,7 @@ describe('lobby pelo único /ws do App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Abrir client oficial' }));
     expect(request().command).toEqual({ type: 'launchUx' });
     await ok();
-    expect(screen.getByText('Abertura do client oficial confirmada.')).toBeInTheDocument();
+    expect(screen.queryByText('Abrindo o client oficial…')).not.toBeInTheDocument();
     expect(panel().getByText(queueNames.rankedSolo, { selector: 'strong' })).toBeInTheDocument();
     expect(Socket.instances).toHaveLength(1);
   });
@@ -151,7 +151,7 @@ describe('lobby pelo único /ws do App', () => {
       socket().receive({ type: 'gameflowPhase', phase: 'None' });
     });
     await ok();
-    expect(panel().getByRole('status')).toHaveTextContent('Saída do lobby confirmada');
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
     expect(panel().getByText('Você não está em um lobby.')).toBeInTheDocument();
     expect(button('Criar lobby')).toBeEnabled();
   });
@@ -228,7 +228,7 @@ describe('lobby pelo único /ws do App', () => {
     fireEvent.click(button('Sair do lobby'));
     expect(request().command).toEqual({ type: 'leaveLobby' });
     await ok();
-    expect(panel().getByRole('status')).toHaveTextContent('Saída do lobby confirmada.');
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('esconde sair do lobby na busca sem punição e na partida encontrada', () => {
@@ -283,7 +283,7 @@ describe('lobby pelo único /ws do App', () => {
     await act(async () => socket().receive({ type: 'response', id: oldId, result: { status: 'ok' } }));
     expect(panel().getByRole('status')).toHaveTextContent('Criando');
     await ok();
-    expect(panel().getByRole('status')).toHaveTextContent('atualizado');
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('oferece a ARAM: Desordem e as outras filas da LCU, cria pelo id e troca de volta para uma fixa', async () => {
@@ -326,7 +326,7 @@ describe('lobby pelo único /ws do App', () => {
     fireEvent.click(button('Iniciar'));
     expect(request().command).toEqual({ type: 'startPracticeTool' });
     await ok();
-    expect(panel().getByRole('status')).toHaveTextContent('Modo de Treino iniciado');
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('cria a partida personalizada pelo formulário da aba Personalizada (#262, #270)', async () => {
@@ -365,7 +365,7 @@ describe('lobby pelo único /ws do App', () => {
     } });
     expect(panel().getByRole('status')).toHaveTextContent('Criando a partida personalizada');
     await ok();
-    expect(panel().getByRole('status')).toHaveTextContent('Partida personalizada criada');
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('cria a personalizada no Mapa aleatório com a seleção de mapas (#271)', async () => {
@@ -437,7 +437,7 @@ describe('lobby pelo único /ws do App', () => {
     expect(request().command).toEqual({ type: 'joinCustomGame', partyId: 'p-1002', password: 'senha' });
     expect(panel().getByRole('status')).toHaveTextContent('Entrando na partida personalizada');
     await ok();
-    expect(panel().getByRole('status')).toHaveTextContent('Você entrou na partida personalizada');
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
 
     // Sem senha, o comando vai sem o campo; o Atualizar pede a lista de novo.
     fireEvent.click(panel().getByRole('radio', { name: /5v5 da firma/ }));
@@ -471,7 +471,7 @@ describe('lobby pelo único /ws do App', () => {
     fireEvent.click(button('Iniciar'));
     expect(request().command).toEqual({ type: 'startPracticeTool' });
     await ok();
-    expect(panel().getByRole('status')).toHaveTextContent('Modo de Treino iniciado');
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
     expect(panel().queryByRole('tablist')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Busca de partida' }).closest('[hidden]')).toBeNull();
   });
@@ -484,7 +484,7 @@ describe('lobby pelo único /ws do App', () => {
     fireEvent.click(button('Confirmar'));
     expect(request().command).toMatchObject({ type: 'createCustomGame' });
     await ok();
-    expect(panel().getByRole('status')).toHaveTextContent('Partida personalizada criada');
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
   });
 
 
@@ -607,7 +607,7 @@ describe('cargos pelo /ws', () => {
     ] } }));
     if (order === 'antes') update();
     await ok();
-    expect(panel().getByRole('status')).toHaveTextContent('Posições salvas.');
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
     await settle();
     expect(socket().send).toHaveBeenCalledTimes(1);
     if (order === 'depois') update();

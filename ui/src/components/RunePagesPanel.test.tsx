@@ -74,7 +74,8 @@ describe('RunePagesPanel', () => {
     expect(send).toHaveBeenCalledExactlyOnceWith({ type: 'updateRunePage', pageId: 10, page: {
       name: 'Mid AP', primaryStyleId: 8000, subStyleId: 8100, selectedPerkIds: [102, 111, 121, 131, 211, 231, 5008, 5010, 5011],
     } });
-    expect(panel().getByRole('status')).toHaveTextContent('Página salva.');
+    // Sem confirmação de sucesso: a lista de páginas já mostra a mudança (#666).
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('Esc no nome desfaz a troca de nome', () => {
@@ -107,7 +108,8 @@ describe('RunePagesPanel', () => {
     rerender(<RunePagesPanel connection={connection({ runePages: { ...basePages, pages: [...basePages.pages, jungle], currentPageId: 30 } })} send={send} />);
     await act(async () => {});
     expect(pageSelect()).toHaveAttribute('data-value', '30');
-    expect(panel().getByRole('status')).toHaveTextContent('Página criada.');
+    // Sem confirmação de sucesso: a lista de páginas já mostra a mudança (#666).
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('descarta a página nova e volta para a página em uso', () => {
@@ -130,7 +132,8 @@ describe('RunePagesPanel', () => {
       fireEvent.click(within(editor().getByRole('alertdialog')).getByRole('button', { name: 'Excluir' }));
     });
     expect(send).toHaveBeenCalledExactlyOnceWith({ type: 'deleteRunePage', pageId: 10 });
-    expect(panel().getByRole('status')).toHaveTextContent('Página excluída.');
+    // Sem confirmação de sucesso: a lista de páginas já mostra a mudança (#666).
+    expect(panel().queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('página recomendada não se edita nem se exclui, mas vira cópia pelo +', () => {
