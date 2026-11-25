@@ -25,6 +25,7 @@ import type { MatchDetails } from "./MatchDetails";
 import type { MatchHistory } from "./MatchHistory";
 import type { Matchmaking } from "./Matchmaking";
 import type { PatchNotes } from "./PatchNotes";
+import type { PlayerCard } from "./PlayerCard";
 import type { PlayerLiveGame } from "./PlayerLiveGame";
 import type { PlayerProfile } from "./PlayerProfile";
 import type { RankedStats } from "./RankedStats";
@@ -164,6 +165,13 @@ export type AgentState = {
    * Convites de lobby recebidos e ainda pendentes (#32).
    */
   receivedInvitations: Array<ReceivedInvitation>,
+  /**
+   * Nick e ícone de quem aparece em `receivedInvitations`,
+   * `suggestedPlayers` ou `recentPlayers` e não é amigo (#675). O agente
+   * busca na LCU quando as listas mudam, então chegam depois delas; sem
+   * ordem definida. Ache o jogador pelo `puuid` ou pelo `summonerId`.
+   */
+  playerCards: Array<PlayerCard>,
   /**
    * Conversas 1:1 abertas (#31), cada uma com o histórico da sessão. Sem
    * ordem definida; a UI ordena (pela última mensagem, por exemplo).

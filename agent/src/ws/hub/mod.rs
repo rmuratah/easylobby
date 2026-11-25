@@ -25,6 +25,7 @@ mod lobby_chat;
 mod lobby_ranks;
 mod lol_update;
 mod patch_notes;
+mod player_cards;
 mod player_live_game;
 mod pre_end_of_game;
 mod profile;
@@ -131,6 +132,8 @@ struct Shared {
     recommended_runes_request: Option<(u32, crate::lobby::Position)>,
     /// Elo dos outros membros do lobby, já buscado (#275).
     lobby_ranks: lobby_ranks::LobbyRanks,
+    /// Nick e ícone de quem não é amigo, já pedidos à LCU (#675).
+    player_cards: player_cards::PlayerCardSync,
     /// A partida ao vivo e o que já foi buscado dela (#268).
     live_game: live_game::LiveGameSync,
     /// Cliente da API da Riot para a aba "Em jogo" do perfil (#436). `None`
@@ -232,6 +235,7 @@ impl Hub {
                     champion_skins_request: None,
                     recommended_runes_request: None,
                     lobby_ranks: lobby_ranks::LobbyRanks::default(),
+                    player_cards: player_cards::PlayerCardSync::default(),
                     live_game: live_game::LiveGameSync::default(),
                     riot_api: None,
                     autofill_ack: None,

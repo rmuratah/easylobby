@@ -2,12 +2,13 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { ConnectionSnapshot } from '../agent/client';
 import { assetUrl } from '../agent/assets';
-import { friendDisplayName, groupFriends, memberName } from '../agent/friends';
+import { findPlayerCard, friendDisplayName, groupFriends, memberName } from '../agent/friends';
 import { isOpenInvitation } from '../agent/invitations';
 import { friendTarget, summonerKey, targetKey, type InviteTarget, type LobbyInvite } from '../agent/lobbyInvite';
 import type { Friend } from '../bindings/Friend';
 import type { FriendGroup } from '../bindings/FriendGroup';
 import type { InvitationState } from '../bindings/InvitationState';
+import type { PlayerCard } from '../bindings/PlayerCard';
 import type { RecentPlayer } from '../bindings/RecentPlayer';
 import type { SuggestedPlayer } from '../bindings/SuggestedPlayer';
 import type { SuggestedPlayerReason } from '../bindings/SuggestedPlayerReason';
@@ -76,7 +77,7 @@ function ClearButton({ label, onClick }: { label: string; onClick: () => void })
  * oficial: filtro por nome de jogo e tagline, os amigos disponíveis nas
  * pastas da lista de amigos (recolhíveis), marcar vários e "Enviar convites".
  */
-export function InvitePicker({ invites, groups, recent, loadRecent, suggested = [], loadSuggested, dismissSuggested, onClose }: {
+export function InvitePicker({ invites, groups, recent, loadRecent, suggested = [], loadSuggested, dismissSuggested, cards = [], onClose }: {
   invites: LobbyInvite;
   groups: FriendGroup[];
   /** Jogadores das partidas recentes, para a seção "Recentes". */
@@ -89,6 +90,8 @@ export function InvitePicker({ invites, groups, recent, loadRecent, suggested = 
   loadSuggested?: () => void;
   /** Dispensa um sugerido; devolve o erro para mostrar, ou `null`. */
   dismissSuggested?: (summonerId: number) => Promise<string | null>;
+  /** Nick e ícone de quem não é amigo (#675), para os ícones dos sugeridos e dos recentes. */
+  cards?: PlayerCard[];
   onClose: () => void;
 }) {
   const titleId = useId();
@@ -192,6 +195,13 @@ export function InvitePicker({ invites, groups, recent, loadRecent, suggested = 
     if (error) setDismissError(`Não foi possível dispensar ${recentName(player)}: ${error}`);
   }
 
+  /** Ícone de invocador de um sugerido ou recente: do amigo ou do que o agente buscou (#675). */
+  function profileIcon(puuid: string, summonerId: number): string | undefined {
+    const friend = invites.candidates.find(f => (puuid && f.puuid === puuid) || (summonerId > 0 && f.summonerId === summonerId));
+    const id = friend?.profileIconId ?? findPlayerCard(cards, puuid, summonerId)?.profileIconId;
+    return id ? assetUrl('profileIcon', id) : undefined;
+  }
+
   function playerRow(key: string, puuid: string, title: string, subtitle: ReactNode, iconName: string, iconSrc: string | undefined, label: string, extra?: ReactNode) {
     const checked = selected.has(puuid);
     const busy = invites.pending(puuid);
@@ -278,7 +288,7 @@ export function InvitePicker({ invites, groups, recent, loadRecent, suggested = 
                       const display = recentName(player);
                       const key = targetKey(suggestedTarget(player));
                       return playerRow(`sugerido-${player.summonerId}`, key, player.gameName || display, suggestedReason(player),
-                        player.gameName || display, undefined, display,
+                        player.gameName || display, profileIcon(player.puuid, player.summonerId), display,
                         dismissSuggested && (
                           <Button size="sm" variant="ghost" loading={dismissing.has(player.summonerId)}
                             aria-label={`Dispensar ${display}`} onClick={() => { void dismiss(player); }}>
@@ -303,7 +313,8 @@ export function InvitePicker({ invites, groups, recent, loadRecent, suggested = 
                       {recentPlayers.map(player => {
                         const display = recentName(player);
                         return playerRow(`recente-${player.puuid}`, player.puuid, player.gameName || display, 'Jogou recentemente',
-                          player.gameName || display, player.championId !== null ? assetUrl('champion', player.championId) : undefined, display);
+                          player.gameName || display,
+                          profileIcon(player.puuid, player.summonerId) ?? (player.championId !== null ? assetUrl('champion', player.championId) : undefined), display);
                       })}
                     </ul>
                   ))}
