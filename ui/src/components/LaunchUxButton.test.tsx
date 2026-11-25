@@ -29,7 +29,8 @@ describe('LaunchUxButton', () => {
     expect(button()).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByRole('status')).toHaveTextContent('Abrindo');
     await act(async () => { request.resolve({ status: 'ok' }); });
-    expect(screen.getByRole('status')).toHaveTextContent('Abertura do client oficial confirmada');
+    // Sem confirmação de sucesso: o client oficial abre na frente (#666).
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(button()).toBeEnabled();
   });
 
@@ -45,7 +46,8 @@ describe('LaunchUxButton', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(message);
     expect(button()).toBeEnabled();
     fireEvent.click(button());
-    expect(await screen.findByText('Abertura do client oficial confirmada.')).toBeInTheDocument();
+    await act(async () => {});
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(send).toHaveBeenCalledTimes(2);
   });
@@ -99,7 +101,7 @@ describe('LaunchUxButton', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Abrindo');
     await act(async () => { current.resolve({ status: 'ok' }); });
     expect(button()).toBeEnabled();
-    expect(screen.getByRole('status')).toHaveTextContent('confirmada');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('consome rejeição tardia após desmontar', async () => {

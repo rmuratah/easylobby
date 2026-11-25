@@ -329,7 +329,7 @@ export function RunePageEditor({ catalog, runePages, send, slot, className }: Ed
     if (effective.kind !== 'page' || !page) return;
     setConfirmDelete(false);
     const done = await command.run({ type: 'deleteRunePage', pageId: page.id },
-      { pending: 'Excluindo página…', success: 'Página excluída.', failure: 'excluir a página' });
+      { pending: 'Excluindo página…', failure: 'excluir a página' });
     if (!done) return;
     if (slot) { setTarget({ kind: 'slot' }); setDraftState({ key: 'slot', value: value }); return; }
     setTarget({ kind: 'page', id: 0 });
@@ -341,13 +341,13 @@ export function RunePageEditor({ catalog, runePages, send, slot, className }: Ed
     const input = draftToInput(value);
     if (effective.kind === 'new') {
       const done = await command.run({ type: 'createRunePage', page: input },
-        { pending: 'Criando página…', success: 'Página criada.', failure: 'criar a página' });
+        { pending: 'Criando página…', failure: 'criar a página' });
       if (!done) return;
       // A página criada fica em uso; na seleção, o editor passa a mostrá-la.
       if (!slot) setTarget({ kind: 'page', id: 0 });
     } else if (effective.kind === 'page' && page && dirty) {
       const done = await command.run({ type: 'updateRunePage', pageId: page.id, page: input },
-        { pending: 'Salvando página…', success: 'Página salva.', failure: 'salvar a página' });
+        { pending: 'Salvando página…', failure: 'salvar a página' });
       if (!done) return;
     }
     slot?.onSave(slotRunes(value));

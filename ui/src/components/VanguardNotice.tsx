@@ -63,7 +63,8 @@ function RestartLeagueButton({ send }: { send: AgentClient['send'] }) {
     try {
       const result = await send({ type: 'restartLeague' });
       if (!mounted.current) return;
-      if (result.status === 'ok') setFeedback({ status: 'idle', message: 'O LoL está abrindo de novo.' });
+      // A tela de conexão já mostra o LoL abrindo (#666).
+      if (result.status === 'ok') setFeedback({ status: 'idle', message: '' });
       else setFeedback({ status: 'error', message: result.code === 'invalidCommand'
         ? 'Não dá para reabrir o LoL com partida encontrada, na seleção de campeões nem na partida.'
         : result.code === 'notConnected' ? 'O LoL não está aberto.'

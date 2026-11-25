@@ -45,8 +45,7 @@ describe('matchmaking pelo /ws', () => {
     expect(screen.getByRole('progressbar', { name: 'Progresso da atualização' })).toHaveAttribute('aria-valuenow', '40');
     act(() => socket().receive({ type: 'lolUpdate', lolUpdate: null }));
     expect(button('Buscar partida')).toBeEnabled();
-    expect(screen.getByRole('status', { name: 'Atualização do League of Legends' }))
-      .toHaveTextContent('Atualização do League of Legends concluída');
+    expect(screen.queryByRole('status', { name: 'Atualização do League of Legends' })).toBeNull();
   });
 
   it('inicia uma vez e mantém o agente como fonte de verdade', async () => {

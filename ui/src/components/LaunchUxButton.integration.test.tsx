@@ -40,11 +40,12 @@ it('reutiliza o único /ws do App, recebe sucesso e recupera uma abertura interr
   const request: ClientMessage = JSON.parse(socket.send.mock.calls[0][0]);
   expect(request.command).toEqual({ type: 'launchUx' });
   await act(async () => { socket.receive({ type: 'response', id: request.id, result: { status: 'ok' } }); });
-  expect(screen.getByText('Abertura do client oficial confirmada.')).toBeInTheDocument();
+  expect(button()).toBeEnabled();
+  expect(screen.queryByText('Abrindo o client oficial…')).not.toBeInTheDocument();
   fireEvent.click(button());
   await act(async () => { socket.onclose?.(); });
   expect(button()).toBeDisabled();
-  expect(screen.queryByText('Abertura do client oficial confirmada.')).not.toBeInTheDocument();
+  expect(screen.queryByText('Abrindo o client oficial…')).not.toBeInTheDocument();
   act(() => { vi.advanceTimersByTime(1000); });
   const next = Socket.instances[1];
   act(() => { next.receive(hello); });
