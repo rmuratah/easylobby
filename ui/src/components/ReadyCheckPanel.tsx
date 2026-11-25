@@ -19,12 +19,28 @@ function MatchFoundOverlay({ children }: { children: ReactNode }) {
   );
 }
 
-const cardClass = 'flex w-full max-w-sm flex-col items-center gap-4 rounded-card border-2 border-accent bg-accent-soft p-6 text-center text-ink shadow-lift';
+const cardBase = 'flex w-full max-w-sm flex-col items-center gap-4 rounded-card border-2 p-6 text-center text-ink shadow-lift transition-colors duration-300';
+const cardClass = `${cardBase} border-accent bg-accent-soft`;
+const titleClass = 'text-title font-semibold tracking-[-0.015em]';
+
+// O card fica verde quando o jogador aceita e vermelho quando recusa (#673). A cor muda no clique e
+// continua depois que a LCU confirma; se o envio falhar, volta à cor normal.
+type Choice = 'accepted' | 'declined' | null;
+const choiceStyles: Record<Exclude<Choice, null>, { card: string; title: string }> = {
+  accepted: {
+    card: `${cardBase} border-status-online bg-[color-mix(in_oklab,var(--el-status-online)_16%,var(--el-surface))]`,
+    title: 'text-status-online',
+  },
+  declined: {
+    card: `${cardBase} border-danger bg-[color-mix(in_oklab,var(--el-danger)_16%,var(--el-surface))]`,
+    title: 'text-danger',
+  },
+};
 
 export function MatchFoundPending() {
   return <MatchFoundOverlay>
     <section role="alert" className={cardClass}>
-      <h2 className="text-title font-semibold tracking-[-0.015em] text-accent-ink">Partida encontrada</h2>
+      <h2 className={`${titleClass} text-accent-ink`}>Partida encontrada</h2>
       <p className="text-body">Aguardando os dados de confirmação do agente. Use “Abrir client oficial”, no alto da janela, se precisar.</p>
     </section>
   </MatchFoundOverlay>;
@@ -103,6 +119,7 @@ function ReadyCheckActions({ check, active, send, clock }: { check: ReadyCheck; 
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState(false);
   const [pending, setPending] = useState(false);
+  const [sent, setSent] = useState<Choice>(null);
   const locked = useRef(false);
   const mounted = useRef(false);
   useEffect(() => {
@@ -115,6 +132,7 @@ function ReadyCheckActions({ check, active, send, clock }: { check: ReadyCheck; 
     locked.current = true;
     sound.play(type === 'acceptReadyCheck' ? 'accept' : 'decline');
     setPending(true);
+    setSent(type === 'acceptReadyCheck' ? 'accepted' : 'declined');
     setError(false);
     setFeedback('Enviando resposta…');
     try {
@@ -123,6 +141,7 @@ function ReadyCheckActions({ check, active, send, clock }: { check: ReadyCheck; 
       if (result.status === 'error') {
         locked.current = false;
         setPending(false);
+        setSent(null);
         setError(true);
         setFeedback(`Não foi possível responder: ${result.message}`);
       } else {
@@ -152,9 +171,12 @@ function ReadyCheckActions({ check, active, send, clock }: { check: ReadyCheck; 
     return () => window.removeEventListener('keydown', onKey);
   }, [canAnswer]);
   const answering = active && check.state === 'InProgress';
+  const choice: Choice = check.playerResponse === 'Accepted' ? 'accepted'
+    : check.playerResponse === 'Declined' ? 'declined' : sent;
+  const style = choice ? choiceStyles[choice] : null;
   return <MatchFoundOverlay>
-    <section aria-label="Partida encontrada" className={cardClass}>
-      <h2 className="text-title font-semibold tracking-[-0.015em] text-accent-ink">Partida encontrada</h2>
+    <section aria-label="Partida encontrada" data-choice={choice ?? undefined} className={style?.card ?? cardClass}>
+      <h2 className={`${titleClass} ${style?.title ?? 'text-accent-ink'}`}>Partida encontrada</h2>
       {answering && <p className="flex flex-col items-center gap-1 text-caption text-muted">Tempo para responder
         <span className="text-[2.75rem] font-semibold leading-none tabular-nums text-ink"><Countdown check={check} clock={clock} /></span></p>}
       {answering && <TimeBar check={check} clock={clock} />}

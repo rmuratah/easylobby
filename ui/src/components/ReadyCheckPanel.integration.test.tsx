@@ -213,3 +213,26 @@ it('mostra a partida encontrada num pop-up por cima do lobby, com o fundo escure
   expect(overlay).toHaveClass('fixed', 'inset-0', 'bg-overlay');
   expect(screen.queryByRole('region', { name: 'Busca de partida' })).not.toBeInTheDocument();
 });
+it.each([['Aceitar', 'Accepted', 'accepted', 'border-status-online'], ['Recusar', 'Declined', 'declined', 'border-danger']] as const)(
+  'card muda de cor ao clicar em %s e mantém depois da confirmação (#673)', async (label, response, choice, border) => {
+    render(<App />); open();
+    const card = () => screen.getByRole('region', { name: 'Partida encontrada' });
+    expect(card()).not.toHaveAttribute('data-choice');
+    expect(card()).toHaveClass('border-accent');
+    act(() => { fireEvent.click(button(label)); });
+    expect(card()).toHaveAttribute('data-choice', choice);
+    expect(card()).toHaveClass(border);
+    await respond();
+    event({ playerResponse: response });
+    expect(card()).toHaveAttribute('data-choice', choice);
+    expect(card()).toHaveClass(border);
+  });
+it('card volta à cor normal quando o envio da resposta falha (#673)', async () => {
+  render(<App />); open();
+  const card = () => screen.getByRole('region', { name: 'Partida encontrada' });
+  act(() => { fireEvent.click(button('Aceitar')); });
+  expect(card()).toHaveAttribute('data-choice', 'accepted');
+  await respond({ status: 'error', code: 'lcu', message: 'falhou' });
+  expect(card()).not.toHaveAttribute('data-choice');
+  expect(card()).toHaveClass('border-accent');
+});
