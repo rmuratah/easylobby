@@ -48,12 +48,13 @@ it('pede as trocas disponíveis com um aliado pelo botão Trocar', async () => {
   fireEvent.mouseEnter(trigger);
   expect(trigger).toHaveAttribute('aria-expanded', 'true');
   const menu = () => within(screen.getByRole('menu', { name: 'Trocas com Amigo#BR1' }));
-  expect(menu().getAllByRole('menuitem').map(item => item.textContent)).toEqual(['vez', 'posição']);
+  expect(menu().getAllByRole('menuitem').map(item => item.textContent)).toEqual(['vez', 'Selva']);
+  // A troca de posição mostra a rota que você recebe, a do aliado (#677).
   // Sair do botão para o menu não fecha.
   fireEvent.mouseLeave(trigger);
   fireEvent.mouseEnter(screen.getByRole('menu'));
   act(() => { vi.advanceTimersByTime(500); });
-  fireEvent.click(menu().getByRole('menuitem', { name: 'Pedir troca de posição com Amigo#BR1' }));
+  fireEvent.click(menu().getByRole('menuitem', { name: 'Pedir troca de posição (Selva) com Amigo#BR1' }));
   expect(last().command).toEqual({ type: 'requestSwap', kind: 'position', swapId: 9 });
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   expect(trigger).toBeDisabled();
@@ -67,6 +68,16 @@ it('pede as trocas disponíveis com um aliado pelo botão Trocar', async () => {
   expect(panel().getByRole('group', { name: 'Seu pedido de troca de posição' })).toHaveTextContent('Aguardando a resposta da troca de posição…');
   fireEvent.click(sent.getByRole('button', { name: 'Cancelar pedido' }));
   expect(last().command).toEqual({ type: 'cancelSwap', kind: 'position', swapId: 9 });
+});
+
+it('mostra "posição" quando o aliado não tem rota atribuída', () => {
+  render(<App />);
+  hello(withSwaps({
+    myTeam: draftChampSelect.myTeam.map(p => (p.cellId === 1 ? { ...p, assignedPosition: 'unselected' } : p)),
+    positionSwaps: [{ id: 9, cellId: 1, state: 'AVAILABLE' }],
+  }));
+  fireEvent.mouseEnter(panel().getByRole('button', { name: 'Trocar com Amigo#BR1' }));
+  expect(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Pedir troca de posição com Amigo#BR1' })).toHaveTextContent('posição');
 });
 
 it('mostra só a troca que ainda vale e fecha o menu ao tirar o mouse', () => {
