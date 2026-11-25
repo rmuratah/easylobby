@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { playerName } from '../agent/champSelect';
+import { LANES, positionNames } from '../agent/positions';
 import { swapKindNames, swapsIn, type SwapEntry } from '../agent/swaps';
 import type { CommandFeedback, CommandTexts } from '../agent/useCommand';
 import type { ChampSelect } from '../bindings/ChampSelect';
@@ -12,6 +13,13 @@ type SwapCommand = 'requestSwap' | 'acceptSwap' | 'declineSwap' | 'cancelSwap';
 const buttonClass = 'rounded-control-sm border bg-surface px-2 py-0.5 text-caption font-medium text-ink hover:bg-raised disabled:cursor-not-allowed disabled:opacity-50';
 
 const iconButtonClass = 'flex size-5 shrink-0 items-center justify-center rounded-control-sm border disabled:cursor-not-allowed disabled:opacity-50';
+
+/** O rótulo da troca no menu (#677): na de posição, a rota que você recebe (a do aliado), em vez de "posição". */
+function offerLabel(champSelect: ChampSelect, cellId: number, kind: SwapEntry['kind']): string {
+  if (kind !== 'position') return swapKindNames[kind];
+  const lane = champSelect.myTeam.find(p => p.cellId === cellId)?.assignedPosition;
+  return lane && (LANES as readonly string[]).includes(lane) ? positionNames[lane] : swapKindNames[kind];
+}
 
 function allyName(champSelect: ChampSelect, cellId: number): string {
   const index = champSelect.myTeam.findIndex(p => p.cellId === cellId);
@@ -156,15 +164,19 @@ export function SwapOffers({ champSelect, cellId, busy, run }: OffersProps) {
             if (!menu.current?.contains(to) && to !== button.current) closeSoon();
           }}
           className="z-[60] flex min-w-32 flex-col gap-0.5 rounded-control-lg border border-line bg-surface p-1 text-ink shadow-lift animate-select-in">
-          {available.map(entry => (
-            <button key={`${entry.kind}:${entry.swap.id}`} type="button" role="menuitem" disabled={busy}
-              aria-label={`Pedir troca de ${swapKindNames[entry.kind]} com ${name}`}
-              className="flex items-center gap-2 rounded-control-sm px-2.5 py-1.5 text-left text-body font-medium hover:bg-raised focus-visible:bg-raised focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={() => { close(); sendSwap(run, 'requestSwap', entry); }}>
-              <SwapIcon />
-              <span className="capitalize">{swapKindNames[entry.kind]}</span>
-            </button>
-          ))}
+          {available.map(entry => {
+            const label = offerLabel(champSelect, cellId, entry.kind);
+            const lane = label !== swapKindNames[entry.kind] ? ` (${label})` : '';
+            return (
+              <button key={`${entry.kind}:${entry.swap.id}`} type="button" role="menuitem" disabled={busy}
+                aria-label={`Pedir troca de ${swapKindNames[entry.kind]}${lane} com ${name}`}
+                className="flex items-center gap-2 rounded-control-sm px-2.5 py-1.5 text-left text-body font-medium hover:bg-raised focus-visible:bg-raised focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => { close(); sendSwap(run, 'requestSwap', entry); }}>
+                <SwapIcon />
+                <span className="capitalize">{label}</span>
+              </button>
+            );
+          })}
         </div>,
         document.body,
       )}
