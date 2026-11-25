@@ -6,6 +6,7 @@ import { useAgent } from '../../agent/useAgent';
 import type { CommandResult } from '../../bindings/CommandResult';
 import type { LcuStatus } from '../../bindings/LcuStatus';
 import { connectionView } from '../../screens/connection';
+import { LAUNCH_WAIT_MS } from './ConnectionScreen';
 import { makeState } from '../../test/state';
 
 vi.mock('../../agent/useAgent');
@@ -57,7 +58,44 @@ describe('estados de conexão', () => {
     const send = show(closed, vi.fn(async () => ({ status: 'ok' }) as CommandResult));
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Abrir o League of Legends' })); });
     expect(send).toHaveBeenCalledExactlyOnceWith({ type: 'launchLeague' });
-    expect(screen.getByText(/Abrindo o League of Legends/)).toBeInTheDocument();
+    expect(screen.getByText(/Abrindo o League of Legends\. Se o Riot Client/)).toBeInTheDocument();
+  });
+
+  it('com o pedido aceito, não deixa pedir de novo enquanto o LoL abre (#665)', async () => {
+    const send = show(closed, vi.fn(async () => ({ status: 'ok' }) as CommandResult));
+    const button = screen.getByRole('button', { name: 'Abrir o League of Legends' });
+    await act(async () => { fireEvent.click(button); });
+    await act(async () => { fireEvent.click(button); fireEvent.click(button); });
+    expect(send).toHaveBeenCalledOnce();
+    expect(button).toBeDisabled();
+    expect(button).toHaveTextContent('Abrindo o League of Legends…');
+  });
+
+  it('dois cliques no mesmo instante mandam um pedido só (#665)', async () => {
+    let finish: (result: CommandResult) => void = () => {};
+    const send = show(closed, vi.fn(() => new Promise<CommandResult>(resolve => { finish = resolve; })));
+    const button = screen.getByRole('button', { name: 'Abrir o League of Legends' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await act(async () => { finish({ status: 'ok' } as CommandResult); });
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it('se o LoL não conectar a tempo, libera o botão de novo (#665)', async () => {
+    vi.useFakeTimers();
+    try {
+      const send = show(closed, vi.fn(async () => ({ status: 'ok' }) as CommandResult));
+      const button = screen.getByRole('button', { name: 'Abrir o League of Legends' });
+      await act(async () => { fireEvent.click(button); });
+      expect(button).toBeDisabled();
+      act(() => { vi.advanceTimersByTime(LAUNCH_WAIT_MS); });
+      expect(button).toBeEnabled();
+      expect(screen.getByText(/ainda não conectou/)).toBeInTheDocument();
+      await act(async () => { fireEvent.click(button); });
+      expect(send).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('avisa quando não consegue abrir o LoL e deixa tentar de novo', async () => {

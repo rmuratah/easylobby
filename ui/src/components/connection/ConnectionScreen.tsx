@@ -22,28 +22,49 @@ export function ConnectionScreen({ view, send, error }: Props) {
   );
 }
 
+/** Quanto tempo o botão espera o LoL conectar antes de deixar pedir de novo (#665). */
+export const LAUNCH_WAIT_MS = 90_000;
+
 function LaunchLeague({ send }: { send: AgentClient['send'] }) {
   const [state, setState] = useState<{ status: 'idle' | 'pending' | 'opening' | 'error'; message: string }>({ status: 'idle', message: '' });
   const mounted = useRef(true);
+  const inFlight = useRef(false);
   useEffect(() => () => { mounted.current = false; }, []);
+  // Pedido aceito: o botão fica bloqueado até esta tela sair (o LoL conectou).
+  // Se o LoL não conectar a tempo (login fechado no Riot Client), libera de novo.
+  useEffect(() => {
+    if (state.status !== 'opening') return;
+    const timer = setTimeout(() => {
+      inFlight.current = false;
+      setState({ status: 'idle', message: 'O League of Legends ainda não conectou. Confira o Riot Client ou tente abrir de novo.' });
+    }, LAUNCH_WAIT_MS);
+    return () => { clearTimeout(timer); };
+  }, [state.status]);
 
   async function launch() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setState({ status: 'pending', message: '' });
     try {
       const result = await send({ type: 'launchLeague' });
       if (!mounted.current) return;
-      setState(result.status === 'ok'
-        ? { status: 'opening', message: 'Abrindo o League of Legends. Se o Riot Client pedir login, entre na sua conta e o LoL abre sozinho. Esta tela muda quando ele conectar.' }
-        : { status: 'error', message: 'Não foi possível abrir o League of Legends. Abra pelo Riot Client e o easylobby conecta sozinho.' });
+      if (result.status === 'ok') {
+        setState({ status: 'opening', message: 'Abrindo o League of Legends. Se o Riot Client pedir login, entre na sua conta e o LoL abre sozinho. Esta tela muda quando ele conectar.' });
+        return;
+      }
+      inFlight.current = false;
+      setState({ status: 'error', message: 'Não foi possível abrir o League of Legends. Abra pelo Riot Client e o easylobby conecta sozinho.' });
     } catch {
+      inFlight.current = false;
       if (mounted.current) setState({ status: 'error', message: 'Não foi possível pedir a abertura. Abra pelo Riot Client e o easylobby conecta sozinho.' });
     }
   }
 
+  const busy = state.status === 'pending' || state.status === 'opening';
   return (
     <div className="flex flex-col items-center gap-3">
-      <Button variant="primary" size="lg" loading={state.status === 'pending'} onClick={() => { void launch(); }}>
-        Abrir o League of Legends
+      <Button variant="primary" size="lg" loading={busy} onClick={() => { void launch(); }}>
+        {state.status === 'opening' ? 'Abrindo o League of Legends…' : 'Abrir o League of Legends'}
       </Button>
       {state.message && (
         <p role={state.status === 'error' ? 'alert' : undefined} aria-live="polite"
