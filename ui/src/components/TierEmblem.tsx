@@ -3,13 +3,15 @@ import { assetUrl } from '../agent/assets';
 import { tierEmblemId, tierName } from '../agent/profile';
 import { cx } from './base/cx';
 
-type Size = 'md' | 'lg';
+type Size = 'lg' | 'xl';
 
-// A imagem do CommunityDragon tem muita borda transparente: ela fica com
-// o dobro do tamanho da caixa, centralizada, e a borda sobra para fora.
+// A imagem do CommunityDragon tem muita borda transparente: ela fica maior
+// que a caixa, centralizada, e a borda sobra para fora. No card do início
+// (xl, #663) o desenho ocupa só cerca de um quarto da imagem, então ela é
+// bem maior que a caixa.
 const sizes: Record<Size, { box: string; img: string; px: number; fallback: string }> = {
-  md: { box: 'size-20', img: 'size-40', px: 160, fallback: 'size-14' },
   lg: { box: 'size-28', img: 'size-56', px: 224, fallback: 'size-16' },
+  xl: { box: 'size-28', img: 'size-[30rem]', px: 480, fallback: 'size-20' },
 };
 
 /**
