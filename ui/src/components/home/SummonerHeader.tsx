@@ -28,7 +28,7 @@ export function SummonerHeader({ summoner, ranked }: { summoner: Summoner; ranke
         </h2>
         <p className="rounded-full bg-raised px-3 py-1 text-caption font-semibold text-muted">Nível {summoner.summonerLevel}</p>
       </div>
-      <dl className="mx-5 mt-3 grid w-[calc(100%-2.5rem)] flex-1 grid-cols-2 gap-2 text-left">
+      <dl className="mx-5 mt-3 grid w-[calc(100%-2.5rem)] flex-1 grid-cols-2 gap-2 text-center">
         <RankTile title="Solo/Duo" entry={ranked?.soloDuo} />
         <RankTile title="Flex" entry={ranked?.flex} />
       </dl>
@@ -42,8 +42,8 @@ function RankTile({ title, entry }: { title: string; entry: RankedEntry | undefi
     <div className="flex flex-col rounded-tile bg-raised p-3">
       <dt className="text-caption font-semibold text-muted">{title}</dt>
       <dd className="mt-1 text-body font-semibold text-ink">{rank(entry)}</dd>
-      <dd className="flex flex-1 items-center justify-center pt-3 pb-1">
-        <TierEmblem tier={entry?.tier ?? null} size="md" />
+      <dd className="flex flex-1 items-center justify-center py-2">
+        <TierEmblem tier={entry?.tier ?? null} size="xl" />
       </dd>
     </div>
   );
