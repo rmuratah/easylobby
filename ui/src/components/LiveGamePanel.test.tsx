@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeState } from '../test/state';
-import { testLiveGame } from '../test/liveGame';
+import { livePlayer, liveStats, testLiveGame } from '../test/liveGame';
 import { LiveGamePanel } from './LiveGamePanel';
 
 const state = makeState({
@@ -38,6 +38,20 @@ describe('LiveGamePanel', () => {
     expect(within(me).getByText('Meio')).toBeInTheDocument();
     const rival = screen.getByRole('row', { name: 'Rival#NA1, Ahri' });
     expect(rival).toHaveTextContent('4 derrotas seguidas');
+  });
+
+  it.each([
+    [70, 30, 'text-orange', 'bg-orange'],
+    [69, 31, 'text-accent-ink', 'bg-accent'],
+    [50, 50, 'text-accent-ink', 'bg-accent'],
+    [49, 51, 'text-danger', 'bg-danger'],
+  ])('pinta %s%% de win rate com a cor da faixa', (wins, losses, text, bar) => {
+    const rank = { tier: 'GOLD', division: 'II', leaguePoints: 45, wins, losses, provisional: false } as const;
+    const game = { ...testLiveGame, teams: [{ ...testLiveGame.teams[0], players: [livePlayer({ stats: liveStats({ rank }) })] }] };
+    render(<LiveGamePanel state={state} game={game} />);
+    const cell = screen.getByTitle(`${wins}V ${losses}D`);
+    expect(within(cell).getByText(`${wins}%`)).toHaveClass(text);
+    expect(cell.querySelector('[style]')).toHaveClass(bar);
   });
 
   it('jogador anônimo e jogador carregando não quebram a tela', () => {

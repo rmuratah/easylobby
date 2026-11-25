@@ -195,17 +195,28 @@ function CurrentRank({ entry }: { entry: RankedEntry }) {
   );
 }
 
+/** Faixas do win rate: 70% ou mais em laranja, de 50% a 69% no teal, abaixo de 50% em vermelho. */
+function winRateBand(rate: number): 'high' | 'mid' | 'low' {
+  return rate >= 70 ? 'high' : rate >= 50 ? 'mid' : 'low';
+}
+
+const WIN_RATE_TONE = {
+  high: { text: 'text-orange', bar: 'bg-orange' },
+  mid: { text: 'text-accent-ink', bar: 'bg-accent' },
+  low: { text: 'text-danger', bar: 'bg-danger' },
+} as const;
+
 function RankedWinRate({ entry }: { entry: RankedEntry }) {
   const games = entry.wins + entry.losses;
   const rate = winRate(entry.wins, entry.losses);
   return (
     <span className="flex w-36 flex-col gap-1" title={`${entry.wins}V ${entry.losses}D`}>
       <span className="whitespace-nowrap">
-        <span className={cx('font-semibold', rate === null ? 'text-muted' : rate >= 50 ? 'text-accent-ink' : 'text-danger')}>{rate ?? 0}%</span>
+        <span className={cx('font-semibold', rate === null ? 'text-muted' : WIN_RATE_TONE[winRateBand(rate)].text)}>{rate ?? 0}%</span>
         <span className="text-muted"> ({plural(games, 'partida', 'partidas')})</span>
       </span>
       <span aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-raised">
-        <span className={cx('block h-full rounded-full', rate !== null && rate >= 50 ? 'bg-accent' : 'bg-danger')}
+        <span className={cx('block h-full rounded-full', WIN_RATE_TONE[winRateBand(rate ?? 0)].bar)}
           style={{ width: `${rate ?? 0}%` }} />
       </span>
     </span>
