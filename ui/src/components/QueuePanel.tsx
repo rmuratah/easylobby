@@ -21,6 +21,11 @@ type Props = {
    * toma o lugar do Jogar; o card fica só com o estado, o tempo e os motivos.
    */
   buttonSlot?: HTMLElement | null;
+  /**
+   * Fora do lobby, com a busca em andamento (#683): o botão do alto mostra a fila e leva de
+   * volta ao lobby, em vez de cancelar a busca.
+   */
+  onOpenLobby?: () => void;
 };
 const READY_IN_SLOT = 'O lobby está pronto. Use Buscar partida, no alto da janela.';
 type QueueCommand = Extract<Command, { type: 'startQueue' | 'stopQueue' }>;
@@ -48,7 +53,7 @@ function QueueTime({ confirmed, running, labelled = true }: { confirmed: number;
   return labelled ? <strong aria-label="Tempo na fila">{duration(confirmed + extra)}</strong> : <>{duration(confirmed + extra)}</>;
 }
 
-export function QueuePanel({ connection, send, buttonSlot = null }: Props) {
+export function QueuePanel({ connection, send, buttonSlot = null, onOpenLobby }: Props) {
   const state = connection.state;
   const lcu = state?.lcu;
   if (connection.status !== 'connected' || !state || lcu?.state !== 'connected') {
@@ -59,10 +64,10 @@ export function QueuePanel({ connection, send, buttonSlot = null }: Props) {
       </section>
     );
   }
-  return <QueueActions key={`${lcu.session}:${state.summoner?.puuid ?? ''}`} state={state} send={send} buttonSlot={buttonSlot} />;
+  return <QueueActions key={`${lcu.session}:${state.summoner?.puuid ?? ''}`} state={state} send={send} buttonSlot={buttonSlot} onOpenLobby={onOpenLobby} />;
 }
 
-function QueueActions({ state, send, buttonSlot }: { state: AgentState; send: AgentClient['send']; buttonSlot: HTMLElement | null }) {
+function QueueActions({ state, send, buttonSlot, onOpenLobby }: { state: AgentState; send: AgentClient['send']; buttonSlot: HTMLElement | null; onOpenLobby?: () => void }) {
   const { matchmaking, lobby, summoner, gameflowPhase: phase } = state;
   const [feedback, setFeedback] = useState<Feedback>({ status: 'idle', message: '' });
   // O erro some sozinho depois de alguns segundos (#335).
@@ -142,7 +147,22 @@ function QueueActions({ state, send, buttonSlot }: { state: AgentState; send: Ag
   const start = () => { sound.play('click'); void execute({ type: 'startQueue' }); };
   const stop = () => { void execute({ type: 'stopQueue' }); };
   // No alto da janela (#600): o mesmo par de botões, com o desenho do Jogar.
-  const topButtons = buttonSlot && createPortal(<>
+  const queueDetail = matchmaking && <span aria-hidden="true" className="app-play-button-detail tabular-nums">
+    <QueueTime key={`${matchmaking.searchState}:${matchmaking.timeInQueue}`} confirmed={matchmaking.timeInQueue} running={searching} labelled={false} />
+    {matchmaking.estimatedQueueTime > 0 && ` · ~${duration(matchmaking.estimatedQueueTime)}`}
+  </span>;
+  // Em outra aba (#683): a fila continua à vista no alto, e o clique volta ao lobby.
+  const awayButton = buttonSlot && onOpenLobby && matchmaking && createPortal(
+    <button type="button" aria-label="Na fila, voltar ao lobby" title="Voltar ao lobby" onClick={onOpenLobby}
+      className={cx('app-play-button app-queue-button', searching && 'is-searching')}>
+      <span className="app-play-button-face">
+        <span className="flex min-w-0 flex-col items-center leading-tight">
+          <span aria-hidden="true">Na fila</span>
+          {queueDetail}
+        </span>
+      </span>
+    </button>, buttonSlot);
+  const topButtons = awayButton || buttonSlot && createPortal(<>
     <button ref={startRef} type="button" hidden={active} aria-busy={pending} aria-label="Buscar partida"
       title={canStart ? 'Buscar partida' : restriction || 'Buscar partida'}
       disabled={!canStart || pending} onMouseEnter={hoverSound} onClick={start} className="app-play-button app-queue-button">
@@ -159,10 +179,7 @@ function QueueActions({ state, send, buttonSlot }: { state: AgentState; send: Ag
         <span className="flex min-w-0 flex-col items-center leading-tight">
           <span aria-hidden="true">Cancelar busca</span>
           {/* Tempo na fila e estimativa (#603), no lugar do card de busca. */}
-          {matchmaking && <span aria-hidden="true" className="app-play-button-detail tabular-nums">
-            <QueueTime key={`${matchmaking.searchState}:${matchmaking.timeInQueue}`} confirmed={matchmaking.timeInQueue} running={searching} labelled={false} />
-            {matchmaking.estimatedQueueTime > 0 && ` · ~${duration(matchmaking.estimatedQueueTime)}`}
-          </span>}
+          {queueDetail}
         </span>
       </span>
     </button>
