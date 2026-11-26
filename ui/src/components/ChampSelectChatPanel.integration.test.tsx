@@ -21,7 +21,13 @@ class Socket {
 }
 const socket = () => Socket.instances.at(-1)!;
 const chat = () => within(screen.getByRole('region', { name: 'Chat do time' }));
-const input = () => chat().getByRole('textbox', { name: 'Mensagem para o time' });
+const toggle = () => chat().queryByRole('button', { name: 'Abrir o chat do time' });
+/** O campo só aparece com o chat expandido (#681): abre antes, se preciso. */
+const input = () => {
+  const closed = toggle();
+  if (closed) fireEvent.click(closed);
+  return chat().getByRole('textbox', { name: 'Mensagem para o time' });
+};
 const last = (): ClientMessage => JSON.parse(socket().send.mock.lastCall![0]);
 const room: ChampSelectChat = {
   messages: [
@@ -53,6 +59,7 @@ it('mostra as mensagens com quem mandou e recebe as novas', () => {
 
 it('manda mensagem, limpa o campo e mostra erro sem perder o texto', async () => {
   render(<App />); hello();
+  input();
   expect(chat().getByRole('button', { name: 'Enviar' })).toBeDisabled();
   fireEvent.change(input(), { target: { value: '  bora  ' } });
   fireEvent.submit(input());
@@ -223,4 +230,40 @@ it('fica ao lado de feitiços e runas e volta para baixo do time adversário com
   const enemies = screen.getByRole('region', { name: 'Time adversário' });
   expect(enemies.parentElement).toContainElement(screen.getByRole('region', { name: 'Chat do time' }));
   width.mockRestore();
+});
+
+it('recolhido mostra as mensagens e a barra; expande ao clicar e fecha com Esc sem perder o rascunho (#681)', () => {
+  render(<App />); hello();
+  expect(chat().getByText('vou de jungle')).toBeVisible();
+  expect(chat().queryByRole('textbox')).not.toBeInTheDocument();
+  expect(toggle()).toHaveTextContent('Clique ou Enter para conversar');
+  fireEvent.click(chat().getByText('vou de jungle'));
+  const field = chat().getByRole('textbox', { name: 'Mensagem para o time' });
+  expect(field).toHaveFocus();
+  expect(screen.getByRole('region', { name: 'Chat do time' })).toHaveAttribute('data-expanded');
+  fireEvent.change(field, { target: { value: 'rascunho' } });
+  fireEvent.keyDown(field, { key: 'Escape' });
+  expect(chat().queryByRole('textbox')).not.toBeInTheDocument();
+  expect(toggle()).toHaveTextContent('rascunho');
+  expect(input()).toHaveValue('rascunho');
+});
+
+it('Enter fora de um campo de texto abre o chat; Enter com o campo vazio fecha (#681)', () => {
+  render(<App />); hello();
+  fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Buscar campeão' }), { key: 'Enter' });
+  expect(chat().queryByRole('textbox')).not.toBeInTheDocument();
+  fireEvent.keyDown(document.body, { key: 'Enter' });
+  const field = chat().getByRole('textbox', { name: 'Mensagem para o time' });
+  expect(field).toHaveFocus();
+  fireEvent.keyDown(field, { key: 'Enter' });
+  expect(chat().queryByRole('textbox')).not.toBeInTheDocument();
+});
+
+it('clicar fora fecha o chat expandido, e clicar dentro não (#681)', () => {
+  render(<App />); hello();
+  input();
+  fireEvent.pointerDown(chat().getByRole('log'));
+  expect(chat().getByRole('textbox')).toBeInTheDocument();
+  fireEvent.pointerDown(document.body);
+  expect(chat().queryByRole('textbox')).not.toBeInTheDocument();
 });
