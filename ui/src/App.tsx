@@ -142,8 +142,12 @@ export default function App() {
   // Seleção de campeões de altura e largura fixas (#623): cabe na janela, sem rolagem; só a grade e o chat rolam por dentro.
   const fixedChampSelect = ready && activePage === 'flow' && screen === 'champSelect';
   const fixedScreen = fixedLobby || fixedChampSelect;
-  const queueInSlot = ready && activePage === 'flow' && lobbyMain && stage && !!lobbyState && !changingMode
+  const queueOnLobby = ready && activePage === 'flow' && lobbyMain && stage && !!lobbyState && !changingMode
     && !unavailableFeature(connection, 'lobby');
+  // Na fila, em outra aba (#683): o botão do alto mostra a fila no lugar de "Grupo" e leva ao lobby.
+  const queueAway = ready && activePage !== 'flow' && lobbyMain && stage && !!lobbyState && !!connection.state?.matchmaking
+    && !unavailableFeature(connection, 'lobby');
+  const queueInSlot = queueOnLobby || queueAway;
   const title = screen === 'lobby' ? 'Lobby' : screen === 'queue' ? 'Fila'
     : found ? 'Partida encontrada' : screen === 'champSelect' ? 'Seleção de campeões'
       : screen === 'postGame' ? 'Fim de partida'
@@ -246,7 +250,8 @@ export default function App() {
                       <LobbyChatPanel connection={connection} send={connection.send} fill />
                     </div>
                     <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto">
-                      <QueuePanel connection={connection} send={connection.send} buttonSlot={queueInSlot ? queueSlot : null} />
+                      <QueuePanel connection={connection} send={connection.send} buttonSlot={queueInSlot ? queueSlot : null}
+                        onOpenLobby={queueAway ? () => setNavigation({ screen, page: 'flow' }) : undefined} />
                       <LobbyGroupCard connection={connection} />
                     </div>
                   </> : <>

@@ -157,6 +157,29 @@ describe('telas confirmadas pelo agente', () => {
     rerender(<App />);
     expect(screen.getByRole('button', { name: 'Cancelar busca' })).toBeEnabled();
   });
+  it('mostra a fila no botão do alto fora do lobby e volta ao lobby pelo clique (#683)', () => {
+    send.mockClear();
+    snapshot({ lobby: testReadyLobby, gameflowPhase: 'Matchmaking', matchmaking: testMatchmaking });
+    render(<App />);
+    expect(screen.getByRole('button', { name: 'Cancelar busca' })).toBeVisible();
+    for (const page of ['Conversas', 'Perfil', 'Coleção', 'Início']) {
+      fireEvent.click(screen.getByRole('button', { name: page }));
+      expect(screen.queryByRole('button', { name: 'Grupo' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Cancelar busca' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Na fila, voltar ao lobby' })).toBeVisible();
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Na fila, voltar ao lobby' }));
+    expect(screen.getByRole('button', { name: 'Cancelar busca' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Na fila, voltar ao lobby' })).not.toBeInTheDocument();
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'stopQueue' }));
+  });
+  it('mantém o botão Grupo fora do lobby sem busca (#683)', () => {
+    snapshot({ lobby: testReadyLobby, gameflowPhase: 'Lobby' });
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /^Conversas/ }));
+    expect(screen.getByRole('button', { name: 'Grupo' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Na fila, voltar ao lobby' })).not.toBeInTheDocument();
+  });
   it('destaca partida encontrada mesmo antes da fase e durante navegação', () => {
     snapshot({ lobby: testLobby, gameflowPhase: 'Lobby' });
     const { rerender } = render(<App />);
