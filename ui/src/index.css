@@ -143,7 +143,7 @@ button[aria-current="page"] { background: var(--el-accent-soft); border-color: v
 section.champ-select-chat:not([data-expanded]) .champ-select-chat-log { mask-image: linear-gradient(to bottom, transparent, #000 1.25rem); }
 section.champ-select-chat[data-expanded] { overflow: visible; z-index: 30; }
 section.champ-select-chat[data-expanded] .champ-select-chat-box {
-  position: absolute; inset-inline: 0; bottom: 0; height: max(100%, min(22rem, 70vh));
+  position: absolute; inset-inline: 0; bottom: 0; height: max(100%, min(16rem, 70vh));
   box-shadow: 0 -12px 32px -8px rgb(0 0 0 / .35);
 }
 section.champ-select-chat[data-expanded] .champ-select-chat-log { flex: 1 1 0; max-height: none; }
