@@ -71,6 +71,23 @@ it('mostra as runas com as estatísticas do fim da partida (#586)', () => {
   expect(mine.getByText('Total de dano causado: 1.419')).toBeInTheDocument();
 });
 
+it('na aba Runas, aliados ficam na coluna esquerda e inimigos na direita, na ordem (#685)', () => {
+  render(<App />);
+  hello({ gameflowPhase: 'EndOfGame', gameResult: testGameResult, runeCatalog: testRuneCatalog });
+  fireEvent.click(tab('Runas'));
+  const cards = panel().getAllByRole('region', { name: /^Runas de / });
+  const [allies, enemies] = testGameResult.teams;
+  expect(cards.map(card => card.dataset.team)).toEqual([
+    ...allies.players.map(() => 'aliado'), ...enemies.players.map(() => 'inimigo'),
+  ]);
+  const allyCards = cards.filter(card => card.dataset.team === 'aliado');
+  const enemyCards = cards.filter(card => card.dataset.team === 'inimigo');
+  expect(allyCards.every(card => card.className.includes('col-start-1'))).toBe(true);
+  expect(enemyCards.every(card => card.className.includes('col-start-2'))).toBe(true);
+  expect(cards[0]).toHaveAccessibleName(`Runas de ${allies.players[0].gameName}`);
+  expect(enemyCards[0]).toHaveAccessibleName(`Runas de ${enemies.players[0].gameName}`);
+});
+
 it('sem runas na partida (ARAM: Desordem), não mostra a aba Runas (#586)', () => {
   const noRunes: GameResult = {
     ...testGameResult,
