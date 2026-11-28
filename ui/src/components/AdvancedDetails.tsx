@@ -175,15 +175,22 @@ export function AdvancedCharts({ columns, state, localPuuid, onOpenProfile }: Pr
  */
 export function AdvancedRunes({ columns, state, localPuuid, onOpenProfile }: Props) {
   const perks = state.runeCatalog?.perks ?? [];
+  // Aliados primeiro, depois os inimigos (#685). Com duas colunas, cada time
+  // fica preso à sua coluna e o fluxo "dense" põe o 1º inimigo na 1ª linha,
+  // ao lado do 1º aliado; com uma coluna, os aliados vêm antes dos inimigos.
+  const allyTeam = columns[0]?.teamId;
+  const ordered = [...columns.filter(c => c.teamId === allyTeam), ...columns.filter(c => c.teamId !== allyTeam)];
   return (
-    <div className="grid gap-2 @min-[56rem]:grid-cols-2">
-      {columns.map((c, i) => {
+    <div className="grid gap-2 @min-[56rem]:grid-flow-row-dense @min-[56rem]:grid-cols-2">
+      {ordered.map((c, i) => {
         const me = isMe(c, localPuuid);
+        const ally = c.teamId === allyTeam;
         const runes = runeResults(c.stats, perks);
         return (
           <section key={i} aria-label={`Runas de ${c.player.gameName || championName(state, c.player.championId)}`}
-            className={cx('flex flex-col gap-2 rounded-card p-3', me ? 'bg-accent-soft' : 'bg-raised',
-              c.teamId !== columns[0]?.teamId && 'border-l-4 border-danger', c.teamId === columns[0]?.teamId && 'border-l-4 border-accent')}>
+            data-team={ally ? 'aliado' : 'inimigo'}
+            className={cx('flex flex-col gap-2 rounded-card border-l-4 p-3', me ? 'bg-accent-soft' : 'bg-raised',
+              ally ? 'border-accent @min-[56rem]:col-start-1' : 'border-danger @min-[56rem]:col-start-2')}>
             <PlayerName column={c} state={state} me={me} onOpenProfile={onOpenProfile} align="left" />
             {runes.length === 0
               ? <p className="text-caption text-muted">Sem runas nesta partida.</p>
